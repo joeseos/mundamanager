@@ -67,26 +67,65 @@ export function SkillsList({
         </div>
       </div>
 
-      {free_skill && skillsArray.length === 0 ? (
-        <div className="text-center py-4">
-          <div className="flex items-center justify-center gap-2 text-amber-700">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              viewBox="0 0 24 24" 
-              fill="currentColor" 
-              className="w-4 h-4"
-            >
-              <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-            </svg>
-            Starting skill missing.
-          </div>
-        </div>
-      ) : (
-        <FighterSkillsTable 
-          skills={skillsArray}
-          onDeleteSkill={handleDeleteClick}
-        />
-      )}
+      <div className="overflow-x-auto">
+        <table className="w-full table-auto">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="px-1 py-1 text-left w-[75%]">Name</th>
+              <th className="px-1 py-1 text-right w-[25%]">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {free_skill && skillsArray.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="text-center py-4">
+                  <div className="flex items-center justify-center gap-2 text-amber-700">
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 24 24" 
+                      fill="currentColor" 
+                      className="w-4 h-4"
+                    >
+                      <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                    </svg>
+                    Starting skill missing.
+                  </div>
+                </td>
+              </tr>
+            ) : skillsArray.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="text-center py-4 text-gray-500">
+                  No skills available
+                </td>
+              </tr>
+            ) : (
+              skillsArray.map((skill) => (
+                <tr key={skill.id} className="border-b">
+                  <td className="px-1 py-1">{skill.name}</td>
+                  <td className="px-1 py-1">
+                    <div className="flex justify-end">
+                      {skill.fighter_injury_id ? (
+                        <span className="text-gray-500 text-sm italic">
+                          (added by injury)
+                        </span>
+                      ) : (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteClick(skill.id, skill.name)}
+                          className="text-xs px-1.5 h-6"
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {skillToDelete && (
         <Modal
