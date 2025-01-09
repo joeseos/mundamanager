@@ -291,7 +291,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
         <div className="p-4 overflow-y-auto flex-grow">
-          {error && <p className="text-red-500 mb-4">{error}</p>}
+          {error && <p className="text-red-500 mb-2">{error}</p>}
           <div>
             {categories.map((category) => (
               <div key={category.id}>
@@ -307,7 +307,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   )}
                 </div>
                 {expandedCategory === category.category_name && (
-                  <div className="pl-4 mb-2">
+                  <div className="pl-4">
                     {categoryLoadingStates[category.category_name] ? (
                       <div className="flex justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
@@ -320,7 +320,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                         return (
                           <div 
                             key={item.equipment_id}
-                            className={`bg-white border border-gray-200 rounded-md p-2 mb-2 flex justify-between items-center ${!affordable ? 'opacity-50' : ''}`}
+                            className={`bg-white border border-gray-200 rounded-md p-2 flex justify-between items-center ${!affordable ? 'opacity-50' : ''}`}
                           >
                             <span className="text-sm">{item.equipment_name}</span>
                             <div className="flex items-center gap-2">
