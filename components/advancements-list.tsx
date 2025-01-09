@@ -180,7 +180,7 @@ export function AdvancementsList({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className="text-2xl font-bold">Advancements</h2>
         <Button 
           onClick={() => setIsAdvancementModalOpen(true)}
