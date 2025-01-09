@@ -369,26 +369,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            AP
-                          </label>
-                          <Input
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Short Range
                           </label>
                           <Input
@@ -404,16 +384,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <Input
                             value={profile.range_long}
                             onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Ammo
-                          </label>
-                          <Input
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
                           />
                         </div>
 
@@ -439,6 +409,26 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Strength
+                          </label>
+                          <Input
+                            value={profile.strength}
+                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            AP
+                          </label>
+                          <Input
+                            value={profile.ap}
+                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Damage
                           </label>
                           <Input
@@ -446,6 +436,16 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             value={profile.damage}
                             onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
                             placeholder="e.g. 1, D3, 2D6"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Ammo
+                          </label>
+                          <Input
+                            value={profile.ammo}
+                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
                           />
                         </div>
 
