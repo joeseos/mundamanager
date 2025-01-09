@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { useToast } from './ui/use-toast';
 import Modal from './modal';
@@ -14,6 +14,11 @@ interface InjuriesListProps {
   onInjuryAdded: () => void;
 }
 
+interface InjuryType {
+  id: string;
+  injury_name: string;
+}
+
 export function InjuriesList({ 
   injuries = [],
   onDeleteInjury,
@@ -22,7 +27,76 @@ export function InjuriesList({
 }: InjuriesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
+  const [availableInjuries, setAvailableInjuries] = useState<InjuryType[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchInjuries = async () => {
+      try {
+        const response = await fetch('/api/injuries');
+        if (!response.ok) throw new Error('Failed to fetch injuries');
+        const data = await response.json();
+        setAvailableInjuries(data);
+      } catch (error) {
+        console.error('Error fetching injuries:', error);
+        toast({
+          description: 'Failed to load injury types',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchInjuries();
+  }, [toast]);
+
+  const handleAddInjury = async () => {
+    if (!selectedInjuryId) {
+      toast({
+        description: "Please select an injury",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_injury`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            input_fighter_id: fighterId,
+            input_injury_id: selectedInjuryId
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to add injury');
+      }
+
+      toast({
+        description: "Injury added successfully",
+        variant: "default"
+      });
+
+      setSelectedInjuryId('');
+      onInjuryAdded();
+      return true;
+    } catch (error) {
+      console.error('Error adding injury:', error);
+      toast({
+        description: 'Failed to add injury',
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
 
   const handleDeleteInjury = async (injuryId: string) => {
     setIsDeleting(injuryId);
@@ -51,7 +125,7 @@ export function InjuriesList({
       <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className="text-2xl font-bold">Injuries</h2>
         <Button 
-          onClick={() => {/* TODO: Add injury modal */}}
+          onClick={() => setIsAddModalOpen(true)}
           className="bg-black hover:bg-gray-800 text-white"
         >
           Add
@@ -103,6 +177,41 @@ export function InjuriesList({
           </table>
         </div>
       </div>
+
+      {isAddModalOpen && (
+        <Modal
+          title="Add Injury"
+          content={
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="injurySelect" className="text-sm font-medium">
+                  Select Injury
+                </label>
+                <select
+                  id="injurySelect"
+                  value={selectedInjuryId}
+                  onChange={(e) => setSelectedInjuryId(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select an injury</option>
+                  {availableInjuries.map((injury) => (
+                    <option key={injury.id} value={injury.id}>
+                      {injury.injury_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          }
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setSelectedInjuryId('');
+          }}
+          onConfirm={handleAddInjury}
+          confirmText="Add Injury"
+          confirmDisabled={!selectedInjuryId}
+        />
+      )}
 
       {deleteModalData && (
         <Modal
