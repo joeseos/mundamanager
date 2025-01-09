@@ -1,0 +1,135 @@
+import { useState, useEffect, useRef } from 'react';
+import { Button } from './ui/button';
+import { useToast } from './ui/use-toast';
+import { Textarea } from './ui/textarea';
+
+interface NotesListProps {
+  fighterId: string;
+  initialNote?: string;
+}
+
+export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
+  // Ensure note is always a string
+  const [note, setNote] = useState(initialNote || '');
+  const [isEditing, setIsEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [wordCount, setWordCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  // Update word count when note changes
+  useEffect(() => {
+    // Ensure we're working with a string
+    const noteText = note || '';
+    const count = noteText.split(/\s+/).length;
+    setWordCount(count);
+  }, [note]);
+
+  // When initialNote changes, update the note state
+  useEffect(() => {
+    setNote(initialNote || '');
+  }, [initialNote]);
+
+  const handleSave = async () => {
+    try {
+      setError(null);
+      setIsSaving(true);
+      
+      // Client-side validation
+      if (wordCount > 250) {
+        setError('Note cannot exceed 250 words');
+        return;
+      }
+
+      const response = await fetch(`/api/fighters/${fighterId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ note }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update notes');
+      }
+
+      toast({
+        description: "Notes updated successfully",
+        variant: "default"
+      });
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating notes:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update notes');
+      toast({
+        title: "Error",
+        description: "Failed to update notes",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Notes</h3>
+        <div className="flex items-center gap-2">
+          {isEditing && (
+            <span className={`text-sm ${wordCount > 250 ? 'text-red-500' : 'text-gray-500'}`}>
+              {wordCount}/250 words
+            </span>
+          )}
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setNote(initialNote);
+                    setError(null);
+                  }}
+                  variant="outline"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSave}
+                  disabled={wordCount > 250 || isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)}>
+                Edit
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-red-500 text-sm">{error}</p>
+      )}
+
+      {isEditing ? (
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className="min-h-[100px]"
+          placeholder="Add notes here..."
+        />
+      ) : (
+        <div className="whitespace-pre-wrap">
+          {note || 'No notes added.'}
+        </div>
+      )}
+    </div>
+  );
+} 
