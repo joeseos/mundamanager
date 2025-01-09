@@ -197,7 +197,10 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
     >
       <div className="bg-white shadow-md rounded-lg p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Create a New Gang</h2>
+          <div>
+            <h2 className="text-2xl font-bold">Create a New Gang</h2>
+            <p className="text-sm text-gray-500">Fields marked with * are required</p>
+          </div>
           <button 
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -208,7 +211,7 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
         <div className="space-y-4">
           <div>
             <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Gang Name
+              Gang Name *
             </label>
             <Input
               id="gang-name"
@@ -220,7 +223,7 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
           </div>
           <div>
             <label htmlFor="gang-type" className="block text-sm font-medium text-gray-700 mb-1">
-              Gang Type
+              Gang Type *
             </label>
             <select
               id="gang-type"
@@ -240,7 +243,7 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
           <SubmitButton 
             onClick={handleCreateGang} 
             className="w-full" 
-            disabled={isLoading}
+            disabled={isLoading || !gangName.trim() || !gangType}
             pendingText="Creating..."
           >
             Create Gang
