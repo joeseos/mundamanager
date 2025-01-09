@@ -486,7 +486,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           <div className="space-y-4">
             <div className="relative">
               <select
-                className="w-full p-2 border rounded-md appearance-none bg-white"
+                className="w-full p-2 border rounded-md"
                 value={advancementType}
                 onChange={(e) => {
                   setAdvancementType(e.target.value as 'characteristic' | 'skill');
@@ -499,13 +499,12 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                 <option key="characteristic" value="characteristic">Characteristic</option>
                 <option key="skill" value="skill">Skill</option>
               </select>
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">▼</div>
             </div>
 
             {advancementType && !loading && (
               <div className="relative">
                 <select
-                  className="w-full p-2 border rounded-md appearance-none bg-white"
+                  className="w-full p-2 border rounded-md"
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
@@ -521,7 +520,6 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">▼</div>
               </div>
             )}
 
@@ -529,7 +527,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
               <>
                 <div className="relative">
                   <select
-                    className="w-full p-2 border rounded-md appearance-none bg-white"
+                    className="w-full p-2 border rounded-md"
                     value={selectedAdvancement?.id || ''}
                     onChange={(e) => {
                       const selected = availableAdvancements.find(adv => adv.id === e.target.value);
@@ -557,13 +555,12 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                       );
                     })}
                   </select>
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">▼</div>
                 </div>
 
                 {selectedAdvancement && (
                   <div className="relative">
                     <select
-                      className="w-full p-2 border rounded-md appearance-none bg-white"
+                      className="w-full p-2 border rounded-md"
                       value={skillAcquisitionType}
                       onChange={(e) => {
                         const acquisitionType = e.target.value;
@@ -599,7 +596,6 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                           );
                         })}
                     </select>
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">▼</div>
                   </div>
                 )}
               </>
