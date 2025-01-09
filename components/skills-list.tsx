@@ -105,7 +105,7 @@ export function SkillsList({
                   <td className="px-1 py-1">
                     <div className="flex justify-end">
                       {skill.fighter_injury_id ? (
-                        <span className="text-gray-500 text-sm italic">
+                        <span className="text-gray-500 text-sm italic whitespace-nowrap">
                           (added by injury)
                         </span>
                       ) : (
