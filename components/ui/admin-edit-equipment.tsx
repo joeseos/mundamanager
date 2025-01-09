@@ -547,32 +547,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                            placeholder="e.g. 3, S+1"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            AP
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                            placeholder="e.g. -1, -"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Short Range
                           </label>
                           <Input
@@ -593,19 +567,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             value={profile.range_long}
                             onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
                             placeholder="Enter long range"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Ammo
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder="Enter ammo"
                             disabled={!selectedEquipmentId}
                           />
                         </div>
@@ -638,6 +599,32 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Strength
+                          </label>
+                          <Input
+                            type="text"
+                            value={profile.strength}
+                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
+                            placeholder="e.g. 3, S+1"
+                            disabled={!selectedEquipmentId}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            AP
+                          </label>
+                          <Input
+                            type="text"
+                            value={profile.ap}
+                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
+                            placeholder="e.g. -1, -"
+                            disabled={!selectedEquipmentId}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Damage
                           </label>
                           <Input
@@ -645,6 +632,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             value={profile.damage}
                             onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
                             placeholder="e.g. 1, D3, 2D6"
+                            disabled={!selectedEquipmentId}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Ammo
+                          </label>
+                          <Input
+                            type="text"
+                            value={profile.ammo}
+                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
+                            placeholder="Enter ammo"
                             disabled={!selectedEquipmentId}
                           />
                         </div>
