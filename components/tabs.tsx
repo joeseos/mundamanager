@@ -13,7 +13,7 @@ const Tabs = ({ children }: TabsProps) => {
     { title: 'Details' },
     { title: 'Stash' },
     { title: 'Fighters' },
-    { title: 'History' },
+    { title: 'Notes' },
   ];
 
   return (
