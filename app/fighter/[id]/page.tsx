@@ -170,22 +170,51 @@ interface Advancement {
   created_at: string;
 }
 
-const transformFighterData = (fighter: any) => {
-  // Get all characteristics from the response
-  const characteristics = fighter.characteristics || [];
-  
-  // Transform skills to match expected format
-  const skills = fighter.skills || {};
+// First, define our consolidated state interfaces
+interface FighterPageState {
+  fighter: Fighter | null;
+  equipment: Equipment[];
+  advancements: Advancement[];
+  gang: Gang | null;
+  gangFighters: {
+    id: string;
+    fighter_name: string;
+    fighter_type: string;
+    xp: number | null;
+  }[];
+}
 
-  return {
-    characteristics,
-    skills,
-    advancement: fighter.advancement || [],
-    note: fighter.note || ''
+interface UIState {
+  isLoading: boolean;
+  error: string | null;
+  modals: {
+    delete: boolean;
+    addWeapon: boolean;
+    addXp: boolean;
+    advancement: boolean;
+    kill: boolean;
+    retire: boolean;
+    enslave: boolean;
+    starve: boolean;
+    editFighter: boolean;
   };
-};
+}
 
-const calculateInjuryModifications = (injuries: Injury[]) => {
+interface EditState {
+  name: string;
+  label: string;
+  kills: number;
+  costAdjustment: string;
+  xpAmount: string;
+  xpError: string;
+}
+
+const calculateInjuryModifications = (injuries: Array<{
+  code_1?: string;
+  characteristic_1?: number;
+  code_2?: string;
+  characteristic_2?: number;
+}>) => {
   const modifications: { [key: string]: number } = {
     'M': 0,  // Movement
     'WS': 0, // Weapon Skill
@@ -213,60 +242,77 @@ const calculateInjuryModifications = (injuries: Injury[]) => {
   return modifications;
 };
 
-async function getFighterData(fighterId: string) {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-      },
-      body: JSON.stringify({
-        "p_fighter_id": fighterId
-      })
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch fighter details');
+const transformFighterData = (fighter: Fighter | null) => {
+  if (!fighter) {
+    return {
+      characteristics: [],
+      skills: {},
+      advancements: [],
+      note: ''
+    };
   }
 
-  const [data] = await response.json();
-  return data;
-}
+  const transformedSkills = Object.entries(fighter.skills || {}).reduce((acc, [key, value]) => {
+    acc[key] = {
+      ...value,
+      is_advance: true
+    };
+    return acc;
+  }, {} as Record<string, { 
+    id: string; 
+    xp_cost: number; 
+    credits_increase: number; 
+    acquired_at: string;
+    is_advance: boolean;
+  }>);
+
+  return {
+    characteristics: fighter.characteristics || [],
+    skills: transformedSkills,
+    advancements: fighter.advancements || [],
+    note: fighter.note || ''
+  };
+};
 
 export default function FighterPage({ params }: { params: { id: string } }) {
-  const [fighter, setFighter] = useState<Fighter | null>(null);
-  const [gang, setGang] = useState<Gang | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isAddWeaponModalOpen, setIsAddWeaponModalOpen] = useState(false);
+  // Replace multiple state declarations with consolidated state
+  const [fighterData, setFighterData] = useState<FighterPageState>({
+    fighter: null,
+    equipment: [],
+    advancements: [],
+    gang: null,
+    gangFighters: []
+  });
+
+  const [uiState, setUiState] = useState<UIState>({
+    isLoading: true,
+    error: null,
+    modals: {
+      delete: false,
+      addWeapon: false,
+      addXp: false,
+      advancement: false,
+      kill: false,
+      retire: false,
+      enslave: false,
+      starve: false,
+      editFighter: false
+    }
+  });
+
+  const [editState, setEditState] = useState<EditState>({
+    name: '',
+    label: '',
+    kills: 0,
+    costAdjustment: '0',
+    xpAmount: '',
+    xpError: ''
+  });
+
   const router = useRouter();
   const { toast } = useToast();
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [advancements, setAdvancements] = useState<Advancement[]>([]);
-  const [gangFighters, setGangFighters] = useState<{
-    id: string, 
-    fighter_name: string, 
-    fighter_type: string,
-    xp: number | null
-  }[]>([]);
-  const [isAddXpModalOpen, setIsAddXpModalOpen] = useState(false);
-  const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
-  const [isKillModalOpen, setIsKillModalOpen] = useState(false);
-  const [isRetireModalOpen, setIsRetireModalOpen] = useState(false);
-  const [isEnslavedModalOpen, setIsEnslavedModalOpen] = useState(false);
-  const [isStarveModalOpen, setIsStarveModalOpen] = useState(false);
-  const [isEditFighterModalOpen, setIsEditFighterModalOpen] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [editedKills, setEditedKills] = useState<number>(0);
-  const [editedCostAdjustment, setEditedCostAdjustment] = useState<string>('');
-  const [xpAmount, setXpAmount] = useState('');
-  const [xpError, setXpError] = useState('');
-  const [editedLabel, setEditedLabel] = useState('');
 
+  // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
     if (!params.id) {
       console.error('No fighter ID provided');
@@ -290,13 +336,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
         throw new Error('Failed to fetch fighter details');
       }
 
       const [{ result }] = await response.json();
-      console.log('Raw fighter response:', result);
-      console.log('Fighter type data:', result.fighter.fighter_type);
 
       // Transform equipment data
       const transformedEquipment = (result.equipment || []).map((item: any) => ({
@@ -310,31 +353,42 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         core_equipment: item.core_equipment
       }));
 
-      setEquipment(transformedEquipment);
+      // Update state in a single operation
+      setFighterData(prev => ({
+        ...prev,
+        fighter: {
+          ...result.fighter,
+          base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
+          gang_id: result.gang.id,
+          gang_type_id: result.gang.gang_type_id,
+          characteristics: result.fighter.characteristics || [],
+          skills: result.fighter.skills || {}
+        },
+        equipment: transformedEquipment,
+        gang: {
+          id: result.gang.id,
+          credits: result.gang.credits
+        }
+      }));
 
-      // Set the fighter data with characteristics directly from the response
-      setFighter({
-        ...result.fighter,
-        base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
-        gang_id: result.gang.id,
-        gang_type_id: result.gang.gang_type_id,
-        characteristics: result.fighter.characteristics || [],
-        skills: result.fighter.skills || {}
-      });
+      setEditState(prev => ({
+        ...prev,
+        costAdjustment: String(result.fighter.cost_adjustment || 0)
+      }));
 
-      // Update editedCostAdjustment when fighter data is loaded
-      setEditedCostAdjustment(String(result.fighter.cost_adjustment || 0));
+      setUiState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: null
+      }));
 
-      setGang({
-        id: result.gang.id,
-        credits: result.gang.credits
-      });
-      
     } catch (err) {
       console.error('Error fetching fighter details:', err);
-      setError('Failed to load fighter details');
-    } finally {
-      setIsLoading(false);
+      setUiState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Failed to load fighter details'
+      }));
     }
   }, [params.id]);
 
@@ -343,7 +397,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   }, [fetchFighterData]);
 
   const handleDeleteFighter = useCallback(async () => {
-    if (!fighter || !gang) return;
+    if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
       const response = await fetch(
@@ -355,18 +409,18 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
           body: JSON.stringify({
-            fighter_id: fighter.id,
+            fighter_id: fighterData.fighter.id,
             operations: [
               {
                 path: "fighter_equipment",  // Changed from fighter_weapons
                 params: {
-                  fighter_id: `eq.${fighter.id}`  // Added eq. prefix
+                  fighter_id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
                 }
               },
               {
                 path: "fighters",
                 params: {
-                  id: `eq.${fighter.id}`  // Added eq. prefix
+                  id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
                 }
               }
             ]
@@ -380,11 +434,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: `${fighter.fighter_name} has been successfully deleted.`,
+        description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
         variant: "default"
       });
 
-      router.push(`/gang/${gang.id}`);
+      router.push(`/gang/${fighterData.gang.id}`);
     } catch (error) {
       console.error('Error deleting fighter:', error);
       toast({
@@ -392,31 +446,52 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         variant: "destructive"
       });
     } finally {
-      setIsDeleteModalOpen(false);
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          delete: false
+        }
+      }));
     }
-  }, [fighter, gang, toast, router]);
+  }, [fighterData.fighter, fighterData.gang, toast, router]);
 
   const handleFighterCreditsUpdate = useCallback((newCredits: number) => {
-    setFighter((prev: Fighter | null) => prev ? { ...prev, credits: newCredits } : null);
+    setFighterData(prev => ({
+      ...prev,
+      fighter: prev.fighter ? { ...prev.fighter, credits: newCredits } : null
+    }));
   }, []);
 
   const handleGangCreditsUpdate = useCallback((newCredits: number) => {
-    setGang((prev: Gang | null) => prev ? { ...prev, credits: newCredits } : null);
+    setFighterData(prev => ({
+      ...prev,
+      gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
+    }));
   }, []);
 
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
-    setEquipment(updatedEquipment);
-    setFighter((prev: Fighter | null) => prev ? { ...prev, credits: newFighterCredits } : null);
-    setGang((prev: Gang | null) => prev ? { ...prev, credits: newGangCredits } : null);
+    setFighterData(prev => ({
+      ...prev,
+      equipment: updatedEquipment,
+      fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
+      gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+    }));
   }, []);
 
   const handleEquipmentBought = useCallback((newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => {
-    setFighter((prev: Fighter | null) => prev ? { ...prev, credits: newFighterCredits } : null);
-    setGang((prev: Gang | null) => prev ? { ...prev, credits: newGangCredits } : null);
-    setEquipment((prevEquipment) => [...prevEquipment, {
-      ...boughtEquipment,
-      cost: boughtEquipment.cost
-    }]);
+    setFighterData(prev => ({
+      ...prev,
+      fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
+      gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+    }));
+    setFighterData(prev => ({
+      ...prev,
+      equipment: [...prev.equipment, {
+        ...boughtEquipment,
+        cost: boughtEquipment.cost
+      }]
+    }));
   }, []);
 
   const fetchGangFighters = useCallback(async (gangId: string) => {
@@ -432,35 +507,47 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       if (!response.ok) throw new Error('Failed to fetch fighters');
       const data = await response.json();
-      setGangFighters(data);
+      setFighterData(prev => ({
+        ...prev,
+        gangFighters: data
+      }));
     } catch (error) {
       console.error('Error fetching gang fighters:', error);
     }
   }, []);
 
   useEffect(() => {
-    if (fighter?.gang_id) {
-      fetchGangFighters(fighter.gang_id);
+    if (fighterData.fighter?.gang_id) {
+      fetchGangFighters(fighterData.fighter.gang_id);
     }
-  }, [fighter?.gang_id, fetchGangFighters]);
+  }, [fighterData.fighter?.gang_id, fetchGangFighters]);
 
   const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     router.push(`/fighter/${e.target.value}`);
   };
 
   const handleNameUpdate = useCallback((newName: string) => {
-    setFighter((prev: Fighter | null) => prev ? { ...prev, fighter_name: newName } : null);
+    setFighterData(prev => ({
+      ...prev,
+      fighter: prev.fighter ? { ...prev.fighter, fighter_name: newName } : null
+    }));
   }, []);
 
   const handleAddXp = async () => {
-    const amount = parseInt(xpAmount);
+    const amount = parseInt(editState.xpAmount);
     
     if (isNaN(amount) || amount <= 0) {
-      setXpError('Please enter a valid positive number');
+      setEditState(prev => ({
+        ...prev,
+        xpError: 'Please enter a valid positive number'
+      }));
       return false;
     }
 
-    setXpError('');
+    setEditState(prev => ({
+      ...prev,
+      xpError: ''
+    }));
     
     try {
       const response = await fetch(`/api/fighters/${params.id}`, {
@@ -477,14 +564,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const updatedFighter = await response.json();
       
       // Update local state
-      setFighter(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
+      setFighterData(prev => ({
+        ...prev,
+        fighter: prev.fighter ? {
+          ...prev.fighter,
           xp: updatedFighter.xp,
           total_xp: updatedFighter.total_xp
-        };
-      });
+        } : null
+      }));
       
       toast({
         description: `Successfully added ${amount} XP`,
@@ -494,7 +581,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       return true;
     } catch (error) {
       console.error('Error adding XP:', error);
-      setXpError('Failed to add XP. Please try again.');
+      setEditState(prev => ({
+        ...prev,
+        xpError: 'Failed to add XP. Please try again.'
+      }));
       toast({
         description: 'Failed to add XP',
         variant: "destructive"
@@ -508,12 +598,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   const handleKillFighter = useCallback(async () => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
-    const newKilledState = !fighter.killed;
+    const newKilledState = !fighterData.fighter.killed;
 
     try {
-      const response = await fetch(`/api/fighters/${fighter.id}`, {
+      const response = await fetch(`/api/fighters/${fighterData.fighter.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -524,13 +614,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
 
       if (!response.ok) {
-        throw new Error(fighter.killed ? 'Failed to resurrect fighter' : 'Failed to kill fighter');
+        throw new Error(fighterData.fighter.killed ? 'Failed to resurrect fighter' : 'Failed to kill fighter');
       }
 
       toast({
-        description: fighter.killed 
-          ? `${fighter.fighter_name} has been resurrected.`
-          : `${fighter.fighter_name} has been killed in action.`,
+        description: fighterData.fighter.killed 
+          ? `${fighterData.fighter.fighter_name} has been resurrected.`
+          : `${fighterData.fighter.fighter_name} has been killed in action.`,
         variant: "default"
       });
 
@@ -538,23 +628,29 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter status:', error);
       toast({
-        description: fighter.killed 
+        description: fighterData.fighter.killed 
           ? 'Failed to resurrect fighter. Please try again.'
           : 'Failed to kill fighter. Please try again.',
         variant: "destructive"
       });
     } finally {
-      setIsKillModalOpen(false);
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          kill: false
+        }
+      }));
     }
-  }, [fighter, toast, fetchFighterData]);
+  }, [fighterData.fighter, toast, fetchFighterData]);
 
   const handleRetireFighter = useCallback(async () => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
-    const newRetiredState = !fighter.retired;
+    const newRetiredState = !fighterData.fighter.retired;
 
     try {
-      const response = await fetch(`/api/fighters/${fighter.id}`, {
+      const response = await fetch(`/api/fighters/${fighterData.fighter.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -565,13 +661,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
 
       if (!response.ok) {
-        throw new Error(fighter.retired ? 'Failed to unretire fighter' : 'Failed to retire fighter');
+        throw new Error(fighterData.fighter.retired ? 'Failed to unretire fighter' : 'Failed to retire fighter');
       }
 
       toast({
-        description: fighter.retired 
-          ? `${fighter.fighter_name} has come out of retirement.`
-          : `${fighter.fighter_name} has retired from fighting.`,
+        description: fighterData.fighter.retired 
+          ? `${fighterData.fighter.fighter_name} has come out of retirement.`
+          : `${fighterData.fighter.fighter_name} has retired from fighting.`,
         variant: "default"
       });
 
@@ -579,23 +675,29 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter retirement status:', error);
       toast({
-        description: fighter.retired 
+        description: fighterData.fighter.retired 
           ? 'Failed to unretire fighter. Please try again.'
           : 'Failed to retire fighter. Please try again.',
         variant: "destructive"
       });
     } finally {
-      setIsRetireModalOpen(false);
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          retire: false
+        }
+      }));
     }
-  }, [fighter, toast, fetchFighterData]);
+  }, [fighterData.fighter, toast, fetchFighterData]);
 
   const handleEnslaveFighter = useCallback(async () => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
-    const newEnslavedState = !fighter.enslaved;
+    const newEnslavedState = !fighterData.fighter.enslaved;
 
     try {
-      const response = await fetch(`/api/fighters/${fighter.id}`, {
+      const response = await fetch(`/api/fighters/${fighterData.fighter.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -606,13 +708,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
 
       if (!response.ok) {
-        throw new Error(fighter.enslaved ? 'Failed to rescue fighter' : 'Failed to sell fighter');
+        throw new Error(fighterData.fighter.enslaved ? 'Failed to rescue fighter' : 'Failed to sell fighter');
       }
 
       toast({
-        description: fighter.enslaved 
-          ? `${fighter.fighter_name} has been rescued from the Guilders.`
-          : `${fighter.fighter_name} has been sold to the Guilders.`,
+        description: fighterData.fighter.enslaved 
+          ? `${fighterData.fighter.fighter_name} has been rescued from the Guilders.`
+          : `${fighterData.fighter.fighter_name} has been sold to the Guilders.`,
         variant: "default"
       });
 
@@ -620,23 +722,29 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter enslavement status:', error);
       toast({
-        description: fighter.enslaved 
+        description: fighterData.fighter.enslaved 
           ? 'Failed to rescue fighter. Please try again.'
           : 'Failed to sell fighter. Please try again.',
         variant: "destructive"
       });
     } finally {
-      setIsEnslavedModalOpen(false);
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          enslave: false
+        }
+      }));
     }
-  }, [fighter, toast, fetchFighterData]);
+  }, [fighterData.fighter, toast, fetchFighterData]);
 
   const handleStarveFighter = useCallback(async () => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
-    const newStarvedState = !fighter.starved;
+    const newStarvedState = !fighterData.fighter.starved;
 
     try {
-      if (fighter.starved) {
+      if (fighterData.fighter.starved) {
         // If currently starved, use the feed_fighter RPC
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/feed_fighter`,
@@ -647,7 +755,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             },
             body: JSON.stringify({
-              fighter_id: fighter.id
+              fighter_id: fighterData.fighter.id
             }),
           }
         );
@@ -664,7 +772,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       } else {
         // If not starved, use the regular PATCH endpoint
-        const response = await fetch(`/api/fighters/${fighter.id}`, {
+        const response = await fetch(`/api/fighters/${fighterData.fighter.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -680,9 +788,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: fighter.starved 
-          ? `${fighter.fighter_name} has been fed.`
-          : `${fighter.fighter_name} is starving.`,
+        description: fighterData.fighter.starved 
+          ? `${fighterData.fighter.fighter_name} has been fed.`
+          : `${fighterData.fighter.fighter_name} is starving.`,
         variant: "default"
       });
 
@@ -694,12 +802,18 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         variant: "destructive"
       });
     } finally {
-      setIsStarveModalOpen(false);
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          starve: false
+        }
+      }));
     }
-  }, [fighter, toast, fetchFighterData]);
+  }, [fighterData.fighter, toast, fetchFighterData]);
 
   const handleDeleteSkill = async (skillId: string) => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
     try {
       const response = await fetch(
@@ -737,7 +851,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   const handleDeleteInjury = async (injuryId: string) => {
-    if (!fighter) return;
+    if (!fighterData.fighter) return;
 
     try {
       const response = await fetch(
@@ -764,14 +878,34 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   const handleEditClick = () => {
-    setEditedName(fighter?.fighter_name || '');
-    setEditedLabel(fighter?.label || '');
-    setEditedKills(fighter?.kills || 0);
-    setEditedCostAdjustment(String(fighter?.cost_adjustment || 0));
-    setIsEditFighterModalOpen(true);
+    setEditState(prev => ({
+      ...prev,
+      name: fighterData.fighter?.fighter_name || '',
+      label: fighterData.fighter?.label || '',
+      kills: fighterData.fighter?.kills || 0,
+      costAdjustment: String(fighterData.fighter?.cost_adjustment || 0)
+    }));
+    setUiState(prev => ({
+      ...prev,
+      modals: {
+        ...prev.modals,
+        editFighter: true
+      }
+    }));
   };
 
-  if (isLoading) return (
+  // Update modal handlers
+  const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
+    setUiState(prev => ({
+      ...prev,
+      modals: {
+        ...prev.modals,
+        [modalName]: value
+      }
+    }));
+  };
+
+  if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <div className="bg-white shadow-md rounded-lg p-6">
@@ -781,11 +915,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     </main>
   );
 
-  if (error || !fighter || !gang) return (
+  if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <div className="bg-white shadow-md rounded-lg p-6">
-          Error: {error || 'Data not found'}
+          Error: {uiState.error || 'Data not found'}
         </div>
       </div>
     </main>
@@ -801,7 +935,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               onChange={handleFighterChange}
               className="w-full p-2 border rounded"
             >
-              {gangFighters.map((f) => (
+              {fighterData.gangFighters.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.fighter_name} - {f.fighter_type} {f.xp !== undefined ? `(${f.xp} XP)` : ''}
                 </option>
@@ -809,87 +943,87 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             </select>
           </div>
           <FighterDetailsCard 
-            id={fighter.id}
-            name={fighter.fighter_name}
-            type={fighter.fighter_type.fighter_type}
-            fighter_class={fighter.fighter_type.fighter_class}
-            credits={fighter.credits}
-            movement={fighter.movement + (calculateInjuryModifications(fighter.injuries)['M'] || 0)}
-            weapon_skill={fighter.weapon_skill + (calculateInjuryModifications(fighter.injuries)['WS'] || 0)}
-            ballistic_skill={fighter.ballistic_skill + (calculateInjuryModifications(fighter.injuries)['BS'] || 0)}
-            strength={fighter.strength + (calculateInjuryModifications(fighter.injuries)['S'] || 0)}
-            toughness={fighter.toughness + (calculateInjuryModifications(fighter.injuries)['T'] || 0)}
-            wounds={fighter.wounds + (calculateInjuryModifications(fighter.injuries)['W'] || 0)}
-            initiative={fighter.initiative + (calculateInjuryModifications(fighter.injuries)['I'] || 0)}
-            attacks={fighter.attacks + (calculateInjuryModifications(fighter.injuries)['A'] || 0)}
-            leadership={fighter.leadership + (calculateInjuryModifications(fighter.injuries)['Ld'] || 0)}
-            cool={fighter.cool + (calculateInjuryModifications(fighter.injuries)['Cl'] || 0)}
-            willpower={fighter.willpower + (calculateInjuryModifications(fighter.injuries)['Wp'] || 0)}
-            intelligence={fighter.intelligence + (calculateInjuryModifications(fighter.injuries)['Int'] || 0)}
-            xp={fighter.xp}
-            total_xp={fighter.total_xp}
-            advancements={fighter.advancements}
+            id={fighterData.fighter?.id || ''}
+            name={fighterData.fighter?.fighter_name || ''}
+            type={fighterData.fighter?.fighter_type.fighter_type || ''}
+            fighter_class={fighterData.fighter?.fighter_type.fighter_class || ''}
+            credits={fighterData.fighter?.credits || 0}
+            movement={fighterData.fighter?.movement + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['M'] || 0)}
+            weapon_skill={fighterData.fighter?.weapon_skill + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['WS'] || 0)}
+            ballistic_skill={fighterData.fighter?.ballistic_skill + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['BS'] || 0)}
+            strength={fighterData.fighter?.strength + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['S'] || 0)}
+            toughness={fighterData.fighter?.toughness + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['T'] || 0)}
+            wounds={fighterData.fighter?.wounds + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['W'] || 0)}
+            initiative={fighterData.fighter?.initiative + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['I'] || 0)}
+            attacks={fighterData.fighter?.attacks + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['A'] || 0)}
+            leadership={fighterData.fighter?.leadership + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Ld'] || 0)}
+            cool={fighterData.fighter?.cool + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Cl'] || 0)}
+            willpower={fighterData.fighter?.willpower + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Wp'] || 0)}
+            intelligence={fighterData.fighter?.intelligence + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Int'] || 0)}
+            xp={fighterData.fighter?.xp}
+            total_xp={fighterData.fighter?.total_xp}
+            advancements={fighterData.fighter?.advancements}
             onNameUpdate={handleNameUpdate}
-            onAddXp={() => setIsAddXpModalOpen(true)}
+            onAddXp={() => handleModalToggle('addXp', true)}
             onEdit={handleEditClick}
-            killed={fighter.killed}
-            retired={fighter.retired}
-            enslaved={fighter.enslaved}
-            starved={fighter.starved}
-            kills={fighter.kills || 0}
+            killed={fighterData.fighter?.killed}
+            retired={fighterData.fighter?.retired}
+            enslaved={fighterData.fighter?.enslaved}
+            starved={fighterData.fighter?.starved}
+            kills={fighterData.fighter?.kills || 0}
           />
           
           <WeaponList 
             fighterId={params.id} 
-            gangId={gang.id}
-            gangCredits={gang.credits}
-            fighterCredits={fighter.credits}
+            gangId={fighterData.gang?.id || ''}
+            gangCredits={fighterData.gang?.credits || 0}
+            fighterCredits={fighterData.fighter?.credits || 0}
             onEquipmentUpdate={handleEquipmentUpdate}
-            equipment={equipment}
-            onAddEquipment={() => setIsAddWeaponModalOpen(true)}
+            equipment={fighterData.equipment}
+            onAddEquipment={() => handleModalToggle('addWeapon', true)}
           />
           
           <SkillsList 
-            skills={fighter.skills} 
+            skills={fighterData.fighter?.skills || {}} 
             onDeleteSkill={handleDeleteSkill}
-            fighterId={fighter.id}
-            fighterXp={fighter.xp || 0}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterXp={fighterData.fighter?.xp || 0}
             onSkillAdded={fetchFighterData}
-            free_skill={fighter.free_skill}
+            free_skill={fighterData.fighter?.free_skill}
           />
           
           <AdvancementsList
-            fighterXp={fighter.xp || 0}
-            fighterChanges={transformFighterData(fighter)}
-            fighterId={fighter.id}
+            fighterXp={fighterData.fighter?.xp || 0}
+            fighterChanges={transformFighterData(fighterData.fighter)}
+            fighterId={fighterData.fighter?.id || ''}
             onAdvancementDeleted={fetchFighterData}
           />
           
           <InjuriesList 
-            injuries={fighter.injuries || []}
+            injuries={fighterData.fighter?.injuries || []}
             onDeleteInjury={handleDeleteInjury}
-            fighterId={fighter.id}
+            fighterId={fighterData.fighter?.id || ''}
             onInjuryAdded={fetchFighterData}
           />
           
           <div className="mt-6">
-            {fighter && (
+            {fighterData.fighter && (
               <NotesList 
-                fighterId={fighter.id} 
-                initialNote={fighter.note}
+                fighterId={fighterData.fighter.id} 
+                initialNote={fighterData.fighter.note}
               />
             )}
           </div>
           
-          {isAddWeaponModalOpen && (
+          {uiState.modals.addWeapon && (
             <ItemModal
               title="Equipment"
-              onClose={() => setIsAddWeaponModalOpen(false)}
-              gangCredits={gang.credits}
-              gangId={gang.id}
-              gangTypeId={fighter.gang_type_id}
-              fighterId={fighter.id}
-              fighterCredits={fighter.credits}
+              onClose={() => handleModalToggle('addWeapon', false)}
+              gangCredits={fighterData.gang?.credits || 0}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.fighter?.gang_type_id || ''}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterCredits={fighterData.fighter?.credits || 0}
               onEquipmentBought={handleEquipmentBought}
             />
           )}
@@ -899,84 +1033,84 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               <Button
                 variant="default"
                 className="flex-1 min-w-[200px] bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => setIsKillModalOpen(true)}
+                onClick={() => handleModalToggle('kill', true)}
               >
-                {fighter.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
+                {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
               </Button>
               <Button
-                variant={fighter.retired ? 'success' : 'default'}
+                variant={fighterData.fighter?.retired ? 'success' : 'default'}
                 className="flex-1 min-w-[200px]"
-                onClick={() => setIsRetireModalOpen(true)}
+                onClick={() => handleModalToggle('retire', true)}
               >
-                {fighter.retired ? 'Unretire Fighter' : 'Retire Fighter'}
+                {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
               </Button>
               <Button
-                variant={fighter.enslaved ? 'success' : 'default'}
+                variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
                 className="flex-1 min-w-[200px]"
-                onClick={() => setIsEnslavedModalOpen(true)}
+                onClick={() => handleModalToggle('enslave', true)}
               >
-                {fighter.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
+                {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
               </Button>
               <Button
-                variant={fighter.starved ? 'success' : 'default'}
+                variant={fighterData.fighter?.starved ? 'success' : 'default'}
                 className="flex-1 min-w-[200px]"
-                onClick={() => setIsStarveModalOpen(true)}
+                onClick={() => handleModalToggle('starve', true)}
               >
-                {fighter.starved ? 'Feed Fighter' : 'Starve Fighter'}
+                {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
               </Button>
               <Button 
                 variant="destructive"
                 className="flex-1 min-w-[200px]"
-                onClick={() => setIsDeleteModalOpen(true)}
+                onClick={() => handleModalToggle('delete', true)}
               >
                 Delete Fighter
               </Button>
             </div>
           </div>
 
-          {isDeleteModalOpen && (
+          {uiState.modals.delete && (
             <Modal
               title="Confirm Deletion"
-              content={`Are you sure you want to delete ${fighter.fighter_name}? This action cannot be undone.`}
-              onClose={() => setIsDeleteModalOpen(false)}
+              content={`Are you sure you want to delete ${fighterData.fighter?.fighter_name}? This action cannot be undone.`}
+              onClose={() => handleModalToggle('delete', false)}
               onConfirm={handleDeleteFighter}
             />
           )}
           
-          {isKillModalOpen && (
+          {uiState.modals.kill && (
             <Modal
-              title={fighter.killed ? 'Confirm Resurrection' : 'Confirm Kill'}
+              title={fighterData.fighter?.killed ? 'Confirm Resurrection' : 'Confirm Kill'}
               content={
-                fighter.killed 
-                  ? `Are you sure you want to resurrect ${fighter.fighter_name}?`
-                  : `Are you sure ${fighter.fighter_name} was killed in action?`
+                fighterData.fighter?.killed 
+                  ? `Are you sure you want to resurrect ${fighterData.fighter?.fighter_name}?`
+                  : `Are you sure ${fighterData.fighter?.fighter_name} was killed in action?`
               }
-              onClose={() => setIsKillModalOpen(false)}
+              onClose={() => handleModalToggle('kill', false)}
               onConfirm={handleKillFighter}
             />
           )}
           
-          {isRetireModalOpen && (
+          {uiState.modals.retire && (
             <Modal
-              title={fighter.retired ? 'Confirm Unretirement' : 'Confirm Retirement'}
+              title={fighterData.fighter?.retired ? 'Confirm Unretirement' : 'Confirm Retirement'}
               content={
-                fighter.retired 
-                  ? `Are you sure you want to bring ${fighter.fighter_name} out of retirement?`
-                  : `Are you sure you want to retire ${fighter.fighter_name}?`
+                fighterData.fighter?.retired 
+                  ? `Are you sure you want to bring ${fighterData.fighter?.fighter_name} out of retirement?`
+                  : `Are you sure you want to retire ${fighterData.fighter?.fighter_name}?`
               }
-              onClose={() => setIsRetireModalOpen(false)}
+              onClose={() => handleModalToggle('retire', false)}
               onConfirm={handleRetireFighter}
             />
           )}
           
-          {isAddXpModalOpen && fighter && (
+          {uiState.modals.addXp && fighterData.fighter && (
             <Modal
               title="Add XP"
               headerContent={
                 <div className="flex items-center">
                   <span className="mr-2 text-sm text-gray-600">Current XP</span>
                   <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                    {fighter.xp ?? 0}
+                    {fighterData.fighter.xp ?? 0}
                   </span>
                 </div>
               }
@@ -985,63 +1119,72 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   <div>
                     <Input
                       type="number"
-                      value={xpAmount}
-                      onChange={(e) => setXpAmount(e.target.value)}
+                      value={editState.xpAmount}
+                      onChange={(e) => setEditState(prev => ({
+                        ...prev,
+                        xpAmount: e.target.value
+                      }))}
                       placeholder="Enter XP amount"
                       min="1"
                       className="w-full"
                     />
-                    {xpError && <p className="text-red-500 text-sm mt-1">{xpError}</p>}
+                    {editState.xpError && <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>}
                   </div>
                 </div>
               }
               onClose={() => {
-                setIsAddXpModalOpen(false);
-                setXpAmount('');
-                setXpError('');
+                handleModalToggle('addXp', false);
+                setEditState(prev => ({
+                  ...prev,
+                  xpAmount: ''
+                }));
+                setEditState(prev => ({
+                  ...prev,
+                  xpError: ''
+                }));
               }}
               onConfirm={handleAddXp}
               confirmText="Add XP"
-              confirmDisabled={!xpAmount}
+              confirmDisabled={!editState.xpAmount}
             />
           )}
           
-          {isAdvancementModalOpen && (
+          {uiState.modals.advancement && (
             <AdvancementModal
               fighterId={params.id}
-              currentXp={fighter.xp ?? 0}
-              onClose={() => setIsAdvancementModalOpen(false)}
+              currentXp={fighterData.fighter?.xp ?? 0}
+              onClose={() => handleModalToggle('advancement', false)}
               onAdvancementAdded={handleAdvancementAdded}
             />
           )}
           
-          {isEnslavedModalOpen && (
+          {uiState.modals.enslave && (
             <Modal
-              title={fighter.enslaved ? 'Confirm Rescue' : 'Confirm Sale'}
+              title={fighterData.fighter?.enslaved ? 'Confirm Rescue' : 'Confirm Sale'}
               content={
-                fighter.enslaved 
-                  ? `Are you sure you want to rescue ${fighter.fighter_name} from the Guilders?`
-                  : `Are you sure you want to sell ${fighter.fighter_name} to the Guilders?`
+                fighterData.fighter?.enslaved 
+                  ? `Are you sure you want to rescue ${fighterData.fighter?.fighter_name} from the Guilders?`
+                  : `Are you sure you want to sell ${fighterData.fighter?.fighter_name} to the Guilders?`
               }
-              onClose={() => setIsEnslavedModalOpen(false)}
+              onClose={() => handleModalToggle('enslave', false)}
               onConfirm={handleEnslaveFighter}
             />
           )}
           
-          {isStarveModalOpen && (
+          {uiState.modals.starve && (
             <Modal
-              title={fighter.starved ? 'Confirm Feeding' : 'Confirm Starvation'}
+              title={fighterData.fighter?.starved ? 'Confirm Feeding' : 'Confirm Starvation'}
               content={
-                fighter.starved 
-                  ? `Are you sure you want to feed ${fighter.fighter_name}?`
-                  : `Are you sure ${fighter.fighter_name} is starving?`
+                fighterData.fighter?.starved 
+                  ? `Are you sure you want to feed ${fighterData.fighter?.fighter_name}?`
+                  : `Are you sure ${fighterData.fighter?.fighter_name} is starving?`
               }
-              onClose={() => setIsStarveModalOpen(false)}
+              onClose={() => handleModalToggle('starve', false)}
               onConfirm={handleStarveFighter}
             />
           )}
           
-          {isEditFighterModalOpen && (
+          {uiState.modals.editFighter && (
             <Modal
               title="Edit Fighter"
               content={
@@ -1050,8 +1193,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     <p className="text-sm font-medium">Fighter name</p>
                     <Input
                       type="text"
-                      value={editedName}
-                      onChange={(e) => setEditedName(e.target.value)}
+                      value={editState.name}
+                      onChange={(e) => setEditState(prev => ({
+                        ...prev,
+                        name: e.target.value
+                      }))}
                       className="w-full"
                       placeholder="Fighter name"
                     />
@@ -1060,10 +1206,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     <p className="text-sm font-medium">Label (max 5 characters)</p>
                     <Input
                       type="text"
-                      value={editedLabel}
+                      value={editState.label}
                       onChange={(e) => {
                         const value = e.target.value.slice(0, 5);
-                        setEditedLabel(value);
+                        setEditState(prev => ({
+                          ...prev,
+                          label: value
+                        }));
                       }}
                       className="w-full"
                       placeholder="Label (5 chars max)"
@@ -1077,7 +1226,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         type="text"
                         inputMode="numeric"
                         pattern="-?[0-9]*"
-                        value={editedCostAdjustment}
+                        value={editState.costAdjustment}
                         onKeyDown={(e) => {
                           if (![8, 9, 13, 27, 46, 189, 109].includes(e.keyCode) && 
                               !/^[0-9]$/.test(e.key) && 
@@ -1088,7 +1237,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           const value = e.target.value;
                           if (value === '' || value === '-' || /^-?\d*$/.test(value)) {
-                            setEditedCostAdjustment(value);
+                            setEditState(prev => ({
+                              ...prev,
+                              costAdjustment: value
+                            }));
                           }
                         }}
                         className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -1100,8 +1252,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       <Input
                         type="number"
                         min="0"
-                        value={editedKills}
-                        onChange={(e) => setEditedKills(parseInt(e.target.value) || 0)}
+                        value={editState.kills}
+                        onChange={(e) => setEditState(prev => ({
+                          ...prev,
+                          kills: parseInt(e.target.value) || 0
+                        }))}
                         className="w-full"
                         placeholder="Number of kills"
                       />
@@ -1110,50 +1265,56 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 </div>
               }
               onClose={() => {
-                setIsEditFighterModalOpen(false);
-                setEditedName('');
-                setEditedLabel('');
-                setEditedKills(0);
-                setEditedCostAdjustment('0');
+                handleModalToggle('editFighter', false);
+                setEditState(prev => ({
+                  ...prev,
+                  name: '',
+                  label: '',
+                  kills: 0,
+                  costAdjustment: '0'
+                }));
               }}
               onConfirm={async () => {
                 try {
-                  const response = await fetch(`/api/fighters/${fighter.id}`, {
+                  const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
                     headers: {
                       'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                      fighter_name: editedName,
-                      label: editedLabel,
-                      kills: editedKills,
-                      cost_adjustment: editedCostAdjustment === '' || editedCostAdjustment === '-' 
+                      fighter_name: editState.name,
+                      label: editState.label,
+                      kills: editState.kills,
+                      cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
                         ? 0 
-                        : Number(editedCostAdjustment)
+                        : Number(editState.costAdjustment)
                     }),
                   });
 
                   if (!response.ok) throw new Error('Failed to update fighter');
 
-                  handleNameUpdate(editedName);
-                  setFighter(prev => prev ? { 
-                    ...prev, 
-                    kills: editedKills,
-                    fighter_name: editedName,
-                    label: editedLabel,
-                    cost_adjustment: editedCostAdjustment === '' || editedCostAdjustment === '-' 
-                      ? 0 
-                      : Number(editedCostAdjustment),
-                    credits: prev.base_credits + (editedCostAdjustment === '' || editedCostAdjustment === '-' 
-                      ? 0 
-                      : Number(editedCostAdjustment))
-                  } : null);
+                  handleNameUpdate(editState.name);
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? { 
+                      ...prev.fighter, 
+                      kills: editState.kills,
+                      fighter_name: editState.name,
+                      label: editState.label,
+                      cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                        ? 0 
+                        : Number(editState.costAdjustment),
+                      credits: prev.fighter.base_credits + (editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                        ? 0 
+                        : Number(editState.costAdjustment))
+                    } : null
+                  }));
                   
                   toast({
                     description: "Fighter updated successfully",
                     variant: "default"
                   });
-                  setIsEditFighterModalOpen(false);
+                  handleModalToggle('editFighter', false);
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
