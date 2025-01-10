@@ -7,8 +7,22 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const supabase = createClient();
+  const url = new URL(request.url);
+  const injuryId = url.searchParams.get('injuryId');
 
   try {
+    if (injuryId) {
+      // Delete specific injury
+      const { error: deleteError } = await supabase
+        .from('fighter_injuries')
+        .delete()
+        .eq('id', injuryId);
+
+      if (deleteError) throw deleteError;
+
+      return NextResponse.json({ message: 'Injury deleted successfully' });
+    }
+
     // Start a Supabase transaction
     const { data: fighter, error: fetchError } = await supabase
       .from('fighters')
@@ -41,7 +55,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error in DELETE /api/fighters/[id]:', error);
     return NextResponse.json(
-      { error: 'Failed to delete fighter and update gang data' },
+      { error: 'Failed to process delete request' },
       { status: 500 }
     );
   }
