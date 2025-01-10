@@ -82,7 +82,8 @@ interface FighterProps {
 
 1. **Prerequisites**
    - Node.js 18+
-   - Supabase account
+   - Supabase project url and key
+   - Cloudflare Turnstile keys
 
 2. **Environment Setup**
    ```bash
@@ -90,8 +91,10 @@ interface FighterProps {
    ```
    Configure the following variables:
    ```
-   NEXT_PUBLIC_SUPABASE_URL=your-project-url
+   NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
+   TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
    ```
 
 3. **Installation**
