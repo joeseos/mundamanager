@@ -98,22 +98,38 @@ export function InjuriesList({
     }
   };
 
-  const handleDeleteInjury = async (injuryId: string) => {
-    setIsDeleting(injuryId);
-
+  const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
     try {
+      setIsDeleting(injuryId);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_injuries?id=eq.${injuryId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete injury');
+      }
+
       await onDeleteInjury(injuryId);
-      
       toast({
-        description: "Injury successfully deleted",
+        description: `${injuryName} removed successfully`,
         variant: "default"
       });
+      return true;
     } catch (error) {
       console.error('Error deleting injury:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to delete injury',
+        description: 'Failed to delete injury',
         variant: "destructive"
       });
+      return false;
     } finally {
       setIsDeleting(null);
       setDeleteModalData(null);
@@ -218,7 +234,7 @@ export function InjuriesList({
           title="Confirm Deletion"
           content={`Are you sure you want to delete the ${deleteModalData.name} injury? This action cannot be undone.`}
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteInjury(deleteModalData.id)}
+          onConfirm={() => handleDeleteInjury(deleteModalData.id, deleteModalData.name)}
         />
       )}
     </div>
