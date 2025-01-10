@@ -335,7 +335,7 @@ export default function Gang({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white shadow-md rounded px-8 pt-4 pb-6">
+      <div className="bg-white shadow-md rounded-lg px-8 pt-4 pb-6">
         <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
           <h2 className="text-2xl font-bold">{name}</h2>
           <div className="flex gap-2">
