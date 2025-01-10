@@ -4,7 +4,7 @@ import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, Injury } from '@/types/fighter';
 import { Skull, Armchair, Key, Utensils } from "lucide-react";
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
@@ -18,6 +18,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   starved?: boolean;
   free_skill?: boolean;
   kills: number;  // Required property
+  injuries: Injury[];
 }
 
 type FighterCardData = FighterProps & {
@@ -54,6 +55,7 @@ const FighterCard = memo(function FighterCard({
   starved,
   free_skill,
   kills = 0,  // Default value
+  injuries = [],
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -85,6 +87,7 @@ const FighterCard = memo(function FighterCard({
     weapons,
     wargear,
     special_rules,
+    injuries,
   };
 
   const adjustedStats = calculateAdjustedStats(fighterData);

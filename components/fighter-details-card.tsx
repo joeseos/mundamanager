@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { FighterStatsTable } from './ui/fighter-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, Injury } from '@/types/fighter';
 import { Skull, Armchair, Key, Utensils } from "lucide-react";
 
 interface FighterDetailsCardProps {
@@ -35,6 +35,7 @@ interface FighterDetailsCardProps {
   fighter_class?: string;
   onEdit: () => void;
   kills: number;
+  injuries?: Injury[];
 }
 
 export const FighterDetailsCard = memo(function FighterDetailsCard({
@@ -66,6 +67,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   fighter_class,
   onEdit,
   kills,
+  injuries,
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData: FighterProps = {
@@ -93,7 +95,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     },
     weapons: [],
     wargear: [],
-    special_rules: []
+    special_rules: [],
+    injuries: injuries || [],
   };
 
   // Calculate adjusted stats

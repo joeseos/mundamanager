@@ -44,6 +44,15 @@ async function processGangData(gangData: any) {
     advancements: {
       characteristics: fighter.advancements?.characteristics || {}
     },
+    injuries: fighter.fighter_injuries || [],
+    fighter_class: fighter.fighter_class,
+    label: fighter.label,
+    killed: fighter.killed || false,
+    retired: fighter.retired || false,
+    enslaved: fighter.enslaved || false,
+    starved: fighter.starved || false,
+    free_skill: fighter.free_skill || false,
+    special_rules: fighter.special_rules || []
   })) as FighterProps[];
 
   return {

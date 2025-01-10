@@ -32,23 +32,7 @@ interface FighterTypeResponse {
 }
 
 async function processGangData(gangData: any) {
-  console.log('Raw gang data:', {
-    gang: gangData,
-    firstFighter: gangData.fighters[0] ? {
-      name: gangData.fighters[0].fighter_name,
-      bs: gangData.fighters[0].ballistic_skill,
-      advancements: gangData.fighters[0].advancements,
-      raw: JSON.stringify(gangData.fighters[0].advancements, null, 2)
-    } : null
-  });
-  
   const processedFighters = gangData.fighters.map((fighter: any) => {
-    console.log('Processing fighter with label:', {
-      name: fighter.fighter_name,
-      label: fighter.label,
-      raw: fighter
-    });
-    
     return {
       id: fighter.id,
       fighter_name: fighter.fighter_name,
@@ -70,7 +54,11 @@ async function processGangData(gangData: any) {
       willpower: fighter.willpower,
       intelligence: fighter.intelligence,
       xp: fighter.xp ?? 0,
-      // Map equipment to weapons and wargear
+      advancements: {
+        characteristics: fighter.advancements?.characteristics || {},
+        skills: fighter.advancements?.skills || {}
+      },
+      injuries: fighter.injuries || [],
       weapons: fighter.equipment
         ?.filter((item: any) => item.equipment_type === 'weapon')
         .map((item: any) => ({
@@ -88,12 +76,7 @@ async function processGangData(gangData: any) {
           cost: item.cost,
           fighter_weapon_id: item.fighter_equipment_id
         })) || [],
-      advancements: {
-        characteristics: fighter.advancements?.characteristics || {},
-        skills: fighter.advancements?.skills || {}
-      },
       special_rules: fighter.special_rules || [],
-      // Add status flags
       killed: fighter.killed || false,
       retired: fighter.retired || false,
       enslaved: fighter.enslaved || false,
@@ -102,13 +85,7 @@ async function processGangData(gangData: any) {
     };
   });
 
-  console.log('Processed fighters:', processedFighters.map((f: FighterProps) => ({
-    name: f.fighter_name,
-    type: f.fighter_type,
-    class: f.fighter_class
-  })));
-
-  // Since fighter types aren't in the response, we'll need to fetch them separately
+  // Fetch fighter types
   const supabase = createClient();
   const response = await fetch(
     'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
@@ -145,7 +122,7 @@ async function processGangData(gangData: any) {
     ...gangData,
     alignment: gangData.alignment,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes
+    fighterTypes: processedFighterTypes // Use processed fighter types
   };
 }
 
