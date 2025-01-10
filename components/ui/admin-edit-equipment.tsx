@@ -305,10 +305,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
   return (
     <div 
-      className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+      className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-start z-50 px-[10px] py-4 overflow-y-auto"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl my-4 flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Edit Equipment</h3>
@@ -322,7 +322,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           </button>
         </div>
 
-        <div className="px-[10px] py-4">
+        <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-3 mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -504,7 +504,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
             {equipmentType === 'weapon' && (
               <div className="col-span-3 space-y-4">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center sticky top-0 bg-white py-2">
                   <h4 className="text-lg font-semibold">Weapon Profiles</h4>
                   <Button
                     onClick={addProfile}
@@ -516,7 +516,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   </Button>
                 </div>
 
-                <div className="space-y-4 max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 p-4">
+                <div className="space-y-4 rounded-lg border border-gray-200 p-4">
                   {weaponProfiles.map((profile, index) => (
                     <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
                       <div className="flex justify-between items-center">
@@ -682,7 +682,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           </div>
         </div>
 
-        <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+        <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-white rounded-b-lg">
           <Button
             variant="outline"
             onClick={onClose}
