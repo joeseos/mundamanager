@@ -221,6 +221,8 @@ export async function getFighters(gangId: string) {
         id, 
         fighter_name, 
         fighter_type_id,
+        fighter_class,
+        label,
         credits,
         movement, 
         weapon_skill, 
@@ -235,20 +237,35 @@ export async function getFighters(gangId: string) {
         intelligence, 
         attacks,
         xp,
-        advancements
+        advancements,
+        special_rules,
+        killed,
+        retired,
+        enslaved,
+        starved,
+        free_skill,
+        weapons,
+        wargear,
+        fighter_injuries (
+          id,
+          injury_name,
+          code_1,
+          characteristic_1,
+          code_2,
+          characteristic_2,
+          created_at
+        )
       `)
       .eq('gang_id', gangId);
 
     if (fightersError) throw fightersError;
 
-    // Fetch fighter types
     const { data: fighterTypes, error: typesError } = await supabase
       .from('fighter_types')
       .select('fighter_type_id, fighter_type');
 
     if (typesError) throw typesError;
 
-    // Create a map of fighter type ids to fighter types
     const fighterTypeMap = Object.fromEntries(
       fighterTypes.map(type => [type.fighter_type_id, type.fighter_type])
     );
@@ -258,6 +275,8 @@ export async function getFighters(gangId: string) {
       fighter_name: fighter.fighter_name,
       fighter_type_id: fighter.fighter_type_id,
       fighter_type: fighterTypeMap[fighter.fighter_type_id] || 'Unknown Type',
+      fighter_class: fighter.fighter_class,
+      label: fighter.label,
       credits: fighter.credits,
       movement: fighter.movement,
       weapon_skill: fighter.weapon_skill,
@@ -271,11 +290,19 @@ export async function getFighters(gangId: string) {
       cool: fighter.cool,
       willpower: fighter.willpower,
       intelligence: fighter.intelligence,
-      xp: fighter.xp ?? 0, // Use nullish coalescing operator to default to 0 if xp is null
-      advancements: fighter.advancements
+      xp: fighter.xp ?? 0,
+      advancements: fighter.advancements,
+      injuries: fighter.fighter_injuries || [],
+      special_rules: fighter.special_rules || [],
+      killed: fighter.killed || false,
+      retired: fighter.retired || false,
+      enslaved: fighter.enslaved || false,
+      starved: fighter.starved || false,
+      free_skill: fighter.free_skill || false,
+      weapons: fighter.weapons || [],
+      wargear: fighter.wargear || [],
     }));
 
-    console.log('Fighters with types:', fightersWithTypes);
     return fightersWithTypes;
   } catch (error) {
     console.error('Error fetching fighters:', error);

@@ -213,6 +213,29 @@ const calculateInjuryModifications = (injuries: Injury[]) => {
   return modifications;
 };
 
+async function getFighterData(fighterId: string) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+      },
+      body: JSON.stringify({
+        "p_fighter_id": fighterId
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch fighter details');
+  }
+
+  const [data] = await response.json();
+  return data;
+}
+
 export default function FighterPage({ params }: { params: { id: string } }) {
   const [fighter, setFighter] = useState<Fighter | null>(null);
   const [gang, setGang] = useState<Gang | null>(null);

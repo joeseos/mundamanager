@@ -40,6 +40,16 @@ export interface WeaponProps {
   weapon_profiles: any[];
 }
 
+export interface Injury {
+  id: string;
+  injury_name: string;
+  code_1?: string;
+  characteristic_1?: number;
+  code_2?: string;
+  characteristic_2?: number;
+  acquired_at: string;
+}
+
 export interface FighterProps {
   id: string;
   fighter_name: string;
@@ -76,4 +86,5 @@ export interface FighterProps {
   free_skill?: boolean;
   fighter_class?: string;
   note?: string;
+  injuries: Injury[];
 }
