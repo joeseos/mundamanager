@@ -336,23 +336,21 @@ export default function Gang({
   return (
     <div className="space-y-4">
       <div className="bg-white shadow-md rounded px-8 pt-4 pb-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
-          <h1 className="text-2xl font-bold">{name}</h1>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+          <h2 className="text-2xl font-bold">{name}</h2>
+          <div className="flex gap-2">
             {additionalButtons}
-            <Button onClick={() => setShowEditModal(true)}>
+            <Button
+              onClick={() => setShowEditModal(true)}
+              className="bg-black text-white hover:bg-gray-800"
+            >
               Edit
             </Button>
           </div>
         </div>
         
-        <div className="pr-24 sm:pr-32 mb-2">
-          <div className="space-y-1">
-            <div className="inline-block">
-              <p className="text-gray-600 text-sm mb-1">Type:</p>
-              <p className="font-medium bg-gray-100 px-4 py-1 rounded-full text-sm">{gang_type || 'Unknown'}</p>
-            </div>
-          </div>
+        <div className="text-gray-600 mb-4">
+          <p>Type: <span className="bg-gray-100 px-2 py-1 rounded">{gang_type}</span></p>
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">

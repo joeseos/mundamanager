@@ -1,63 +1,55 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from "@/components/ui/button";
 import Gang from "@/components/gang";
-import GangStashModal from "@/components/gang-stash-modal";
-import { StashItem } from './gang-stash-modal';
 import { FighterProps } from '@/types/fighter';
+import { FighterType } from '@/types/fighter-type';
 
 interface GangPageContentProps {
-  processedData: any;
-  gangData: any;
+  processedData: {
+    id: string;
+    name: string;
+    gang_type_id: string;
+    gang_type: string;
+    credits: number;
+    reputation: number;
+    meat: number;
+    exploration_points: number;
+    rating: number;
+    alignment: string;
+    created_at: string;
+    last_updated: string;
+    user_id: string;
+    fighters: FighterProps[];
+    fighterTypes: FighterType[];
+  };
+  gangData: {
+    [key: string]: any;
+  };
 }
 
 export default function GangPageContent({ processedData, gangData }: GangPageContentProps) {
-  const [showStashModal, setShowStashModal] = useState(false);
-  const [stash, setStash] = useState(gangData.stash || []);
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
 
-  const handleStashUpdate = (updatedStash: StashItem[]) => {
-    setStash(updatedStash);
-  };
-
-  const handleFighterUpdate = (fighterId: string, newCredits: number) => {
-    setFighters((prevFighters: FighterProps[]) => 
-      prevFighters.map(fighter => 
-        fighter.id === fighterId 
-          ? { ...fighter, credits: newCredits }
-          : fighter
-      )
-    );
-  };
-
   return (
-    <>
-      <div className="container max-w-5xl w-full space-y-4">
-        <Gang
-          {...processedData}
-          initialFighters={fighters}
-          fighterTypes={processedData.fighterTypes}
-          additionalButtons={
-            <Button
-              onClick={() => setShowStashModal(true)}
-              className="mr-2"
-            >
-              Open Stash
-            </Button>
-          }
-        />
-      </div>
-      
-      {showStashModal && (
-        <GangStashModal
-          stash={stash}
-          fighters={fighters}
-          onClose={() => setShowStashModal(false)}
-          onStashUpdate={handleStashUpdate}
-          onFighterUpdate={handleFighterUpdate}
-        />
-      )}
-    </>
+    <div className="container max-w-5xl w-full space-y-4">
+      <Gang
+        id={processedData.id}
+        name={processedData.name}
+        gang_type_id={processedData.gang_type_id}
+        gang_type={processedData.gang_type}
+        credits={processedData.credits}
+        reputation={processedData.reputation}
+        meat={processedData.meat}
+        exploration_points={processedData.exploration_points}
+        rating={processedData.rating}
+        alignment={processedData.alignment}
+        created_at={processedData.created_at}
+        last_updated={processedData.last_updated}
+        user_id={processedData.user_id}
+        initialFighters={fighters}
+        fighterTypes={processedData.fighterTypes}
+      />
+    </div>
   );
 } 

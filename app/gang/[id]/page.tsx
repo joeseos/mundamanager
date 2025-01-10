@@ -3,10 +3,10 @@ import Gang from "@/components/gang";
 import { createClient } from "@/utils/supabase/server";
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
-import GangStashModal from "@/components/gang-stash-modal";
 import { Button } from "@/components/ui/button";
 import GangPageContent from "@/components/gang-page-content";
 import Tabs from "@/components/tabs";
+import GangInventory from "@/components/gang-stash";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -167,8 +167,13 @@ export default async function GangPage({ params }: { params: { id: string } }) {
       <div>
         <Tabs>
           <GangPageContent processedData={processedData} gangData={gangData} />
-          <div>Campaign Content Coming Soon</div>
+          <GangInventory
+            stash={gangData.stash || []} 
+            fighters={processedData.fighters}
+            title="Stash"
+          />
           <div>Settings Content Coming Soon</div>
+          <div>History Content Coming Soon</div>
         </Tabs>
       </div>
     );
