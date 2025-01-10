@@ -18,7 +18,8 @@ export async function PATCH(
     alignment,
     reputation,
     meat,
-    exploration_points 
+    exploration_points,
+    note
   } = await request.json();
 
   try {
@@ -30,6 +31,11 @@ export async function PATCH(
     // Add name if provided
     if (name !== undefined) {
       updates.name = name;
+    }
+
+    // Add note if provided
+    if (note !== undefined) {
+      updates.note = note;
     }
 
     // Add alignment if provided

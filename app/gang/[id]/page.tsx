@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import GangPageContent from "@/components/gang-page-content";
 import Tabs from "@/components/tabs";
 import GangInventory from "@/components/gang-stash";
+import { GangNotes } from "@/components/gang-notes";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -173,7 +174,10 @@ export default async function GangPage({ params }: { params: { id: string } }) {
             title="Stash"
           />
           <div>Settings Content Coming Soon</div>
-          <div>History Content Coming Soon</div>
+          <GangNotes 
+            gangId={params.id}
+            initialNote={gangData.note || ''}
+          />
         </Tabs>
       </div>
     );
