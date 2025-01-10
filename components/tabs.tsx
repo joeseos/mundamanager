@@ -11,7 +11,7 @@ const Tabs = ({ children }: TabsProps) => {
 
   const tabsData = [
     { title: 'Details' },
-    { title: 'Inventory' },
+    { title: 'Stash' },
     { title: 'Fighters' },
     { title: 'History' },
   ];

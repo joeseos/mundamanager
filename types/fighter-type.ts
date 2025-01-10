@@ -3,4 +3,5 @@ export interface FighterType {
   fighter_type_id: string;
   fighter_type: string;
   cost: number;
+  total_cost: number;
 } 

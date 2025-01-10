@@ -7,4 +7,10 @@ export interface GangType {
 export interface Equipment {
   id: string;
   equipment_name: string;
+}
+
+export interface StashItem {
+  id: string;
+  equipment_name: string;
+  cost: number;
 } 
