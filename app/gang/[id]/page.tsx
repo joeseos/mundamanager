@@ -6,6 +6,7 @@ import { FighterType } from "@/types/fighter-type";
 import GangStashModal from "@/components/gang-stash-modal";
 import { Button } from "@/components/ui/button";
 import GangPageContent from "@/components/gang-page-content";
+import Tabs from "@/components/tabs";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -162,7 +163,15 @@ export default async function GangPage({ params }: { params: { id: string } }) {
 
     const processedData = await processGangData(gangData);
 
-    return <GangPageContent processedData={processedData} gangData={gangData} />;
+    return (
+      <div>
+        <Tabs>
+          <GangPageContent processedData={processedData} gangData={gangData} />
+          <div>Campaign Content Coming Soon</div>
+          <div>Settings Content Coming Soon</div>
+        </Tabs>
+      </div>
+    );
     
   } catch (error) {
     console.error('Error in GangPage:', error);
