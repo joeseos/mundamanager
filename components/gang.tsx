@@ -224,6 +224,7 @@ export default function Gang({
             cost: item.cost,
             fighter_weapon_id: item.fighter_equipment_id
           })),
+        injuries: [],
         special_rules: data.special_rules || [],
         advancements: {
           characteristics: {},
