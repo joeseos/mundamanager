@@ -42,7 +42,7 @@ export default function MyGangs() {
           {gangs.map((gang) => (
             <li key={gang.id}>
               <Link href={`/gang/${gang.id}`} className="flex items-center p-3 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
-                <div className="relative w-[72px] md:w-20 h-[72px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
+                <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                   {gang.image_url ? (
                     <Image
                       src={gang.image_url}
@@ -59,14 +59,13 @@ export default function MyGangs() {
                     </div>
                   )}
                   <Image
-                    src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1732967039/cog-border_ffitze.png"
+                    src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
                     alt=""
-                    width={72}
-                    height={72}
+                    width={80}
+                    height={80}
                     className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-90 md:scale-100"
                     priority
-                    sizes="(max-width: 768px) 72px, 80px"
-                    style={{ width: '72px', height: '72px' }}
+                    sizes="(max-width: 768px) 80px, 80px"
                   />
                 </div>
                 <div className="flex-grow min-w-0">
