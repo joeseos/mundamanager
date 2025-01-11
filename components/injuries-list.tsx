@@ -153,7 +153,7 @@ export function InjuriesList({
           <table className="w-full table-auto">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-1 py-1 text-left">Injury</th>
+                <th className="px-1 py-1 text-left">Name</th>
                 <th className="px-1 py-1 text-right">Action</th>
               </tr>
             </thead>
