@@ -12,12 +12,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { campaignId, gangId } = await request.json();
+    const { campaignId, gangId, userId } = await request.json();
 
     if (!campaignId || !gangId) {
       return NextResponse.json(
         { error: "Campaign ID and Gang ID are required" }, 
         { status: 400 }
+      );
+    }
+
+    // Check if user is admin or adding their own gang
+    const { data: memberData } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (user.id !== userId && memberData?.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: "Unauthorized to add gang for other users" }, 
+        { status: 403 }
       );
     }
 
@@ -28,6 +43,8 @@ export async function POST(request: Request) {
         { 
           campaign_id: campaignId,
           gang_id: gangId,
+          user_id: userId,
+          joined_at: new Date().toISOString()
         }
       ])
       .select()
