@@ -223,6 +223,32 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Handle fighter type defaults
+    if (data.fighter_types) {
+      // First delete existing defaults for this equipment
+      const { error: deleteError } = await supabase
+        .from('fighter_defaults')
+        .delete()
+        .eq('equipment_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert new defaults if any fighter types are selected
+      if (data.fighter_types.length > 0) {
+        const defaults = data.fighter_types.map((fighter_type_id: string) => ({
+          equipment_id: id,
+          fighter_type_id,
+          skill_id: null // Since this is equipment, skill_id should be null
+        }));
+
+        const { error: insertError } = await supabase
+          .from('fighter_defaults')
+          .insert(defaults);
+
+        if (insertError) throw insertError;
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in PUT equipment:', error);

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { FighterType } from "@/types/fighter";
+import { X } from "lucide-react";
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -39,6 +41,7 @@ interface Equipment {
   equipment_type: EquipmentType;
   core_equipment: boolean;
   weapon_profiles?: WeaponProfile[];
+  fighter_types?: string[];
 }
 
 export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmentModalProps) {
@@ -69,6 +72,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   }]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
+  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
+  const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
 
   const { toast } = useToast();
 
@@ -209,6 +214,45 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     fetchEquipmentDetails();
   }, [selectedEquipmentId, toast]);
 
+  // Add this effect to fetch fighter types when equipment is selected
+  useEffect(() => {
+    const fetchFighterTypes = async () => {
+      if (!selectedEquipmentId) {
+        setFighterTypes([]);
+        setSelectedFighterTypes([]);
+        return;
+      }
+
+      try {
+        // First get all fighter types for the dropdown
+        const response = await fetch('/api/admin/fighter-types');
+        if (!response.ok) throw new Error('Failed to fetch fighter types');
+        const allTypes = await response.json();
+        setFighterTypes(allTypes);
+
+        // Then get the fighter types that have this equipment
+        const defaultsResponse = await fetch(`/api/admin/fighter-types?equipment_id=${selectedEquipmentId}`);
+        if (!defaultsResponse.ok) throw new Error('Failed to fetch equipment defaults');
+        const defaultsData = await defaultsResponse.json();
+        
+        console.log('Fighter types with this equipment:', defaultsData); // Debug log
+        
+        // Set the selected fighter types
+        if (Array.isArray(defaultsData)) {
+          setSelectedFighterTypes(defaultsData.map((ft: FighterType) => ft.id));
+        }
+      } catch (error) {
+        console.error('Error fetching fighter types:', error);
+        toast({
+          description: 'Failed to load fighter types',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchFighterTypes();
+  }, [selectedEquipmentId, toast]);
+
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
@@ -275,7 +319,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
-          weapon_profiles: equipmentType === 'weapon' ? weaponProfiles : undefined
+          weapon_profiles: equipmentType === 'weapon' ? weaponProfiles : undefined,
+          fighter_types: selectedFighterTypes
         }),
       });
 
@@ -487,19 +532,79 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 <input
                   type="checkbox"
                   checked={coreEquipment}
-                  onChange={(e) => !selectedEquipmentId && setCoreEquipment(e.target.checked)}
-                  className={`h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary ${
-                    !selectedEquipmentId ? 'cursor-not-allowed opacity-50' : ''
-                  }`}
-                  disabled={!selectedEquipmentId}
+                  onChange={(e) => setCoreEquipment(e.target.checked)}
+                  className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <div className={!selectedEquipmentId ? 'opacity-50' : ''}>
+                <div>
                   <span className="text-sm font-medium text-gray-700">Core Equipment</span>
                   <p className="text-sm text-gray-500 mt-1">
                     When checked, this equipment will only be available as default equipment for fighters and won't appear in the trading post.
                   </p>
                 </div>
               </label>
+            </div>
+
+            <div className="col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fighter Types with this Equipment
+              </label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value && !selectedFighterTypes.includes(value)) {
+                    setSelectedFighterTypes([...selectedFighterTypes, value]);
+                  }
+                  e.target.value = "";
+                }}
+                className="w-full p-2 border rounded-md"
+                disabled={!selectedEquipmentId}
+              >
+                <option value="">Select fighter type to add</option>
+                {fighterTypes
+                  .filter(ft => !selectedFighterTypes.includes(ft.id))
+                  .sort((a, b) => {
+                    // First sort by gang type
+                    const gangCompare = a.gang_type.localeCompare(b.gang_type);
+                    if (gangCompare !== 0) return gangCompare;
+                    // Then by fighter class priority
+                    const classOrder = { 'Leader': 1, 'Champion': 2, 'Ganger': 3, 'Juve': 4 };
+                    const classCompare = (classOrder[a.fighter_class as keyof typeof classOrder] || 5) 
+                      - (classOrder[b.fighter_class as keyof typeof classOrder] || 5);
+                    if (classCompare !== 0) return classCompare;
+                    // Finally by fighter type name
+                    return a.fighter_type.localeCompare(b.fighter_type);
+                  })
+                  .map((ft) => (
+                    <option key={ft.id} value={ft.id}>
+                      {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
+                    </option>
+                  ))}
+              </select>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedFighterTypes.map((ftId) => {
+                  const ft = fighterTypes.find(f => f.id === ftId);
+                  if (!ft) return null;
+                  
+                  return (
+                    <div 
+                      key={ft.id}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                    >
+                      <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
+                        className="hover:text-red-500 focus:outline-none"
+                        disabled={!selectedEquipmentId}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {equipmentType === 'weapon' && (
