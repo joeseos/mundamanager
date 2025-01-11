@@ -35,3 +35,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* tailwindcss fix for Firefox */
+@layer base {
+  option {
+    font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    font-size: 100%;
+    font-weight: 400;
+    line-height: normal;
+    color: #0a0a0a;
+  }
+}
