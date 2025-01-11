@@ -189,6 +189,7 @@ export async function PUT(request: Request) {
         faction: data.faction,
         variants: data.variants,
         equipment_category: data.equipment_category,
+        equipment_category_id: data.equipment_category_id,
         equipment_type: data.equipment_type,
         core_equipment: data.core_equipment
       })
