@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import Modal from "@/components/modal"
 
 type MemberRole = 'ADMIN' | 'MEMBER';
 
@@ -17,7 +19,14 @@ type Profile = {
   gang?: {
     id: string;
     name: string;
+    gang_type: string;
   } | null;
+};
+
+type Gang = {
+  id: string;
+  name: string;
+  gang_type: string;
 };
 
 interface MemberSearchProps {
@@ -47,6 +56,11 @@ export default function MemberSearch({
   const [isAdding, setIsAdding] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [showGangModal, setShowGangModal] = useState(false)
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  const [userGangs, setUserGangs] = useState<Gang[]>([])
+  const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
 
   // Load existing campaign members
   useEffect(() => {
@@ -125,9 +139,7 @@ export default function MemberSearch({
               .select(`
                 id,
                 name,
-                gang_type,
-                credits,
-                reputation
+                gang_type
               `)
               .eq('id', campaignGangData.gang_id)
               .single();
@@ -135,7 +147,8 @@ export default function MemberSearch({
             if (gangData) {
               gang = {
                 id: gangData.id,
-                name: gangData.name
+                name: gangData.name,
+                gang_type: gangData.gang_type
               };
             }
           }
@@ -265,6 +278,115 @@ export default function MemberSearch({
     }
   };
 
+  // Add useEffect to get current user
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    getCurrentUser();
+  }, []);
+
+  // Add this function to fetch user's gangs
+  const fetchUserGangs = async (userId: string) => {
+    const { data: gangs, error } = await supabase
+      .from('gangs')
+      .select('id, name, gang_type')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error fetching gangs:', error);
+      return;
+    }
+
+    setUserGangs(gangs || []);
+  };
+
+  // Add this function to handle gang selection
+  const handleAddGang = async () => {
+    if (!selectedGang || !selectedMemberId) return false;
+
+    try {
+      const response = await fetch('/api/campaign-gangs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaignId,
+          gangId: selectedGang.id,
+          userId: selectedMemberId
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to add gang');
+
+      // Update the local state
+      setCampaignMembers(members => 
+        members.map(member => 
+          member.id === selectedMemberId 
+            ? { 
+                ...member, 
+                gang: { 
+                  id: selectedGang.id, 
+                  name: selectedGang.name,
+                  gang_type: selectedGang.gang_type 
+                } 
+              }
+            : member
+        )
+      );
+
+      toast({
+        description: "Gang added successfully"
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error adding gang:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to add gang"
+      });
+      return false;
+    }
+  };
+
+  // Modify the gang cell to use the modal
+  const handleGangClick = async (memberId: string) => {
+    setSelectedMemberId(memberId);
+    await fetchUserGangs(memberId);
+    setShowGangModal(true);
+  };
+
+  // Add the modal content
+  const gangModalContent = useMemo(() => (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">Select a gang to add to the campaign:</p>
+      <div className="space-y-2">
+        {userGangs.map(gang => (
+          <button
+            key={gang.id}
+            onClick={() => setSelectedGang(gang)}
+            className={`w-full p-3 text-left border rounded-lg transition-colors ${
+              selectedGang?.id === gang.id 
+                ? 'border-black bg-gray-50' 
+                : 'hover:border-gray-400'
+            }`}
+          >
+            <div className="font-medium">
+              {gang.name}
+              <span className="text-gray-500"> - {gang.gang_type}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+      {userGangs.length === 0 && (
+        <p className="text-sm text-gray-500">No gangs available to add</p>
+      )}
+    </div>
+  ), [userGangs, selectedGang]);
+
   return (
     <div className="w-full">
       {isAdmin && (
@@ -302,53 +424,144 @@ export default function MemberSearch({
         </div>
       )}
       {campaignMembers.length > 0 && (
-        <div className="overflow-hidden rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b">
-                <th className="px-4 py-2 text-left font-medium">Member</th>
-                <th className="px-4 py-2 text-left font-medium">Role</th>
-                <th className="px-4 py-2 text-left font-medium">Gang</th>
-                <th className="px-4 py-2 text-left font-medium">Invited</th>
-                {isAdmin && <th className="px-4 py-2 text-right"></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {campaignMembers.map(member => (
-                <tr key={member.id} className="border-b last:border-0">
-                  <td className="px-4 py-2">
-                    <span className="font-medium">{member.username}</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className="text-gray-500">{formatRole(member.role)}</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className="text-gray-500">
-                      {member.gang?.name || 'No gang selected'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className="text-gray-500">
+        <div>
+          {/* Table for md and larger screens */}
+          <div className="hidden md:block overflow-hidden rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="px-4 py-2 text-left font-medium">Member</th>
+                  <th className="px-4 py-2 text-left font-medium">Role</th>
+                  <th className="px-4 py-2 text-left font-medium">Gang</th>
+                  <th className="px-4 py-2 text-left font-medium">Invited</th>
+                  {isAdmin && <th className="px-4 py-2 text-right"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {campaignMembers.map(member => (
+                  <tr key={member.id} className="border-b last:border-0">
+                    <td className="px-4 py-2">
+                      <span className="font-medium">{member.username}</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="text-gray-500">{formatRole(member.role)}</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      {member.gang?.name ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          {member.gang.name} - {member.gang.gang_type}
+                        </span>
+                      ) : (
+                        <div className="flex items-center">
+                          {(currentUserId === member.id || isAdmin) ? (
+                            <button
+                              onClick={() => handleGangClick(member.id)}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                            >
+                              {currentUserId === member.id ? 'Add your gang' : 'Add gang'}
+                            </button>
+                          ) : (
+                            <span className="text-gray-500">No gang selected</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="text-gray-500">
+                        {member.invited_at && new Date(member.invited_at).toLocaleDateString()}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-2 text-right">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemoveMember(member)}
+                          className="text-xs px-1.5 h-6"
+                        >
+                          Remove
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Card layout for mobile */}
+          <div className="md:hidden space-y-4">
+            {campaignMembers.map(member => (
+              <div key={member.id} className="bg-white rounded-lg border p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="font-medium text-base">{member.username}</span>
+                  <span className="text-sm text-gray-500">{formatRole(member.role)}</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Gang</span>
+                    <div>
+                      {member.gang?.name ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          {member.gang.name} - {member.gang.gang_type}
+                        </span>
+                      ) : (
+                        <div className="flex items-center">
+                          {(currentUserId === member.id || isAdmin) ? (
+                            <button
+                              onClick={() => handleGangClick(member.id)}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                            >
+                              {currentUserId === member.id ? 'Add your gang' : 'Add gang'}
+                            </button>
+                          ) : (
+                            <span className="text-sm text-gray-500">No gang selected</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Invited</span>
+                    <span className="text-sm text-gray-500">
                       {member.invited_at && new Date(member.invited_at).toLocaleDateString()}
                     </span>
-                  </td>
+                  </div>
+
                   {isAdmin && (
-                    <td className="px-4 py-2 text-right">
+                    <div className="flex justify-end mt-3">
                       <Button
                         variant="destructive"
                         size="sm"
                         onClick={() => handleRemoveMember(member)}
-                        className="text-xs px-1.5 h-6"
+                        className="text-xs px-2 py-1"
                       >
                         Remove
                       </Button>
-                    </td>
+                    </div>
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
+      
+      {showGangModal && (
+        <Modal
+          title="Add Gang to Campaign"
+          content={gangModalContent}
+          onClose={() => {
+            setShowGangModal(false);
+            setSelectedGang(null);
+            setSelectedMemberId(null);
+          }}
+          onConfirm={handleAddGang}
+          confirmText="Add Gang"
+          confirmDisabled={!selectedGang}
+        />
       )}
     </div>
   )
