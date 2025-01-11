@@ -22,6 +22,7 @@ type Profile = {
 
 interface MemberSearchProps {
   campaignId: string;
+  isAdmin: boolean;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -35,7 +36,10 @@ const formatRole = (role: MemberRole | undefined) => {
   }
 };
 
-export default function MemberSearch({ campaignId }: MemberSearchProps) {
+export default function MemberSearch({ 
+  campaignId,
+  isAdmin 
+}: MemberSearchProps) {
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Profile[]>([])
   const [campaignMembers, setCampaignMembers] = useState<Profile[]>([])
@@ -156,7 +160,7 @@ export default function MemberSearch({ campaignId }: MemberSearchProps) {
     };
 
     loadCampaignMembers();
-  }, [campaignId]);
+  }, [campaignId, supabase]);
 
   // Search for users
   useEffect(() => {
@@ -263,38 +267,40 @@ export default function MemberSearch({ campaignId }: MemberSearchProps) {
 
   return (
     <div className="w-full">
-      <div className="relative mb-4">
-        <Input
-          type="text"
-          placeholder="Search to add member"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full"
-          disabled={isAdding}
-        />
-        {isLoading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-          </div>
-        )}
-        {searchResults.length > 0 && query && (
-          <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
-            <ul className="py-2">
-              {searchResults.map(profile => (
-                <li key={profile.id}>
-                  <button
-                    onClick={() => handleAddMember(profile)}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100"
-                    disabled={isAdding}
-                  >
-                    <span className="font-medium">{profile.username}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      {isAdmin && (
+        <div className="relative mb-4">
+          <Input
+            type="text"
+            placeholder="Search to add member"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full"
+            disabled={isAdding}
+          />
+          {isLoading && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
+          {searchResults.length > 0 && query && (
+            <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
+              <ul className="py-2">
+                {searchResults.map(profile => (
+                  <li key={profile.id}>
+                    <button
+                      onClick={() => handleAddMember(profile)}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100"
+                      disabled={isAdding}
+                    >
+                      <span className="font-medium">{profile.username}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
       {campaignMembers.length > 0 && (
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
@@ -304,7 +310,7 @@ export default function MemberSearch({ campaignId }: MemberSearchProps) {
                 <th className="px-4 py-2 text-left font-medium">Role</th>
                 <th className="px-4 py-2 text-left font-medium">Gang</th>
                 <th className="px-4 py-2 text-left font-medium">Invited</th>
-                <th className="px-4 py-2 text-right"></th>
+                {isAdmin && <th className="px-4 py-2 text-right"></th>}
               </tr>
             </thead>
             <tbody>
@@ -326,16 +332,18 @@ export default function MemberSearch({ campaignId }: MemberSearchProps) {
                       {member.invited_at && new Date(member.invited_at).toLocaleDateString()}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleRemoveMember(member)}
-                      className="text-xs px-1.5 h-6"
-                    >
-                      Remove
-                    </Button>
-                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2 text-right">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleRemoveMember(member)}
+                        className="text-xs px-1.5 h-6"
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
