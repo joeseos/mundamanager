@@ -1,19 +1,7 @@
-import React from 'react';
-import Campaign from "@/components/campaign";
-import MemberSearch from "@/components/member-search";
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
-
-interface CampaignDetails {
-  id: string;
-  campaign_name: string;
-  campaign_type_id: string;
-  campaign_type_name: string;
-  status: string | null;
-  created_at: string;
-  updated_at: string | null;
-  members: any[];
-}
+import CampaignPageContent from "@/components/campaign-page-content";
+import { CampaignErrorBoundary } from "@/components/campaign-error-boundary";
 
 export default async function CampaignPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -43,21 +31,10 @@ export default async function CampaignPage({ params }: { params: { id: string } 
       notFound();
     }
 
-    const transformedData = {
-      ...campaignData,
-      campaign_type: campaignData.campaign_type_name
-    };
-
     return (
-      <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full space-y-4">
-          <Campaign {...transformedData} />
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <h2 className="text-xl font-semibold mb-4">Campaign Members</h2>
-            <MemberSearch campaignId={params.id} />
-          </div>
-        </div>
-      </main>
+      <CampaignErrorBoundary>
+        <CampaignPageContent campaignData={campaignData} />
+      </CampaignErrorBoundary>
     );
   } catch (error) {
     console.error('Error in CampaignPage:', error);

@@ -1,11 +1,15 @@
 "use client"
 
+import { useEffect, useState } from 'react';
+import { createClient } from "@/utils/supabase/client";
+
 interface CampaignProps {
   id: string;
   campaign_name: string;
   campaign_type: string;
   created_at: string;
   updated_at: string | null;
+  onAdminStatusChange?: (status: boolean) => void;
 }
 
 export default function Campaign({
@@ -13,8 +17,49 @@ export default function Campaign({
   campaign_name,
   campaign_type,
   created_at,
-  updated_at
+  updated_at,
+  onAdminStatusChange
 }: CampaignProps) {
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setIsAdmin(false);
+          onAdminStatusChange?.(false);
+          return;
+        }
+
+        const { data: memberData, error } = await supabase
+          .from('campaign_members')
+          .select('role')
+          .eq('campaign_id', id)
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Error checking admin status:', error);
+          setIsAdmin(false);
+          onAdminStatusChange?.(false);
+          return;
+        }
+
+        const adminStatus = memberData?.role === 'ADMIN';
+        setIsAdmin(adminStatus);
+        onAdminStatusChange?.(adminStatus);
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+        onAdminStatusChange?.(false);
+      }
+    };
+
+    checkAdminStatus();
+  }, [id, onAdminStatusChange]);
+
   // Format date consistently for both server and client
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not yet updated';
@@ -31,11 +76,13 @@ export default function Campaign({
     <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">{campaign_name}</h1>
-        <button
-          className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors"
-        >
-          Edit
-        </button>
+        {isAdmin && (
+          <button
+            className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors"
+          >
+            Edit
+          </button>
+        )}
       </div>
       <h2 className="text-gray-600 text-lg mb-6">{campaign_type}</h2>
       
