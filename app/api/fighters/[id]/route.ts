@@ -67,7 +67,19 @@ export async function PATCH(
 ) {
   const supabase = createClient();
   const body = await request.json();
-  const { fighter_name, label, kills, cost_adjustment, xp_to_add, operation, note } = body;
+  const { 
+    fighter_name, 
+    label, 
+    kills, 
+    cost_adjustment, 
+    xp_to_add, 
+    operation, 
+    note, 
+    killed,
+    retired,
+    enslaved,
+    starved 
+  } = body;
 
   try {
     // Validate label length if it's provided
@@ -103,6 +115,26 @@ export async function PATCH(
         .single();
 
       if (updateError) throw updateError;
+      return NextResponse.json(updatedFighter);
+    }
+
+    // If updating fighter status (killed, retired, enslaved, starved)
+    if (killed !== undefined || retired !== undefined || enslaved !== undefined || starved !== undefined) {
+      const updateData: Record<string, boolean> = {};
+      
+      if (killed !== undefined) updateData.killed = killed;
+      if (retired !== undefined) updateData.retired = retired;
+      if (enslaved !== undefined) updateData.enslaved = enslaved;
+      if (starved !== undefined) updateData.starved = starved;
+
+      const { data: updatedFighter, error: statusUpdateError } = await supabase
+        .from("fighters")
+        .update(updateData)
+        .eq('id', params.id)
+        .select()
+        .single();
+
+      if (statusUpdateError) throw statusUpdateError;
       return NextResponse.json(updatedFighter);
     }
 
