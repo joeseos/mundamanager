@@ -8,7 +8,10 @@ interface Territory {
 
 interface RawCampaignTerritory {
   territory_id: string;
-  territories: Territory;
+  territories: {
+    id: string;
+    territory_name: string;
+  };
 }
 
 interface TransformedCampaignTerritory {
@@ -45,7 +48,7 @@ export async function GET(
     if (error) throw error;
 
     // Transform the data to include territory_name directly
-    const transformedData: TransformedCampaignTerritory[] = (data || []).map(item => ({
+    const transformedData: TransformedCampaignTerritory[] = (data as RawCampaignTerritory[] || []).map(item => ({
       territory_id: item.territory_id,
       territory_name: item.territories?.territory_name || "Unknown"
     }));
