@@ -9,7 +9,7 @@ interface CampaignProps {
   campaign_type: string;
   created_at: string;
   updated_at: string | null;
-  onAdminStatusChange?: (status: boolean) => void;
+  onRoleChange?: (role: 'OWNER' | 'ARBITRATOR' | 'MEMBER') => void;
 }
 
 export default function Campaign({
@@ -18,18 +18,18 @@ export default function Campaign({
   campaign_type,
   created_at,
   updated_at,
-  onAdminStatusChange
+  onRoleChange
 }: CampaignProps) {
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
-    const checkAdminStatus = async () => {
+    const checkUserRole = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          setIsAdmin(false);
-          onAdminStatusChange?.(false);
+          setUserRole(null);
+          onRoleChange?.('MEMBER');
           return;
         }
 
@@ -41,24 +41,23 @@ export default function Campaign({
           .single();
 
         if (error) {
-          console.error('Error checking admin status:', error);
-          setIsAdmin(false);
-          onAdminStatusChange?.(false);
+          console.error('Error checking user role:', error);
+          setUserRole(null);
+          onRoleChange?.('MEMBER');
           return;
         }
 
-        const adminStatus = memberData?.role === 'ADMIN';
-        setIsAdmin(adminStatus);
-        onAdminStatusChange?.(adminStatus);
+        setUserRole(memberData?.role || 'MEMBER');
+        onRoleChange?.(memberData?.role || 'MEMBER');
       } catch (error) {
-        console.error('Error checking admin status:', error);
-        setIsAdmin(false);
-        onAdminStatusChange?.(false);
+        console.error('Error checking user role:', error);
+        setUserRole(null);
+        onRoleChange?.('MEMBER');
       }
     };
 
-    checkAdminStatus();
-  }, [id, onAdminStatusChange]);
+    checkUserRole();
+  }, [id, onRoleChange]);
 
   // Format date consistently for both server and client
   const formatDate = (dateString: string | null) => {
@@ -76,7 +75,7 @@ export default function Campaign({
     <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">{campaign_name}</h1>
-        {isAdmin && (
+        {(userRole === 'OWNER' || userRole === 'ARBITRATOR') && (
           <button
             className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors"
           >

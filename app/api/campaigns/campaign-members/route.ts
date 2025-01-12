@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 export async function PATCH(request: Request) {
   const supabase = createClient();
 
-  // Get the authenticated user
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -21,34 +20,61 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Check if the current user is an admin
-    const { data: memberData } = await supabase
-      .from('campaign_members')
-      .select('role')
-      .eq('campaign_id', campaignId)
-      .eq('user_id', user.id)
-      .single();
+    // Get both current user's role and target user's role
+    const [currentUserRole, targetUserRole] = await Promise.all([
+      supabase
+        .from('campaign_members')
+        .select('role')
+        .eq('campaign_id', campaignId)
+        .eq('user_id', user.id)
+        .single(),
+      supabase
+        .from('campaign_members')
+        .select('role')
+        .eq('campaign_id', campaignId)
+        .eq('user_id', userId)
+        .single()
+    ]);
 
-    if (memberData?.role !== 'ADMIN') {
+    // Check permissions based on roles
+    if (currentUserRole.data?.role === 'MEMBER') {
       return NextResponse.json(
-        { error: "Only admins can change roles" }, 
+        { error: "Members cannot change roles" }, 
         { status: 403 }
       );
     }
 
-    // If changing from ADMIN to MEMBER, check if this is the last admin
-    if (newRole === 'MEMBER') {
-      const { data: adminCount, error: countError } = await supabase
+    if (currentUserRole.data?.role === 'ARBITRATOR') {
+      // Arbitrators can't modify owner's role
+      if (targetUserRole.data?.role === 'OWNER') {
+        return NextResponse.json(
+          { error: "Arbitrators cannot modify the owner's role" }, 
+          { status: 403 }
+        );
+      }
+      
+      // Arbitrators can only set/unset member role
+      if (newRole === 'OWNER') {
+        return NextResponse.json(
+          { error: "Arbitrators cannot assign owner role" }, 
+          { status: 403 }
+        );
+      }
+    }
+
+    // If changing from ARBITRATOR to MEMBER, check if this is the last arbitrator
+    if (newRole === 'MEMBER' && targetUserRole.data?.role === 'ARBITRATOR') {
+      const { data: arbitratorCount, error: countError } = await supabase
         .from('campaign_members')
         .select('user_id', { count: 'exact' })
         .eq('campaign_id', campaignId)
-        .eq('role', 'ADMIN');
+        .eq('role', 'ARBITRATOR');
 
       if (countError) throw countError;
 
-      if (adminCount?.length === 1) {
+      if (arbitratorCount?.length === 1) {
         return NextResponse.json(
-          { error: "Cannot remove the last admin from the campaign" }, 
+          { error: "Cannot remove the last arbitrator from the campaign" }, 
           { status: 400 }
         );
       }

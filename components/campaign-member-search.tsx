@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Modal from "@/components/modal"
 
-type MemberRole = 'ADMIN' | 'MEMBER';
+type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 type Profile = {
   id: string;
@@ -36,8 +36,10 @@ interface MemberSearchProps {
 
 const formatRole = (role: MemberRole | undefined) => {
   switch (role) {
-    case 'ADMIN':
-      return 'Admin';
+    case 'OWNER':
+      return 'Owner';
+    case 'ARBITRATOR':
+      return 'Arbitrator';
     case 'MEMBER':
       return 'Member';
     default:
@@ -83,7 +85,7 @@ export default function MemberSearch({
         if (membersError) throw membersError;
 
         if (!membersData?.length) {
-          // If no members exist, add current user as ADMIN
+          // If no members exist, add current user as ARBITRATOR
           if (user) {
             const { data: userData } = await supabase
               .from('profiles')
@@ -92,9 +94,9 @@ export default function MemberSearch({
               .single();
 
             if (userData) {
-              const adminMember = {
+              const arbitratorMember = {
                 ...userData,
-                role: 'ADMIN' as MemberRole,
+                role: 'ARBITRATOR' as MemberRole,
                 invited_at: new Date().toISOString()
               };
               
@@ -103,11 +105,11 @@ export default function MemberSearch({
                 .insert({
                   campaign_id: campaignId,
                   user_id: user.id,
-                  role: 'ADMIN',
+                  role: 'ARBITRATOR',
                   invited_at: new Date().toISOString()
                 });
 
-              setCampaignMembers([adminMember]);
+              setCampaignMembers([arbitratorMember]);
             }
           }
           return;
@@ -571,7 +573,7 @@ export default function MemberSearch({
                                 memberId: member.id,
                                 username: member.username,
                                 currentRole: member.role || 'MEMBER',
-                                newRole: member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
+                                newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
                               });
                               setShowRoleModal(true);
                             }}
@@ -663,7 +665,7 @@ export default function MemberSearch({
                           memberId: member.id,
                           username: member.username,
                           currentRole: member.role || 'MEMBER',
-                          newRole: member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
+                          newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
                         });
                         setShowRoleModal(true);
                       }}

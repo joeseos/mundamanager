@@ -18,7 +18,7 @@ interface CampaignPageContentProps {
 }
 
 export default function CampaignPageContent({ campaignData }: CampaignPageContentProps) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
 
   const transformedData = React.useMemo(() => ({
     id: campaignData.id,
@@ -31,10 +31,13 @@ export default function CampaignPageContent({ campaignData }: CampaignPageConten
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <Campaign {...transformedData} onAdminStatusChange={setIsAdmin} />
+        <Campaign {...transformedData} onRoleChange={setUserRole} />
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-xl font-semibold mb-4">Campaign Members</h2>
-          <MemberSearch campaignId={campaignData.id} isAdmin={isAdmin} />
+          <MemberSearch 
+            campaignId={campaignData.id} 
+            isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} 
+          />
         </div>
       </div>
     </main>
