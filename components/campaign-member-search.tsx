@@ -61,6 +61,8 @@ export default function MemberSearch({
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [userGangs, setUserGangs] = useState<Gang[]>([])
   const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
+  const [showRemoveGangModal, setShowRemoveGangModal] = useState(false)
+  const [gangToRemove, setGangToRemove] = useState<{ memberId: string; gangId: string; gangName: string } | null>(null)
 
   // Load existing campaign members
   useEffect(() => {
@@ -387,6 +389,64 @@ export default function MemberSearch({
     </div>
   ), [userGangs, selectedGang]);
 
+  // Add this function to handle gang removal
+  const handleRemoveGang = async () => {
+    if (!gangToRemove) return false;
+
+    try {
+      const response = await fetch('/api/campaign-gangs', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaignId,
+          gangId: gangToRemove.gangId,
+          userId: gangToRemove.memberId
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to remove gang');
+
+      // Update the local state
+      setCampaignMembers(members =>
+        members.map(member =>
+          member.id === gangToRemove.memberId
+            ? { ...member, gang: null }
+            : member
+        )
+      );
+
+      toast({
+        description: "Gang removed successfully"
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error removing gang:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to remove gang"
+      });
+      return false;
+    }
+  };
+
+  // Add this function to handle the remove button click
+  const handleRemoveGangClick = (memberId: string, gangId: string, gangName: string) => {
+    setGangToRemove({ memberId, gangId, gangName });
+    setShowRemoveGangModal(true);
+  };
+
+  // Add the remove gang modal content
+  const removeGangModalContent = useMemo(() => (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        Are you sure you want to remove <span className="font-medium">{gangToRemove?.gangName}</span> from this campaign?
+      </p>
+    </div>
+  ), [gangToRemove]);
+
   return (
     <div className="w-full">
       {isAdmin && (
@@ -448,9 +508,22 @@ export default function MemberSearch({
                     </td>
                     <td className="px-4 py-2">
                       {member.gang?.name ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {member.gang.name} - {member.gang.gang_type}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {member.gang.name} - {member.gang.gang_type}
+                            {(currentUserId === member.id || isAdmin) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveGangClick(member.id, member.gang!.id, member.gang!.name);
+                                }}
+                                className="ml-1.5 text-gray-400 hover:text-gray-600"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </span>
+                        </div>
                       ) : (
                         <div className="flex items-center">
                           {(currentUserId === member.id || isAdmin) ? (
@@ -503,9 +576,22 @@ export default function MemberSearch({
                     <span className="text-sm text-gray-500">Gang</span>
                     <div>
                       {member.gang?.name ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {member.gang.name} - {member.gang.gang_type}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {member.gang.name} - {member.gang.gang_type}
+                            {(currentUserId === member.id || isAdmin) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveGangClick(member.id, member.gang!.id, member.gang!.name);
+                                }}
+                                className="ml-1.5 text-gray-400 hover:text-gray-600"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </span>
+                        </div>
                       ) : (
                         <div className="flex items-center">
                           {(currentUserId === member.id || isAdmin) ? (
@@ -561,6 +647,20 @@ export default function MemberSearch({
           onConfirm={handleAddGang}
           confirmText="Add Gang"
           confirmDisabled={!selectedGang}
+        />
+      )}
+
+      {showRemoveGangModal && (
+        <Modal
+          title="Remove Gang from Campaign"
+          content={removeGangModalContent}
+          onClose={() => {
+            setShowRemoveGangModal(false);
+            setGangToRemove(null);
+          }}
+          onConfirm={handleRemoveGang}
+          confirmText="Remove Gang"
+          confirmDisabled={false}
         />
       )}
     </div>
