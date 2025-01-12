@@ -8,7 +8,7 @@ interface Territory {
 
 interface CampaignTerritory {
   territory_id: string;
-  territories: Territory;
+  territories: Territory | null;
 }
 
 export async function GET(
@@ -42,7 +42,7 @@ export async function GET(
     // Transform the data to include territory_name directly
     const transformedData = (data as CampaignTerritory[] || []).map(item => ({
       territory_id: item.territory_id,
-      territory_name: item.territories?.territory_name
+      territory_name: item.territories?.territory_name || "Unknown"
     }));
 
     return NextResponse.json(transformedData);
