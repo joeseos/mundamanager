@@ -63,6 +63,8 @@ export default function MemberSearch({
   const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
   const [showRemoveGangModal, setShowRemoveGangModal] = useState(false)
   const [gangToRemove, setGangToRemove] = useState<{ memberId: string; gangId: string; gangName: string } | null>(null)
+  const [showRoleModal, setShowRoleModal] = useState(false)
+  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null)
 
   // Load existing campaign members
   useEffect(() => {
@@ -447,6 +449,63 @@ export default function MemberSearch({
     </div>
   ), [gangToRemove]);
 
+  // Add this function to handle role changes
+  const handleRoleChange = async () => {
+    if (!roleChange) return false;
+
+    try {
+      const response = await fetch('/api/campaign-members', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaignId,
+          userId: roleChange.memberId,
+          newRole: roleChange.newRole
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update role');
+      }
+
+      // Update the local state
+      setCampaignMembers(members =>
+        members.map(member =>
+          member.id === roleChange.memberId
+            ? { ...member, role: roleChange.newRole }
+            : member
+        )
+      );
+
+      toast({
+        description: `Updated ${roleChange.username}'s role to ${roleChange.newRole}`
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating role:', error);
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : "Failed to update role"
+      });
+      return false;
+    }
+  };
+
+  // Add the role modal content
+  const roleModalContent = useMemo(() => (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        Are you sure you want to change <span className="font-medium">{roleChange?.username}</span>'s role from{' '}
+        <span className="font-medium">{roleChange?.currentRole}</span> to{' '}
+        <span className="font-medium">{roleChange?.newRole}</span>?
+      </p>
+    </div>
+  ), [roleChange]);
+
   return (
     <div className="w-full">
       {isAdmin && (
@@ -504,7 +563,36 @@ export default function MemberSearch({
                       <span className="font-medium">{member.username}</span>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="text-gray-500">{formatRole(member.role)}</span>
+                      <div className="flex items-center gap-2">
+                        {isAdmin && member.id !== currentUserId ? (
+                          <button
+                            onClick={() => {
+                              setRoleChange({
+                                memberId: member.id,
+                                username: member.username,
+                                currentRole: member.role || 'MEMBER',
+                                newRole: member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
+                              });
+                              setShowRoleModal(true);
+                            }}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                          >
+                            {formatRole(member.role)}
+                            <svg 
+                              className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {formatRole(member.role)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       {member.gang?.name ? (
@@ -568,7 +656,34 @@ export default function MemberSearch({
               <div key={member.id} className="bg-white rounded-lg border p-4">
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-medium text-base">{member.username}</span>
-                  <span className="text-sm text-gray-500">{formatRole(member.role)}</span>
+                  {isAdmin && member.id !== currentUserId ? (
+                    <button
+                      onClick={() => {
+                        setRoleChange({
+                          memberId: member.id,
+                          username: member.username,
+                          currentRole: member.role || 'MEMBER',
+                          newRole: member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
+                        });
+                        setShowRoleModal(true);
+                      }}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                    >
+                      {formatRole(member.role)}
+                      <svg 
+                        className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {formatRole(member.role)}
+                    </span>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -660,6 +775,20 @@ export default function MemberSearch({
           }}
           onConfirm={handleRemoveGang}
           confirmText="Remove Gang"
+          confirmDisabled={false}
+        />
+      )}
+
+      {showRoleModal && (
+        <Modal
+          title="Change Member Role"
+          content={roleModalContent}
+          onClose={() => {
+            setShowRoleModal(false);
+            setRoleChange(null);
+          }}
+          onConfirm={handleRoleChange}
+          confirmText="Change Role"
           confirmDisabled={false}
         />
       )}
