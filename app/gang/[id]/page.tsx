@@ -166,14 +166,13 @@ export default async function GangPage({ params }: { params: { id: string } }) {
 
     return (
       <div>
-        <Tabs>
+        <Tabs tabTitles={['Details', 'Stash', 'Notes']}>
           <GangPageContent processedData={processedData} gangData={gangData} />
           <GangInventory
             stash={gangData.stash || []} 
             fighters={processedData.fighters}
             title="Stash"
           />
-          <div>Settings Content Coming Soon</div>
           <GangNotes 
             gangId={params.id}
             initialNote={gangData.note || ''}

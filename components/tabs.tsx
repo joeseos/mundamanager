@@ -4,21 +4,20 @@ import React, { useState } from 'react';
 
 interface TabsProps {
   children: React.ReactNode[];
+  tabTitles?: string[];
 }
 
-const Tabs = ({ children }: TabsProps) => {
+const Tabs = ({ children, tabTitles }: TabsProps) => {
   const [activeTab, setActiveTab] = useState(0);
 
-  const tabsData = [
-    { title: 'Details' },
-    { title: 'Territories' },
-    { title: 'Notes' },
-  ];
+  const defaultTabTitles = ['Details', 'Stash', 'Notes'];
+  
+  const titles = tabTitles || defaultTabTitles;
 
   return (
     <div className="w-full">
       <div className="bg-white rounded-lg mb-4 flex">
-        {tabsData.map((tab, index) => (
+        {titles.map((title, index) => (
           <button
             key={index}
             onClick={() => setActiveTab(index)}
@@ -28,14 +27,14 @@ const Tabs = ({ children }: TabsProps) => {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {tab.title}
+            {title}
           </button>
         ))}
       </div>
 
       {children[activeTab] || (
         <div className="p-4">
-          <h2 className="text-xl font-bold mb-2">{tabsData[activeTab].title}</h2>
+          <h2 className="text-xl font-bold mb-2">{titles[activeTab]}</h2>
         </div>
       )}
     </div>
