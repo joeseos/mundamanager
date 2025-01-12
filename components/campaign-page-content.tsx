@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Campaign from "@/components/campaign";
 import MemberSearch from "@/components/campaign-member-search";
+import CampaignTerritoriesTable from "@/components/campaign-territories-table";
 
 interface CampaignPageContentProps {
   campaignData: {
@@ -33,11 +34,15 @@ export default function CampaignPageContent({ campaignData }: CampaignPageConten
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <Campaign {...transformedData} onRoleChange={setUserRole} />
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-          <h2 className="text-xl font-semibold mb-4">Campaign Members</h2>
+          <h2 className="text-2xl font-bold mb-4">Campaign Members</h2>
           <MemberSearch 
             campaignId={campaignData.id} 
             isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} 
           />
+        </div>
+        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <h2 className="text-2xl font-bold mb-4">Territories</h2>
+          <CampaignTerritoriesTable />
         </div>
       </div>
     </main>

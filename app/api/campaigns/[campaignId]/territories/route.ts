@@ -16,32 +16,24 @@ export async function GET(
   }
 
   try {
-    // First get all territories for this campaign
-    const { data: campaignTerritories, error: campaignError } = await supabase
+    const { data, error } = await supabase
       .from('campaign_territories')
-      .select('territory_id')
+      .select(`
+        territory_id,
+        territories (
+          id,
+          territory_name
+        )
+      `)
       .eq('campaign_id', campaignId);
 
-    if (campaignError) throw campaignError;
+    if (error) throw error;
 
-    if (!campaignTerritories || campaignTerritories.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    // Then get the territory details
-    const territoryIds = campaignTerritories.map(ct => ct.territory_id);
-    const { data: territories, error: territoriesError } = await supabase
-      .from('territories')
-      .select('id, territory_name')
-      .in('id', territoryIds);
-
-    if (territoriesError) throw territoriesError;
-
-    // Transform the data to match the expected format
-    const transformedData = territories?.map(territory => ({
-      territory_id: territory.id,
-      territory_name: territory.territory_name
-    })) || [];
+    // Transform the data to include territory_name directly
+    const transformedData = (data || []).map(item => ({
+      territory_id: item.territory_id,
+      territory_name: item.territories?.territory_name
+    }));
 
     return NextResponse.json(transformedData);
   } catch (error) {
@@ -80,13 +72,26 @@ export async function POST(
 
     // Then insert the new ones
     if (territoryIds && territoryIds.length > 0) {
+      // First get the territory names
+      const { data: territories, error: territoriesError } = await supabase
+        .from('territories')
+        .select('id, territory_name')
+        .in('id', territoryIds);
+
+      if (territoriesError) throw territoriesError;
+
+      // Then insert with territory names
       const { error: insertError } = await supabase
         .from('campaign_territories')
         .insert(
-          territoryIds.map((territoryId: string) => ({
-            campaign_id: campaignId,
-            territory_id: territoryId
-          }))
+          territoryIds.map((territoryId: string) => {
+            const territory = territories?.find(t => t.id === territoryId);
+            return {
+              campaign_id: campaignId,
+              territory_id: territoryId,
+              territory_name: territory?.territory_name
+            };
+          })
         );
 
       if (insertError) throw insertError;
