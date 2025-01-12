@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user has permission (is OWNER or ARBITRATOR)
+    // Check if user has permission (is OWNER, ARBITRATOR, or adding their own gang)
     const { data: memberRole, error: roleError } = await supabase
       .from('campaign_members')
       .select('role')
@@ -31,7 +31,13 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || !memberRole || (memberRole.role !== 'OWNER' && memberRole.role !== 'ARBITRATOR')) {
+    // Allow if:
+    // 1. User is OWNER/ARBITRATOR, or
+    // 2. User is adding their own gang (user.id === userId)
+    if (roleError || !memberRole || 
+        (memberRole.role !== 'OWNER' && 
+         memberRole.role !== 'ARBITRATOR' && 
+         user.id !== userId)) {
       return NextResponse.json(
         { error: "Insufficient permissions" },
         { status: 403 }
