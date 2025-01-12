@@ -10,28 +10,38 @@ import Modal from "@/components/modal"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
-type Profile = {
-  id: string;
-  username: string;
-  role?: MemberRole;
-  invited_at?: string;
-  invited_by?: string;
-  gang?: {
-    id: string;
-    name: string;
-    gang_type: string;
-  } | null;
-};
-
-type Gang = {
+interface Gang {
   id: string;
   name: string;
   gang_type: string;
-};
+}
+
+interface Member {
+  user_id: string;
+  username: string;
+  role: MemberRole;
+  status: string | null;
+  invited_at: string;
+  joined_at: string | null;
+  invited_by: string;
+  profile: {
+    id: string;
+    username: string;
+    updated_at: string;
+    user_role: string;
+  };
+  gangs: {
+    id: string;
+    gang_id: string;
+    gang_name: string;
+    status: string | null;
+  }[];
+}
 
 interface MemberSearchProps {
   campaignId: string;
   isAdmin: boolean;
+  initialMembers?: Member[];
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -47,13 +57,22 @@ const formatRole = (role: MemberRole | undefined) => {
   }
 };
 
+// First, let's define a type for the gang structure
+interface CampaignGang {
+  id: string;
+  gang_id: string;
+  gang_name: string;
+  status: string | null;
+}
+
 export default function MemberSearch({ 
   campaignId,
-  isAdmin 
+  isAdmin,
+  initialMembers = [] 
 }: MemberSearchProps) {
   const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Profile[]>([])
-  const [campaignMembers, setCampaignMembers] = useState<Profile[]>([])
+  const [searchResults, setSearchResults] = useState<Member[]>([])
+  const [campaignMembers, setCampaignMembers] = useState<Member[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const supabase = createClient()
@@ -67,108 +86,20 @@ export default function MemberSearch({
   const [gangToRemove, setGangToRemove] = useState<{ memberId: string; gangId: string; gangName: string } | null>(null)
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
+  const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false)
 
   // Load existing campaign members
   useEffect(() => {
     const loadCampaignMembers = async () => {
       try {
-        // Get current user
+        // Only get current user ID
         const { data: { user } } = await supabase.auth.getUser();
-        
-        const { data: membersData, error: membersError } = await supabase
-          .from('campaign_members')
-          .select('user_id, role, invited_at, invited_by')
-          .eq('campaign_id', campaignId);
+        setCurrentUserId(user?.id || null);
 
-        console.log('Members data from DB:', membersData); // Debug log
+        // Use the pre-loaded members data
+        setCampaignMembers(initialMembers);
 
-        if (membersError) throw membersError;
-
-        if (!membersData?.length) {
-          // If no members exist, add current user as ARBITRATOR
-          if (user) {
-            const { data: userData } = await supabase
-              .from('profiles')
-              .select('id, username')
-              .eq('id', user.id)
-              .single();
-
-            if (userData) {
-              const arbitratorMember = {
-                ...userData,
-                role: 'ARBITRATOR' as MemberRole,
-                invited_at: new Date().toISOString()
-              };
-              
-              await supabase
-                .from('campaign_members')
-                .insert({
-                  campaign_id: campaignId,
-                  user_id: user.id,
-                  role: 'ARBITRATOR',
-                  invited_at: new Date().toISOString()
-                });
-
-              setCampaignMembers([arbitratorMember]);
-            }
-          }
-          return;
-        }
-
-        const userIds = membersData.map(m => m.user_id);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', userIds);
-
-        if (profilesError) throw profilesError;
-
-        // Combine profile data with member data
-        const membersWithRoles = await Promise.all(profilesData?.map(async profile => {
-          const memberData = membersData.find(m => m.user_id === profile.id);
-          
-          // First get the user's gang from campaign_gangs
-          const { data: campaignGangData } = await supabase
-            .from('campaign_gangs')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .eq('user_id', profile.id)
-            .maybeSingle();
-
-          console.log('Campaign gang data for user', profile.username, ':', campaignGangData);  // More detailed debug log
-
-          let gang = null;
-          
-          if (campaignGangData) {
-            const { data: gangData } = await supabase
-              .from('gangs')
-              .select(`
-                id,
-                name,
-                gang_type
-              `)
-              .eq('id', campaignGangData.gang_id)
-              .single();
-
-            if (gangData) {
-              gang = {
-                id: gangData.id,
-                name: gangData.name,
-                gang_type: gangData.gang_type
-              };
-            }
-          }
-
-          return {
-            ...profile,
-            role: memberData?.role,
-            invited_at: memberData?.invited_at,
-            invited_by: memberData?.invited_by,
-            gang: gang
-          } as Profile;
-        }) || []);
-
-        setCampaignMembers(membersWithRoles);
       } catch (error) {
         console.error('Error loading campaign members:', error);
         toast({
@@ -179,7 +110,7 @@ export default function MemberSearch({
     };
 
     loadCampaignMembers();
-  }, [campaignId, supabase]);
+  }, [initialMembers]);
 
   // Search for users
   useEffect(() => {
@@ -199,9 +130,27 @@ export default function MemberSearch({
 
         if (profilesError) throw profilesError;
 
+        // Transform profile data to Member type
+        const transformedResults: Member[] = (profilesData || []).map(profile => ({
+          user_id: profile.id,
+          username: profile.username,
+          role: 'MEMBER',
+          status: null,
+          invited_at: new Date().toISOString(),
+          joined_at: null,
+          invited_by: '',
+          profile: {
+            id: profile.id,
+            username: profile.username,
+            updated_at: new Date().toISOString(),
+            user_role: 'user'
+          },
+          gangs: []
+        }));
+
         // Filter out users that are already members
-        const filteredResults = (profilesData || []).filter(
-          profile => !campaignMembers.some(member => member.id === profile.id)
+        const filteredResults = transformedResults.filter(
+          profile => !campaignMembers.some(member => member.user_id === profile.user_id)
         );
 
         setSearchResults(filteredResults);
@@ -217,9 +166,8 @@ export default function MemberSearch({
     return () => clearTimeout(debounceTimer);
   }, [query, campaignMembers]);
 
-  const handleAddMember = async (profile: Profile) => {
+  const handleAddMember = async (member: Member) => {
     try {
-      // Get the current user (inviter)
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -230,25 +178,17 @@ export default function MemberSearch({
         .from('campaign_members')
         .insert({
           campaign_id: campaignId,
-          user_id: profile.id,
+          user_id: member.user_id,
           role: 'MEMBER',
           invited_at: new Date().toISOString(),
-          invited_by: user.id  // Add the inviter's ID
+          invited_by: user.id
         });
 
       if (error) throw error;
 
-      // Add role and invited_at to the profile before updating state
-      const memberWithRole = {
-        ...profile,
-        role: 'MEMBER' as MemberRole,
-        invited_at: new Date().toISOString(),
-        invited_by: user.id
-      };
-
-      setCampaignMembers([...campaignMembers, memberWithRole]);
+      setCampaignMembers([...campaignMembers, member]);
       toast({
-        description: `Added ${profile.username} to the campaign`
+        description: `Added ${member.username} to the campaign`
       });
       setQuery('');
       setSearchResults([]);
@@ -261,26 +201,30 @@ export default function MemberSearch({
     }
   };
 
-  const handleRemoveMember = async (profile: Profile) => {
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return false;
+
     try {
       const { error } = await supabase
         .from('campaign_members')
         .delete()
         .eq('campaign_id', campaignId)
-        .eq('user_id', profile.id);
+        .eq('user_id', memberToRemove.user_id);
 
       if (error) throw error;
 
-      setCampaignMembers(campaignMembers.filter(m => m.id !== profile.id));
+      setCampaignMembers(campaignMembers.filter(m => m.user_id !== memberToRemove.user_id));
       toast({
-        description: `Removed ${profile.username} from the campaign`
+        description: `Removed ${memberToRemove.profile.username} from the campaign`
       });
+      return true;
     } catch (error) {
       console.error('Error removing member from campaign:', error);
       toast({
         variant: "destructive",
         description: "Failed to remove member from campaign"
       });
+      return false;
     }
   };
 
@@ -330,14 +274,15 @@ export default function MemberSearch({
       // Update the local state
       setCampaignMembers(members => 
         members.map(member => 
-          member.id === selectedMemberId 
+          member.user_id === selectedMemberId 
             ? { 
                 ...member, 
-                gang: { 
-                  id: selectedGang.id, 
-                  name: selectedGang.name,
-                  gang_type: selectedGang.gang_type 
-                } 
+                gangs: [{ 
+                  id: selectedGang.id,
+                  gang_id: selectedGang.id,
+                  gang_name: selectedGang.name,
+                  status: null
+                }]
               }
             : member
         )
@@ -415,8 +360,8 @@ export default function MemberSearch({
       // Update the local state
       setCampaignMembers(members =>
         members.map(member =>
-          member.id === gangToRemove.memberId
-            ? { ...member, gang: null }
+          member.user_id === gangToRemove.memberId
+            ? { ...member, gangs: [] }
             : member
         )
       );
@@ -476,7 +421,7 @@ export default function MemberSearch({
       // Update the local state
       setCampaignMembers(members =>
         members.map(member =>
-          member.id === roleChange.memberId
+          member.user_id === roleChange.memberId
             ? { ...member, role: roleChange.newRole }
             : member
         )
@@ -508,6 +453,26 @@ export default function MemberSearch({
     </div>
   ), [roleChange]);
 
+  // Add the remove member modal content
+  const removeMemberModalContent = useMemo(() => (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        Are you sure you want to remove <span className="font-medium">{memberToRemove?.profile.username}</span> from this campaign?
+        {memberToRemove?.gangs[0] && (
+          <span className="block mt-2 text-red-600">
+            This will also remove their gang "{memberToRemove.gangs[0].gang_name}" from the campaign.
+          </span>
+        )}
+      </p>
+    </div>
+  ), [memberToRemove]);
+
+  // Update the remove button click handler
+  const handleRemoveMemberClick = (member: Member) => {
+    setMemberToRemove(member);
+    setShowRemoveMemberModal(true);
+  };
+
   return (
     <div className="w-full">
       {isAdmin && (
@@ -529,7 +494,7 @@ export default function MemberSearch({
             <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
               <ul className="py-2">
                 {searchResults.map(profile => (
-                  <li key={profile.id}>
+                  <li key={profile.user_id}>
                     <button
                       onClick={() => handleAddMember(profile)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-100"
@@ -560,18 +525,18 @@ export default function MemberSearch({
               </thead>
               <tbody>
                 {campaignMembers.map(member => (
-                  <tr key={member.id} className="border-b last:border-0">
+                  <tr key={member.user_id} className="border-b last:border-0">
                     <td className="px-4 py-2">
-                      <span className="font-medium">{member.username}</span>
+                      <span className="font-medium">{member.profile.username}</span>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
-                        {isAdmin && member.id !== currentUserId ? (
+                        {isAdmin && member.user_id !== currentUserId ? (
                           <button
                             onClick={() => {
                               setRoleChange({
-                                memberId: member.id,
-                                username: member.username,
+                                memberId: member.user_id,
+                                username: member.profile.username,
                                 currentRole: member.role || 'MEMBER',
                                 newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
                               });
@@ -597,15 +562,15 @@ export default function MemberSearch({
                       </div>
                     </td>
                     <td className="px-4 py-2">
-                      {member.gang?.name ? (
+                      {member.gangs[0]?.gang_name ? (
                         <div className="flex items-center gap-1">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {member.gang.name} - {member.gang.gang_type}
-                            {(currentUserId === member.id || isAdmin) && (
+                            {member.gangs[0].gang_name}
+                            {(currentUserId === member.user_id || isAdmin) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleRemoveGangClick(member.id, member.gang!.id, member.gang!.name);
+                                  handleRemoveGangClick(member.user_id, member.gangs[0].gang_id, member.gangs[0].gang_name);
                                 }}
                                 className="ml-1.5 text-gray-400 hover:text-gray-600"
                               >
@@ -616,12 +581,12 @@ export default function MemberSearch({
                         </div>
                       ) : (
                         <div className="flex items-center">
-                          {(currentUserId === member.id || isAdmin) ? (
+                          {(currentUserId === member.user_id || isAdmin) ? (
                             <button
-                              onClick={() => handleGangClick(member.id)}
+                              onClick={() => handleGangClick(member.user_id)}
                               className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                             >
-                              {currentUserId === member.id ? 'Add your gang' : 'Add gang'}
+                              {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                             </button>
                           ) : (
                             <span className="text-gray-500">No gang selected</span>
@@ -639,7 +604,7 @@ export default function MemberSearch({
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleRemoveMember(member)}
+                          onClick={() => handleRemoveMemberClick(member)}
                           className="text-xs px-1.5 h-6"
                         >
                           Remove
@@ -655,15 +620,15 @@ export default function MemberSearch({
           {/* Card layout for mobile */}
           <div className="md:hidden space-y-4">
             {campaignMembers.map(member => (
-              <div key={member.id} className="bg-white rounded-lg border p-4">
+              <div key={member.user_id} className="bg-white rounded-lg border p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <span className="font-medium text-base">{member.username}</span>
-                  {isAdmin && member.id !== currentUserId ? (
+                  <span className="font-medium text-base">{member.profile.username}</span>
+                  {isAdmin && member.user_id !== currentUserId ? (
                     <button
                       onClick={() => {
                         setRoleChange({
-                          memberId: member.id,
-                          username: member.username,
+                          memberId: member.user_id,
+                          username: member.profile.username,
                           currentRole: member.role || 'MEMBER',
                           newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
                         });
@@ -692,15 +657,15 @@ export default function MemberSearch({
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">Gang</span>
                     <div>
-                      {member.gang?.name ? (
+                      {member.gangs[0]?.gang_name ? (
                         <div className="flex items-center gap-1">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {member.gang.name} - {member.gang.gang_type}
-                            {(currentUserId === member.id || isAdmin) && (
+                            {member.gangs[0].gang_name}
+                            {(currentUserId === member.user_id || isAdmin) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleRemoveGangClick(member.id, member.gang!.id, member.gang!.name);
+                                  handleRemoveGangClick(member.user_id, member.gangs[0].gang_id, member.gangs[0].gang_name);
                                 }}
                                 className="ml-1.5 text-gray-400 hover:text-gray-600"
                               >
@@ -711,12 +676,12 @@ export default function MemberSearch({
                         </div>
                       ) : (
                         <div className="flex items-center">
-                          {(currentUserId === member.id || isAdmin) ? (
+                          {(currentUserId === member.user_id || isAdmin) ? (
                             <button
-                              onClick={() => handleGangClick(member.id)}
+                              onClick={() => handleGangClick(member.user_id)}
                               className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                             >
-                              {currentUserId === member.id ? 'Add your gang' : 'Add gang'}
+                              {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                             </button>
                           ) : (
                             <span className="text-sm text-gray-500">No gang selected</span>
@@ -738,7 +703,7 @@ export default function MemberSearch({
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleRemoveMember(member)}
+                        onClick={() => handleRemoveMemberClick(member)}
                         className="text-xs px-2 py-1"
                       >
                         Remove
@@ -791,6 +756,20 @@ export default function MemberSearch({
           }}
           onConfirm={handleRoleChange}
           confirmText="Change Role"
+          confirmDisabled={false}
+        />
+      )}
+
+      {showRemoveMemberModal && (
+        <Modal
+          title="Remove Member from Campaign"
+          content={removeMemberModalContent}
+          onClose={() => {
+            setShowRemoveMemberModal(false);
+            setMemberToRemove(null);
+          }}
+          onConfirm={handleRemoveMember}
+          confirmText="Remove Member"
           confirmDisabled={false}
         />
       )}
