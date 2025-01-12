@@ -25,6 +25,17 @@ export default function Campaign({
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null>(null);
   const supabase = createClient();
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Not yet updated';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'UTC'
+    });
+  };
+
   useEffect(() => {
     const checkUserRole = async () => {
       try {
@@ -61,77 +72,45 @@ export default function Campaign({
     checkUserRole();
   }, [id, onRoleChange]);
 
-  // Format date consistently for both server and client
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Not yet updated';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: 'UTC' // Ensure consistent timezone handling
-    });
-  };
-
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
         <Tabs>
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">{campaign_name}</h1>
+            <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+            <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
+            <div className="flex gap-6 text-sm text-gray-500">
+              <div>
+                <span>Created: </span>
+                <span>{formatDate(created_at)}</span>
               </div>
-              <h2 className="text-gray-600 text-lg">{campaign_type}</h2>
-              
-              <h2 className="text-xl font-semibold">Campaign Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-md">
-                <div>
-                  <p className="text-gray-600">Type</p>
-                  <p className="font-medium">{campaign_type}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Created</p>
-                  <p className="font-medium">{formatDate(created_at)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Updated</p>
-                  <p className="font-medium">{formatDate(updated_at)}</p>
-                </div>
+              <div>
+                <span>Updated: </span>
+                <span>{formatDate(updated_at)}</span>
               </div>
             </div>
           </div>
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <h2 className="text-xl font-semibold mb-4">Territories</h2>
+            <h1 className="text-2xl font-bold mb-4">Territories</h1>
             <TerritoryList isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} campaignId={id} />
           </div>
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <h2 className="text-xl font-semibold mb-4">Notes</h2>
+            <h1 className="text-2xl font-bold mb-4">Notes</h1>
             <p className="text-gray-600">Notes content coming soon...</p>
           </div>
         </Tabs>
       ) : (
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold">{campaign_name}</h1>
+          <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+          <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
+          <div className="flex gap-6 text-sm text-gray-500">
+            <div>
+              <span>Created: </span>
+              <span>{formatDate(created_at)}</span>
             </div>
-            <h2 className="text-gray-600 text-lg">{campaign_type}</h2>
-            
-            <h2 className="text-xl font-semibold">Campaign Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-md">
-              <div>
-                <p className="text-gray-600">Type</p>
-                <p className="font-medium">{campaign_type}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Created</p>
-                <p className="font-medium">{formatDate(created_at)}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Updated</p>
-                <p className="font-medium">{formatDate(updated_at)}</p>
-              </div>
+            <div>
+              <span>Updated: </span>
+              <span>{formatDate(updated_at)}</span>
             </div>
           </div>
         </div>
