@@ -10,6 +10,8 @@ import { FighterProps } from '@/types/fighter';
 import { Equipment } from '@/types/equipment';
 import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 interface GangProps {
   id: string;
@@ -28,6 +30,12 @@ interface GangProps {
   initialFighters: FighterProps[];
   fighterTypes: FighterType[];
   additionalButtons?: React.ReactNode;
+  campaigns?: {
+    campaign_id: string;
+    campaign_name: string;
+    role: string | null;
+    status: string | null;
+  }[];
 }
 
 interface FighterType {
@@ -54,6 +62,7 @@ export default function Gang({
   initialFighters = [],
   fighterTypes,
   additionalButtons,
+  campaigns,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -350,7 +359,20 @@ export default function Gang({
         </div>
         
         <div className="text-gray-600 mb-4">
-          <p>Type: <span className="bg-gray-100 px-2 py-1 rounded">{gang_type}</span></p>
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              Type: <Badge variant="secondary">{gang_type}</Badge>
+            </div>
+            {campaigns?.[0] && (
+              <div className="flex items-center gap-2">
+                Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                  <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
+                    {campaigns[0].campaign_name}
+                  </Link>
+                </Badge>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
