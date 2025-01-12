@@ -1,40 +1,29 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useCampaigns } from '@/contexts/CampaignsContext'
 import { createClient } from "@/utils/supabase/client"
+import { toast } from "@/components/ui/use-toast"
 
 interface CampaignType {
-  campaign_type_id: string;
-  campaign_type: string;
+  id: string;
+  campaign_type_name: string;
 }
 
-export default function CreateCampaign() {
+interface CreateCampaignProps {
+  initialCampaignTypes: CampaignType[] | null;
+}
+
+export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignProps) {
   const { refreshCampaigns } = useCampaigns();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([])
+  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
   const supabase = createClient()
-
-  useEffect(() => {
-    const fetchCampaignTypes = async () => {
-      try {
-        const response = await fetch('/api/campaign-types')
-        if (!response.ok) throw new Error('Failed to fetch campaign types')
-        const data = await response.json()
-        setCampaignTypes(data)
-      } catch (err) {
-        console.error('Error fetching campaign types:', err)
-        setError('Failed to load campaign types')
-      }
-    }
-
-    fetchCampaignTypes()
-  }, [])
 
   const handleCreateCampaign = async () => {
     if (!campaignName || !campaignType) {
@@ -97,8 +86,8 @@ export default function CreateCampaign() {
           >
             <option value="">Select campaign type</option>
             {campaignTypes.map((type) => (
-              <option key={type.campaign_type_id} value={type.campaign_type_id}>
-                {type.campaign_type}
+              <option key={type.id} value={type.id}>
+                {type.campaign_type_name}
               </option>
             ))}
           </select>
