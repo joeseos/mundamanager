@@ -214,12 +214,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       }
 
       // Update territories with gang details
-      const updatedTerritories = campaignData.territories.map(territory => ({
+      const updatedTerritories: Territory[] = campaignData.territories.map(territory => ({
         ...territory,
         owning_gangs: territory.owner 
-          ? Object.keys(territory.owner).map(gangId => 
-              gangs?.find(g => g.id === gangId)
-            ).filter(Boolean)
+          ? Object.keys(territory.owner)
+              .map(gangId => gangs?.find(g => g.id === gangId))
+              .filter((g): g is Gang => g !== undefined)
           : []
       }));
 
@@ -230,7 +230,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     };
 
     loadGangDetails();
-  }, [initialCampaignData.territories]); // Only run when initial data changes
+  }, [campaignData.territories]);
 
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
