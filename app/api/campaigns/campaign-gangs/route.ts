@@ -4,59 +4,57 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   const supabase = createClient();
 
-  // Get the authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Check if user is authenticated
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   try {
     const { campaignId, gangId, userId } = await request.json();
 
-    if (!campaignId || !gangId) {
+    if (!campaignId || !gangId || !userId) {
       return NextResponse.json(
-        { error: "Campaign ID and Gang ID are required" }, 
+        { error: "Campaign ID, Gang ID, and User ID are required" },
         { status: 400 }
       );
     }
 
-    // Check if user is admin or adding their own gang
-    const { data: memberData } = await supabase
+    // Check if user has permission (is OWNER or ARBITRATOR)
+    const { data: memberRole, error: roleError } = await supabase
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
       .eq('user_id', user.id)
       .single();
 
-    if (user.id !== userId && memberData?.role !== 'ADMIN') {
+    if (roleError || !memberRole || (memberRole.role !== 'OWNER' && memberRole.role !== 'ARBITRATOR')) {
       return NextResponse.json(
-        { error: "Unauthorized to add gang for other users" }, 
+        { error: "Insufficient permissions" },
         { status: 403 }
       );
     }
 
-    // Insert the gang into campaign_gangs table
-    const { data, error } = await supabase
+    // Add gang to campaign
+    const { error: insertError } = await supabase
       .from('campaign_gangs')
-      .insert([
-        { 
-          campaign_id: campaignId,
-          gang_id: gangId,
-          user_id: userId,
-          joined_at: new Date().toISOString()
-        }
-      ])
-      .select()
-      .single();
+      .insert({
+        campaign_id: campaignId,
+        gang_id: gangId,
+        user_id: userId,
+        joined_at: new Date().toISOString()
+      });
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    return NextResponse.json(data);
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error adding gang to campaign:', error);
     return NextResponse.json(
-      { error: "Failed to add gang to campaign" }, 
+      { error: "Failed to add gang to campaign" },
       { status: 500 }
     );
   }
@@ -90,7 +88,7 @@ export async function DELETE(request: Request) {
       .eq('user_id', user.id)
       .single();
 
-    if (user.id !== userId && memberData?.role !== 'ADMIN') {
+    if (user.id !== userId && memberData?.role !== 'OWNER' && memberData?.role !== 'ARBITRATOR') {
       return NextResponse.json(
         { error: "Unauthorized to remove gang for other users" }, 
         { status: 403 }
