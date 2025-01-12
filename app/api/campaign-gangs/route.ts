@@ -73,7 +73,7 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const { campaignId, gangId } = await request.json();
+    const { campaignId, gangId, userId } = await request.json();
 
     if (!campaignId || !gangId) {
       return NextResponse.json(
@@ -82,11 +82,27 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // Check if user is admin or removing their own gang
+    const { data: memberData } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (user.id !== userId && memberData?.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: "Unauthorized to remove gang for other users" }, 
+        { status: 403 }
+      );
+    }
+
     const { error } = await supabase
       .from('campaign_gangs')
       .delete()
       .eq('campaign_id', campaignId)
-      .eq('gang_id', gangId);
+      .eq('gang_id', gangId)
+      .eq('user_id', userId);
 
     if (error) throw error;
 
