@@ -1,6 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
+interface Territory {
+  id: string;
+  territory_name: string;
+}
+
+interface CampaignTerritory {
+  territory_id: string;
+  territory_name: string;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { campaignId: string } }
@@ -16,34 +26,17 @@ export async function GET(
   }
 
   try {
-    // First get all territories for this campaign
-    const { data: campaignTerritories, error: campaignError } = await supabase
+    const { data, error } = await supabase
       .from('campaign_territories')
-      .select('territory_id')
+      .select(`
+        territory_id,
+        territory_name
+      `)
       .eq('campaign_id', campaignId);
 
-    if (campaignError) throw campaignError;
+    if (error) throw error;
 
-    if (!campaignTerritories || campaignTerritories.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    // Then get the territory details
-    const territoryIds = campaignTerritories.map(ct => ct.territory_id);
-    const { data: territories, error: territoriesError } = await supabase
-      .from('territories')
-      .select('id, territory_name')
-      .in('id', territoryIds);
-
-    if (territoriesError) throw territoriesError;
-
-    // Transform the data to match the expected format
-    const transformedData = territories?.map(territory => ({
-      territory_id: territory.id,
-      territory_name: territory.territory_name
-    })) || [];
-
-    return NextResponse.json(transformedData);
+    return NextResponse.json(data || []);
   } catch (error) {
     console.error('Error fetching territories:', error);
     return NextResponse.json(
@@ -78,14 +71,23 @@ export async function POST(
 
     if (deleteError) throw deleteError;
 
-    // Then insert the new ones
+    // Then get territory names for the selected territories
     if (territoryIds && territoryIds.length > 0) {
+      const { data: territories, error: territoriesError } = await supabase
+        .from('territories')
+        .select('id, territory_name')
+        .in('id', territoryIds);
+
+      if (territoriesError) throw territoriesError;
+
+      // Insert territories with their names
       const { error: insertError } = await supabase
         .from('campaign_territories')
         .insert(
-          territoryIds.map((territoryId: string) => ({
+          territories?.map((territory) => ({
             campaign_id: campaignId,
-            territory_id: territoryId
+            territory_id: territory.id,
+            territory_name: territory.territory_name
           }))
         );
 
