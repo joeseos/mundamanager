@@ -9,6 +9,7 @@ interface CampaignProps {
   id: string;
   campaign_name: string;
   campaign_type: string;
+  campaign_type_id: string;
   created_at: string;
   updated_at: string | null;
   onRoleChange?: (role: 'OWNER' | 'ARBITRATOR' | 'MEMBER') => void;
@@ -18,6 +19,7 @@ export default function Campaign({
   id,
   campaign_name,
   campaign_type,
+  campaign_type_id,
   created_at,
   updated_at,
   onRoleChange
@@ -92,7 +94,11 @@ export default function Campaign({
           </div>
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
             <h1 className="text-2xl font-bold mb-4">Territories</h1>
-            <TerritoryList isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} campaignId={id} />
+            <TerritoryList 
+              isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} 
+              campaignId={id}
+              campaignTypeId={campaign_type_id}
+            />
           </div>
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
             <h1 className="text-2xl font-bold mb-4">Notes</h1>

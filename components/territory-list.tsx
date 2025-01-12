@@ -22,9 +22,10 @@ interface CampaignTerritory {
 interface TerritoryListProps {
   isAdmin: boolean;
   campaignId: string;
+  campaignTypeId: string;
 }
 
-export default function TerritoryList({ isAdmin, campaignId }: TerritoryListProps) {
+export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: TerritoryListProps) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -35,6 +36,10 @@ export default function TerritoryList({ isAdmin, campaignId }: TerritoryListProp
   const { toast } = useToast();
 
   useEffect(() => {
+    setSelectedTypes([campaignTypeId]);
+  }, [campaignTypeId]);
+
+  useEffect(() => {
     const loadCampaignTypes = async () => {
       try {
         const response = await fetch('/api/campaigns/campaign-types');
@@ -43,7 +48,6 @@ export default function TerritoryList({ isAdmin, campaignId }: TerritoryListProp
         if (!response.ok) throw new Error('Failed to fetch campaign types');
 
         setCampaignTypes(data);
-        setSelectedTypes(data.map((type: CampaignType) => type.campaign_type_id));
       } catch (error) {
         toast({
           variant: "destructive",
