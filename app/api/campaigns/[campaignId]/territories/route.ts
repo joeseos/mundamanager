@@ -1,6 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
+interface Territory {
+  id: string;
+  territory_name: string;
+}
+
+interface CampaignTerritory {
+  territory_id: string;
+  territories: Territory;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { campaignId: string } }
@@ -30,7 +40,7 @@ export async function GET(
     if (error) throw error;
 
     // Transform the data to include territory_name directly
-    const transformedData = (data || []).map(item => ({
+    const transformedData = (data as CampaignTerritory[] || []).map(item => ({
       territory_id: item.territory_id,
       territory_name: item.territories?.territory_name
     }));
