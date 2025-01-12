@@ -311,7 +311,7 @@ export default function MemberSearch({
     if (!selectedGang || !selectedMemberId) return false;
 
     try {
-      const response = await fetch('/api/campaign-gangs', {
+      const response = await fetch('/api/campaigns/campaign-gangs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -396,7 +396,7 @@ export default function MemberSearch({
     if (!gangToRemove) return false;
 
     try {
-      const response = await fetch('/api/campaign-gangs', {
+      const response = await fetch('/api/campaigns/campaign-gangs', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -454,7 +454,7 @@ export default function MemberSearch({
     if (!roleChange) return false;
 
     try {
-      const response = await fetch('/api/campaign-members', {
+      const response = await fetch('/api/campaigns/campaign-members', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
