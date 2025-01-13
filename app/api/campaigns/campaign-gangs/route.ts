@@ -18,7 +18,21 @@ export async function POST(request: Request) {
 
     if (!campaignId || !gangId || !userId) {
       return NextResponse.json(
-        { error: "Campaign ID, Gang ID, and User ID are required" },
+        { message: "Campaign ID, Gang ID, and User ID are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if gang is already in any campaign
+    const { data: existingGang, error: checkError } = await supabase
+      .from('campaign_gangs')
+      .select('campaign_id')
+      .eq('gang_id', gangId)
+      .single();
+
+    if (existingGang) {
+      return NextResponse.json(
+        { message: "This gang is already part of another campaign" },
         { status: 400 }
       );
     }
@@ -60,7 +74,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error adding gang to campaign:', error);
     return NextResponse.json(
-      { error: "Failed to add gang to campaign" },
+      { message: error instanceof Error ? error.message : "Failed to add gang to campaign" },
       { status: 500 }
     );
   }
