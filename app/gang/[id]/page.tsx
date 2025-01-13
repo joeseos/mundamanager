@@ -167,7 +167,7 @@ export default async function GangPage({ params }: { params: { id: string } }) {
 
     return (
       <div>
-        <Tabs tabTitles={['Details', 'Stash', 'Territories', 'Notes']}>
+        <Tabs tabTitles={['Details', 'Stash', 'Campaign', 'Notes']}>
           <GangPageContent processedData={processedData} gangData={gangData} />
           <GangInventory
             stash={gangData.stash || []} 
