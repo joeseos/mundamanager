@@ -7,6 +7,8 @@ import TerritoryGangModal from "@/components/territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Modal from "@/components/modal";
 
 interface Gang {
   id: string;
@@ -14,11 +16,27 @@ interface Gang {
   gang_type: string;
 }
 
+interface GangResponse {
+  id: string;
+  name: string;
+  gang_type: string;
+  user: {
+    username: string;
+  } | null;
+}
+
+type GangWithUser = {
+  id: string;
+  name: string;
+  gang_type: string;
+  user: { username: string; } | undefined;
+};
+
 interface Territory {
   id: string;
   territory_id: string;
   territory_name: string;
-  owner: { [key: string]: any } | null;
+  gang_id: string | null;
   created_at: string;
   owning_gangs?: Gang[];
 }
@@ -42,6 +60,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
   const [campaignData, setCampaignData] = useState(initialCampaignData);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const { toast } = useToast();
   const supabase = createClient();
 
@@ -57,36 +77,17 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     if (!selectedTerritory) return;
 
     try {
-      // Get current owner object
-      const { data: currentTerritory, error: fetchError } = await supabase
-        .from('campaign_territories')
-        .select('owner')
-        .eq('id', selectedTerritory.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Create or update owner object
-      const currentOwner = currentTerritory?.owner || {};
-      const updatedOwner = {
-        ...currentOwner,
-        [gangId]: {
-          assigned_at: new Date().toISOString()
-        }
-      };
-
-      // Update territory
       const { error } = await supabase
         .from('campaign_territories')
         .update({
-          owner: updatedOwner
+          gang_id: gangId
         })
         .eq('id', selectedTerritory.id);
 
       if (error) throw error;
 
-      // Get the gang details
-      const { data: gangData, error: gangError } = await supabase
+      // Fetch gang details immediately
+      const { data: gang, error: gangError } = await supabase
         .from('gangs')
         .select('id, name, gang_type')
         .eq('id', gangId)
@@ -98,13 +99,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       setCampaignData(prev => ({
         ...prev,
         territories: prev.territories.map(t => 
-          t.id === selectedTerritory.id 
+          t.id === selectedTerritory.id
             ? {
                 ...t,
-                owner: updatedOwner,
+                gang_id: gangId,
                 owning_gangs: [
-                  ...(t.owning_gangs || []),
-                  gangData
+                  { id: gang.id, name: gang.name, gang_type: gang.gang_type }
                 ]
               }
             : t
@@ -128,24 +128,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const handleRemoveGang = async (territoryId: string, gangId: string) => {
     try {
-      // Get current owner object
-      const { data: currentTerritory, error: fetchError } = await supabase
-        .from('campaign_territories')
-        .select('owner')
-        .eq('id', territoryId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Remove the gang from owner object
-      const currentOwner = currentTerritory?.owner || {};
-      const { [gangId]: removedGang, ...updatedOwner } = currentOwner;
-
       // Update territory
       const { error } = await supabase
         .from('campaign_territories')
         .update({
-          owner: updatedOwner
+          gang_id: null
         })
         .eq('id', territoryId);
 
@@ -158,8 +145,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
           t.id === territoryId
             ? {
                 ...t,
-                owner: updatedOwner,
-                owning_gangs: t.owning_gangs?.filter(g => g.id !== gangId) || []
+                gang_id: null,
+                owning_gangs: []
               }
             : t
         )
@@ -177,29 +164,54 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     }
   };
 
+  const handleDeleteClick = (territoryId: string, territoryName: string) => {
+    setTerritoryToDelete({ id: territoryId, name: territoryName });
+    setShowDeleteModal(true);
+  };
+
+  const handleRemoveTerritory = async (territoryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('campaign_territories')
+        .delete()
+        .eq('id', territoryId);
+
+      if (error) throw error;
+
+      // Update local state
+      setCampaignData(prev => ({
+        ...prev,
+        territories: prev.territories.filter(t => t.id !== territoryId)
+      }));
+
+      toast({
+        description: "Territory removed successfully"
+      });
+    } catch (error) {
+      console.error('Error removing territory:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to remove territory"
+      });
+    }
+  };
+
   // Load gang details for territories
   useEffect(() => {
     const loadGangDetails = async () => {
       // Skip if all territories already have their gang details loaded
       const needsGangDetails = campaignData.territories.some(t => 
-        t.owner && 
-        Object.keys(t.owner).length > 0 && 
-        (!t.owning_gangs || t.owning_gangs.length !== Object.keys(t.owner).length)
+        t.gang_id && (!t.owning_gangs || t.owning_gangs.length === 0)
       );
 
       if (!needsGangDetails) return;
 
-      const territoriesWithOwners = campaignData.territories.filter(t => 
-        t.owner && typeof t.owner === 'object' && Object.keys(t.owner).length > 0
-      );
-      
-      if (territoriesWithOwners.length === 0) return;
-
-      const gangIds = territoriesWithOwners
-        .flatMap(t => Object.keys(t.owner || {}))
-        .filter(id => 
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-        );
+      const territoriesWithGangs = campaignData.territories.filter(t => t.gang_id);
+     
+      // Get all gang IDs and deduplicate them
+      const gangIds = Array.from(new Set(
+        territoriesWithGangs.map(t => t.gang_id).filter((id): id is string => id !== null)
+      ));
 
       if (gangIds.length === 0) return;
       
@@ -214,14 +226,19 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       }
 
       // Update territories with gang details
-      const updatedTerritories: Territory[] = campaignData.territories.map(territory => ({
-        ...territory,
-        owning_gangs: territory.owner 
-          ? Object.keys(territory.owner)
-              .map(gangId => gangs?.find(g => g.id === gangId))
-              .filter((g): g is Gang => g !== undefined)
-          : []
-      }));
+      const updatedTerritories = campaignData.territories.map(territory => {
+        const gang = territory.gang_id ? gangs?.find(g => g.id === territory.gang_id) : null;
+        const territoryGangs = gang ? [{
+          id: gang.id,
+          name: gang.name,
+          gang_type: gang.gang_type
+        }] : [];
+
+        return {
+          ...territory,
+          owning_gangs: territoryGangs
+        };
+      });
 
       setCampaignData(prev => ({
         ...prev,
@@ -256,28 +273,31 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         {/* Campaign Territories Section */}
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-2xl font-bold mb-4">Campaign Territories</h2>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="w-1/3 px-4 py-2 text-left font-medium">Territory</th>
-                  <th className="w-2/3 px-4 py-2 text-left font-medium">Owned by</th>
+                  <th className="w-1/2 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                  <th className="w-1/2 px-4 py-2 text-left font-medium pl-24 whitespace-nowrap">Controlled by</th>
+                  {isAdmin && (
+                    <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {campaignData.territories.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="px-4 py-2 text-center text-gray-500">
+                    <td colSpan={isAdmin ? 3 : 2} className="px-4 py-2 text-center text-gray-500">
                       No territories in this campaign
                     </td>
                   </tr>
                 ) : (
                   campaignData.territories.map((territory) => (
                     <tr key={territory.id} className="border-b last:border-0">
-                      <td className="w-1/3 px-4 py-2">
+                      <td className="w-1/2 px-4 py-2 min-w-[200px]">
                         <span className="font-medium">{territory.territory_name}</span>
                       </td>
-                      <td className="w-2/3 px-4 py-2">
+                      <td className="w-1/2 px-4 py-2 pl-24 min-w-[200px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           {territory.owning_gangs?.map(gang => (
                             <div 
@@ -298,7 +318,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                               )}
                             </div>
                           ))}
-                          {isAdmin && (
+                          {isAdmin && !territory.gang_id && (
                             <button
                               onClick={() => {
                                 setSelectedTerritory(territory);
@@ -311,6 +331,18 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                           )}
                         </div>
                       </td>
+                      {isAdmin && (
+                        <td className="w-1/5 px-4 py-2 text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                            className="text-xs px-1.5 h-6"
+                          >
+                            Delete
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -330,7 +362,25 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
           onConfirm={handleAssignGang}
           campaignId={campaignData.id}
           territoryName={selectedTerritory.territory_name}
-          existingGangIds={Object.keys(selectedTerritory.owner || {})}
+          existingGangId={selectedTerritory.gang_id}
+        />
+      )}
+
+      {showDeleteModal && territoryToDelete && (
+        <Modal
+          title="Delete Territory"
+          content={`Are you sure you want to remove ${territoryToDelete.name}?`}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setTerritoryToDelete(null);
+          }}
+          onConfirm={async () => {
+            await handleRemoveTerritory(territoryToDelete.id);
+            setShowDeleteModal(false);
+            setTerritoryToDelete(null);
+            return true;
+          }}
+          confirmText="Delete"
         />
       )}
     </main>

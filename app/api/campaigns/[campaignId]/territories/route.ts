@@ -3,12 +3,17 @@ import { NextResponse } from "next/server";
 
 interface Territory {
   id: string;
+  gang_id: string | null;
+  gang_name?: string;
   territory_name: string;
 }
 
 interface CampaignTerritory {
+  id: string;
   territory_id: string;
   territory_name: string;
+  gang_id: string | null;
+  gang_name?: string;
 }
 
 export async function GET(
@@ -29,7 +34,6 @@ export async function GET(
     const { data, error } = await supabase
       .from('campaign_territories')
       .select(`
-        territory_id,
         territory_name
       `)
       .eq('campaign_id', campaignId);
