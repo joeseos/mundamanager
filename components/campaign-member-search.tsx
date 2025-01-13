@@ -63,6 +63,7 @@ interface CampaignGang {
   id: string;
   gang_id: string;
   gang_name: string;
+  gang_type: string;
   status: string | null;
 }
 
@@ -278,55 +279,44 @@ export default function MemberSearch({
     if (!selectedGang || !selectedMemberId) return false;
 
     try {
-      const response = await fetch('/api/campaigns/campaign-gangs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          campaignId,
-          gangId: selectedGang.id,
-          userId: selectedMemberId
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast({
-          variant: "destructive",
-          description: data.message || "Failed to add gang"
+      const { error } = await supabase
+        .from('campaign_gangs')
+        .insert({
+          campaign_id: campaignId,
+          gang_id: selectedGang.id,
+          user_id: selectedMemberId
         });
-        return false;
-      }
 
-      // Update the local state
-      setCampaignMembers(members => 
-        members.map(member => 
-          member.user_id === selectedMemberId 
-            ? { 
-                ...member, 
-                gangs: [{ 
-                  id: selectedGang.id,
-                  gang_id: selectedGang.id,
-                  gang_name: selectedGang.name,
-                  status: null
-                }]
-              }
-            : member
-        )
-      );
+      if (error) throw error;
+
+      // Update the local state with consistent gang structure
+      setCampaignMembers(members => members.map(member => {
+        if (member.user_id === selectedMemberId) {
+          return {
+            ...member,
+            gangs: [...member.gangs, {
+              id: selectedGang.id,
+              gang_id: selectedGang.id,
+              gang_name: selectedGang.name,
+              gang_type: selectedGang.gang_type,
+              status: null
+            }]
+          };
+        }
+        return member;
+      }));
 
       toast({
-        description: "Gang added successfully"
+        description: `Added ${selectedGang.name} to the campaign`
       });
-
+      setShowGangModal(false);
+      setSelectedGang(null);
       return true;
     } catch (error) {
-      console.error('Error adding gang:', error);
+      console.error('Error adding gang to campaign:', error);
       toast({
         variant: "destructive",
-        description: "Failed to add gang"
+        description: "Failed to add gang to campaign"
       });
       return false;
     }
@@ -351,21 +341,26 @@ export default function MemberSearch({
             disabled={gang.isInCampaign}
             className={`w-full p-3 text-left border rounded-lg transition-colors ${
               gang.isInCampaign 
-                ? 'opacity-50 cursor-not-allowed bg-gray-50' 
+                ? 'bg-gray-50 cursor-not-allowed' 
                 : selectedGang?.id === gang.id 
                   ? 'border-black bg-gray-50' 
                   : 'hover:border-gray-400'
             }`}
           >
-            <div className="font-medium">
-              {gang.name}
-              <span className="text-gray-500"> - {gang.gang_type}</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium">{gang.name}</span>
+                <span className="text-sm text-gray-500 ml-2">{gang.gang_type}</span>
+              </div>
+              {gang.isInCampaign && (
+                <span className="text-xs text-gray-500">Already in campaign</span>
+              )}
             </div>
           </button>
         ))}
       </div>
       {userGangs.length === 0 && (
-        <p className="text-sm text-gray-500">No gangs available to add</p>
+        <p className="text-sm text-gray-500 text-center">No gangs available to add</p>
       )}
     </div>
   ), [userGangs, selectedGang]);
@@ -375,33 +370,30 @@ export default function MemberSearch({
     if (!gangToRemove) return false;
 
     try {
-      const response = await fetch('/api/campaigns/campaign-gangs', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          campaignId,
-          gangId: gangToRemove.gangId,
-          userId: gangToRemove.memberId
-        }),
-      });
+      const { error } = await supabase
+        .from('campaign_gangs')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .eq('gang_id', gangToRemove.gangId);
 
-      if (!response.ok) throw new Error('Failed to remove gang');
+      if (error) throw error;
 
       // Update the local state
-      setCampaignMembers(members =>
-        members.map(member =>
-          member.user_id === gangToRemove.memberId
-            ? { ...member, gangs: [] }
-            : member
-        )
-      );
+      setCampaignMembers(members => members.map(member => {
+        if (member.user_id === gangToRemove.memberId) {
+          return {
+            ...member,
+            gangs: member.gangs.filter(g => g.gang_id !== gangToRemove.gangId)
+          };
+        }
+        return member;
+      }));
 
       toast({
-        description: "Gang removed successfully"
+        description: `Removed ${gangToRemove.gangName} from the campaign`
       });
-
+      setShowRemoveGangModal(false);
+      setGangToRemove(null);
       return true;
     } catch (error) {
       console.error('Error removing gang:', error);
@@ -504,6 +496,45 @@ export default function MemberSearch({
     setMemberToRemove(member);
     setShowRemoveMemberModal(true);
   };
+
+  // Add this useEffect to load user's gangs when the modal opens
+  useEffect(() => {
+    if (showGangModal && selectedMemberId) {
+      const loadUserGangs = async () => {
+        try {
+          const { data: gangsData, error: gangsError } = await supabase
+            .from('gangs')
+            .select(`
+              id,
+              name,
+              gang_type,
+              user_id
+            `)
+            .eq('user_id', selectedMemberId);
+
+          if (gangsError) throw gangsError;
+
+          // Mark gangs that are already in the campaign
+          const gangsWithStatus = gangsData.map(gang => ({
+            ...gang,
+            isInCampaign: campaignMembers.some(member => 
+              member.gangs.some(g => g.gang_id === gang.id)
+            )
+          }));
+
+          setUserGangs(gangsWithStatus);
+        } catch (error) {
+          console.error('Error loading user gangs:', error);
+          toast({
+            variant: "destructive",
+            description: "Failed to load gangs"
+          });
+        }
+      };
+
+      loadUserGangs();
+    }
+  }, [showGangModal, selectedMemberId, campaignMembers]);
 
   return (
     <div className="w-full">
