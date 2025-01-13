@@ -161,7 +161,7 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
           {campaignTypes.map((type) => (
             <label 
               key={type.campaign_type_id} 
-              className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
+              className="flex items-center gap-2 cursor-pointer hover:text-gray-700 text-sm"
             >
               <input
                 type="checkbox"
@@ -169,18 +169,18 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
                 onChange={() => handleTypeToggle(type.campaign_type_id)}
                 className="rounded border-gray-300 text-black focus:ring-black"
               />
-              <span className="text-sm">{type.campaign_type}</span>
+              <span>{type.campaign_type}</span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-2 text-left font-medium">Territory</th>
-              <th className="w-16 px-4 py-2"></th>
+              <th className="px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+              <th className="w-20 px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -192,10 +192,10 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
               filteredTerritories.map((territory) => {
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="px-4 py-1.5 align-middle">
+                    <td className="px-4 py-1.5 align-middle min-w-[200px]">
                       <span className="font-medium whitespace-nowrap">{territory.territory_name}</span>
                     </td>
-                    <td className="px-4 py-1.5 text-right align-middle shrink-0">
+                    <td className="px-4 py-1.5 text-right align-middle w-20">
                       <Button
                         onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
                         size="sm"
