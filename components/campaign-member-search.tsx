@@ -36,6 +36,7 @@ interface Member {
     gang_id: string;
     gang_name: string;
     status: string | null;
+    rating?: number;
   }[];
 }
 
@@ -274,7 +275,41 @@ export default function MemberSearch({
     }
   };
 
-  // Add this function to handle gang selection
+  // Add this function to fetch updated campaign details
+  const refreshCampaignDetails = async () => {
+    try {
+      const response = await fetch(
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_campaign_details',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            "campaign_id": campaignId
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch campaign details');
+      }
+
+      const [campaignData] = await response.json();
+      if (campaignData?.members) {
+        setCampaignMembers(campaignData.members);
+      }
+    } catch (error) {
+      console.error('Error refreshing campaign details:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to refresh campaign data"
+      });
+    }
+  };
+
+  // Update handleAddGang to refresh data after successful addition
   const handleAddGang = async () => {
     if (!selectedGang || !selectedMemberId) return false;
 
@@ -289,22 +324,8 @@ export default function MemberSearch({
 
       if (error) throw error;
 
-      // Update the local state with consistent gang structure
-      setCampaignMembers(members => members.map(member => {
-        if (member.user_id === selectedMemberId) {
-          return {
-            ...member,
-            gangs: [...member.gangs, {
-              id: selectedGang.id,
-              gang_id: selectedGang.id,
-              gang_name: selectedGang.name,
-              gang_type: selectedGang.gang_type,
-              status: null
-            }]
-          };
-        }
-        return member;
-      }));
+      // Refresh campaign details to get updated data including ratings
+      await refreshCampaignDetails();
 
       toast({
         description: `Added ${selectedGang.name} to the campaign`
@@ -365,7 +386,7 @@ export default function MemberSearch({
     </div>
   ), [userGangs, selectedGang]);
 
-  // Add this function to handle gang removal
+  // Update handleRemoveGang to refresh data after successful removal
   const handleRemoveGang = async () => {
     if (!gangToRemove) return false;
 
@@ -378,16 +399,8 @@ export default function MemberSearch({
 
       if (error) throw error;
 
-      // Update the local state
-      setCampaignMembers(members => members.map(member => {
-        if (member.user_id === gangToRemove.memberId) {
-          return {
-            ...member,
-            gangs: member.gangs.filter(g => g.gang_id !== gangToRemove.gangId)
-          };
-        }
-        return member;
-      }));
+      // Refresh campaign details to get updated data
+      await refreshCampaignDetails();
 
       toast({
         description: `Removed ${gangToRemove.gangName} from the campaign`
@@ -405,7 +418,7 @@ export default function MemberSearch({
     }
   };
 
-  // Add this function to handle the remove button click
+  // Add this function to handle gang removal
   const handleRemoveGangClick = (memberId: string, gangId: string, gangName: string) => {
     setGangToRemove({ memberId, gangId, gangName });
     setShowRemoveGangModal(true);
@@ -536,6 +549,18 @@ export default function MemberSearch({
     }
   }, [showGangModal, selectedMemberId, campaignMembers]);
 
+  // Add this sorting function before rendering the members
+  const sortedCampaignMembers = useMemo(() => {
+    return [...campaignMembers].sort((a, b) => {
+      // Get ratings, default to -1 if no gang or no rating to put them at the bottom
+      const ratingA = a.gangs[0]?.rating ?? -1;
+      const ratingB = b.gangs[0]?.rating ?? -1;
+      
+      // Sort in descending order (highest rating first)
+      return ratingB - ratingA;
+    });
+  }, [campaignMembers]);
+
   return (
     <div className="w-full">
       {isAdmin && (
@@ -582,12 +607,12 @@ export default function MemberSearch({
                   <th className="px-4 py-2 text-left font-medium">Member</th>
                   <th className="px-4 py-2 text-left font-medium">Role</th>
                   <th className="px-4 py-2 text-left font-medium">Gang</th>
-                  <th className="px-4 py-2 text-left font-medium">Invited</th>
+                  <th className="px-4 py-2 text-left font-medium">Rating</th>
                   {isAdmin && <th className="px-4 py-2 text-right"></th>}
                 </tr>
               </thead>
               <tbody>
-                {campaignMembers.map(member => (
+                {sortedCampaignMembers.map(member => (
                   <tr key={member.user_id} className="border-b last:border-0">
                     <td className="px-4 py-2">
                       <span className="font-medium">{member.profile.username}</span>
@@ -659,7 +684,7 @@ export default function MemberSearch({
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-gray-500">
-                        {member.invited_at && new Date(member.invited_at).toLocaleDateString()}
+                        {member.gangs[0]?.rating || "-"}
                       </span>
                     </td>
                     {isAdmin && (
@@ -682,7 +707,7 @@ export default function MemberSearch({
 
           {/* Card layout for mobile */}
           <div className="md:hidden space-y-4">
-            {campaignMembers.map(member => (
+            {sortedCampaignMembers.map(member => (
               <div key={member.user_id} className="bg-white rounded-lg border p-4">
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-medium text-base">{member.profile.username}</span>
@@ -755,9 +780,9 @@ export default function MemberSearch({
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Invited</span>
+                    <span className="text-sm text-gray-500">Rating</span>
                     <span className="text-sm text-gray-500">
-                      {member.invited_at && new Date(member.invited_at).toLocaleDateString()}
+                      {member.gangs[0]?.rating || "-"}
                     </span>
                   </div>
 
