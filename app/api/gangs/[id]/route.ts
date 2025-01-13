@@ -6,6 +6,64 @@ enum GangAlignment {
   OUTLAW = 'Outlaw'
 }
 
+// Simplified Territory interface to match what we're actually using
+interface Territory {
+  id: string;
+  territory_name: string;
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+
+  try {
+    // Get gang details including campaign info
+    const response = await fetch(
+      'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+        },
+        body: JSON.stringify({
+          "p_gang_id": params.id
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch gang details');
+    }
+
+    const [gangData] = await response.json();
+
+    // If gang has a campaign, get their territories
+    let territories: Territory[] = [];
+    if (gangData.campaigns?.[0]?.campaign_id) {
+      const { data: territoryData, error: territoryError } = await supabase
+        .from('campaign_territories')
+        .select('id, territory_name')
+        .eq('campaign_id', gangData.campaigns[0].campaign_id)
+        .contains('owner', { [params.id]: {} });
+
+      if (territoryError) throw territoryError;
+      territories = territoryData || [];
+    }
+
+    return NextResponse.json({ territories });
+
+  } catch (error) {
+    console.error('Error fetching gang territories:', error);
+    return NextResponse.json(
+      { error: "Failed to fetch gang territories" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }

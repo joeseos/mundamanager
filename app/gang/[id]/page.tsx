@@ -8,6 +8,7 @@ import GangPageContent from "@/components/gang-page-content";
 import Tabs from "@/components/tabs";
 import GangInventory from "@/components/gang-stash";
 import { GangNotes } from "@/components/gang-notes";
+import GangTerritories from "@/components/gang-territories";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -166,13 +167,17 @@ export default async function GangPage({ params }: { params: { id: string } }) {
 
     return (
       <div>
-        <Tabs tabTitles={['Details', 'Stash', 'Notes']}>
+        <Tabs tabTitles={['Details', 'Stash', 'Territories', 'Notes']}>
           <GangPageContent processedData={processedData} gangData={gangData} />
           <GangInventory
             stash={gangData.stash || []} 
             fighters={processedData.fighters}
             title="Stash"
           />
+          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+            <h2 className="text-2xl font-bold mb-4">Territories</h2>
+            <GangTerritories gangId={params.id} />
+          </div>
           <GangNotes 
             gangId={params.id}
             initialNote={gangData.note || ''}
