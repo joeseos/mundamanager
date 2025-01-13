@@ -14,6 +14,7 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  isInCampaign?: boolean;
 }
 
 interface Member {
@@ -239,17 +240,37 @@ export default function MemberSearch({
 
   // Add this function to fetch user's gangs
   const fetchUserGangs = async (userId: string) => {
-    const { data: gangs, error } = await supabase
-      .from('gangs')
-      .select('id, name, gang_type')
-      .eq('user_id', userId);
+    try {
+      // Fetch user's gangs
+      const { data: gangs, error } = await supabase
+        .from('gangs')
+        .select('id, name, gang_type')
+        .eq('user_id', userId);
 
-    if (error) {
+      if (error) throw error;
+
+      // Fetch all campaign gangs to check which gangs are already in campaigns
+      const { data: campaignGangs, error: campaignError } = await supabase
+        .from('campaign_gangs')
+        .select('gang_id');
+
+      if (campaignError) throw campaignError;
+
+      // Mark gangs that are already in campaigns
+      const takenGangIds = new Set(campaignGangs?.map(cg => cg.gang_id) || []);
+      const gangsWithAvailability = gangs?.map(gang => ({
+        ...gang,
+        isInCampaign: takenGangIds.has(gang.id)
+      })) || [];
+
+      setUserGangs(gangsWithAvailability);
+    } catch (error) {
       console.error('Error fetching gangs:', error);
-      return;
+      toast({
+        variant: "destructive",
+        description: "Failed to load gangs"
+      });
     }
-
-    setUserGangs(gangs || []);
   };
 
   // Add this function to handle gang selection
@@ -269,7 +290,15 @@ export default function MemberSearch({
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to add gang');
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          description: data.message || "Failed to add gang"
+        });
+        return false;
+      }
 
       // Update the local state
       setCampaignMembers(members => 
@@ -310,7 +339,7 @@ export default function MemberSearch({
     setShowGangModal(true);
   };
 
-  // Add the modal content
+  // Update the gang modal content to use the availability information
   const gangModalContent = useMemo(() => (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">Select a gang to add to the campaign:</p>
@@ -318,11 +347,14 @@ export default function MemberSearch({
         {userGangs.map(gang => (
           <button
             key={gang.id}
-            onClick={() => setSelectedGang(gang)}
+            onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
+            disabled={gang.isInCampaign}
             className={`w-full p-3 text-left border rounded-lg transition-colors ${
-              selectedGang?.id === gang.id 
-                ? 'border-black bg-gray-50' 
-                : 'hover:border-gray-400'
+              gang.isInCampaign 
+                ? 'opacity-50 cursor-not-allowed bg-gray-50' 
+                : selectedGang?.id === gang.id 
+                  ? 'border-black bg-gray-50' 
+                  : 'hover:border-gray-400'
             }`}
           >
             <div className="font-medium">
