@@ -32,6 +32,29 @@ type GangWithUser = {
   user: { username: string; } | undefined;
 };
 
+interface Member {
+  user_id: string;
+  username: string;
+  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  status: string | null;
+  invited_at: string;
+  joined_at: string | null;
+  invited_by: string;
+  profile: {
+    id: string;
+    username: string;
+    updated_at: string;
+    user_role: string;
+  };
+  gangs: {
+    id: string;
+    gang_id: string;
+    gang_name: string;
+    status: string | null;
+    rating?: number;
+  }[];
+}
+
 interface Territory {
   id: string;
   territory_id: string;
@@ -39,6 +62,21 @@ interface Territory {
   gang_id: string | null;
   created_at: string;
   owning_gangs?: Gang[];
+}
+
+interface CampaignData {
+  id: string;
+  campaign_name: string;
+  campaign_type_name: string;
+  campaign_type_id: string;
+  created_at: string;
+  updated_at: string | null;
+  has_meat: boolean;
+  has_exploration_points: boolean;
+  has_scavenging_rolls: boolean;
+  territories: Territory[];
+  members: Member[];
+  // ... any other fields
 }
 
 interface CampaignPageContentProps {
@@ -52,6 +90,9 @@ interface CampaignPageContentProps {
     updated_at: string | null;
     members: any[];
     territories: Territory[];
+    has_meat: boolean;
+    has_exploration_points: boolean;
+    has_scavenging_rolls: boolean;
   };
 }
 
@@ -69,8 +110,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     id: campaignData.id,
     campaign_name: campaignData.campaign_name,
     campaign_type: campaignData.campaign_type_name,
+    campaign_type_id: campaignData.campaign_type_id,
     created_at: campaignData.created_at,
-    updated_at: campaignData.updated_at
+    updated_at: campaignData.updated_at,
+    has_meat: campaignData.has_meat,
+    has_exploration_points: campaignData.has_exploration_points,
+    has_scavenging_rolls: campaignData.has_scavenging_rolls
   }), [campaignData]);
 
   const handleAssignGang = async (gangId: string) => {
@@ -251,13 +296,25 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
+  const handleCampaignUpdate = (updatedData: {
+    campaign_name: string;
+    has_meat: boolean;
+    has_exploration_points: boolean;
+    has_scavenging_rolls: boolean;
+  }) => {
+    setCampaignData(prev => ({
+      ...prev,
+      ...updatedData
+    }));
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <Campaign 
           {...transformedData} 
-          campaign_type_id={campaignData.campaign_type_id}
-          onRoleChange={setUserRole} 
+          onRoleChange={setUserRole}
+          onUpdate={handleCampaignUpdate}
         />
         
         {/* Campaign Members Section */}
