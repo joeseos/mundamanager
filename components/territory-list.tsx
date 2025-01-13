@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useToast } from "@/components/ui/use-toast"
+import { Button } from "@/components/ui/button"
+import { createClient } from '@/utils/supabase/client'
 
 interface Territory {
   id: string;
@@ -28,12 +30,12 @@ interface TerritoryListProps {
 export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: TerritoryListProps) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
   const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isAdding, setIsAdding] = useState<string | null>(null);
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     setSelectedTypes([campaignTypeId]);
@@ -92,7 +94,6 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
         if (!response.ok) throw new Error('Failed to fetch campaign territories');
 
         setCampaignTerritories(data);
-        setSelectedTerritories(data.map((t: CampaignTerritory) => t.territory_id));
       } catch (error) {
         toast({
           variant: "destructive",
@@ -112,47 +113,36 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
     );
   };
 
-  const handleTerritoryToggle = (territoryId: string) => {
-    setSelectedTerritories(prev => 
-      prev.includes(territoryId)
-        ? prev.filter(id => id !== territoryId)
-        : [...prev, territoryId]
-    );
-  };
-
-  const handleSave = async () => {
-    if (!campaignId) {
-      toast({
-        variant: "destructive",
-        description: "Campaign ID is missing"
-      });
-      return;
-    }
-
-    setIsSaving(true);
+  const handleAddTerritory = async (territoryId: string, territoryName: string) => {
+    setIsAdding(territoryId);
     try {
-      const response = await fetch(`/api/campaigns/${campaignId}/territories`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          territoryIds: selectedTerritories
-        }),
-      });
+      const { error } = await supabase
+        .from('campaign_territories')
+        .insert([{
+          campaign_id: campaignId,
+          territory_id: territoryId,
+          territory_name: territoryName
+        }]);
 
-      if (!response.ok) throw new Error('Failed to save territories');
+      if (error) throw error;
+
+      // Update local state
+      setCampaignTerritories(prev => [...prev, {
+        territory_id: territoryId,
+        territory_name: territoryName
+      }]);
 
       toast({
-        description: "Territories saved successfully",
+        description: `Added ${territoryName} to campaign`
       });
     } catch (error) {
+      console.error('Error adding territory:', error);
       toast({
         variant: "destructive",
-        description: "Failed to save territories"
+        description: "Failed to add territory"
       });
     } finally {
-      setIsSaving(false);
+      setIsAdding(null);
     }
   };
 
@@ -183,22 +173,13 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
             </label>
           ))}
         </div>
-        {isAdmin && (
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="w-full sm:w-auto px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50"
-          >
-            {isSaving ? 'Saving...' : 'Save Territories'}
-          </button>
-        )}
       </div>
 
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="w-12 px-4 py-2"></th>
+              <th className="w-16 px-4 py-2"></th>
               <th className="px-4 py-2 text-left font-medium">Territory</th>
             </tr>
           </thead>
@@ -215,18 +196,24 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
                 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-12 px-4 py-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedTerritories.includes(territory.id)}
-                        onChange={() => handleTerritoryToggle(territory.id)}
-                        className="rounded border-gray-300 text-black focus:ring-black"
-                      />
+                    <td className="px-4 py-1.5 align-middle truncate">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium whitespace-nowrap">{territory.territory_name}</span>
+                        {isCampaignTerritory && (
+                          <span className="text-xs text-gray-500 shrink-0">(Added to campaign)</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-2">
-                      <span className="font-medium">{territory.territory_name}</span>
-                      {isCampaignTerritory && (
-                        <span className="ml-2 text-xs text-gray-500">(Added to campaign)</span>
+                    <td className="px-4 py-1.5 text-right align-middle shrink-0">
+                      {!isCampaignTerritory && (
+                        <Button
+                          onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
+                          size="sm"
+                          disabled={isAdding === territory.id}
+                          className="text-xs px-1.5 h-6 bg-black hover:bg-gray-800 text-white"
+                        >
+                          {isAdding === territory.id ? 'Adding...' : 'Add'}
+                        </Button>
                       )}
                     </td>
                   </tr>

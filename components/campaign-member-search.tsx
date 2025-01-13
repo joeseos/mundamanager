@@ -692,8 +692,8 @@ export default function MemberSearch({
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleRemoveMemberClick(member)}
                           className="text-xs px-1.5 h-6"
+                          onClick={() => handleRemoveMemberClick(member)}
                         >
                           Remove
                         </Button>
@@ -791,8 +791,8 @@ export default function MemberSearch({
                       <Button
                         variant="destructive"
                         size="sm"
+                        className="text-xs px-1.5 h-6"
                         onClick={() => handleRemoveMemberClick(member)}
-                        className="text-xs px-2 py-1"
                       >
                         Remove
                       </Button>

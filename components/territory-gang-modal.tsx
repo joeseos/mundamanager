@@ -16,7 +16,7 @@ interface TerritoryGangModalProps {
   onConfirm: (gangId: string) => void;
   campaignId: string;
   territoryName: string;
-  existingGangIds?: string[];
+  existingGangId?: string | null;
 }
 
 export default function TerritoryGangModal({
@@ -25,7 +25,7 @@ export default function TerritoryGangModal({
   onConfirm,
   campaignId,
   territoryName,
-  existingGangIds = []
+  existingGangId = null
 }: TerritoryGangModalProps) {
   const [availableGangs, setAvailableGangs] = useState<Gang[]>([]);
   const [selectedGang, setSelectedGang] = useState<string>('');
@@ -90,10 +90,10 @@ export default function TerritoryGangModal({
             <option 
               key={gang.id} 
               value={gang.id}
-              disabled={existingGangIds.includes(gang.id)}
-              className={existingGangIds.includes(gang.id) ? "text-gray-400" : ""}
+              disabled={existingGangId === gang.id}
+              className={existingGangId === gang.id ? "text-gray-400" : ""}
             >
-              {gang.name} - {gang.gang_type} {existingGangIds.includes(gang.id) ? '(Already assigned)' : ''}
+              {gang.name} - {gang.gang_type} {existingGangId === gang.id ? '(Already assigned)' : ''}
             </option>
           ))}
         </select>
