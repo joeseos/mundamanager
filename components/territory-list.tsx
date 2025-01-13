@@ -148,7 +148,7 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
 
   const filteredTerritories = territories.filter(territory => 
     selectedTypes.includes(territory.campaign_type_id)
-  );
+  ).sort((a, b) => a.territory_name.localeCompare(b.territory_name));
 
   if (isLoading) {
     return <div className="text-center py-4">Loading territories...</div>;
@@ -179,8 +179,8 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="w-16 px-4 py-2"></th>
               <th className="px-4 py-2 text-left font-medium">Territory</th>
+              <th className="w-16 px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -190,31 +190,20 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
               </tr>
             ) : (
               filteredTerritories.map((territory) => {
-                const isCampaignTerritory = campaignTerritories.some(
-                  ct => ct.territory_id === territory.id
-                );
-                
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="px-4 py-1.5 align-middle truncate">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium whitespace-nowrap">{territory.territory_name}</span>
-                        {isCampaignTerritory && (
-                          <span className="text-xs text-gray-500 shrink-0">(Added to campaign)</span>
-                        )}
-                      </div>
+                    <td className="px-4 py-1.5 align-middle">
+                      <span className="font-medium whitespace-nowrap">{territory.territory_name}</span>
                     </td>
                     <td className="px-4 py-1.5 text-right align-middle shrink-0">
-                      {!isCampaignTerritory && (
-                        <Button
-                          onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
-                          size="sm"
-                          disabled={isAdding === territory.id}
-                          className="text-xs px-1.5 h-6 bg-black hover:bg-gray-800 text-white"
-                        >
-                          {isAdding === territory.id ? 'Adding...' : 'Add'}
-                        </Button>
-                      )}
+                      <Button
+                        onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
+                        size="sm"
+                        disabled={isAdding === territory.id}
+                        className="text-xs px-1.5 h-6 bg-black hover:bg-gray-800 text-white"
+                      >
+                        Add
+                      </Button>
                     </td>
                   </tr>
                 );
