@@ -292,7 +292,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                     </td>
                   </tr>
                 ) : (
-                  campaignData.territories.map((territory) => (
+                  [...campaignData.territories]
+                    .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                    .map((territory) => (
                     <tr key={territory.id} className="border-b last:border-0">
                       <td className="w-1/2 px-4 py-2 min-w-[200px]">
                         <span className="font-medium">{territory.territory_name}</span>
