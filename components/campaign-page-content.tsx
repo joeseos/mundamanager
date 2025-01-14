@@ -308,6 +308,37 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     }));
   };
 
+  const refreshData = async () => {
+    try {
+      const response = await fetch(
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_campaign_details',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            "campaign_id": campaignData.id
+          })
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch campaign data');
+      
+      const [updatedData] = await response.json();
+      if (!updatedData) throw new Error('No campaign data received');
+      
+      setCampaignData(updatedData);
+    } catch (error) {
+      console.error('Error refreshing campaign data:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to refresh campaign data"
+      });
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -324,6 +355,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
             campaignId={campaignData.id}
             isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'}
             initialMembers={campaignData.members}
+            onDataChange={refreshData}
           />
         </div>
 
