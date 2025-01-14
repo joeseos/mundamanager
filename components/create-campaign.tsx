@@ -25,6 +25,8 @@ export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignP
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
   const supabase = createClient()
 
+  const isFormValid = campaignName.trim() !== "" && campaignType !== ""
+
   const handleCreateCampaign = async () => {
     if (!campaignName || !campaignType) {
       setError('Campaign name and type are required')
@@ -93,7 +95,11 @@ export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignP
           </select>
         </div>
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <Button onClick={handleCreateCampaign} className="w-full" disabled={isLoading}>
+        <Button 
+          onClick={handleCreateCampaign} 
+          className="w-full" 
+          disabled={isLoading || !isFormValid}
+        >
           {isLoading ? 'Creating...' : 'Create Campaign'}
         </Button>
       </div>
