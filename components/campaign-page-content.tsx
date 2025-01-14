@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import Campaign from "@/components/campaign";
-import MemberSearch from "@/components/campaign-member-search";
 import TerritoryGangModal from "@/components/territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
+import MemberSearchBar from "@/components/member-search-bar"
+import MembersTable from "@/components/members-table"
 
 interface Gang {
   id: string;
@@ -144,10 +145,10 @@ const formatDate = (dateString: string) => {
 };
 
 export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {
+  const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
-  const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -161,6 +162,42 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const [selectedWinner, setSelectedWinner] = useState('');
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
 
+  // Fetch user data once and determine role
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Find user's role from campaign members
+          const memberData = campaignData.members.find(m => m.user_id === user.id);
+          if (memberData) {
+            setUserRole(memberData.role);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+    getCurrentUser();
+  }, [campaignData.members]);
+
+  // Use existing gang data instead of re-fetching
+  const getGangDetails = (gangId: string) => {
+    // Look through members' gangs to find the gang details
+    for (const member of campaignData.members) {
+      const gang = member.gangs.find((g: Member['gangs'][0]) => g.gang_id === gangId);
+      if (gang) {
+        return {
+          id: gang.gang_id,
+          name: gang.gang_name,
+          // Add other needed fields
+        };
+      }
+    }
+    return null;
+  };
+
+  // Transform the data once and pass it down
   const transformedData = React.useMemo(() => ({
     id: campaignData.id,
     campaign_name: campaignData.campaign_name,
@@ -170,7 +207,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     updated_at: campaignData.updated_at,
     has_meat: campaignData.has_meat,
     has_exploration_points: campaignData.has_exploration_points,
-    has_scavenging_rolls: campaignData.has_scavenging_rolls
+    has_scavenging_rolls: campaignData.has_scavenging_rolls,
+    members: campaignData.members,  // Pass complete member data
+    territories: campaignData.territories,  // Pass complete territory data
+    battles: campaignData.battles  // Pass complete battle data
   }), [campaignData]);
 
   const handleAssignGang = async (gangId: string) => {
@@ -186,14 +226,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
       if (error) throw error;
 
-      // Fetch gang details immediately
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('id, name, gang_type')
-        .eq('id', gangId)
-        .single();
-
-      if (gangError) throw gangError;
+      // Use existing gang data instead of fetching
+      const gangDetails = getGangDetails(gangId);
+      if (!gangDetails) throw new Error('Gang not found');
 
       // Update local state
       setCampaignData(prev => ({
@@ -204,7 +239,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                 ...t,
                 gang_id: gangId,
                 owning_gangs: [
-                  { id: gang.id, name: gang.name, gang_type: gang.gang_type }
+                  { 
+                    id: gangDetails.id, 
+                    name: gangDetails.name,
+                    gang_type: 'Unknown' // Or get from somewhere if needed
+                  }
                 ]
               }
             : t
@@ -397,6 +436,18 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const loadBattleData = async () => {
     setIsLoadingBattleData(true);
     try {
+      // Use existing data for gangs
+      const campaignGangs = campaignData.members.reduce<CampaignGang[]>((acc, member) => {
+        member.gangs.forEach((gang: Member['gangs'][0]) => {
+          acc.push({
+            id: gang.gang_id,
+            name: gang.gang_name
+          });
+        });
+        return acc;
+      }, []);
+      
+      // Only fetch scenarios if needed
       const response = await fetch('/api/campaigns/battles', {
         headers: {
           'X-Campaign-Id': campaignData.id
@@ -406,9 +457,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       if (!response.ok) throw new Error('Failed to fetch battle data');
       
       const data = await response.json();
-      console.log('Battle data loaded:', data);
       setScenarios(data.scenarios);
-      setAvailableGangs(data.gangs);
+      setAvailableGangs(campaignGangs); // Use local data instead
     } catch (error) {
       console.error('Error loading battle data:', error);
       toast({
@@ -438,11 +488,24 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         {/* Campaign Members Section */}
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-2xl font-bold mb-4">Campaign Members</h2>
-          <MemberSearch 
+          {isAdmin && (
+            <MemberSearchBar
+              campaignId={campaignData.id}
+              campaignMembers={campaignData.members}  // Use existing data
+              onMemberAdd={(member) => {
+                setCampaignData(prev => ({
+                  ...prev,
+                  members: [...prev.members, member]
+                }));
+                refreshData();
+              }}
+            />
+          )}
+          <MembersTable
             campaignId={campaignData.id}
-            isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'}
-            initialMembers={campaignData.members}
-            onDataChange={refreshData}
+            isAdmin={isAdmin}
+            members={campaignData.members}  // Use existing data
+            onMemberUpdate={refreshData}
           />
         </div>
 

@@ -4,8 +4,17 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import CreateGangModal from "./create-gang-modal";
 
-export default function CreateGangButton() {
+interface CreateGangButtonProps {
+  onGangCreate?: () => void;
+}
+
+export default function CreateGangButton({ onGangCreate }: CreateGangButtonProps) {
   const [showModal, setShowModal] = useState(false);
+
+  const handleClose = () => {
+    setShowModal(false);
+    onGangCreate?.(); // Trigger refresh of parent data
+  };
 
   return (
     <>
@@ -18,7 +27,7 @@ export default function CreateGangButton() {
 
       {showModal && (
         <CreateGangModal
-          onClose={() => setShowModal(false)}
+          onClose={handleClose}
         />
       )}
     </>
