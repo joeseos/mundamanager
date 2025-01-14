@@ -76,6 +76,20 @@ interface CampaignData {
   has_scavenging_rolls: boolean;
   territories: Territory[];
   members: Member[];
+  battles: {
+    id: string;
+    created_at: string;
+    scenario_name: string;
+    attacker?: {
+      gang_name: string;
+    };
+    defender?: {
+      gang_name: string;
+    };
+    winner?: {
+      gang_name: string;
+    };
+  }[];
   // ... any other fields
 }
 
@@ -93,8 +107,41 @@ interface CampaignPageContentProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    battles: {
+      id: string;
+      created_at: string;
+      scenario_name: string;
+      attacker?: {
+        gang_name: string;
+      };
+      defender?: {
+        gang_name: string;
+      };
+      winner?: {
+        gang_name: string;
+      };
+    }[];
   };
 }
+
+interface Scenario {
+  id: string;
+  scenario_name: string;
+}
+
+interface CampaignGang {
+  id: string;
+  name: string;
+}
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+};
 
 export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
@@ -103,8 +150,16 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [showBattleModal, setShowBattleModal] = useState(false);
   const { toast } = useToast();
   const supabase = createClient();
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
+  const [selectedScenario, setSelectedScenario] = useState('');
+  const [selectedAttacker, setSelectedAttacker] = useState('');
+  const [selectedDefender, setSelectedDefender] = useState('');
+  const [selectedWinner, setSelectedWinner] = useState('');
+  const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
 
   const transformedData = React.useMemo(() => ({
     id: campaignData.id,
@@ -339,6 +394,38 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     }
   };
 
+  const loadBattleData = async () => {
+    setIsLoadingBattleData(true);
+    try {
+      const response = await fetch('/api/campaigns/battles', {
+        headers: {
+          'X-Campaign-Id': campaignData.id
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch battle data');
+      
+      const data = await response.json();
+      console.log('Battle data loaded:', data);
+      setScenarios(data.scenarios);
+      setAvailableGangs(data.gangs);
+    } catch (error) {
+      console.error('Error loading battle data:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to load battle data"
+      });
+    } finally {
+      setIsLoadingBattleData(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showBattleModal) {
+      loadBattleData();
+    }
+  }, [showBattleModal]);
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -441,39 +528,219 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
             </table>
           </div>
         </div>
+
+        {/* Update the Battle Logs section */}
+        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">Battle Logs</h2>
+            {isAdmin && (
+              <Button
+                onClick={() => setShowBattleModal(true)}
+                className="bg-black hover:bg-gray-800 text-white"
+              >
+                Add
+              </Button>
+            )}
+          </div>
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="px-4 py-2 text-left font-medium">Date</th>
+                  <th className="px-4 py-2 text-left font-medium">Scenario</th>
+                  <th className="px-4 py-2 text-left font-medium">Attacker</th>
+                  <th className="px-4 py-2 text-left font-medium">Defender</th>
+                  <th className="px-4 py-2 text-left font-medium">Winner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaignData.battles?.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-2 text-center text-gray-500">
+                      No battles recorded yet
+                    </td>
+                  </tr>
+                ) : (
+                  campaignData.battles?.map((battle) => (
+                    <tr key={battle.id} className="border-b">
+                      <td className="px-4 py-2">
+                        {formatDate(battle.created_at)}
+                      </td>
+                      <td className="px-4 py-2">{battle.scenario_name || 'N/A'}</td>
+                      <td className="px-4 py-2">{battle.attacker?.gang_name || 'Unknown'}</td>
+                      <td className="px-4 py-2">{battle.defender?.gang_name || 'Unknown'}</td>
+                      <td className="px-4 py-2">{battle.winner?.gang_name || 'Unknown'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {showGangModal && selectedTerritory && (
+          <TerritoryGangModal
+            isOpen={showGangModal}
+            onClose={() => {
+              setShowGangModal(false);
+              setSelectedTerritory(null);
+            }}
+            onConfirm={handleAssignGang}
+            campaignId={campaignData.id}
+            territoryName={selectedTerritory.territory_name}
+            existingGangId={selectedTerritory.gang_id}
+          />
+        )}
+
+        {showDeleteModal && territoryToDelete && (
+          <Modal
+            title="Delete Territory"
+            content={`Are you sure you want to remove ${territoryToDelete.name}?`}
+            onClose={() => {
+              setShowDeleteModal(false);
+              setTerritoryToDelete(null);
+            }}
+            onConfirm={async () => {
+              await handleRemoveTerritory(territoryToDelete.id);
+              setShowDeleteModal(false);
+              setTerritoryToDelete(null);
+              return true;
+            }}
+            confirmText="Delete"
+          />
+        )}
+
+        {/* Add the new Battle Log Modal */}
+        {showBattleModal && (
+          <Modal
+            title="Add Battle Log"
+            content={
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Scenario
+                  </label>
+                  <select 
+                    className="w-full px-3 py-2 rounded-md border border-gray-300"
+                    value={selectedScenario}
+                    onChange={(e) => setSelectedScenario(e.target.value)}
+                    disabled={isLoadingBattleData}
+                  >
+                    <option value="">Select scenario</option>
+                    {scenarios.map(scenario => (
+                      <option key={scenario.id} value={scenario.id}>
+                        {scenario.scenario_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Attacker
+                  </label>
+                  <select 
+                    className="w-full px-3 py-2 rounded-md border border-gray-300"
+                    value={selectedAttacker}
+                    onChange={(e) => setSelectedAttacker(e.target.value)}
+                    disabled={isLoadingBattleData}
+                  >
+                    <option value="">Select gang</option>
+                    {availableGangs.map(gang => (
+                      <option key={gang.id} value={gang.id}>
+                        {gang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Defender
+                  </label>
+                  <select 
+                    className="w-full px-3 py-2 rounded-md border border-gray-300"
+                    value={selectedDefender}
+                    onChange={(e) => setSelectedDefender(e.target.value)}
+                    disabled={isLoadingBattleData}
+                  >
+                    <option value="">Select gang</option>
+                    {availableGangs.map(gang => (
+                      <option key={gang.id} value={gang.id}>
+                        {gang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Winner
+                  </label>
+                  <select 
+                    className="w-full px-3 py-2 rounded-md border border-gray-300"
+                    value={selectedWinner}
+                    onChange={(e) => setSelectedWinner(e.target.value)}
+                    disabled={isLoadingBattleData}
+                  >
+                    <option value="">Select gang</option>
+                    {availableGangs.map(gang => (
+                      <option key={gang.id} value={gang.id}>
+                        {gang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            }
+            onClose={() => {
+              setShowBattleModal(false);
+              setSelectedScenario('');
+              setSelectedAttacker('');
+              setSelectedDefender('');
+              setSelectedWinner('');
+            }}
+            onConfirm={async () => {
+              if (!selectedScenario || !selectedAttacker || !selectedDefender || !selectedWinner) {
+                toast({
+                  variant: "destructive",
+                  description: "Please fill in all fields"
+                });
+                return false;
+              }
+
+              try {
+                const response = await fetch('/api/campaigns/battles', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Campaign-Id': campaignData.id
+                  },
+                  body: JSON.stringify({
+                    scenario_id: selectedScenario,
+                    attacker_id: selectedAttacker,
+                    defender_id: selectedDefender,
+                    winner_id: selectedWinner
+                  }),
+                });
+
+                if (!response.ok) throw new Error('Failed to create battle log');
+
+                await refreshData();
+                toast({
+                  description: "Battle log added successfully"
+                });
+                return true;
+              } catch (error) {
+                console.error('Error creating battle log:', error);
+                toast({
+                  variant: "destructive",
+                  description: "Failed to create battle log"
+                });
+                return false;
+              }
+            }}
+            confirmText="Save"
+          />
+        )}
       </div>
-
-      {showGangModal && selectedTerritory && (
-        <TerritoryGangModal
-          isOpen={showGangModal}
-          onClose={() => {
-            setShowGangModal(false);
-            setSelectedTerritory(null);
-          }}
-          onConfirm={handleAssignGang}
-          campaignId={campaignData.id}
-          territoryName={selectedTerritory.territory_name}
-          existingGangId={selectedTerritory.gang_id}
-        />
-      )}
-
-      {showDeleteModal && territoryToDelete && (
-        <Modal
-          title="Delete Territory"
-          content={`Are you sure you want to remove ${territoryToDelete.name}?`}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setTerritoryToDelete(null);
-          }}
-          onConfirm={async () => {
-            await handleRemoveTerritory(territoryToDelete.id);
-            setShowDeleteModal(false);
-            setTerritoryToDelete(null);
-            return true;
-          }}
-          confirmText="Delete"
-        />
-      )}
     </main>
   );
 } 
