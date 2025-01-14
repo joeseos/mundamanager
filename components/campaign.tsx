@@ -7,6 +7,7 @@ import TerritoryList from '@/components/territory-list';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
+import { useRouter } from 'next/navigation';
 
 interface CampaignProps {
   id: string;
@@ -41,9 +42,12 @@ export default function Campaign({
   onUpdate,
 }: CampaignProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null>(null);
   const supabase = createClient();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [campaignName, setCampaignName] = useState(campaign_name);
   const [meatEnabled, setMeatEnabled] = useState(has_meat);
   const [explorationEnabled, setExplorationEnabled] = useState(has_exploration_points);
@@ -133,50 +137,34 @@ export default function Campaign({
     }
   };
 
-  const editModalContent = (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Campaign Name
-        </label>
-        <input
-          type="text"
-          className="w-full px-3 py-2 border rounded-md"
-          value={campaignName}
-          onChange={(e) => setCampaignName(e.target.value)}
-        />
-      </div>
-      <div className="flex gap-4">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="rounded border-gray-300"
-            checked={meatEnabled}
-            onChange={(e) => setMeatEnabled(e.target.checked)}
-          />
-          <span className="text-sm">Meat</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="rounded border-gray-300"
-            checked={explorationEnabled}
-            onChange={(e) => setExplorationEnabled(e.target.checked)}
-          />
-          <span className="text-sm">Exploration Points</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="rounded border-gray-300"
-            checked={scavengingEnabled}
-            onChange={(e) => setScavengingEnabled(e.target.checked)}
-          />
-          <span className="text-sm">Scavenging Rolls</span>
-        </label>
-      </div>
-    </div>
-  );
+  const handleDeleteCampaign = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        description: "Campaign deleted successfully"
+      });
+
+      router.push('/campaigns');
+      router.refresh();
+      return true;
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to delete campaign"
+      });
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div>
@@ -239,10 +227,71 @@ export default function Campaign({
       {showEditModal && (
         <Modal
           title="Edit Campaign"
-          content={editModalContent}
+          content={
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Campaign Name</label>
+                <input
+                  type="text"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={meatEnabled}
+                    onChange={(e) => setMeatEnabled(e.target.checked)}
+                  />
+                  <span>Meat</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={explorationEnabled}
+                    onChange={(e) => setExplorationEnabled(e.target.checked)}
+                  />
+                  <span>Exploration Points</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={scavengingEnabled}
+                    onChange={(e) => setScavengingEnabled(e.target.checked)}
+                  />
+                  <span>Scavenging Rolls</span>
+                </label>
+              </div>
+              {userRole === 'OWNER' && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setShowDeleteModal(true);
+                  }}
+                  className="w-full mt-4"
+                >
+                  Delete Campaign
+                </Button>
+              )}
+            </div>
+          }
           onClose={() => setShowEditModal(false)}
           onConfirm={handleSave}
           confirmText="Save Changes"
+        />
+      )}
+
+      {showDeleteModal && (
+        <Modal
+          title="Delete Campaign"
+          content="Are you sure you want to delete this campaign? This action cannot be undone and will remove all campaign data including territories, members, and gang assignments."
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteCampaign}
+          confirmText="Delete Campaign"
+          confirmDisabled={isDeleting}
         />
       )}
     </div>
