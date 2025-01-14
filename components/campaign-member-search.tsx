@@ -44,6 +44,7 @@ interface MemberSearchProps {
   campaignId: string;
   isAdmin: boolean;
   initialMembers?: Member[];
+  onDataChange?: () => void;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -71,7 +72,8 @@ interface CampaignGang {
 export default function MemberSearch({ 
   campaignId,
   isAdmin,
-  initialMembers = [] 
+  initialMembers = [],
+  onDataChange 
 }: MemberSearchProps) {
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -208,6 +210,36 @@ export default function MemberSearch({
     if (!memberToRemove) return false;
 
     try {
+      // First, get all gangs owned by the member in this campaign
+      const { data: userGangs } = await supabase
+        .from('campaign_gangs')
+        .select('gang_id')
+        .eq('campaign_id', campaignId)
+        .eq('user_id', memberToRemove.user_id);
+
+      if (userGangs && userGangs.length > 0) {
+        const gangIds = userGangs.map(g => g.gang_id);
+
+        // Update territories to remove gang control
+        const { error: territoryError } = await supabase
+          .from('campaign_territories')
+          .update({ gang_id: null })
+          .eq('campaign_id', campaignId)
+          .in('gang_id', gangIds);
+
+        if (territoryError) throw territoryError;
+
+        // Remove gangs from campaign
+        const { error: gangError } = await supabase
+          .from('campaign_gangs')
+          .delete()
+          .eq('campaign_id', campaignId)
+          .eq('user_id', memberToRemove.user_id);
+
+        if (gangError) throw gangError;
+      }
+
+      // Remove the member
       const { error } = await supabase
         .from('campaign_members')
         .delete()
@@ -216,7 +248,12 @@ export default function MemberSearch({
 
       if (error) throw error;
 
-      setCampaignMembers(campaignMembers.filter(m => m.user_id !== memberToRemove.user_id));
+      // Update local state
+      setCampaignMembers(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
+      
+      // Notify parent component
+      onDataChange?.();
+
       toast({
         description: `Removed ${memberToRemove.profile.username} from the campaign`
       });
