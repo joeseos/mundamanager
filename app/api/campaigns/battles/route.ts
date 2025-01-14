@@ -27,7 +27,7 @@ export async function GET(
       .from('campaign_gangs')
       .select(`
         gang_id,
-        gangs:gang_id (
+        gang:gang_id (
           id,
           name
         )
@@ -38,10 +38,10 @@ export async function GET(
 
     // Transform the data for easier consumption
     const gangs = campaignGangs
-      .filter(cg => cg.gangs) // Filter out any null gang references
+      .filter(cg => cg.gang)
       .map(cg => ({
         id: cg.gang_id,
-        name: cg.gangs.name
+        name: cg.gang.name
       }));
 
     return NextResponse.json({
