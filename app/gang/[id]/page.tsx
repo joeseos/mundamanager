@@ -9,6 +9,7 @@ import Tabs from "@/components/tabs";
 import GangInventory from "@/components/gang-stash";
 import { GangNotes } from "@/components/gang-notes";
 import GangTerritories from "@/components/gang-territories";
+import { Equipment } from "@/types/fighter";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -36,6 +37,9 @@ interface FighterTypeResponse {
 
 async function processGangData(gangData: any) {
   const processedFighters = gangData.fighters.map((fighter: any) => {
+    // Filter out null equipment entries and process equipment
+    const validEquipment = (fighter.equipment?.filter((item: Equipment | null) => item !== null) || []) as Equipment[];
+    
     return {
       id: fighter.id,
       fighter_name: fighter.fighter_name,
@@ -62,22 +66,22 @@ async function processGangData(gangData: any) {
         skills: fighter.advancements?.skills || {}
       },
       injuries: fighter.injuries || [],
-      weapons: fighter.equipment
-        ?.filter((item: any) => item.equipment_type === 'weapon')
-        .map((item: any) => ({
-          ...item,
-          weapon_profiles: item.weapon_profiles?.map((profile: any) => ({
-            ...profile,
-            strength: profile.strength
-          }))
+      weapons: validEquipment
+        .filter((item: Equipment) => item.equipment_type === 'weapon')
+        .map((item: Equipment) => ({
+          weapon_name: item.equipment_name,
+          weapon_id: item.equipment_id,
+          cost: item.cost,
+          fighter_weapon_id: item.fighter_weapon_id,
+          weapon_profiles: item.weapon_profiles || []
         })) || [],
-      wargear: fighter.equipment
-        ?.filter((item: any) => item.equipment_type === 'wargear')
-        .map((item: any) => ({
+      wargear: validEquipment
+        .filter((item: Equipment) => item.equipment_type === 'wargear')
+        .map((item: Equipment) => ({
           wargear_name: item.equipment_name,
           wargear_id: item.equipment_id,
           cost: item.cost,
-          fighter_weapon_id: item.fighter_equipment_id
+          fighter_weapon_id: item.fighter_weapon_id
         })) || [],
       special_rules: fighter.special_rules || [],
       killed: fighter.killed || false,

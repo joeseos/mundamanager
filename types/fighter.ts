@@ -88,3 +88,28 @@ export interface FighterProps {
   note?: string;
   injuries: Injury[];
 }
+
+export interface WeaponProfile {
+  id: string;
+  profile_name: string;
+  range_short: string;
+  range_long: string;
+  acc_short: string;
+  acc_long: string;
+  strength: string;
+  ap: string;
+  damage: string;
+  ammo: string;
+  traits: string;
+  weapon_group_id: string;
+  is_default_profile: boolean;
+}
+
+export interface Equipment {
+  fighter_weapon_id: string;
+  equipment_id: string;
+  equipment_name: string;
+  equipment_type: 'weapon' | 'wargear';
+  cost: number;
+  weapon_profiles?: WeaponProfile[];
+}
