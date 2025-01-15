@@ -100,6 +100,29 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchGangTypes();
   }, [gangTypes]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        // Prevent Enter from triggering if user is typing in an input field
+        const activeElement = document.activeElement;
+        if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+          return;
+        }
+        
+        event.preventDefault();
+        // Only trigger if the form is valid (same conditions as the Create Gang button)
+        if (gangName.trim() && gangType && !isLoading) {
+          handleCreateGang();
+        }
+      } else if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, gangName, gangType, isLoading]);
+
   const handleCreateGang = async () => {
     if (gangName && gangType) {
       setIsLoading(true)
