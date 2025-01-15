@@ -28,6 +28,7 @@ interface WeaponProfile {
   traits: string;
   is_default_profile: boolean;
   weapon_group_id?: string | null;
+  sort_order: number;
 }
 
 interface Equipment {
@@ -69,7 +70,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     damage: '',
     ammo: '',
     traits: '',
-    is_default_profile: true
+    is_default_profile: true,
+    sort_order: 1
   }]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
@@ -151,7 +153,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           damage: '',
           ammo: '',
           traits: '',
-          is_default_profile: true
+          is_default_profile: true,
+          sort_order: 1
         }]);
         return;
       }
@@ -200,7 +203,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               damage: '',
               ammo: '',
               traits: '',
-              is_default_profile: true
+              is_default_profile: true,
+              sort_order: 1
             }]);
           }
         }
@@ -300,7 +304,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         ammo: '',
         traits: '',
         is_default_profile: false,
-        weapon_group_id: null
+        weapon_group_id: null,
+        sort_order: weaponProfiles.length + 1
       }
     ]);
   };
@@ -817,7 +822,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           >
                             <option value="">Use This Weapon (Default)</option>
                             {weapons
-                              .filter(w => w.id !== selectedEquipmentId) // Don't show current weapon
+                              .filter(w => w.id !== selectedEquipmentId)
                               .map((weapon) => (
                                 <option key={weapon.id} value={weapon.id}>
                                   {weapon.equipment_name}
@@ -827,6 +832,20 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           <p className="text-sm text-gray-500 mt-1">
                             Select a weapon to share profiles with, or leave empty to use this weapon.
                           </p>
+                        </div>
+
+                        <div className="col-span-1 w-24">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Sort Order
+                          </label>
+                          <Input
+                            type="number"
+                            value={profile.sort_order || ''}
+                            onChange={(e) => handleProfileChange(index, 'sort_order', parseInt(e.target.value) || 0)}
+                            placeholder="#"
+                            min="0"
+                            disabled={!selectedEquipmentId}
+                          />
                         </div>
                       </div>
                     </div>
