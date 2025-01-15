@@ -25,6 +25,7 @@ interface WeaponProfile {
   ammo: string;
   traits: string;
   is_default_profile: boolean;
+  weapon_group_id?: string | null;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -52,6 +53,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     is_default_profile: true
   }]);
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
+  const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
   
   const { toast } = useToast();
 
@@ -73,6 +75,25 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     };
 
     fetchCategories();
+  }, [toast]);
+
+  useEffect(() => {
+    const fetchWeapons = async () => {
+      try {
+        const response = await fetch('/api/admin/equipment?equipment_type=weapon');
+        if (!response.ok) throw new Error('Failed to fetch weapons');
+        const data = await response.json();
+        setWeapons(data);
+      } catch (error) {
+        console.error('Error fetching weapons:', error);
+        toast({
+          description: 'Failed to load weapons',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchWeapons();
   }, [toast]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
@@ -98,7 +119,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         damage: '',
         ammo: '',
         traits: '',
-        is_default_profile: false
+        is_default_profile: false,
+        weapon_group_id: null
       }
     ]);
   };
@@ -120,6 +142,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     try {
       const cleanedWeaponProfiles = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
         ...profile,
+        weapon_group_id: profile.weapon_group_id || null,
         range_short: profile.range_short || null,
         range_long: profile.range_long || null,
         acc_short: profile.acc_short || null,
@@ -470,6 +493,27 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             />
                             <span className="text-sm font-medium text-gray-700">Default Profile</span>
                           </label>
+                        </div>
+
+                        <div className="col-span-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Weapon Group
+                          </label>
+                          <select
+                            value={profile.weapon_group_id || ''}
+                            onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option value="">Use This Weapon (Default)</option>
+                            {weapons.map((weapon) => (
+                              <option key={weapon.id} value={weapon.id}>
+                                {weapon.equipment_name}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Select a weapon to share profiles with, or leave empty to use this weapon.
+                          </p>
                         </div>
                       </div>
                     </div>

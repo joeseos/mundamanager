@@ -14,6 +14,7 @@ interface WeaponProfile {
   ammo: string;
   traits: string;
   is_default_profile: boolean;
+  weapon_group_id?: string | null;
 }
 
 export async function GET(request: Request) {
@@ -125,9 +126,11 @@ export async function POST(request: Request) {
     // If this is a weapon and has profiles, insert them
     if (equipment_type.toLowerCase() === 'weapon' && weapon_profiles && weapon_profiles.length > 0) {
       const weaponId = data.id;
-      const profilesWithWeaponId = weapon_profiles.map((profile: WeaponProfile) => ({
+      const profilesWithIds = weapon_profiles.map((profile: WeaponProfile) => ({
         ...profile,
         weapon_id: weaponId,
+        // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
+        weapon_group_id: profile.weapon_group_id || weaponId,
         // Ensure numeric fields are properly handled
         damage: profile.damage || null,
         range_short: profile.range_short || null,
@@ -142,7 +145,7 @@ export async function POST(request: Request) {
 
       const { error: profileError } = await supabase
         .from('weapon_profiles')
-        .insert(profilesWithWeaponId);
+        .insert(profilesWithIds);
 
       if (profileError) throw profileError;
     }
@@ -215,7 +218,9 @@ export async function PUT(request: Request) {
           .insert(
             data.weapon_profiles.map((profile: WeaponProfile) => ({
               ...profile,
-              weapon_id: id
+              weapon_id: id,
+              // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
+              weapon_group_id: profile.weapon_group_id || id
             }))
           );
 

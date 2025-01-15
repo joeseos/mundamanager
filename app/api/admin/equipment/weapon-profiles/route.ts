@@ -30,7 +30,8 @@ export async function GET(request: Request) {
         damage,
         ammo,
         traits,
-        is_default_profile
+        is_default_profile,
+        weapon_group_id
       `)
       .eq('weapon_id', id)
       .order('is_default_profile', { ascending: false });
