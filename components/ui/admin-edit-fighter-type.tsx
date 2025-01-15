@@ -283,12 +283,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       const fighterClass = fighterClasses.find(fc => fc.class_name === selectedFighterClass);
 
+      // Validate required fields
+      if (!selectedFighterTypeId || !fighterType || !selectedFighter?.gang_type_id) {
+        throw new Error('Missing required fields');
+      }
+
       const updateData = {
-        fighterType: fighterType,
-        baseCost: parseInt(baseCost),
-        gangTypeId: selectedFighter?.gang_type_id,
-        fighterClass: selectedFighterClass,
-        fighterClassId: fighterClass?.id,
+        id: selectedFighterTypeId,
+        fighter_type: fighterType,
+        cost: parseInt(baseCost),
+        gang_type_id: selectedFighter.gang_type_id,
+        fighter_class: selectedFighterClass,
+        fighter_class_id: fighterClass?.id,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -307,6 +313,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         default_skills: selectedSkills
       };
 
+      console.log('Sending update data:', updateData);
+
       const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`, {
         method: 'PUT',
         headers: {
@@ -315,7 +323,27 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         body: JSON.stringify(updateData),
       });
 
-      if (!response.ok) throw new Error('Failed to update fighter type');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || 'Failed to update fighter type';
+        } catch (e) {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('Update successful:', data);
 
       toast({
         description: "Fighter type updated successfully",
@@ -330,7 +358,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     } catch (error) {
       console.error('Error updating fighter type:', error);
       toast({
-        description: 'Failed to update fighter type',
+        description: error instanceof Error ? error.message : 'Failed to update fighter type',
         variant: "destructive"
       });
       return false;

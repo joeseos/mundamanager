@@ -164,16 +164,17 @@ export async function PUT(request: Request) {
     }
 
     const data = await request.json();
+    console.log('Received update data:', data); // Debug log
 
     // Update fighter type
     const { error: updateError } = await supabase
       .from('fighter_types')
       .update({
-        fighter_type: data.fighterType,
-        cost: data.baseCost,
-        gang_type_id: data.gangTypeId,
-        fighter_class: data.fighterClass,
-        fighter_class_id: data.fighterClassId,
+        fighter_type: data.fighter_type,
+        cost: data.cost,
+        gang_type_id: data.gang_type_id,
+        fighter_class: data.fighter_class,
+        fighter_class_id: data.fighter_class_id,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -191,33 +192,57 @@ export async function PUT(request: Request) {
       })
       .eq('id', id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Error updating fighter type:', updateError);
+      throw updateError;
+    }
 
-    // Delete existing equipment defaults
-    const { error: deleteEquipError } = await supabase
+    // Delete existing defaults
+    const { error: deleteDefaultsError } = await supabase
       .from('fighter_defaults')
       .delete()
-      .eq('fighter_type_id', id)
-      .eq('equipment_id', data.equipment_id);
+      .eq('fighter_type_id', id);
 
-    if (deleteEquipError) throw deleteEquipError;
+    if (deleteDefaultsError) {
+      console.error('Error deleting existing defaults:', deleteDefaultsError);
+      throw deleteDefaultsError;
+    }
 
-    // Insert new equipment defaults if any
+    // Insert new equipment defaults
     if (data.default_equipment?.length > 0) {
       const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
         fighter_type_id: id,
-        equipment_id: equipmentId
+        equipment_id: equipmentId,
+        skill_id: null
       }));
 
       const { error: insertEquipError } = await supabase
         .from('fighter_defaults')
         .insert(equipmentDefaults);
 
-      if (insertEquipError) throw insertEquipError;
+      if (insertEquipError) {
+        console.error('Error inserting equipment defaults:', insertEquipError);
+        throw insertEquipError;
+      }
     }
 
-    // Handle skills similarly...
-    // ... existing skill handling code ...
+    // Insert new skill defaults
+    if (data.default_skills?.length > 0) {
+      const skillDefaults = data.default_skills.map((skillId: string) => ({
+        fighter_type_id: id,
+        skill_id: skillId,
+        equipment_id: null
+      }));
+
+      const { error: insertSkillError } = await supabase
+        .from('fighter_defaults')
+        .insert(skillDefaults);
+
+      if (insertSkillError) {
+        console.error('Error inserting skill defaults:', insertSkillError);
+        throw insertSkillError;
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
