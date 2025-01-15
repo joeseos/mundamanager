@@ -278,9 +278,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Credits</span>
+            <span className="text-sm text-gray-600">Gang Credits</span>
             <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-              {fighterCredits ?? gangCredits}
+              {gangCredits}
             </span>
             <button
               onClick={onClose}
