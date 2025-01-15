@@ -103,14 +103,16 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
-        // Prevent Enter from triggering if user is typing in an input field
         const activeElement = document.activeElement;
-        if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+        
+        // If we're in an input field and the form isn't valid, let the default behavior happen
+        if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') 
+            && (!gangName.trim() || !gangType || isLoading)) {
           return;
         }
         
         event.preventDefault();
-        // Only trigger if the form is valid (same conditions as the Create Gang button)
+        // If form is valid, create the gang
         if (gangName.trim() && gangType && !isLoading) {
           handleCreateGang();
         }
