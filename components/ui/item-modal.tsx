@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile } from '@/types/equipment';
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ItemModalProps {
   title: string;
@@ -83,6 +84,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterCredits,
   onEquipmentBought 
 }) => {
+  const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -262,10 +264,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
         cost: manualCost
       });
       
+      toast({
+        title: "Equipment purchased",
+        description: `Successfully bought ${item.equipment_name} for ${manualCost} credits`,
+        variant: "default",
+      });
+
       onClose();
     } catch (err) {
       console.error('Error buying equipment:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred while buying the equipment');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to buy equipment',
+        variant: "destructive",
+      });
     }
   };
 
@@ -274,40 +286,47 @@ const ItemModal: React.FC<ItemModalProps> = ({
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-        <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
+      <div className="w-[600px] rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="text-xl font-semibold">Equipment</h2>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">Gang Credits</span>
-            <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
+            <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
               {gangCredits}
             </span>
-            <button
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 rounded-full ml-2"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-xl"
             >
-              ×
-            </button>
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
           </div>
         </div>
-        <div className="p-4 overflow-y-auto flex-grow">
-          {error && <p className="text-red-500 mb-2">{error}</p>}
-          <div>
+
+        <div className="h-[600px] overflow-y-auto">
+          <div className="flex flex-col">
+            {error && <p className="text-red-500 p-4">{error}</p>}
+            
             {categories.map((category) => (
               <div key={category.id}>
-                <div 
-                  className="bg-gray-100 rounded-md p-3 mb-2 flex justify-between items-center cursor-pointer hover:bg-gray-200"
+                <Button
+                  variant="ghost"
+                  className="relative flex w-full justify-between rounded-none px-4 py-6 text-base bg-gray-50 hover:bg-gray-100 mb-[1px]"
                   onClick={() => toggleCategory(category)}
                 >
-                  <span className="font-semibold">{category.category_name}</span>
-                  {expandedCategory === category.category_name ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </div>
+                  <span>{category.category_name}</span>
+                  <ChevronRight
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      expandedCategory === category.category_name ? "rotate-90" : ""
+                    }`}
+                  />
+                </Button>
+
                 {expandedCategory === category.category_name && (
-                  <div className="pl-4">
+                  <div className="bg-gray-50">
                     {categoryLoadingStates[category.category_name] ? (
                       <div className="flex justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
@@ -318,11 +337,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                         const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
                         
                         return (
-                          <div 
+                          <Button
                             key={item.equipment_id}
-                            className={`bg-white border border-gray-200 rounded-md p-2 flex justify-between items-center ${!affordable ? 'opacity-50' : ''}`}
+                            variant="ghost"
+                            className={`w-full justify-between px-4 py-2 text-sm hover:bg-gray-100 ${!affordable ? 'opacity-50' : ''}`}
                           >
-                            <span className="text-sm">{item.equipment_name}</span>
+                            <span>{item.equipment_name}</span>
                             <div className="flex items-center gap-2">
                               {hasDiscount ? (
                                 <div className="flex items-center gap-1">
@@ -340,21 +360,27 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               )}
                               {affordable && (
                                 <Button
-                                  onClick={() => setBuyModalData(item)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBuyModalData(item);
+                                  }}
                                   className="bg-green-500 hover:bg-green-600 text-white text-xs py-0.5 px-2 h-6"
                                 >
                                   Buy
                                 </Button>
                               )}
                             </div>
-                          </div>
+                          </Button>
                         );
                       })
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No equipment available in this category</p>
+                      <p className="text-sm text-gray-500 italic p-4">
+                        No equipment available
+                      </p>
                     )}
                   </div>
                 )}
+                <div className="h-[1px] w-full bg-gray-200" />
               </div>
             ))}
           </div>
