@@ -112,10 +112,22 @@ export async function GET(request: Request) {
         throw skillsError;
       }
 
+      // Fetch equipment list
+      const { data: equipmentList, error: equipmentListError } = await supabase
+        .from('fighter_type_equipment')
+        .select('equipment_id')
+        .eq('fighter_type_id', fighterType.id);
+
+      if (equipmentListError) {
+        console.error('Error fetching equipment list:', equipmentListError);
+        throw equipmentListError;
+      }
+
       const formattedFighterType = {
         ...fighterType,
         default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
-        default_skills: defaultSkills?.map(d => d.skill_id) || []
+        default_skills: defaultSkills?.map(d => d.skill_id) || [],
+        equipment_list: equipmentList?.map(e => e.equipment_id) || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -182,7 +194,6 @@ export async function PUT(request: Request) {
         toughness: data.toughness,
         wounds: data.wounds,
         initiative: data.initiative,
-        attacks: data.attacks,
         leadership: data.leadership,
         cool: data.cool,
         willpower: data.willpower,
@@ -241,6 +252,31 @@ export async function PUT(request: Request) {
       if (insertSkillError) {
         console.error('Error inserting skill defaults:', insertSkillError);
         throw insertSkillError;
+      }
+    }
+
+    // Handle equipment list
+    if (data.equipment_list) {
+      // First delete existing equipment list entries
+      const { error: deleteError } = await supabase
+        .from('fighter_type_equipment')
+        .delete()
+        .eq('fighter_type_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert new equipment list entries
+      if (data.equipment_list.length > 0) {
+        const equipmentList = data.equipment_list.map((equipment_id: string) => ({
+          fighter_type_id: id,
+          equipment_id
+        }));
+
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(equipmentList);
+
+        if (insertError) throw insertError;
       }
     }
 
@@ -334,7 +370,7 @@ export async function POST(request: Request) {
       const skillDefaults = data.default_skills.map((skillId: string) => ({
         fighter_type_id: newFighterType.id,
         skill_id: skillId,
-        equipment_id: null  // Since this is a skill default, equipment_id should be null
+        equipment_id: null
       }));
 
       const { error: skillError } = await supabase
@@ -342,6 +378,20 @@ export async function POST(request: Request) {
         .insert(skillDefaults);
 
       if (skillError) throw skillError;
+    }
+
+    // Add this section to handle equipment list
+    if (data.equipment_list && data.equipment_list.length > 0) {
+      const equipmentList = data.equipment_list.map((equipment_id: string) => ({
+        fighter_type_id: newFighterType.id,
+        equipment_id
+      }));
+
+      const { error: equipmentListError } = await supabase
+        .from('fighter_type_equipment')
+        .insert(equipmentList);
+
+      if (equipmentListError) throw equipmentListError;
     }
 
     return NextResponse.json({ success: true });
