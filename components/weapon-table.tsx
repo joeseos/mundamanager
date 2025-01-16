@@ -54,7 +54,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
 
   return (
     <div className="overflow-x-auto w-full">
-      <table className="w-full border-collapse table-weapons" style={{ fontSize: 'calc(12px + 0.2vmin)' }}>
+      <table className="w-full border-collapse table-weapons" style={{ fontSize: 'calc(10px + 0.2vmin)' }}>
         <colgroup>
           <col style={{ width: '30%' }}/>
           <col style={{ width: '6%' }}/>
@@ -68,7 +68,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
           <col style={{ width: '22%' }}/></colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1" rowSpan={2}>Weapon</th>
+            <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
             <th className="text-center p-1" colSpan={2}>Range</th>
             <th className="text-center p-1" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
@@ -95,34 +95,34 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
                 key={`${groupId}-${profileIndex}`}
                 className={bgClass}
               >
-                <td className="text-left p-1 whitespace-normal">
+                <td className="text-left p-1 whitespace-normal align-top">
                   {profile.profile_name}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatValue(profile.range_short)}
                 </td>
-                <td className="text-center p-1 whitespace-nowrap">
+                <td className="text-center p-1 whitespace-nowrap align-top">
                   {formatters.formatValue(profile.range_long)}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatAccuracy(profile.acc_short)}
                 </td>
-                <td className="text-center p-1 whitespace-nowrap">
+                <td className="text-center p-1 whitespace-nowrap align-top">
                   {formatters.formatAccuracy(profile.acc_long)}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatStrength(profile.strength)}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatValue(profile.damage)}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatAp(profile.ap)}
                 </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatAmmo(profile.ammo)}
                 </td>
-                <td className="text-left p-1 border-l border-black whitespace-normal">
+                <td className="text-left p-1 border-l border-black whitespace-normal align-top">
                   {profile.traits}
                 </td>
               </tr>
