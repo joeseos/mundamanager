@@ -88,7 +88,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
         <tbody>
           {Object.entries(groupedProfiles).map(([groupId, profiles]) => {
             rowIndex++;
-            const bgClass = rowIndex % 2 === 1 ? 'bg-black/5' : '';
+            const bgClass = rowIndex % 2 === 1 ? 'bg-black/[0.07]' : '';
             
             return profiles.map((profile, profileIndex) => (
               <tr 
