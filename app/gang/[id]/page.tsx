@@ -10,11 +10,13 @@ import GangInventory from "@/components/gang-stash";
 import { GangNotes } from "@/components/gang-notes";
 import GangTerritories from "@/components/gang-territories";
 import { Equipment } from "@/types/fighter";
+import { fighterClassRank } from "@/utils/fighterClassRank";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
   id: string;
   fighter_type: string;
+  fighter_class: string;
   gang_type: string;
   cost: number;
   gang_type_id: string;
@@ -115,15 +117,25 @@ async function processGangData(gangData: any) {
   const fighterTypes = await response.json();
 
   // Map the fighter types to match the expected interface and sort by cost
-  const processedFighterTypes = fighterTypes
-    .map((type: FighterTypeResponse) => ({
-      id: type.id,
-      fighter_type_id: type.id,
-      fighter_type: type.fighter_type,
-      cost: type.cost,
-      total_cost: type.total_cost
-    }))
-    .sort((a: FighterType, b: FighterType) => (a.cost || 0) - (b.cost || 0)) as FighterType[];
+const processedFighterTypes = (
+    fighterTypes
+      .map((type: FighterTypeResponse) => ({
+        id: type.id,
+        fighter_type_id: type.id,
+        fighter_type: type.fighter_type,
+        fighter_class: type.fighter_class,
+        cost: type.cost,
+        total_cost: type.total_cost,
+      })) as FighterType[]
+  ).sort((a, b) => {
+    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+
+    if (rankA !== rankB) {
+      return rankA - rankB; // Ascending order by rank
+    }
+    return (a.fighter_type || "").localeCompare(b.fighter_type || ""); // Secondary sorting: By fighter_type
+  });
 
   return {
     ...gangData,
