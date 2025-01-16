@@ -43,7 +43,6 @@ interface FighterType {
   fighter_type: string;
   cost: number;
   total_cost: number;
-  fighter_class: string;
 }
 
 export default function Gang({ 
@@ -444,7 +443,7 @@ export default function Gang({
               <option value="">Select fighter type</option>
               {fighterTypes.map((type) => (
                 <option key={type.id} value={type.id}>
-                  {type.fighter_type} ({type.fighter_class}) - {type.total_cost} credits
+                  {type.fighter_type} ({type.total_cost} credits)
                 </option>
               ))}
             </select>
