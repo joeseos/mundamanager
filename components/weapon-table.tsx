@@ -68,7 +68,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
           <col style={{ width: '22%' }}/></colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1" rowSpan={2}>Weapon</th>
+            <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
             <th className="text-center p-1" colSpan={2}>Range</th>
             <th className="text-center p-1" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
