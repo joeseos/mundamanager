@@ -11,6 +11,7 @@ export interface WeaponProfile {
   ammo: number;
   traits: string;
   is_default_profile: boolean;
+  weapon_group_id?: string | null;
 }
 
 export interface Weapon {

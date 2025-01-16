@@ -29,10 +29,27 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
   }), []);
 
   const formatStrength = (strength: string) => {
-    // Handle both numeric and S+X formats
     return strength.toString();
   };
 
+  // Group profiles by weapon_group_id
+  const groupedProfiles = useMemo(() => {
+    const groups: { [key: string]: WeaponProfile[] } = {};
+    
+    weapons.forEach(weapon => {
+      weapon.weapon_profiles?.forEach(profile => {
+        const groupKey = profile.weapon_group_id || weapon.fighter_weapon_id;
+        if (!groups[groupKey]) {
+          groups[groupKey] = [];
+        }
+        groups[groupKey].push(profile);
+      });
+    });
+
+    return groups;
+  }, [weapons]);
+
+  // Track row index for alternating colors
   let rowIndex = 0;
 
   return (
@@ -69,47 +86,48 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
           </tr>
         </thead>
         <tbody>
-          {weapons.map((weapon, weaponIndex) =>
-            weapon.weapon_profiles?.map((profile, profileIndex) => {
-              rowIndex++;
-              const uniqueKey = `${weapon.fighter_weapon_id}-${weaponIndex}-${profileIndex}`;
-              return (
-                <tr 
-                  key={uniqueKey}
-                  className={`${rowIndex % 2 === 1 ? 'bg-black/5' : ''}`}
-                >
-                  <td className="text-left p-1 whitespace-normal">{profile.profile_name}</td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatters.formatValue(profile.range_short)}
-                  </td>
-                  <td className="text-center p-1 whitespace-nowrap">
-                    {formatters.formatValue(profile.range_long)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatters.formatAccuracy(profile.acc_short)}
-                  </td>
-                  <td className="text-center p-1 whitespace-nowrap">
-                    {formatters.formatAccuracy(profile.acc_long)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatStrength(profile.strength)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatters.formatValue(profile.damage)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatters.formatAp(profile.ap)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap">
-                    {formatters.formatAmmo(profile.ammo)}
-                  </td>
-                  <td className="text-left p-1 border-l border-black whitespace-normal">
-                    {profile.traits}
-                  </td>
-                </tr>
-              );
-            })
-          )}
+          {Object.entries(groupedProfiles).map(([groupId, profiles]) => {
+            rowIndex++;
+            const bgClass = rowIndex % 2 === 1 ? 'bg-black/5' : '';
+            
+            return profiles.map((profile, profileIndex) => (
+              <tr 
+                key={`${groupId}-${profileIndex}`}
+                className={bgClass}
+              >
+                <td className="text-left p-1 whitespace-normal">
+                  {profile.profile_name}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatters.formatValue(profile.range_short)}
+                </td>
+                <td className="text-center p-1 whitespace-nowrap">
+                  {formatters.formatValue(profile.range_long)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatters.formatAccuracy(profile.acc_short)}
+                </td>
+                <td className="text-center p-1 whitespace-nowrap">
+                  {formatters.formatAccuracy(profile.acc_long)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatStrength(profile.strength)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatters.formatValue(profile.damage)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatters.formatAp(profile.ap)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap">
+                  {formatters.formatAmmo(profile.ammo)}
+                </td>
+                <td className="text-left p-1 border-l border-black whitespace-normal">
+                  {profile.traits}
+                </td>
+              </tr>
+            ));
+          })}
         </tbody>
       </table>
     </div>
