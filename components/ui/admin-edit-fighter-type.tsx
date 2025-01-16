@@ -60,6 +60,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
+  const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
 
   const { toast } = useToast();
 
@@ -148,6 +150,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFreeSkill(data.free_skill);
         setSelectedEquipment(data.default_equipment || []);
         setSelectedSkills(data.default_skills || []);
+        setEquipmentListSelections(data.equipment_list || []);
       } catch (error) {
         console.error('Error fetching fighter type details:', error);
         toast({
@@ -310,7 +313,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         special_rules: specialRulesArray,
         free_skill: freeSkill,
         default_equipment: selectedEquipment,
-        default_skills: selectedSkills
+        default_skills: selectedSkills,
+        equipment_list: equipmentListSelections
       };
 
       console.log('Sending update data:', updateData);
@@ -765,6 +769,56 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
                         className="hover:text-red-500 focus:outline-none"
                         disabled={!selectedFighterTypeId}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Equipment List
+              </label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value && !equipmentListSelections.includes(value)) {
+                    setEquipmentListSelections([...equipmentListSelections, value]);
+                  }
+                  e.target.value = "";
+                }}
+                className="w-full p-2 border rounded-md"
+                disabled={!selectedFighterTypeId}
+              >
+                <option value="">Available equipment</option>
+                {equipment
+                  .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.equipment_name}
+                    </option>
+                  ))}
+              </select>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {equipmentListSelections.map((equipId) => {
+                  const item = equipment.find(e => e.id === equipId);
+                  if (!item) return null;
+                  
+                  return (
+                    <div 
+                      key={item.id}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                    >
+                      <span>{item.equipment_name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item.id))}
+                        className="hover:text-red-500 focus:outline-none"
                       >
                         <X className="h-4 w-4" />
                       </button>

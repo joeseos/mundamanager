@@ -58,6 +58,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
 
   const { toast } = useToast();
 
@@ -193,7 +194,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
         default_equipment: selectedEquipment,
-        default_skills: selectedSkills
+        default_skills: selectedSkills,
+        equipment_list: equipmentListSelections
       };
       console.log('Sending fighter type data:', requestData);
 
@@ -624,6 +626,55 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               <label htmlFor="freeSkill" className="text-sm font-medium text-gray-700">
                 Free Skill
               </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Equipment List
+              </label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value && !equipmentListSelections.includes(value)) {
+                    setEquipmentListSelections([...equipmentListSelections, value]);
+                  }
+                  e.target.value = "";
+                }}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Available equipment</option>
+                {equipment
+                  .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.equipment_name}
+                    </option>
+                  ))}
+              </select>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {equipmentListSelections.map((equipId) => {
+                  const item = equipment.find(e => e.id === equipId);
+                  if (!item) return null;
+                  
+                  return (
+                    <div 
+                      key={item.id}
+                      className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-sm"
+                    >
+                      <span>{item.equipment_name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item.id))}
+                        className="hover:text-red-500 focus:outline-none"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
