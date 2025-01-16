@@ -226,7 +226,7 @@ const calculateInjuryModifications = (injuries: Array<{
     'A': 0,  // Attacks
     'Ld': 0, // Leadership
     'Cl': 0, // Cool
-    'Wp': 0, // Willpower
+    'Wil': 0, // Willpower
     'Int': 0 // Intelligence
   };
 
@@ -273,6 +273,18 @@ const transformFighterData = (fighter: Fighter | null) => {
     note: fighter.note || ''
   };
 };
+
+// First, let's define an interface for the characteristic structure
+interface FighterCharacteristic {
+  id: string;
+  characteristic_name: string;
+  characteristic_value: number;
+  credits_increase: number;
+  xp_cost: number;
+  acquired_at: string;
+  code: string;
+  times_increased: number;
+}
 
 export default function FighterPage({ params }: { params: { id: string } }) {
   // Replace multiple state declarations with consolidated state
@@ -362,7 +374,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           gang_id: result.gang.id,
           gang_type_id: result.gang.gang_type_id,
           characteristics: result.fighter.characteristics || [],
-          skills: result.fighter.skills || {}
+          skills: result.fighter.skills || {},
+          advancements: {
+            characteristics: result.fighter.characteristics?.reduce((acc: Record<string, FighterCharacteristic>, char: FighterCharacteristic) => ({
+              ...acc,
+              [char.characteristic_name]: char
+            }), {}) || {},
+            skills: result.fighter.skills || {}
+          }
         },
         equipment: transformedEquipment,
         gang: {
@@ -948,18 +967,18 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             type={fighterData.fighter?.fighter_type.fighter_type || ''}
             fighter_class={fighterData.fighter?.fighter_type.fighter_class || ''}
             credits={fighterData.fighter?.credits || 0}
-            movement={fighterData.fighter?.movement + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['M'] || 0)}
-            weapon_skill={fighterData.fighter?.weapon_skill + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['WS'] || 0)}
-            ballistic_skill={fighterData.fighter?.ballistic_skill + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['BS'] || 0)}
-            strength={fighterData.fighter?.strength + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['S'] || 0)}
-            toughness={fighterData.fighter?.toughness + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['T'] || 0)}
-            wounds={fighterData.fighter?.wounds + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['W'] || 0)}
-            initiative={fighterData.fighter?.initiative + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['I'] || 0)}
-            attacks={fighterData.fighter?.attacks + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['A'] || 0)}
-            leadership={fighterData.fighter?.leadership + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Ld'] || 0)}
-            cool={fighterData.fighter?.cool + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Cl'] || 0)}
-            willpower={fighterData.fighter?.willpower + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Wp'] || 0)}
-            intelligence={fighterData.fighter?.intelligence + (calculateInjuryModifications(fighterData.fighter?.injuries || [])['Int'] || 0)}
+            movement={fighterData.fighter?.movement}
+            weapon_skill={fighterData.fighter?.weapon_skill}
+            ballistic_skill={fighterData.fighter?.ballistic_skill}
+            strength={fighterData.fighter?.strength}
+            toughness={fighterData.fighter?.toughness}
+            wounds={fighterData.fighter?.wounds}
+            initiative={fighterData.fighter?.initiative}
+            attacks={fighterData.fighter?.attacks}
+            leadership={fighterData.fighter?.leadership}
+            cool={fighterData.fighter?.cool}
+            willpower={fighterData.fighter?.willpower}
+            intelligence={fighterData.fighter?.intelligence}
             xp={fighterData.fighter?.xp}
             total_xp={fighterData.fighter?.total_xp}
             advancements={fighterData.fighter?.advancements}
@@ -971,6 +990,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             enslaved={fighterData.fighter?.enslaved}
             starved={fighterData.fighter?.starved}
             kills={fighterData.fighter?.kills || 0}
+            injuries={fighterData.fighter?.injuries || []}
           />
           
           <WeaponList 

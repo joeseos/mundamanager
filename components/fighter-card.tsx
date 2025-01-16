@@ -83,11 +83,14 @@ const FighterCard = memo(function FighterCard({
     intelligence,
     xp,
     kills,
-    advancements,
+    advancements: {
+      characteristics: advancements?.characteristics || {},
+      skills: advancements?.skills || {}
+    },
     weapons,
     wargear,
     special_rules,
-    injuries,
+    injuries: injuries || [],
   };
 
   const adjustedStats = calculateAdjustedStats(fighterData);
