@@ -7,6 +7,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 interface ItemModalProps {
   title: string;
@@ -30,6 +31,7 @@ interface RawEquipmentData {
   equipment_type: 'weapon' | 'wargear';
   created_at: string;
   weapon_profiles?: WeaponProfile[];
+  fighter_type_equipment: boolean;
 }
 
 interface PurchaseModalProps {
@@ -93,6 +95,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [showAllEquipment, setShowAllEquipment] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -167,9 +170,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
-      console.log('Raw API response for', categoryName, ':', data);
       
-      const formattedData = data
+      const filteredData = data.filter(item => 
+        showAllEquipment || item.fighter_type_equipment
+      );
+      
+      const formattedData = filteredData
         .map((item: RawEquipmentData) => ({
           ...item,
           equipment_id: item.id,
@@ -186,14 +192,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         console.log('Formatted Lasgun:', lasgun);
       }
 
-      setEquipment(prev => {
-        const newState: Record<string, Equipment[]> = {
-          ...prev,
-          [categoryName]: formattedData
-        };
-        console.log('New equipment state:', newState);
-        return newState;
-      });
+      setEquipment(prev => ({
+        ...prev,
+        [categoryName]: formattedData
+      }));
     } catch (err) {
       console.error('Error fetching equipment:', err);
       setError(`Failed to load ${categoryName}`);
@@ -281,28 +283,55 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (expandedCategory) {
+      fetchCategoryEquipment(expandedCategory, expandedCategory);
+    }
+  }, [showAllEquipment]);
+
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="w-[600px] rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-xl font-semibold">Equipment</h2>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Gang Credits</span>
-            <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-              {gangCredits}
-            </span>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 rounded-full ml-2"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </Button>
+        <div className="relative border-b p-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 rounded-full absolute right-4 top-4"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Button>
+          
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 pr-8">
+            <h2 className="text-xl font-semibold">Equipment</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={showAllEquipment}
+                  onCheckedChange={(checked: boolean) => {
+                    setShowAllEquipment(checked);
+                    setEquipment({});
+                  }}
+                  id="show-all-equipment"
+                />
+                <label 
+                  htmlFor="show-all-equipment" 
+                  className="text-sm text-gray-600 cursor-pointer whitespace-nowrap"
+                >
+                  Show All Equipment
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Gang Credits</span>
+                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                  {gangCredits}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -337,17 +366,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
                         const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
                         
                         return (
-                          <Button
+                          <div
                             key={item.equipment_id}
-                            variant="ghost"
-                            className={`w-full justify-between px-4 py-2 text-sm hover:bg-gray-100 ${!affordable ? 'opacity-50' : ''}`}
+                            className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
                           >
-                            <span>{item.equipment_name}</span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">{item.equipment_name}</span>
+                            </div>
                             <div className="flex items-center gap-2">
-                              {hasDiscount ? (
+                              {item.discounted_cost !== undefined && item.discounted_cost < item.cost ? (
                                 <div className="flex items-center gap-1">
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-900 text-white">
-                                    <span className="text-[10px] font-medium line-through">{item.base_cost ?? item.cost}</span>
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-400 text-white line-through">
+                                    <span className="text-[10px] font-medium">{item.cost}</span>
                                   </div>
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500 text-white">
                                     <span className="text-[10px] font-medium">{item.discounted_cost ?? item.cost}</span>
@@ -370,7 +400,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                 </Button>
                               )}
                             </div>
-                          </Button>
+                          </div>
                         );
                       })
                     ) : (
