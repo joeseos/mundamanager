@@ -6,6 +6,7 @@ import { FighterProps } from "@/types/fighter";
 interface FighterType {
   fighter_type_id: string;
   fighter_type: string;
+  fighter_class: string;
   cost: number;
 }
 
@@ -23,6 +24,7 @@ async function processGangData(gangData: any) {
     fighter_name: fighter.fighter_name,
     fighter_type_id: fighter.fighter_type_id,
     fighter_type: fighter.fighter_type,
+    fighter_class: fighter.fighter_class,
     credits: fighter.credits,
     movement: fighter.movement,
     weapon_skill: fighter.weapon_skill,
@@ -45,7 +47,6 @@ async function processGangData(gangData: any) {
       characteristics: fighter.advancements?.characteristics || {}
     },
     injuries: fighter.fighter_injuries || [],
-    fighter_class: fighter.fighter_class,
     label: fighter.label,
     killed: fighter.killed || false,
     retired: fighter.retired || false,
