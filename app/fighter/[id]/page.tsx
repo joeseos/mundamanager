@@ -1019,7 +1019,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             <>
               {console.log('Fighter data:', {
                 gang_type_id: fighterData.fighter?.gang_type_id,
-                fighter_type_id: fighterData.fighter?.fighter_type_id,
+                fighter_type_id: fighterData.fighter?.fighter_type?.fighter_type_id,
                 fighter: fighterData.fighter
               })}
               <ItemModal
