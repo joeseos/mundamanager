@@ -1016,16 +1016,24 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           </div>
           
           {uiState.modals.addWeapon && (
-            <ItemModal
-              title="Equipment"
-              onClose={() => handleModalToggle('addWeapon', false)}
-              gangCredits={fighterData.gang?.credits || 0}
-              gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.fighter?.gang_type_id || ''}
-              fighterId={fighterData.fighter?.id || ''}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentBought={handleEquipmentBought}
-            />
+            <>
+              {console.log('Fighter data:', {
+                gang_type_id: fighterData.fighter?.gang_type_id,
+                fighter_type_id: fighterData.fighter?.fighter_type_id,
+                fighter: fighterData.fighter
+              })}
+              <ItemModal
+                title="Equipment"
+                onClose={() => handleModalToggle('addWeapon', false)}
+                gangCredits={fighterData.gang?.credits || 0}
+                gangId={fighterData.gang?.id || ''}
+                gangTypeId={fighterData.fighter?.gang_type_id || ''}
+                fighterId={fighterData.fighter?.id || ''}
+                fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+                fighterCredits={fighterData.fighter?.credits || 0}
+                onEquipmentBought={handleEquipmentBought}
+              />
+            </>
           )}
           
           <div className="mt-6">

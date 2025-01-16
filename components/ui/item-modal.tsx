@@ -16,6 +16,7 @@ interface ItemModalProps {
   gangId: string;
   gangTypeId: string;
   fighterId: string;
+  fighterTypeId: string;
   fighterCredits: number;
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
@@ -83,6 +84,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangId,
   gangTypeId,
   fighterId, 
+  fighterTypeId,
   fighterCredits,
   onEquipmentBought 
 }) => {
@@ -146,7 +148,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
     
-    console.log('Fetching equipment with gang_type_id:', gangTypeId);
+    if (!gangTypeId || !fighterTypeId) {
+      console.error('Missing required IDs:', { gangTypeId, fighterTypeId });
+      setError('Missing required data');
+      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
+      return;
+    }
+    
+    console.log('Request parameters:', {
+      gang_type_id: gangTypeId,
+      fighter_type_id: fighterTypeId,
+      equipment_category: categoryQuery
+    });
     
     try {
       const response = await fetch(
@@ -160,12 +173,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
           },
           body: JSON.stringify({
             gang_type_id: gangTypeId,
+            fighter_type_id: fighterTypeId,
             equipment_category: categoryQuery
           }),
         }
       );
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
         throw new Error(`Failed to fetch ${categoryName}`);
       }
 
