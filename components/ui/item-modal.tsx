@@ -7,8 +7,6 @@ import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 
 interface ItemModalProps {
   title: string;
@@ -32,8 +30,6 @@ interface RawEquipmentData {
   equipment_type: 'weapon' | 'wargear';
   created_at: string;
   weapon_profiles?: WeaponProfile[];
-  fighter_type_equipment: boolean;
-  core_equipment?: boolean;
 }
 
 interface PurchaseModalProps {
@@ -97,7 +93,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [showAllEquipment, setShowAllEquipment] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -143,10 +138,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
   }, [session]);
 
-  const fetchCategoryEquipment = useCallback(async (categoryName: string, categoryQuery: string) => {
+  const fetchCategoryEquipment = async (categoryName: string, categoryQuery: string) => {
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
+    
+    console.log('Fetching equipment with gang_type_id:', gangTypeId);
     
     try {
       const response = await fetch(
@@ -160,8 +157,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           },
           body: JSON.stringify({
             gang_type_id: gangTypeId,
-            equipment_category: categoryQuery,
-            fighter_type_id: fighterId
+            equipment_category: categoryQuery
           }),
         }
       );
@@ -171,6 +167,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
+      console.log('Raw API response for', categoryName, ':', data);
       
       const formattedData = data
         .map((item: RawEquipmentData) => ({
@@ -180,27 +177,36 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.discounted_cost,
           base_cost: item.base_cost,
           discounted_cost: item.discounted_cost,
-          equipment_type: item.equipment_type as 'weapon' | 'wargear',
-          fighter_type_equipment: item.fighter_type_equipment,
-          core_equipment: item.core_equipment
-        }));
+          equipment_type: item.equipment_type as 'weapon' | 'wargear'
+        }))
+        .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
-      setEquipment(prev => ({
-        ...prev,
-        [categoryName]: formattedData
-      }));
+      const lasgun = formattedData.find(item => item.equipment_name === 'Lasgun');
+      if (lasgun) {
+        console.log('Formatted Lasgun:', lasgun);
+      }
+
+      setEquipment(prev => {
+        const newState: Record<string, Equipment[]> = {
+          ...prev,
+          [categoryName]: formattedData
+        };
+        console.log('New equipment state:', newState);
+        return newState;
+      });
     } catch (err) {
       console.error('Error fetching equipment:', err);
       setError(`Failed to load ${categoryName}`);
     } finally {
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
     }
-  }, [session, gangTypeId, fighterId]);
+  };
 
   const toggleCategory = async (category: Category) => {
     const newExpandedCategory = expandedCategory === category.category_name ? null : category.category_name;
     setExpandedCategory(newExpandedCategory);
 
+    // Only fetch if expanding and data hasn't been loaded yet
     if (newExpandedCategory && !equipment[category.category_name]) {
       await fetchCategoryEquipment(category.category_name, category.category_name);
     }
@@ -275,48 +281,28 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
   };
 
-  const getFilteredEquipment = (categoryName: string) => {
-    const items = equipment[categoryName];
-    if (!items) return [];
-    
-    return items
-      .filter(item => showAllEquipment || item.fighter_type_equipment)
-      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
-  };
-
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="w-[600px] rounded-lg bg-white shadow-xl">
-        <div className="flex flex-col border-b">
-          <div className="flex items-center justify-between p-4">
-            <h2 className="text-xl font-semibold">Equipment</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600">Gang Credits</span>
-              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                {gangCredits}
-              </span>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 rounded-full ml-2"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </Button>
-            </div>
-          </div>
-          
-          <div className="px-4 pb-4 flex items-center space-x-2">
-            <Switch
-              id="show-all"
-              checked={showAllEquipment}
-              onCheckedChange={setShowAllEquipment}
-            />
-            <Label htmlFor="show-all">Show all equipment</Label>
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="text-xl font-semibold">Equipment</h2>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">Gang Credits</span>
+            <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+              {gangCredits}
+            </span>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 rounded-full ml-2"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
           </div>
         </div>
 
@@ -345,8 +331,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                       <div className="flex justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                       </div>
-                    ) : getFilteredEquipment(category.category_name).length ? (
-                      getFilteredEquipment(category.category_name).map((item) => {
+                    ) : equipment[category.category_name]?.length ? (
+                      equipment[category.category_name].map((item) => {
                         const affordable = canAffordEquipment(item);
                         const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
                         

@@ -14,14 +14,17 @@ export interface WeaponProfile {
 }
 
 export interface Equipment {
+  fighter_equipment_id: string;
   equipment_id: string;
   equipment_name: string;
   equipment_type: 'weapon' | 'wargear';
   cost: number;
   base_cost?: number;
   discounted_cost?: number;
-  fighter_equipment_id: string;
-  weapon_profiles?: WeaponProfile[];
-  fighter_type_equipment: boolean;
+  trading_post_category?: string;
+  availability?: string | null;
+  equipment_category?: string;
+  created_at?: string;
+  weapon_profiles?: WeaponProfile[] | null;
   core_equipment?: boolean;
 } 
