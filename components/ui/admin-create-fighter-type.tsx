@@ -162,10 +162,45 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     fetchSkills();
   }, [selectedSkillType, toast]);
 
+  // Helper function to check if the selected class is Crew
+  const isCrew = () => {
+    return selectedFighterClass && typeof selectedFighterClass !== 'string' 
+      ? selectedFighterClass.class_name === 'Crew'
+      : false;
+  };
+
   const handleSubmit = async () => {
     if (!selectedGangType || !selectedFighterClass || !fighterType) {
       toast({
         description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Check if selected class is Crew - note that BS is removed from this check
+    if (!isCrew()) {
+      if (
+        !movement ||
+        !weaponSkill ||
+        !strength ||
+        !toughness ||
+        !wounds ||
+        !initiative ||
+        !attacks
+      ) {
+        toast({
+          description: "Please fill in all required stats",
+          variant: "destructive"
+        });
+        return false;
+      }
+    }
+
+    // BS check is separate since it's always required
+    if (!ballisticSkill) {
+      toast({
+        description: "Please fill in Ballistic Skill",
         variant: "destructive"
       });
       return false;
@@ -179,18 +214,18 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         gangTypeId: selectedGangType,
         fighterClass: selectedFighterClass.class_name,
         fighterClassId: selectedFighterClass.id,
-        movement: parseInt(movement),
-        weapon_skill: parseInt(weaponSkill),
+        movement: isCrew() ? null : parseInt(movement),
+        weapon_skill: isCrew() ? null : parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
-        strength: parseInt(strength),
-        toughness: parseInt(toughness),
-        wounds: parseInt(wounds),
-        initiative: parseInt(initiative),
+        strength: isCrew() ? null : parseInt(strength),
+        toughness: isCrew() ? null : parseInt(toughness),
+        wounds: isCrew() ? null : parseInt(wounds),
+        initiative: isCrew() ? null : parseInt(initiative),
         leadership: parseInt(leadership),
         cool: parseInt(cool),
         willpower: parseInt(willpower),
         intelligence: parseInt(intelligence),
-        attacks: parseInt(attacks),
+        attacks: isCrew() ? null : parseInt(attacks),
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
         default_equipment: selectedEquipment,
@@ -340,25 +375,31 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  M *
+                  M {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={movement}
                   onChange={(e) => setMovement(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  WS *
+                  WS {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={weaponSkill}
                   onChange={(e) => setWeaponSkill(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
@@ -376,61 +417,76 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  S *
+                  S {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={strength}
                   onChange={(e) => setStrength(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  T *
+                  T {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={toughness}
                   onChange={(e) => setToughness(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  W *
+                  W {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={wounds}
                   onChange={(e) => setWounds(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  I *
+                  I {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={initiative}
                   onChange={(e) => setInitiative(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  A *
+                  A {!isCrew() && '*'}
                 </label>
                 <Input
                   type="text"
                   value={attacks}
                   onChange={(e) => setAttacks(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isCrew() ? 'bg-gray-100' : ''
+                  }`}
+                  disabled={isCrew()}
                 />
               </div>
 
@@ -694,18 +750,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               !selectedGangType || 
               !selectedFighterClass || 
               !fighterType ||
-              !movement ||
-              !weaponSkill ||
               !ballisticSkill ||
-              !strength ||
-              !toughness ||
-              !wounds ||
-              !initiative ||
-              !attacks ||
               !leadership ||
               !cool ||
               !willpower ||
               !intelligence ||
+              (!isCrew() && (
+                !movement ||
+                !weaponSkill ||
+                !strength ||
+                !toughness ||
+                !wounds ||
+                !initiative ||
+                !attacks
+              )) ||
               isLoading
             }
             className="bg-black hover:bg-gray-800 text-white"
