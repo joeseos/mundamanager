@@ -91,8 +91,7 @@ export async function POST(request: Request) {
       equipment_category_id,
       equipment_type,
       core_equipment,
-      weapon_profiles,
-      vehicle_profile
+      weapon_profiles
     } = body;
 
     // First get the category name from the ID
@@ -130,7 +129,9 @@ export async function POST(request: Request) {
       const profilesWithIds = weapon_profiles.map((profile: WeaponProfile) => ({
         ...profile,
         weapon_id: weaponId,
+        // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
         weapon_group_id: profile.weapon_group_id || weaponId,
+        // Ensure numeric fields are properly handled
         damage: profile.damage || null,
         range_short: profile.range_short || null,
         range_long: profile.range_long || null,
@@ -149,31 +150,12 @@ export async function POST(request: Request) {
       if (profileError) throw profileError;
     }
 
-    // If this is a vehicle and has a profile, insert it
-    if (equipment_type.toLowerCase() === 'vehicle' && vehicle_profile) {
-      const { error: vehicleProfileError } = await supabase
-        .from('vehicle_profiles')
-        .insert({
-          ...vehicle_profile,
-          equipment_id: data.id,
-          movement: vehicle_profile.movement || null,
-          front: vehicle_profile.front || null,
-          side: vehicle_profile.side || null,
-          rear: vehicle_profile.rear || null,
-          hp: vehicle_profile.hp || null,
-          handling: vehicle_profile.handling || null,
-          save: vehicle_profile.save || null
-        });
-
-      if (vehicleProfileError) throw vehicleProfileError;
-    }
-
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in POST equipment:', error);
     return NextResponse.json(
       { 
-        error: 'Error creating equipment',
+        error: 'Failed to create equipment',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
@@ -244,34 +226,6 @@ export async function PUT(request: Request) {
 
         if (profilesError) throw profilesError;
       }
-    }
-
-    // If it's a vehicle, update the profile
-    if (data.equipment_type.toLowerCase() === 'vehicle' && data.vehicle_profile) {
-      // First delete existing profile
-      const { error: deleteError } = await supabase
-        .from('vehicle_profiles')
-        .delete()
-        .eq('equipment_id', id);
-
-      if (deleteError) throw deleteError;
-
-      // Then insert new profile
-      const { error: vehicleProfileError } = await supabase
-        .from('vehicle_profiles')
-        .insert({
-          ...data.vehicle_profile,
-          equipment_id: id,
-          movement: data.vehicle_profile.movement || null,
-          front: data.vehicle_profile.front || null,
-          side: data.vehicle_profile.side || null,
-          rear: data.vehicle_profile.rear || null,
-          hp: data.vehicle_profile.hp || null,
-          handling: data.vehicle_profile.handling || null,
-          save: data.vehicle_profile.save || null
-        });
-
-      if (vehicleProfileError) throw vehicleProfileError;
     }
 
     // Handle fighter type defaults
