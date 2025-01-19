@@ -24,13 +24,28 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement
   <td {...props}>{children}</td>
 );
 
-// Update the StatsTable component
-export function StatsTable({ data }: { data?: Record<string, number | string> }) {
+interface StatsTableProps {
+  data?: Record<string, number | string>;
+  isCrew?: boolean;
+}
+
+export function StatsTable({ data, isCrew = false }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No stats available</p>;
   }
 
-  const specialBackgroundStats = ['Ld', 'Cl', 'Wil', 'Int'];
+  const specialBackgroundStats = isCrew 
+    ? ['BS', 'Ld', 'Cl', 'Wil', 'Int']
+    : ['Ld', 'Cl', 'Wil', 'Int'];
+
+  // Add helper function to determine if a column needs a border
+  const getColumnBorderClass = (key: string) => {
+    if (isCrew) {
+      if (key === 'Front') return 'border-l-2 border-[#a05236]';
+      if (key === 'Rear') return 'border-r-2 border-[#a05236]';
+    }
+    return '';
+  };
 
   return (
     <div className="w-full">
@@ -42,7 +57,8 @@ export function StatsTable({ data }: { data?: Record<string, number | string> })
                 key={key} 
                 className={`font-semibold text-center p-1 border-b-2 border-[#a05236] 
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}`}
+                  ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
+                  ${getColumnBorderClass(key)}`}
               >
                 {key}
               </th>
@@ -56,7 +72,8 @@ export function StatsTable({ data }: { data?: Record<string, number | string> })
                 key={key} 
                 className={`text-center p-1 
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}`}
+                  ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
+                  ${getColumnBorderClass(key)}`}
               >
                 {value}
               </td>

@@ -95,7 +95,23 @@ const FighterCard = memo(function FighterCard({
 
   const adjustedStats = calculateAdjustedStats(fighterData);
 
-  const stats = {
+  const isCrew = fighter_class === 'Crew';
+
+  const stats: Record<string, string | number> = isCrew ? {
+    'M': '*',
+    'Front': '*',
+    'Side': '*', 
+    'Rear': '*',
+    'HP': '*',
+    'Hnd': '*',
+    'Sv': '*',
+    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+    'Ld': `${adjustedStats.leadership}+`,
+    'Cl': `${adjustedStats.cool}+`,
+    'Wil': `${adjustedStats.willpower}+`,
+    'Int': `${adjustedStats.intelligence}+`,
+    'XP': xp
+  } : {
     'M': `${adjustedStats.movement}"`,
     'WS': `${adjustedStats.weapon_skill}+`,
     'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
@@ -210,7 +226,7 @@ const FighterCard = memo(function FighterCard({
         
         {!isInactive && (
           <>
-            <StatsTable data={stats} />
+            <StatsTable data={stats} isCrew={isCrew} />
             {weapons && weapons.length > 0 && (
               <div className="mt-4">
                 <WeaponTable weapons={weapons} />
