@@ -67,10 +67,21 @@ async function processGangData(gangData: any) {
       })) as FighterType[]
   );
 
+  // Process stash items
+  const processedStash = (gangData.stash || []).map((item: any) => ({
+    id: item.id,
+    equipment_name: item.equipment_name,
+    vehicle_name: item.vehicle_name,
+    cost: item.cost,
+    type: item.type || 'equipment',
+    vehicle_id: item.vehicle_id
+  }));
+
   return {
     ...gangData,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes
+    fighterTypes: processedFighterTypes,
+    stash: processedStash
   };
 }
 

@@ -36,6 +36,24 @@ export default function GangInventory({
     getSession();
   }, []);
 
+  const getItemName = (item: StashItem) => {
+    return item.vehicle_name || item.equipment_name || 'Unknown Item';
+  };
+
+  const isVehicle = (item: StashItem) => item.type === 'vehicle';
+  const isCrew = (fighter: FighterProps) => fighter.fighter_class === 'Crew';
+
+  const getSelectableFighters = () => {
+    if (!selectedItem) return fighters;
+    const selectedStashItem = stash[selectedItem];
+    
+    // If it's a vehicle, only show Crew fighters
+    if (isVehicle(selectedStashItem)) {
+      return fighters.filter(isCrew);
+    }
+    return fighters;
+  };
+
   const handleMoveToFighter = async () => {
     if (!selectedFighter || selectedItem === null) return false;
     if (!session) {
@@ -51,8 +69,12 @@ export default function GangInventory({
     try {
       const stashItem = stash[selectedItem];
       
+      const endpoint = stashItem.type === 'vehicle' 
+        ? 'move_vehicle_from_stash' 
+        : 'move_from_stash';
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_from_stash`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${endpoint}`,
         {
           method: 'POST',
           headers: {
@@ -86,7 +108,7 @@ export default function GangInventory({
 
       toast({
         title: "Success",
-        description: `${stashItem.equipment_name} moved to fighter's equipment`,
+        description: `${getItemName(stashItem)} moved to fighter's ${stashItem.type === 'vehicle' ? 'vehicles' : 'equipment'}`,
       });
 
       setSelectedItem(null);
@@ -117,8 +139,9 @@ export default function GangInventory({
             <div className="mb-4">
               <div className="flex items-center text-sm font-medium text-gray-700 px-4 py-2">
                 <div className="w-4 mr-3" />
-                <div className="flex-grow">Equipment Name</div>
-                <div>Value</div>
+                <div className="flex-grow">Name</div>
+                <div className="w-20 text-center">Type</div>
+                <div className="w-20 text-right">Value</div>
               </div>
               <div className="space-y-2 px-4">
                 {stash.map((item, index) => (
@@ -133,8 +156,11 @@ export default function GangInventory({
                       onChange={() => setSelectedItem(index)}
                       className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
                     />
-                    <span className="flex-grow">{item.equipment_name}</span>
-                    <span>{item.cost}</span>
+                    <span className="flex-grow">{getItemName(item)}</span>
+                    <span className="w-20 text-center text-sm text-gray-600">
+                      {item.type || 'equipment'}
+                    </span>
+                    <span className="w-20 text-right">{item.cost}</span>
                   </div>
                 ))}
               </div>
@@ -144,6 +170,9 @@ export default function GangInventory({
               <div className="border-t pt-4">
                 <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Select Fighter
+                  {selectedItem !== null && isVehicle(stash[selectedItem]) && (
+                    <span className="text-sm text-gray-500 ml-2">(Only Crew fighters can receive vehicles)</span>
+                  )}
                 </label>
                 <select
                   id="fighter-select"
@@ -152,16 +181,34 @@ export default function GangInventory({
                   className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
                 >
                   <option value="">Select a fighter</option>
-                  {fighters.map((fighter) => (
-                    <option key={fighter.id} value={fighter.id}>
-                      {fighter.fighter_name} ({fighter.credits} credits)
-                    </option>
-                  ))}
+                  {fighters.map((fighter) => {
+                    const isDisabled = selectedItem !== null && 
+                                     isVehicle(stash[selectedItem]) && 
+                                     !isCrew(fighter);
+                    
+                    return (
+                      <option 
+                        key={fighter.id} 
+                        value={fighter.id}
+                        disabled={isDisabled}
+                        className={isDisabled ? 'text-gray-400' : ''}
+                      >
+                        {fighter.fighter_name} ({fighter.credits} credits)
+                        {fighter.fighter_class === 'Crew' ? ' - Crew' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
 
                 <Button
                   onClick={handleMoveToFighter}
-                  disabled={selectedItem === null || !selectedFighter || isLoading}
+                  disabled={
+                    selectedItem === null || 
+                    !selectedFighter || 
+                    isLoading || 
+                    (isVehicle(stash[selectedItem]) && 
+                     !isCrew(fighters.find(f => f.id === selectedFighter)!))
+                  }
                   className="w-full"
                 >
                   Move to Fighter
