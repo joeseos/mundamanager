@@ -101,6 +101,8 @@ export default function Gang({
       const operation = newCredits >= credits ? 'add' : 'subtract';
       const creditsDifference = Math.abs(newCredits - credits);
 
+      let isMounted = true;
+
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
         headers: {
@@ -122,20 +124,25 @@ export default function Gang({
       }
 
       const updatedGang = await response.json();
-      setName(updatedGang.name);
-      setCredits(updatedGang.credits);
-      setAlignment(updatedGang.alignment);
-      setReputation(updatedGang.reputation);
-      setMeat(updatedGang.meat);
-      setExplorationPoints(updatedGang.exploration_points);
-      setLastUpdated(updatedGang.last_updated);
+      
+      if (isMounted) {
+        setName(updatedGang.name);
+        setCredits(updatedGang.credits);
+        setAlignment(updatedGang.alignment);
+        setReputation(updatedGang.reputation);
+        setMeat(updatedGang.meat);
+        setExplorationPoints(updatedGang.exploration_points);
+        setLastUpdated(updatedGang.last_updated);
 
-      toast({
-        description: "Gang updated successfully",
-        variant: "default"
-      });
+        toast({
+          description: "Gang updated successfully",
+          variant: "default"
+        });
 
-      return true; // Return true to close the modal
+        setShowEditModal(false);
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Error updating gang:', error);
       
@@ -145,7 +152,7 @@ export default function Gang({
         variant: "destructive"
       });
 
-      return false; // Return false to keep the modal open
+      return false;
     }
   };
 
@@ -163,10 +170,12 @@ export default function Gang({
   const handleAddFighter = async () => {
     if (!selectedFighterTypeId || !fighterName || !fighterCost) {
       setFetchError('Please fill in all fields');
-      return;
+      return false;
     }
 
     try {
+      let isMounted = true;
+
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
         {
@@ -197,75 +206,79 @@ export default function Gang({
         throw new Error('Not enough credits to add this fighter');
       }
 
-      // Update gang credits and rating with the actual cost paid
-      const actualCost = parseInt(fighterCost);
-      const newGangCredits = credits - actualCost;
-      const newRating = rating + actualCost;
-      setCredits(newGangCredits);
-      setRating(newRating);
+      if (isMounted) {
+        const actualCost = parseInt(fighterCost);
+        const newGangCredits = credits - actualCost;
+        const newRating = rating + actualCost;
+        setCredits(newGangCredits);
+        setRating(newRating);
 
-      const newFighter: FighterProps = {
-        id: data.fighter_id,
-        fighter_name: data.fighter_name,
-        fighter_type: data.fighter_type,
-        fighter_type_id: selectedFighterTypeId,
-        fighter_class: data.fighter_class,
-        credits: actualCost,
-        movement: data.stats.movement,
-        weapon_skill: data.stats.weapon_skill,
-        ballistic_skill: data.stats.ballistic_skill,
-        strength: data.stats.strength,
-        toughness: data.stats.toughness,
-        wounds: data.stats.wounds,
-        initiative: data.stats.initiative,
-        attacks: data.stats.attacks,
-        leadership: data.stats.leadership,
-        cool: data.stats.cool,
-        willpower: data.stats.willpower,
-        intelligence: data.stats.intelligence,
-        xp: data.stats.xp,
-        kills: 0,
-        weapons: data.equipment
-          .filter((item: any) => item.equipment_type === 'weapon')
-          .map((item: any) => ({
-            weapon_name: item.equipment_name,
-            weapon_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id,
-            weapon_profiles: item.weapon_profiles || []
-          })),
-        wargear: data.equipment
-          .filter((item: any) => item.equipment_type === 'wargear')
-          .map((item: any) => ({
-            wargear_name: item.equipment_name,
-            wargear_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id
-          })),
-        injuries: [],
-        special_rules: data.special_rules || [],
-        advancements: {
-          characteristics: {},
-          skills: {}
-        },
-        free_skill: data.free_skill
-      };
+        const newFighter = {
+          id: data.fighter_id,
+          fighter_name: fighterName,
+          fighter_type_id: selectedFighterTypeId,
+          fighter_type: data.fighter_type,
+          fighter_class: data.fighter_class,
+          credits: actualCost,
+          movement: data.stats.movement,
+          weapon_skill: data.stats.weapon_skill,
+          ballistic_skill: data.stats.ballistic_skill,
+          strength: data.stats.strength,
+          toughness: data.stats.toughness,
+          wounds: data.stats.wounds,
+          initiative: data.stats.initiative,
+          attacks: data.stats.attacks,
+          leadership: data.stats.leadership,
+          cool: data.stats.cool,
+          willpower: data.stats.willpower,
+          intelligence: data.stats.intelligence,
+          xp: data.stats.xp,
+          kills: 0,
+          weapons: data.equipment
+            .filter((item: any) => item.equipment_type === 'weapon')
+            .map((item: any) => ({
+              weapon_name: item.equipment_name,
+              weapon_id: item.equipment_id,
+              cost: item.cost,
+              fighter_weapon_id: item.fighter_equipment_id,
+              weapon_profiles: item.weapon_profiles || []
+            })),
+          wargear: data.equipment
+            .filter((item: any) => item.equipment_type === 'wargear')
+            .map((item: any) => ({
+              wargear_name: item.equipment_name,
+              wargear_id: item.equipment_id,
+              cost: item.cost,
+              fighter_weapon_id: item.fighter_equipment_id
+            })),
+          injuries: [],
+          special_rules: data.special_rules || [],
+          advancements: {
+            characteristics: {},
+            skills: {}
+          },
+          free_skill: data.free_skill
+        };
 
-      setFighters(prevFighters => [...prevFighters, newFighter]);
-      setShowAddFighterModal(false);
-      setSelectedFighterTypeId('');
-      setFighterName('');
-      setFighterCost('');
-      setFetchError(null);
+        setFighters(prev => [...prev, newFighter]);
+        setShowAddFighterModal(false);
+        setSelectedFighterTypeId('');
+        setFighterName('');
+        setFighterCost('');
+        setFetchError(null);
 
-      toast({
-        description: "Fighter added successfully",
-        variant: "default"
-      });
+        toast({
+          description: "Fighter added successfully",
+          variant: "default"
+        });
 
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Error adding fighter:', error);
       setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
+      return false;
     }
   };
 
