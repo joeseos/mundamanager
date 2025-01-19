@@ -97,25 +97,44 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     wargear: [],
     special_rules: [],
     injuries: injuries || [],
+    fighter_class,
   };
 
   // Calculate adjusted stats
   const adjustedStats = calculateAdjustedStats(fighterData);
+  const isCrew = fighter_class === 'Crew';
 
-  const stats = {
-    'M': `${adjustedStats.movement}"`,
-    'WS': `${adjustedStats.weapon_skill}+`,
-    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-    'S': adjustedStats.strength,
-    'T': adjustedStats.toughness,
-    'W': adjustedStats.wounds,
-    'I': `${adjustedStats.initiative}+`,
-    'A': adjustedStats.attacks,
-    'Ld': `${adjustedStats.leadership}+`,
-    'Cl': `${adjustedStats.cool}+`,
-    'Wil': `${adjustedStats.willpower}+`,
-    'Int': `${adjustedStats.intelligence}+`,
-    'XP': xp ?? 0
+  // Update stats object to handle crew stats
+  const stats: Record<string, string | number> = {
+    ...(isCrew ? {
+      'M': '*',
+      'Front': '*',
+      'Side': '*', 
+      'Rear': '*',
+      'HP': '*',
+      'Hnd': '*',
+      'Sv': '*',
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+      'Ld': `${adjustedStats.leadership}+`,
+      'Cl': `${adjustedStats.cool}+`,
+      'Wil': `${adjustedStats.willpower}+`,
+      'Int': `${adjustedStats.intelligence}+`,
+      'XP': xp ?? 0
+    } : {
+      'M': `${adjustedStats.movement}"`,
+      'WS': `${adjustedStats.weapon_skill}+`,
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+      'S': adjustedStats.strength,
+      'T': adjustedStats.toughness,
+      'W': adjustedStats.wounds,
+      'I': `${adjustedStats.initiative}+`,
+      'A': adjustedStats.attacks,
+      'Ld': `${adjustedStats.leadership}+`,
+      'Cl': `${adjustedStats.cool}+`,
+      'Wil': `${adjustedStats.willpower}+`,
+      'Int': `${adjustedStats.intelligence}+`,
+      'XP': xp ?? 0
+    })
   };
 
   return (
@@ -158,7 +177,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </p>
       </div>
       <div className="mt-4">
-        <FighterStatsTable data={stats} />
+        <FighterStatsTable data={stats} isCrew={isCrew} />
       </div>
     </div>
   );

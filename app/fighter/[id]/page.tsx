@@ -155,6 +155,7 @@ interface Fighter {
   kills: number;
   cost_adjustment: number;
   base_credits: number;
+  fighter_class: string;
 }
 
 interface Gang {
@@ -352,7 +353,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       const [{ result }] = await response.json();
-
+      
       // Transform equipment data
       const transformedEquipment = (result.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
@@ -370,6 +371,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         ...prev,
         fighter: {
           ...result.fighter,
+          fighter_class: result.fighter.fighter_class,
+          fighter_type: result.fighter.fighter_type,
           base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
           gang_id: result.gang.id,
           gang_type_id: result.gang.gang_type_id,
@@ -965,7 +968,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type.fighter_type || ''}
-            fighter_class={fighterData.fighter?.fighter_type.fighter_class || ''}
+            fighter_class={fighterData.fighter?.fighter_class}
             credits={fighterData.fighter?.credits || 0}
             movement={fighterData.fighter?.movement}
             weapon_skill={fighterData.fighter?.weapon_skill}
