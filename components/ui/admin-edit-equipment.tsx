@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
 import { X } from "lucide-react";
+import { fighterClassRank } from "@/utils/fighterClassRank";
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -599,9 +600,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     const gangCompare = a.gang_type.localeCompare(b.gang_type);
                     if (gangCompare !== 0) return gangCompare;
                     // Then by fighter class priority
-                    const classOrder = { 'Leader': 1, 'Champion': 2, 'Ganger': 3, 'Juve': 4 };
-                    const classCompare = (classOrder[a.fighter_class as keyof typeof classOrder] || 5) 
-                      - (classOrder[b.fighter_class as keyof typeof classOrder] || 5);
+                    const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
+                      - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
                     if (classCompare !== 0) return classCompare;
                     // Finally by fighter type name
                     return a.fighter_type.localeCompare(b.fighter_type);
