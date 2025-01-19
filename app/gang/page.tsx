@@ -56,9 +56,21 @@ async function processGangData(gangData: any) {
     special_rules: fighter.special_rules || []
   })) as FighterProps[];
 
+  const processedFighterTypes = (
+    gangData.fighterTypes
+      .map((type: any) => ({
+        id: type.id,
+        fighter_type: type.fighter_type,
+        fighter_class: type.fighter_class,
+        cost: type.cost,
+        total_cost: type.total_cost
+      })) as FighterType[]
+  );
+
   return {
     ...gangData,
-    fighters: processedFighters
+    fighters: processedFighters,
+    fighterTypes: processedFighterTypes
   };
 }
 
