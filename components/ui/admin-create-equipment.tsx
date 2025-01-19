@@ -342,9 +342,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                   className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                 />
                 <div>
-                  <span className="text-sm font-medium text-gray-700">Core Equipment</span>
+                  <span className="text-sm font-medium text-gray-700">Exclusive Equipment</span>
                   <p className="text-sm text-gray-500 mt-1">
-                    When checked, this equipment will only be available as default equipment for fighters and won't appear in the trading post.
+                    When checked, this equipment will only be available as default equipment for specific fighters and won't appear in the trading post.
                   </p>
                 </div>
               </label>
