@@ -417,7 +417,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </label>
                 <select
                   value={selectedFighterTypeId}
-                  onChange={(e) => setSelectedFighterTypeId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedFighterTypeId(e.target.value);
+
+                    // Dynamically set the fighter class based on the selected fighter type
+                    const selectedFighter = fighterTypes.find(f => f.id === e.target.value);
+                    if (selectedFighter) {
+                      setSelectedFighterClass(selectedFighter.fighter_class);
+                    }
+                  }}
                   className="w-full p-2 border rounded-md"
                   disabled={!gangTypeFilter}
                 >
@@ -431,7 +439,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     .filter(type => !gangTypeFilter || type.gang_type_id === gangTypeFilter)
                     .map((type) => (
                       <option key={type.id} value={type.id}>
-                        {type.fighter_type}
+                        {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
                       </option>
                     ))}
                 </select>
