@@ -34,6 +34,32 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  @media print {
+    .print-reset {
+      max-width: none !important;
+      width: auto !important;
+      padding: 0 !important;
+    }
+    .print-fighter-card {
+      width: 630px;
+      height: 435px;
+      break-inside: avoid;
+      background-image: none !important;
+      box-shadow: none !important;
+    }
+    .print-fighters {
+      max-width: 100%;
+      zoom: 0.55;
+    }
+    .table-weapons th, .table-weapons td {
+      padding: 1px !important;
+    }
+
+    html {
+      zoom: 1;
+    }
+  }
 }
 
 /* tailwindcss fix for Firefox */

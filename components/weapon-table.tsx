@@ -69,8 +69,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
         <thead>
           <tr>
             <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
-            <th className="text-center p-1" colSpan={2}>Range</th>
-            <th className="text-center p-1" colSpan={2}>Acc</th>
+            <th className="text-center p-1 print:hidden" colSpan={2}>Range</th>
+            <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
           </tr>
           <tr>

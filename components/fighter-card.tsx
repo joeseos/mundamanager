@@ -163,7 +163,7 @@ const FighterCard = memo(function FighterCard({
   return (
     <Link href={`/fighter/${id}`}>
       <div 
-        className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4"
+        className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
           backgroundSize: 'cover',
@@ -175,7 +175,7 @@ const FighterCard = memo(function FighterCard({
           <div className="flex items-start gap-3 flex-grow">
             <div className="name-banner-container relative w-full">
               <div 
-                className="absolute inset-0 bg-no-repeat bg-cover"
+                className="absolute inset-0 bg-no-repeat bg-cover print:hidden"
                 style={{
                   backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
                   width: 'calc(100% + 100px)',
@@ -201,7 +201,7 @@ const FighterCard = memo(function FighterCard({
                   </span>
                 )}
                 <div className="flex flex-wrap items-baseline">
-                  <span className="text-lg sm:text-xl font-semibold text-white leading-tight mr-2">{name}</span>
+                  <span className="text-lg sm:text-xl font-semibold text-white leading-tight mr-2 print:text-black">{name}</span>
                   <div className="text-gray-300 text-[0.65rem] sm:text-sm leading-tight">
                     {type}
                     {fighter_class && ` (${fighter_class})`}
@@ -217,9 +217,9 @@ const FighterCard = memo(function FighterCard({
             </div>
           </div>
           {!isInactive && (
-            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10">
-              <span className="font-bold text-lg">{credits}</span>
-              <span className="text-xs">Credits</span>
+            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white ">
+              <span className="leading-6 font-bold text-2xl">{credits}</span>
+              <span className="leading-3 text-xs">Credits</span>
             </div>
           )}
         </div>

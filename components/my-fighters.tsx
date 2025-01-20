@@ -105,18 +105,18 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
   }
 
   return (
-    <div className="flex flex-col space-y-4 w-full">
+    <div className="flex flex-col space-y-4 w-full print:flex print:flex-wrap print:flex-row print:space-y-0">
       {sortedFighters.map((fighter) => {
-        const { 
+        const {
           id,
           fighter_name,
           fighter_type,
           fighter_class,
           free_skill,
           kills = 0,
-          ...otherProps 
+          ...otherProps
         } = fighter;
-        
+
         return (
           <FighterCard
             key={id}
