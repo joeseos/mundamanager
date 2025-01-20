@@ -17,6 +17,7 @@ import { SkillsList } from "@/components/skills-list";
 import { InjuriesList } from "@/components/injuries-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
+import { useRouteEvents } from '@/hooks/useRouteEvents';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -324,6 +325,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   const router = useRouter();
   const { toast } = useToast();
+  const { emitEvent } = useRouteEvents('fighter-deleted', () => {});
 
   // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
@@ -422,6 +424,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
+      // Store fighter data for the toast message
+      const fighterName = fighterData.fighter.fighter_name;
+      const gangId = fighterData.gang.id;
+
+      // Optimistically navigate away and emit event
+      router.push(`/gang/${gangId}`);
+      emitEvent();
+
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/delete_fighter_and_equipment',
         {
@@ -434,15 +444,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             fighter_id: fighterData.fighter.id,
             operations: [
               {
-                path: "fighter_equipment",  // Changed from fighter_weapons
+                path: "fighter_equipment",
                 params: {
-                  fighter_id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
+                  fighter_id: `eq.${fighterData.fighter.id}`
                 }
               },
               {
                 path: "fighters",
                 params: {
-                  id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
+                  id: `eq.${fighterData.fighter.id}`
                 }
               }
             ]
@@ -451,32 +461,24 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete fighter');
+        throw new Error('Failed to delete fighter');
       }
 
       toast({
-        description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
+        description: `${fighterName} has been successfully deleted.`,
         variant: "default"
       });
 
-      router.push(`/gang/${fighterData.gang.id}`);
     } catch (error) {
       console.error('Error deleting fighter:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to delete fighter. Please try again.',
+        description: 'Failed to delete fighter. Please try again.',
         variant: "destructive"
       });
-    } finally {
-      setUiState(prev => ({
-        ...prev,
-        modals: {
-          ...prev.modals,
-          delete: false
-        }
-      }));
+      // Navigate back to the fighter page if deletion failed
+      router.push(`/fighter/${fighterData.fighter.id}`);
     }
-  }, [fighterData.fighter, fighterData.gang, toast, router]);
+  }, [fighterData.fighter, fighterData.gang, toast, router, emitEvent]);
 
   const handleFighterCreditsUpdate = useCallback((newCredits: number) => {
     setFighterData(prev => ({

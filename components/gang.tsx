@@ -36,6 +36,7 @@ interface GangProps {
     role: string | null;
     status: string | null;
   }[];
+  onFighterDeleted?: (fighterId: string) => void;
 }
 
 interface FighterType {
@@ -64,6 +65,7 @@ export default function Gang({
   fighterTypes,
   additionalButtons,
   campaigns,
+  onFighterDeleted,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -277,23 +279,50 @@ export default function Gang({
     }
   };
 
-  const handleDeleteFighter = async (fighterId: string) => {
+  const handleDeleteFighter = useCallback(async (fighterId: string) => {
     try {
+      // Optimistically remove the fighter from the UI
+      const fighterToDelete = fighters.find(f => f.id === fighterId);
+      if (!fighterToDelete) return;
+
+      // Store the current state for rollback
+      const previousFighters = [...fighters];
+      const previousRating = rating;
+      const previousCredits = credits;
+
+      // Optimistically update the UI
+      setFighters(prev => prev.filter(f => f.id !== fighterId));
+      setRating(prev => prev - (fighterToDelete.credits || 0));
+      setCredits(prev => prev + (fighterToDelete.credits || 0));
+
+      // Notify parent component
+      onFighterDeleted?.(fighterId);
+
       const response = await fetch(`/api/fighters/${fighterId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
+        // Rollback if the deletion failed
+        setFighters(previousFighters);
+        setRating(previousRating);
+        setCredits(previousCredits);
         throw new Error('Failed to delete fighter');
       }
 
-      const data = await response.json();
-      setFighters(fighters.filter(fighter => fighter.id !== fighterId));
-      setRating(data.gang.rating);
+      toast({
+        description: `${fighterToDelete.fighter_name} has been deleted`,
+        variant: "default"
+      });
+
     } catch (error) {
       console.error('Error deleting fighter:', error);
+      toast({
+        description: 'Failed to delete fighter. Changes have been reverted.',
+        variant: "destructive"
+      });
     }
-  };
+  }, [fighters, rating, credits, toast, onFighterDeleted]);
 
   const editModalContent = (
     <div className="space-y-4">
