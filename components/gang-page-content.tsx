@@ -5,6 +5,7 @@ import { useRouteEvents } from '@/hooks/useRouteEvents';
 import Gang from "@/components/gang";
 import { FighterProps } from '@/types/fighter';
 import { FighterType } from '@/types/fighter-type';
+import { processGangData } from '@/utils/processGangData';
 
 interface GangPageContentProps {
   processedData: {
@@ -35,6 +36,30 @@ interface GangPageContentProps {
   };
 }
 
+interface GangDetailsResponse {
+  id: string;
+  name: string;
+  gang_type_id: string;
+  gang_type: string;
+  credits: number;
+  reputation: number;
+  meat: number;
+  exploration_points: number;
+  rating: number;
+  alignment: string;
+  created_at: string;
+  last_updated: string;
+  user_id: string;
+  fighters: FighterProps[];
+  fighter_types: FighterType[];
+  campaigns?: {
+    campaign_id: string;
+    campaign_name: string;
+    role: string | null;
+    status: string | null;
+  }[];
+}
+
 export default function GangPageContent({ processedData, gangData }: GangPageContentProps) {
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,7 +73,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   const refreshData = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const response = await fetch(
+      const response: Response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
         {
           method: 'POST',
@@ -66,7 +91,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
         throw new Error('Failed to refresh gang details');
       }
 
-      const [gangData] = await response.json();
+      const [gangData]: [GangDetailsResponse] = await response.json();
       const processedData = await processGangData(gangData);
       setFighters(processedData.fighters);
     } catch (error) {
