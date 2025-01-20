@@ -288,7 +288,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         variant: "default",
       });
 
-      onClose();
+      setBuyModalData(null);
     } catch (err) {
       console.error('Error buying equipment:', err);
       toast({
