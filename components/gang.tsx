@@ -101,8 +101,6 @@ export default function Gang({
       const operation = newCredits >= credits ? 'add' : 'subtract';
       const creditsDifference = Math.abs(newCredits - credits);
 
-      let isMounted = true;
-
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
         headers: {
@@ -125,23 +123,20 @@ export default function Gang({
 
       const updatedGang = await response.json();
       
-      if (isMounted) {
-        setName(updatedGang.name);
-        setCredits(updatedGang.credits);
-        setAlignment(updatedGang.alignment);
-        setReputation(updatedGang.reputation);
-        setMeat(updatedGang.meat);
-        setExplorationPoints(updatedGang.exploration_points);
-        setLastUpdated(updatedGang.last_updated);
+      setName(updatedGang.name);
+      setCredits(updatedGang.credits);
+      setAlignment(updatedGang.alignment);
+      setReputation(updatedGang.reputation);
+      setMeat(updatedGang.meat);
+      setExplorationPoints(updatedGang.exploration_points);
+      setLastUpdated(updatedGang.last_updated);
 
-        toast({
-          description: "Gang updated successfully",
-          variant: "default"
-        });
+      toast({
+        description: "Gang updated successfully",
+        variant: "default"
+      });
 
-        setShowEditModal(false);
-        return true;
-      }
+      setShowEditModal(false);
       return false;
     } catch (error) {
       console.error('Error updating gang:', error);
