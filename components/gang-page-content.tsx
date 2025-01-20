@@ -91,9 +91,9 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
         throw new Error('Failed to refresh gang details');
       }
 
-      const [gangData]: [GangDetailsResponse] = await response.json();
-      const processedData = await processGangData(gangData);
-      setFighters(processedData.fighters);
+      const [gangDetailsData]: [GangDetailsResponse] = await response.json();
+      const updatedData = await processGangData(gangDetailsData);
+      setFighters(updatedData.fighters);
     } catch (error) {
       console.error('Error refreshing gang data:', error);
     } finally {
