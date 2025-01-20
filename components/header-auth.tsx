@@ -25,7 +25,7 @@ export default async function HeaderAuth() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
+    <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 print:hidden">
       <div className="flex justify-between items-center h-14 px-2">
         <Link href="/" className="flex items-center">
           <Image

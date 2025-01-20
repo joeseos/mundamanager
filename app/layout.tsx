@@ -70,7 +70,7 @@ export default async function RootLayout({
         <BackgroundImage />
         <DynamicHeaderAuth />
         {user && <DynamicBreadcrumbNav />}
-        <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'}`}>
+        <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
@@ -79,7 +79,7 @@ export default async function RootLayout({
                 </div>
               </nav>
             )}
-            <div className="flex flex-col max-w-5xl w-full px-[10px] py-4">
+            <div className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:flex-wrap print:flex-row print:print-reset">
               {children}
             </div>
           </div>

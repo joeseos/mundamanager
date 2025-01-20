@@ -16,7 +16,7 @@ const Tabs = ({ children, tabTitles }: TabsProps) => {
 
   return (
     <div className="w-full">
-      <div className="bg-white rounded-lg mb-4 flex">
+      <div className="bg-white rounded-lg mb-4 flex print:hidden">
         {titles.map((title, index) => (
           <button
             key={index}

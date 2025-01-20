@@ -427,15 +427,15 @@ export default function Gang({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white shadow-md rounded-lg px-8 pt-4 pb-6">
+    <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
+      <div className="bg-white shadow-md rounded-lg px-8 pt-4 pb-6 print:print-fighter-card print:border-4 print:border-black">
         <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
           <h2 className="text-2xl font-bold">{name}</h2>
           <div className="flex gap-2">
             {additionalButtons}
             <Button
               onClick={() => setShowEditModal(true)}
-              className="bg-black text-white hover:bg-gray-800"
+              className="bg-black text-white hover:bg-gray-800 print:hidden"
             >
               Edit
             </Button>
@@ -512,7 +512,7 @@ export default function Gang({
         <div className="mt-4 flex justify-end">
           <Button 
             onClick={() => setShowAddFighterModal(true)}
-            className="bg-black text-white hover:bg-gray-800"
+            className="bg-black text-white hover:bg-gray-800 print:hidden"
           >
             Add Fighter
           </Button>
@@ -546,7 +546,7 @@ export default function Gang({
         )}
       </div>
 
-      <div>
+      <div className="print:visible">
         {fighters.length > 0 ? (
           <MyFighters fighters={fighters} />
         ) : (

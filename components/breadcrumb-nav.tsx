@@ -327,7 +327,7 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
 
   return (
     <div 
-      className="w-full fixed top-14 z-40 bg-white border-b border-gray-100"
+      className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
     >

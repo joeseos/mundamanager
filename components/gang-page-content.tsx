@@ -38,7 +38,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
 
   return (
-    <div className="container max-w-5xl w-full space-y-4">
+    <div className="container max-w-5xl w-full space-y-4 print:print-fighters">
       <Gang
         {...processedData}
         initialFighters={fighters}

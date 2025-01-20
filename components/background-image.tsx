@@ -15,7 +15,7 @@ export default function BackgroundImage() {
   }
 
   return (
-    <div className="fixed inset-0 z-[-1]">
+    <div className="fixed inset-0 z-[-1] print:hidden">
       <Image
         src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736057860/background_numv5r.avif"
         alt="Background"
