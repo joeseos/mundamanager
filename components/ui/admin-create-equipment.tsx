@@ -344,7 +344,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 <div>
                   <span className="text-sm font-medium text-gray-700">Exclusive Equipment</span>
                   <p className="text-sm text-gray-500 mt-1">
-                    When checked, this equipment will only be available as default equipment for specific fighters and won't appear in the trading post.
+                    When checked, this equipment will be restricted to specific fighters and will not appear in the trading post. For example, the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
                   </p>
                 </div>
               </label>
