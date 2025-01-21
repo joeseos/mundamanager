@@ -31,10 +31,11 @@ export async function GET(request: Request) {
         ammo,
         traits,
         is_default_profile,
-        weapon_group_id
+        weapon_group_id,
+        sort_order
       `)
       .eq('weapon_id', id)
-      .order('is_default_profile', { ascending: false });
+      .order('sort_order', { ascending: true });
 
     if (error) throw error;
 

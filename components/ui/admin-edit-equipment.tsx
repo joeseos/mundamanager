@@ -839,11 +839,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             Sort Order
                           </label>
                           <Input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={profile.sort_order || ''}
-                            onChange={(e) => handleProfileChange(index, 'sort_order', parseInt(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              handleProfileChange(index, 'sort_order', parseInt(value) || 0);
+                            }}
                             placeholder="#"
-                            min="0"
                             disabled={!selectedEquipmentId}
                           />
                         </div>
