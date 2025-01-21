@@ -61,8 +61,11 @@ export interface Vehicle {
   handling: number;
   save: number;
   body_slots: number;
+  body_slots_occupied: number | null;
   drive_slots: number;
+  drive_slots_occupied: number | null;
   engine_slots: number;
+  engine_slots_occupied: number | null;
   special_rules: string[];
   vehicle_name: string;
 }

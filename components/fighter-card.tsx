@@ -129,6 +129,23 @@ const FighterCard = memo(function FighterCard({
     'XP': xp
   };
 
+  const formatUpgradeSlots = (vehicle: Vehicle) => {
+    const slots = [];
+    if (vehicle.body_slots) {
+      const occupied = vehicle.body_slots_occupied || 0;
+      slots.push(`${occupied}/${vehicle.body_slots} Body`);
+    }
+    if (vehicle.drive_slots) {
+      const occupied = vehicle.drive_slots_occupied || 0;
+      slots.push(`${occupied}/${vehicle.drive_slots} Drive`);
+    }
+    if (vehicle.engine_slots) {
+      const occupied = vehicle.engine_slots_occupied || 0;
+      slots.push(`${occupied}/${vehicle.engine_slots} Engine`);
+    }
+    return slots.join(', ');
+  };
+
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
@@ -274,6 +291,16 @@ const FighterCard = memo(function FighterCard({
                 <>
                   <div className="font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
                   <div className="text-sm break-words">{vehicle.vehicle_name}</div>
+                  
+                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
+                  <div className="text-sm break-words">
+                    {formatUpgradeSlots(vehicle)}
+                  </div>
+
+                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
+                  <div className="text-sm break-words">
+                    {vehicle.special_rules.join(', ')}
+                  </div>
                 </>
               )}
               {special_rules && special_rules.length > 0 && (
