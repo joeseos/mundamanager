@@ -189,7 +189,7 @@ const FighterCard = memo(function FighterCard({
                 }}
               />
               <div 
-                className="relative z-10 pl-4 flex items-center gap-2" 
+                className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 max-w-full truncate"
                 style={{ 
                   height: '65px', 
                   marginTop: '0px'
@@ -201,8 +201,8 @@ const FighterCard = memo(function FighterCard({
                   </span>
                 )}
                 <div className="flex flex-wrap items-baseline">
-                  <span className="text-lg sm:text-xl font-semibold text-white leading-tight mr-2 print:text-black">{name}</span>
-                  <div className="text-gray-300 text-[0.65rem] sm:text-sm leading-tight">
+                  <span className="max-w-full text-xl sm:leading-6 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</span>
+                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base">
                     {type}
                     {fighter_class && ` (${fighter_class})`}
                   </div>
@@ -217,7 +217,7 @@ const FighterCard = memo(function FighterCard({
             </div>
           </div>
           {!isInactive && (
-            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white ">
+            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
               <span className="leading-6 font-bold text-2xl">{credits}</span>
               <span className="leading-3 text-xs">Credits</span>
             </div>
