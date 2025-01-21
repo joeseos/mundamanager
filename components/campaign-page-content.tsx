@@ -214,7 +214,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   }), [campaignData]);
 
   const handleAssignGang = async (gangId: string) => {
-    if (!selectedTerritory) return;
+    if (!selectedTerritory) return false;
 
     try {
       const { error } = await supabase
@@ -263,6 +263,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       setShowGangModal(false);
       setSelectedTerritory(null);
     }
+    return false;
   };
 
   const handleRemoveGang = async (territoryId: string, gangId: string) => {
@@ -664,10 +665,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
               setTerritoryToDelete(null);
             }}
             onConfirm={async () => {
-              await handleRemoveTerritory(territoryToDelete.id);
-              setShowDeleteModal(false);
-              setTerritoryToDelete(null);
-              return true;
+              try {
+                await handleRemoveTerritory(territoryToDelete.id);
+                setShowDeleteModal(false);
+                setTerritoryToDelete(null);
+                return false;  // Don't indicate pending async response
+              } catch (error) {
+                console.error('Error removing territory:', error);
+                return false;
+              }
             }}
             confirmText="Delete"
           />
@@ -790,7 +796,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                 toast({
                   description: "Battle log added successfully"
                 });
-                return true;
+                setShowBattleModal(false);  // Close modal after success
+                return false;  // Don't indicate pending async response
               } catch (error) {
                 console.error('Error creating battle log:', error);
                 toast({
