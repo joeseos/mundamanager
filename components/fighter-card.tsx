@@ -100,7 +100,7 @@ const FighterCard = memo(function FighterCard({
   const isCrew = fighter_class === 'Crew';
 
   const stats: Record<string, string | number> = isCrew ? {
-    'M': vehicle ? vehicle.movement : '*',
+    'M': vehicle ? `${vehicle.movement}"` : '*',
     'Front': vehicle ? vehicle.front : '*',
     'Side': vehicle ? vehicle.side : '*', 
     'Rear': vehicle ? vehicle.rear : '*',
