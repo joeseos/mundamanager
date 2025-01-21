@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Gang from "@/components/gang";
 import { FighterProps } from '@/types/fighter';
 import { FighterType } from '@/types/fighter-type';
+import { StashItem } from '@/types/gang';
 
 interface GangPageContentProps {
   processedData: {
@@ -28,9 +29,11 @@ interface GangPageContentProps {
       role: string | null;
       status: string | null;
     }[];
+    stash: StashItem[];
   };
   gangData: {
-    [key: string]: any;
+    stash: StashItem[];
+    onStashUpdate?: (newStash: StashItem[]) => void;
   };
 }
 
@@ -44,6 +47,8 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
         initialFighters={fighters}
         fighterTypes={processedData.fighterTypes}
         campaigns={processedData.campaigns}
+        stash={processedData.stash || []}
+        onStashUpdate={gangData.onStashUpdate}
       />
     </div>
   );

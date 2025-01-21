@@ -11,9 +11,9 @@ export interface Equipment {
 
 export interface StashItem {
   id: string;
-  equipment_name?: string;
-  vehicle_name?: string;
   cost: number;
-  type?: 'equipment' | 'vehicle';
+  type: 'vehicle' | 'equipment';
   vehicle_id?: string;
+  vehicle_name?: string;
+  equipment_name?: string;
 } 

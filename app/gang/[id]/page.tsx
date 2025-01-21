@@ -1,6 +1,9 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { redirect } from "next/navigation";
 import Gang from "@/components/gang";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/client";
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import { Button } from "@/components/ui/button";
@@ -11,6 +14,7 @@ import { GangNotes } from "@/components/gang-notes";
 import GangTerritories from "@/components/gang-territories";
 import { Equipment } from "@/types/fighter";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { StashItem } from '@/types/gang';
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -146,65 +150,105 @@ const processedFighterTypes = (
   };
 }
 
-export default async function GangPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+interface GangDataState {
+  processedData: {
+    id: string;
+    name: string;
+    gang_type_id: string;
+    gang_type: string;
+    credits: number;
+    reputation: number;
+    meat: number;
+    exploration_points: number;
+    rating: number;
+    alignment: string;
+    created_at: string;
+    last_updated: string;
+    user_id: string;
+    fighters: FighterProps[];
+    fighterTypes: FighterType[];
+    stash: StashItem[];
+    note?: string;
+  };
+  stash: StashItem[];
+  onStashUpdate: (newStash: StashItem[]) => void;
+}
 
-  const { data: { user } } = await supabase.auth.getUser();
+export default function GangPage({ params }: { params: { id: string } }) {
+  const [gangData, setGangData] = useState<GangDataState | null>(null);
 
-  if (!user) {
-    redirect("/sign-in");
-  }
+  useEffect(() => {
+    const fetchGangData = async () => {
+      const response = await fetch(
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            "p_gang_id": params.id
+          })
+        }
+      );
 
-  try {
-    const response = await fetch(
-      'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-        },
-        body: JSON.stringify({
-          "p_gang_id": params.id
-        })
+      if (!response.ok) {
+        throw new Error('Failed to fetch gang details');
       }
-    );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch gang details');
-    }
+      const [data] = await response.json();
+      if (!data) {
+        redirect("/");
+      }
 
-    const [gangData] = await response.json();
-    
-    if (!gangData) {
-      redirect("/");
-    }
+      const processedData = await processGangData(data);
+      setGangData({
+        processedData,
+        stash: processedData.stash || [],
+        onStashUpdate: (newStash: StashItem[]) => {
+          setGangData((prev: GangDataState | null) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              processedData: {
+                ...prev.processedData,
+                stash: newStash
+              },
+              stash: newStash
+            };
+          });
+        }
+      });
+    };
 
-    const processedData = await processGangData(gangData);
+    fetchGangData();
+  }, [params.id]);
 
-    return (
-      <div>
-        <Tabs tabTitles={['Details', 'Stash', 'Campaign', 'Notes']}>
-          <GangPageContent processedData={processedData} gangData={gangData} />
-          <GangInventory
-            stash={gangData.stash || []} 
-            fighters={processedData.fighters}
-            title="Stash"
-          />
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <h2 className="text-2xl font-bold mb-4">Territories</h2>
-            <GangTerritories gangId={params.id} />
-          </div>
-          <GangNotes 
-            gangId={params.id}
-            initialNote={gangData.note || ''}
-          />
-        </Tabs>
-      </div>
-    );
-    
-  } catch (error) {
-    console.error('Error in GangPage:', error);
-    return <div>Error loading gang data</div>;
-  }
+  if (!gangData) return null;
+
+  return (
+    <div>
+      <Tabs tabTitles={['Details', 'Stash', 'Campaign', 'Notes']}>
+        <GangPageContent 
+          processedData={gangData.processedData} 
+          gangData={gangData} 
+        />
+        <GangInventory
+          stash={gangData.stash} 
+          fighters={gangData.processedData.fighters}
+          title="Stash"
+          onStashUpdate={gangData.onStashUpdate}
+        />
+        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <h2 className="text-2xl font-bold mb-4">Territories</h2>
+          <GangTerritories gangId={params.id} />
+        </div>
+        <GangNotes 
+          gangId={params.id}
+          initialNote={gangData.processedData.note || ''}
+        />
+      </Tabs>
+    </div>
+  );
 }
