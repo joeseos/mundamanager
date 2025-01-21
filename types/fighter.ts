@@ -50,6 +50,23 @@ export interface Injury {
   acquired_at: string;
 }
 
+export interface Vehicle {
+  id: string;
+  created_at: string;
+  movement: number;
+  front: number;
+  side: number;
+  rear: number;
+  hull_points: number;
+  handling: number;
+  save: number;
+  body_slots: number;
+  drive_slots: number;
+  engine_slots: number;
+  special_rules: string[];
+  vehicle_name: string;
+}
+
 export interface FighterProps {
   id: string;
   fighter_name: string;
@@ -77,7 +94,7 @@ export interface FighterProps {
     skills: Record<string, any>;
   };
   weapons: WeaponProps[];
-  wargear: any[];
+  wargear: WargearItem[];
   special_rules?: string[];
   killed?: boolean;
   retired?: boolean;
@@ -87,6 +104,7 @@ export interface FighterProps {
   fighter_class?: string;
   note?: string;
   injuries: Injury[];
+  vehicles?: Vehicle[];
 }
 
 export interface WeaponProfile {

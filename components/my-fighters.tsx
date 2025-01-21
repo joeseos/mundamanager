@@ -3,6 +3,7 @@ import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 
+// Add interface definition for MyFightersProps
 interface MyFightersProps {
   fighters: FighterProps[];
   isLoading?: boolean;
@@ -68,7 +69,7 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
   const sortedFighters = useMemo(() => {
     return [...fighters].sort((a, b) => {
       // Helper function to get fighter status priority (higher number = lower in list)
-      const getStatusPriority = (fighter: any) => {
+      const getStatusPriority = (fighter: FighterProps) => {
         if (fighter.killed) return 3;
         if (fighter.starved || fighter.enslaved) return 2;
         if (fighter.retired) return 1;
@@ -114,8 +115,12 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
           fighter_class,
           free_skill,
           kills = 0,
+          vehicles = [], // Extract vehicles from fighter
           ...otherProps
         } = fighter;
+
+        // Get the first vehicle if it exists
+        const vehicle = vehicles && vehicles.length > 0 ? vehicles[0] : undefined;
 
         return (
           <FighterCard
@@ -126,6 +131,7 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
             fighter_class={fighter_class}
             free_skill={free_skill}
             kills={kills}
+            vehicle={vehicle}
             {...otherProps}
           />
         );
