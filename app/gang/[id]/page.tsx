@@ -178,51 +178,67 @@ export default function GangPage({ params }: { params: { id: string } }) {
   const [gangData, setGangData] = useState<GangDataState | null>(null);
 
   useEffect(() => {
+    let isSubscribed = true;
+    
     const fetchGangData = async () => {
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            "p_gang_id": params.id
-          })
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({
+              "p_gang_id": params.id
+            })
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch gang details');
         }
-      );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch gang details');
-      }
+        const [data] = await response.json();
+        if (!data) {
+          return redirect("/");
+        }
 
-      const [data] = await response.json();
-      if (!data) {
-        redirect("/");
-      }
-
-      const processedData = await processGangData(data);
-      setGangData({
-        processedData,
-        stash: processedData.stash || [],
-        onStashUpdate: (newStash: StashItem[]) => {
-          setGangData((prev: GangDataState | null) => {
-            if (!prev) return null;
-            return {
-              ...prev,
-              processedData: {
-                ...prev.processedData,
-                stash: newStash
-              },
-              stash: newStash
-            };
+        const processedData = await processGangData(data);
+        
+        if (isSubscribed) {
+          setGangData({
+            processedData,
+            stash: processedData.stash || [],
+            onStashUpdate: (newStash: StashItem[]) => {
+              setGangData((prev: GangDataState | null) => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    stash: newStash
+                  },
+                  stash: newStash
+                };
+              });
+            }
           });
         }
-      });
+      } catch (error) {
+        console.error('Error fetching gang data:', error);
+        if (isSubscribed) {
+          // Handle error state if needed
+        }
+      }
     };
 
     fetchGangData();
+
+    return () => {
+      isSubscribed = false;
+    };
   }, [params.id]);
 
   if (!gangData) return null;
