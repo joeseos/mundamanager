@@ -12,12 +12,14 @@ interface GangInventoryProps {
   stash: StashItem[];
   fighters: FighterProps[];
   title?: string;
+  onStashUpdate?: (newStash: StashItem[]) => void;
 }
 
 export default function GangInventory({ 
   stash: initialStash, 
   fighters: initialFighters,
-  title = 'Gang Stash'
+  title = 'Gang Stash',
+  onStashUpdate
 }: GangInventoryProps) {
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');

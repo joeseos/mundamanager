@@ -12,6 +12,13 @@ import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { StashItem } from '@/types/gang';
+
+interface VehicleType {
+  id: string;
+  vehicle_type: string;
+  cost: number;
+}
 
 interface GangProps {
   id: string;
@@ -36,6 +43,8 @@ interface GangProps {
     role: string | null;
     status: string | null;
   }[];
+  stash: StashItem[];
+  onStashUpdate?: (newStash: StashItem[]) => void;
 }
 
 interface FighterType {
@@ -64,6 +73,8 @@ export default function Gang({
   fighterTypes,
   additionalButtons,
   campaigns,
+  stash,
+  onStashUpdate,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -88,6 +99,10 @@ export default function Gang({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [fighterCost, setFighterCost] = useState('');
+  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
+  const [vehicleError, setVehicleError] = useState<string | null>(null);
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -421,6 +436,84 @@ export default function Gang({
     </div>
   );
 
+  useEffect(() => {
+    const fetchVehicleTypes = async () => {
+      try {
+        const response = await fetch(`/api/gangs/${id}/vehicles`);
+        if (!response.ok) throw new Error('Failed to fetch vehicle types');
+        const data = await response.json();
+        setVehicleTypes(data);
+      } catch (error) {
+        console.error('Error fetching vehicle types:', error);
+        setVehicleError('Failed to load vehicle types');
+      }
+    };
+
+    fetchVehicleTypes();
+  }, [id]);
+
+  const handleAddVehicle = async () => {
+    if (!selectedVehicleTypeId) {
+      setVehicleError('Please select a vehicle type');
+      return false;
+    }
+
+    try {
+      const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
+      if (!selectedVehicleType) {
+        throw new Error('Vehicle type not found');
+      }
+
+      // Optimistically update credits
+      const newCredits = credits - selectedVehicleType.cost;
+      setCredits(newCredits);
+
+      const response = await fetch(`/api/gangs/${id}/vehicles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vehicleTypeId: selectedVehicleTypeId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Revert credits on error
+        setCredits(credits);
+        throw new Error(data.error || 'Failed to add vehicle');
+      }
+
+      // Update the stash through the parent component
+      if (onStashUpdate) {
+        const newStashItem: StashItem = {
+          id: data.stash_id,
+          cost: selectedVehicleType.cost,
+          type: 'vehicle',
+          vehicle_id: data.id,
+          vehicle_name: data.vehicle_name
+        };
+        onStashUpdate([...stash, newStashItem]);
+      }
+
+      toast({
+        description: "Vehicle added to gang stash successfully",
+        variant: "default"
+      });
+
+      setShowAddVehicleModal(false);
+      setSelectedVehicleTypeId('');
+      setVehicleError(null);
+      return true;
+    } catch (error) {
+      console.error('Error details:', error);
+      setVehicleError(error instanceof Error ? error.message : 'Failed to add vehicle');
+      return false;
+    }
+  };
+
   return (
     <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
       <div className="bg-white shadow-md rounded-lg px-8 pt-4 pb-6 print:print-fighter-card print:border-4 print:border-black">
@@ -504,7 +597,13 @@ export default function Gang({
           <span>Created: {formatDate(created_at)}</span>
           <span>Last Updated: {formatDate(lastUpdated)}</span>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex justify-end gap-2">
+          <Button 
+            onClick={() => setShowAddVehicleModal(true)}
+            className="bg-black text-white hover:bg-gray-800 print:hidden"
+          >
+            Add Vehicle
+          </Button>
           <Button 
             onClick={() => setShowAddFighterModal(true)}
             className="bg-black text-white hover:bg-gray-800 print:hidden"
@@ -537,6 +636,43 @@ export default function Gang({
             onConfirm={handleAddFighter}
             confirmText="Add Fighter"
             confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
+          />
+        )}
+
+        {showAddVehicleModal && (
+          <Modal
+            title="Add Vehicle"
+            content={
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Vehicle Type
+                  </label>
+                  <select
+                    value={selectedVehicleTypeId}
+                    onChange={(e) => setSelectedVehicleTypeId(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select vehicle type</option>
+                    {vehicleTypes.map((type: VehicleType) => (
+                      <option key={type.id} value={type.id}>
+                        {type.vehicle_type} - {type.cost} credits
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {vehicleError && <p className="text-red-500">{vehicleError}</p>}
+              </div>
+            }
+            onClose={() => {
+              setShowAddVehicleModal(false);
+              setSelectedVehicleTypeId('');
+              setVehicleError(null);
+            }}
+            onConfirm={handleAddVehicle}
+            confirmText="Add Vehicle"
+            confirmDisabled={!selectedVehicleTypeId}
           />
         )}
       </div>
