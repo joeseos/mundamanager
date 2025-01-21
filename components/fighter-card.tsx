@@ -4,7 +4,7 @@ import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps, Injury } from '@/types/fighter';
+import { FighterProps, Injury, Vehicle } from '@/types/fighter';
 import { Skull, Armchair, Key, Utensils } from "lucide-react";
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
@@ -19,6 +19,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   free_skill?: boolean;
   kills: number;  // Required property
   injuries: Injury[];
+  vehicle?: Vehicle;  // Add vehicle property
 }
 
 type FighterCardData = FighterProps & {
@@ -56,6 +57,7 @@ const FighterCard = memo(function FighterCard({
   free_skill,
   kills = 0,  // Default value
   injuries = [],
+  vehicle,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -98,13 +100,13 @@ const FighterCard = memo(function FighterCard({
   const isCrew = fighter_class === 'Crew';
 
   const stats: Record<string, string | number> = isCrew ? {
-    'M': '*',
-    'Front': '*',
-    'Side': '*', 
-    'Rear': '*',
-    'HP': '*',
-    'Hnd': '*',
-    'Sv': '*',
+    'M': vehicle ? vehicle.movement : '*',
+    'Front': vehicle ? vehicle.front : '*',
+    'Side': vehicle ? vehicle.side : '*', 
+    'Rear': vehicle ? vehicle.rear : '*',
+    'HP': vehicle ? vehicle.hull_points : '*',
+    'Hnd': vehicle ? vehicle.handling : '*',
+    'Sv': vehicle ? `${vehicle.save}+` : '*',
     'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
     'Ld': `${adjustedStats.leadership}+`,
     'Cl': `${adjustedStats.cool}+`,
@@ -268,6 +270,12 @@ const FighterCard = memo(function FighterCard({
                   </div>
                 </>
               )}
+              {isCrew && vehicle && (
+                <>
+                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
+                  <div className="text-sm break-words">{vehicle.vehicle_name}</div>
+                </>
+              )}
               {special_rules && special_rules.length > 0 && (
                 <>
                   <div className="font-bold text-sm pr-4">
@@ -279,10 +287,7 @@ const FighterCard = memo(function FighterCard({
                       <span className="whitespace-nowrap">Special Rules</span>
                     )}
                   </div>
-                  <div 
-                    ref={contentRef}
-                    className="text-sm break-words"
-                  >
+                  <div className="text-sm break-words">
                     {special_rules.join(', ')}
                   </div>
                 </>

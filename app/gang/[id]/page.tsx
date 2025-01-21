@@ -85,6 +85,7 @@ async function processGangData(gangData: any) {
           cost: item.cost,
           fighter_weapon_id: item.fighter_weapon_id
         })) || [],
+      vehicles: fighter.vehicles || [],
       special_rules: fighter.special_rules || [],
       killed: fighter.killed || false,
       retired: fighter.retired || false,
