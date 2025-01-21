@@ -105,7 +105,7 @@ const FighterCard = memo(function FighterCard({
     'Side': vehicle ? vehicle.side : '*', 
     'Rear': vehicle ? vehicle.rear : '*',
     'HP': vehicle ? vehicle.hull_points : '*',
-    'Hnd': vehicle ? vehicle.handling : '*',
+    'Hnd': vehicle ? `${vehicle.handling}+` : '*',
     'Sv': vehicle ? `${vehicle.save}+` : '*',
     'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
     'Ld': `${adjustedStats.leadership}+`,
