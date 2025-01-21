@@ -103,6 +103,7 @@ export default function Gang({
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);
+  const [vehicleCost, setVehicleCost] = useState('');
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -458,14 +459,16 @@ export default function Gang({
       return false;
     }
 
-    try {
-      const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
-      if (!selectedVehicleType) {
-        throw new Error('Vehicle type not found');
-      }
+    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
+    if (!selectedVehicleType) {
+      throw new Error('Vehicle type not found');
+    }
 
+    const cost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
+
+    try {
       // Optimistically update credits
-      const newCredits = credits - selectedVehicleType.cost;
+      const newCredits = credits - cost;
       setCredits(newCredits);
 
       const response = await fetch(`/api/gangs/${id}/vehicles`, {
@@ -475,6 +478,7 @@ export default function Gang({
         },
         body: JSON.stringify({
           vehicleTypeId: selectedVehicleTypeId,
+          cost: cost,
         }),
       });
 
@@ -490,7 +494,7 @@ export default function Gang({
       if (onStashUpdate) {
         const newStashItem: StashItem = {
           id: data.stash_id,
-          cost: selectedVehicleType.cost,
+          cost: cost,
           type: 'vehicle',
           vehicle_id: data.id,
           vehicle_name: data.vehicle_name
@@ -505,6 +509,7 @@ export default function Gang({
 
       setShowAddVehicleModal(false);
       setSelectedVehicleTypeId('');
+      setVehicleCost('');
       setVehicleError(null);
       return true;
     } catch (error) {
@@ -650,7 +655,13 @@ export default function Gang({
                   </label>
                   <select
                     value={selectedVehicleTypeId}
-                    onChange={(e) => setSelectedVehicleTypeId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedVehicleTypeId(e.target.value);
+                      const vehicle = vehicleTypes.find(v => v.id === e.target.value);
+                      if (vehicle) {
+                        setVehicleCost(vehicle.cost.toString());
+                      }
+                    }}
                     className="w-full p-2 border rounded"
                   >
                     <option value="">Select vehicle type</option>
@@ -662,12 +673,31 @@ export default function Gang({
                   </select>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cost (credits)
+                  </label>
+                  <Input
+                    type="number"
+                    value={vehicleCost}
+                    onChange={(e) => setVehicleCost(e.target.value)}
+                    className="w-full"
+                    min={0}
+                  />
+                  {selectedVehicleTypeId && (
+                    <p className="text-sm text-gray-500">
+                      Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
+                    </p>
+                  )}
+                </div>
+
                 {vehicleError && <p className="text-red-500">{vehicleError}</p>}
               </div>
             }
             onClose={() => {
               setShowAddVehicleModal(false);
               setSelectedVehicleTypeId('');
+              setVehicleCost('');
               setVehicleError(null);
             }}
             onConfirm={handleAddVehicle}

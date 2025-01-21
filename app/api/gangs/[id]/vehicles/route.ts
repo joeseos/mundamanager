@@ -41,146 +41,119 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
-  const gangId = params.id;
-  
   try {
-    const { vehicleTypeId } = await request.json();
-    console.log('Request params:', { gangId, vehicleTypeId });
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Get vehicle type details and gang's current credits
-    const [vehicleTypeResult, gangResult] = await Promise.all([
-      supabase
-        .from('vehicle_types')
-        .select('*')
-        .eq('id', vehicleTypeId)
-        .single(),
-      supabase
-        .from('gangs')
-        .select('credits')
-        .eq('id', gangId)
-        .single()
-    ]);
+    const { vehicleTypeId, cost } = await request.json();
+    const gangId = params.id;
 
-    console.log('Raw query results:', {
-      vehicleTypeResult,
-      gangResult
-    });
+    // Get gang details to check credits
+    const { data: gang, error: gangError } = await supabase
+      .from('gangs')
+      .select('credits')
+      .eq('id', gangId)
+      .single();
 
-    if (vehicleTypeResult.error) {
+    if (gangError) {
       return NextResponse.json(
-        { error: `Vehicle type fetch error: ${vehicleTypeResult.error.message}` },
+        { error: `Gang fetch error: ${gangError.message}` },
         { status: 500 }
       );
     }
 
-    if (gangResult.error) {
+    // Get vehicle type details
+    const { data: vehicleType, error: vehicleTypeError } = await supabase
+      .from('vehicle_types')
+      .select('*')
+      .eq('id', vehicleTypeId)
+      .single();
+
+    if (vehicleTypeError) {
       return NextResponse.json(
-        { error: `Gang fetch error: ${gangResult.error.message}` },
+        { error: `Vehicle type error: ${vehicleTypeError.message}` },
         { status: 500 }
-      );
-    }
-
-    const vehicleType = vehicleTypeResult.data;
-    const gang = gangResult.data;
-
-    if (!vehicleType) {
-      return NextResponse.json(
-        { error: `Vehicle type not found: ${vehicleTypeId}` },
-        { status: 404 }
-      );
-    }
-
-    if (!gang) {
-      return NextResponse.json(
-        { error: `Gang not found: ${gangId}` },
-        { status: 404 }
       );
     }
 
     // Check if gang has enough credits
-    if (gang.credits < vehicleType.cost) {
+    const vehicleCost = cost || vehicleType.cost;
+    if (gang.credits < vehicleCost) {
       return NextResponse.json(
-        { error: `Not enough credits. Need ${vehicleType.cost}, have ${gang.credits}` },
+        { error: 'Not enough credits' },
         { status: 400 }
       );
     }
 
-    // First create the vehicle
-    const vehicleData = {
-      movement: vehicleType.movement || 0,
-      front: vehicleType.front || 0,
-      side: vehicleType.side || 0,
-      rear: vehicleType.rear || 0,
-      hull_points: vehicleType.hull_points || 0,
-      handling: vehicleType.handling || 0,
-      save: vehicleType.save || 0,
-      body_slots: vehicleType.body_slots || 0,
-      drive_slots: vehicleType.drive_slots || 0,
-      engine_slots: vehicleType.engine_slots || 0,
-      special_rules: vehicleType.special_rules || [],
-      body_slots_occupied: 0,
-      drive_slots_occupied: 0,
-      engine_slots_occupied: 0,
-      vehicle_name: vehicleType.vehicle_type
-    };
-
-    console.log('Attempting to insert vehicle with data:', vehicleData);
-
-    const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
-      .insert(vehicleData)
-      .select()
-      .single();
-
-    if (vehicleError) {
-      console.error('Vehicle insert error:', vehicleError);
-      return NextResponse.json(
-        { error: `Vehicle insert error: ${vehicleError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Then create the gang_stash entry
+    // First, create the stash item
     const { data: stashItem, error: stashError } = await supabase
       .from('gang_stash')
       .insert({
         gang_id: gangId,
-        cost: vehicleType.cost,
-        vehicle_id: vehicle.id
+        cost: vehicleCost,
       })
       .select()
       .single();
 
     if (stashError) {
-      // Clean up vehicle if stash creation fails
-      await supabase
-        .from('vehicles')
-        .delete()
-        .eq('id', vehicle.id);
-
-      console.error('Stash insert error:', stashError);
       return NextResponse.json(
-        { error: `Stash insert error: ${stashError.message}` },
+        { error: `Stash error: ${stashError.message}` },
         { status: 500 }
       );
     }
 
-    // Update the vehicle with the stash_id
-    const { error: updateError } = await supabase
+    // Then create the vehicle with the stash_id
+    const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
-      .update({ stash_id: stashItem.id })
-      .eq('id', vehicle.id);
+      .insert({
+        vehicle_type_id: vehicleTypeId,
+        vehicle_name: vehicleType.vehicle_type,
+        movement: vehicleType.movement,
+        front: vehicleType.front,
+        side: vehicleType.side,
+        rear: vehicleType.rear,
+        hull_points: vehicleType.hull_points,
+        handling: vehicleType.handling,
+        save: vehicleType.save,
+        body_slots: vehicleType.body_slots,
+        drive_slots: vehicleType.drive_slots,
+        engine_slots: vehicleType.engine_slots,
+        special_rules: vehicleType.special_rules,
+        body_slots_occupied: 0,
+        drive_slots_occupied: 0,
+        engine_slots_occupied: 0,
+        stash_id: stashItem.id
+      })
+      .select()
+      .single();
 
-    if (updateError) {
-      // Clean up both entries
+    if (vehicleError) {
+      // Clean up stash if vehicle creation fails
+      await supabase.from('gang_stash').delete().eq('id', stashItem.id);
+      return NextResponse.json(
+        { error: `Vehicle creation error: ${vehicleError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Update the stash item with the vehicle_id
+    const { error: stashUpdateError } = await supabase
+      .from('gang_stash')
+      .update({ vehicle_id: vehicle.id })
+      .eq('id', stashItem.id);
+
+    if (stashUpdateError) {
+      // Clean up both records if update fails
       await Promise.all([
         supabase.from('vehicles').delete().eq('id', vehicle.id),
         supabase.from('gang_stash').delete().eq('id', stashItem.id)
       ]);
-
       return NextResponse.json(
-        { error: `Vehicle update error: ${updateError.message}` },
+        { error: `Stash update error: ${stashUpdateError.message}` },
         { status: 500 }
       );
     }
@@ -189,7 +162,7 @@ export async function POST(
     const { error: gangUpdateError } = await supabase
       .from('gangs')
       .update({ 
-        credits: gang.credits - vehicleType.cost,
+        credits: gang.credits - vehicleCost,
         last_updated: new Date().toISOString()
       })
       .eq('id', gangId);
@@ -200,7 +173,6 @@ export async function POST(
         supabase.from('vehicles').delete().eq('id', vehicle.id),
         supabase.from('gang_stash').delete().eq('id', stashItem.id)
       ]);
-
       return NextResponse.json(
         { error: `Gang update error: ${gangUpdateError.message}` },
         { status: 500 }
@@ -209,15 +181,11 @@ export async function POST(
 
     return NextResponse.json({
       ...vehicle,
-      cost: vehicleType.cost,
-      gang_credits: gang.credits - vehicleType.cost
+      stash_id: stashItem.id,
+      gang_credits: gang.credits - vehicleCost
     });
   } catch (error) {
-    console.error('Detailed error:', {
-      error,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    console.error('Detailed error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown server error' },
       { status: 500 }
