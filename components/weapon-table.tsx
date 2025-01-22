@@ -57,15 +57,16 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
       <table className="w-full border-collapse table-weapons" style={{ fontSize: 'calc(10px + 0.2vmin)' }}>
         <colgroup>
           <col style={{ width: '30%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '6%' }}/>
-          <col style={{ width: '22%' }}/></colgroup>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '2rem' }}/>
+          <col style={{ width: '35%' }}/>
+        </colgroup>
         <thead>
           <tr>
             <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
@@ -95,8 +96,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
                 key={`${groupId}-${profileIndex}`}
                 className={bgClass}
               >
-                <td className="text-left p-1 whitespace-normal align-top">
-                  {profile.profile_name}
+                <td className="text-left p-1 align-top">
+                  <div className="table-weapons-truncate">
+                    {profile.profile_name}
+                  </div>
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatValue(profile.range_short)}
