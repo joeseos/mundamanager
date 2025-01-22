@@ -35,6 +35,37 @@
     @apply bg-background text-foreground;
   }
 
+  .table-weapons-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%; /* Ensures it respects the parent's width */
+  }
+
+  @media (max-width: 1024px) {
+    .table-weapons-truncate {
+      max-width: 14rem; /* Adjust width for medium screens */
+    }
+  }
+
+  @media (max-width: 768px) {
+    .table-weapons-truncate {
+      max-width: 12rem; /* Smaller width for smaller screens */
+    }
+  }
+
+  @media (max-width: 640px) {
+    .table-weapons-truncate {
+      max-width: 7rem; /* Truncate more on very small screens */
+    }
+  }
+
+  @media (max-width: 440px) {
+    .table-weapons-truncate {
+      max-width: 5rem; /* Truncate more on very small screens */
+    }
+  }
+
   @media print {
     .print-reset {
       max-width: none !important;
@@ -54,6 +85,9 @@
     }
     .table-weapons th, .table-weapons td {
       padding: 1px !important;
+    }
+    .table-weapons-truncate {
+      max-width: 10rem; /* Smaller width for smaller screens */
     }
 
     html {
