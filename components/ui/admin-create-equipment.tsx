@@ -381,12 +381,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       <div className="grid grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Profile Name
+                            Profile Name *
                           </label>
                           <Input
                             value={profile.profile_name}
                             onChange={(e) => handleProfileChange(index, 'profile_name', e.target.value)}
                             placeholder="e.g. Standard, Rapid Fire"
+                            required
                           />
                         </div>
 
