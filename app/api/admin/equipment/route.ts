@@ -10,7 +10,7 @@ interface WeaponProfile {
   acc_long: string;
   strength: string;
   ap: string;
-  damage: number;
+  damage: string;
   ammo: string;
   traits: string;
   is_default_profile: boolean;
@@ -126,26 +126,26 @@ export async function POST(request: Request) {
     // If this is a weapon and has profiles, insert them
     if (equipment_type.toLowerCase() === 'weapon' && weapon_profiles && weapon_profiles.length > 0) {
       const weaponId = data.id;
-      const profilesWithIds = weapon_profiles.map((profile: WeaponProfile) => ({
+      const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfile) => ({
         ...profile,
         weapon_id: weaponId,
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
-        weapon_group_id: profile.weapon_group_id || weaponId,
-        // Ensure numeric fields are properly handled
-        damage: profile.damage || null,
-        range_short: profile.range_short || null,
-        range_long: profile.range_long || null,
-        acc_short: profile.acc_short || null,
-        acc_long: profile.acc_long || null,
-        strength: profile.strength || null,
-        ap: profile.ap || null,
-        ammo: profile.ammo || null,
-        traits: profile.traits || null
+        weapon_group_id: profile.weapon_group_id || null,
+        // Convert empty strings to '0' or appropriate default values instead of null
+        range_short: profile.range_short || '0',
+        range_long: profile.range_long || '0',
+        acc_short: profile.acc_short || '0',
+        acc_long: profile.acc_long || '0',
+        strength: profile.strength || '0',
+        ap: profile.ap || '0',
+        damage: profile.damage || '0',
+        ammo: profile.ammo || '0',
+        traits: profile.traits || ''
       }));
 
       const { error: profileError } = await supabase
         .from('weapon_profiles')
-        .insert(profilesWithIds);
+        .insert(cleanedWeaponProfiles);
 
       if (profileError) throw profileError;
     }
