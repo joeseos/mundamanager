@@ -8,6 +8,7 @@ import { Equipment, WeaponProfile } from '@/types/equipment';
 import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
 interface ItemModalProps {
   title: string;
@@ -355,7 +356,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
           <div className="flex flex-col">
             {error && <p className="text-red-500 p-4">{error}</p>}
             
-            {categories.map((category) => (
+            {categories
+              .sort((a, b) => {
+                const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
+                const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
+                return rankA - rankB;
+              })
+              .map((category) => (
               <div key={category.id}>
                 <Button
                   variant="ghost"
