@@ -32,6 +32,7 @@ BEGIN
            f.credits as base_credits,
            f.cost_adjustment,
            f.special_rules,
+           f.note,
            f.killed,
            f.starved,
            f.retired,
@@ -240,6 +241,7 @@ BEGIN
            f.willpower,
            f.intelligence,
            f.special_rules,
+           f.note,
            f.killed,
            f.starved,
            f.retired,
@@ -391,6 +393,7 @@ BEGIN
                        WHEN cf.special_rules IS NULL THEN '[]'::json
                        ELSE to_json(cf.special_rules)
                    END,
+                   'note', cf.note,
                    'killed', cf.killed,
                    'starved', cf.starved,
                    'retired', cf.retired,
