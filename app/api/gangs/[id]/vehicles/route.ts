@@ -89,31 +89,11 @@ export async function POST(
       );
     }
 
-    // First, create the stash item
-    const { data: stashItem, error: stashError } = await supabase
-      .from('gang_stash')
-      .insert({
-        gang_id: gangId,
-        cost: vehicleCost,
-      })
-      .select()
-      .single();
-
-    if (stashError) {
-      return NextResponse.json(
-        { error: `Stash error: ${stashError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Then create the vehicle with the custom name, type and cost
+    // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
-        vehicle_type_id: vehicleTypeId,
         vehicle_name: vehicleName || vehicleType.vehicle_type,
-        vehicle_type: vehicleType.vehicle_type,
-        cost: vehicleCost,
         movement: vehicleType.movement,
         front: vehicleType.front,
         side: vehicleType.side,
@@ -128,34 +108,17 @@ export async function POST(
         body_slots_occupied: 0,
         drive_slots_occupied: 0,
         engine_slots_occupied: 0,
-        stash_id: stashItem.id
+        vehicle_type_id: vehicleTypeId,
+        cost: vehicleCost,
+        vehicle_type: vehicleType.vehicle_type,
+        gang_id: gangId
       })
       .select()
       .single();
 
     if (vehicleError) {
-      // Clean up stash if vehicle creation fails
-      await supabase.from('gang_stash').delete().eq('id', stashItem.id);
       return NextResponse.json(
         { error: `Vehicle creation error: ${vehicleError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Update the stash item with the vehicle_id
-    const { error: stashUpdateError } = await supabase
-      .from('gang_stash')
-      .update({ vehicle_id: vehicle.id })
-      .eq('id', stashItem.id);
-
-    if (stashUpdateError) {
-      // Clean up both records if update fails
-      await Promise.all([
-        supabase.from('vehicles').delete().eq('id', vehicle.id),
-        supabase.from('gang_stash').delete().eq('id', stashItem.id)
-      ]);
-      return NextResponse.json(
-        { error: `Stash update error: ${stashUpdateError.message}` },
         { status: 500 }
       );
     }
@@ -170,11 +133,8 @@ export async function POST(
       .eq('id', gangId);
 
     if (gangUpdateError) {
-      // Clean up everything if gang update fails
-      await Promise.all([
-        supabase.from('vehicles').delete().eq('id', vehicle.id),
-        supabase.from('gang_stash').delete().eq('id', stashItem.id)
-      ]);
+      // Clean up if gang update fails
+      await supabase.from('vehicles').delete().eq('id', vehicle.id);
       return NextResponse.json(
         { error: `Gang update error: ${gangUpdateError.message}` },
         { status: 500 }
@@ -183,7 +143,6 @@ export async function POST(
 
     return NextResponse.json({
       ...vehicle,
-      stash_id: stashItem.id,
       gang_credits: gang.credits - vehicleCost
     });
   } catch (error) {

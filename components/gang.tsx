@@ -506,7 +506,7 @@ export default function Gang({
       }
 
       toast({
-        description: "Vehicle added to gang stash successfully",
+        description: `${name} added to gang successfully`,
         variant: "default"
       });
 
