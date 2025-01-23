@@ -19,11 +19,13 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   free_skill?: boolean;
   kills: number;  // Required property
   injuries: Injury[];
+  note?: string;
   vehicle?: Vehicle;  // Add vehicle property
 }
 
 type FighterCardData = FighterProps & {
   label?: string;
+  note?: string;
 };
 
 const FighterCard = memo(function FighterCard({
@@ -57,6 +59,7 @@ const FighterCard = memo(function FighterCard({
   free_skill,
   kills = 0,  // Default value
   injuries = [],
+  note,
   vehicle,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -93,6 +96,7 @@ const FighterCard = memo(function FighterCard({
     wargear,
     special_rules,
     injuries: injuries || [],
+    note,
   };
 
   const adjustedStats = calculateAdjustedStats(fighterData);
@@ -160,7 +164,7 @@ const FighterCard = memo(function FighterCard({
     };
 
     const observer = new MutationObserver(checkHeight);
-    
+
     if (contentRef.current) {
       observer.observe(contentRef.current, {
         childList: true,
@@ -254,8 +258,8 @@ const FighterCard = memo(function FighterCard({
             <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
               {wargear && wargear.length > 0 && (
                 <>
-                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
-                  <div className="text-sm break-words">
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
+                  <div className="min-w-[0px] text-sm break-words">
                     {wargear
                       .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
                       .map(item => item.wargear_name)
@@ -265,8 +269,8 @@ const FighterCard = memo(function FighterCard({
               )}
               {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
                 <>
-                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
-                  <div className="text-sm break-words">
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
+                  <div className="min-w-[0px] text-sm break-words">
                     {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
                       Object.keys(advancements.skills)
                         .sort((a, b) => a.localeCompare(b))
@@ -289,23 +293,23 @@ const FighterCard = memo(function FighterCard({
               )}
               {isCrew && vehicle && (
                 <>
-                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                  <div className="text-sm break-words">{vehicle.vehicle_name}</div>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
+                  <div className="min-w-[0px] text-sm break-words">{vehicle.vehicle_name}</div>
                   
-                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
-                  <div className="text-sm break-words">
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
+                  <div className="min-w-[0px] text-sm break-words">
                     {formatUpgradeSlots(vehicle)}
                   </div>
 
-                  <div className="font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
-                  <div className="text-sm break-words">
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
+                  <div className="min-w-[0px] text-sm break-words">
                     {vehicle.special_rules.join(', ')}
                   </div>
                 </>
               )}
               {special_rules && special_rules.length > 0 && (
                 <>
-                  <div className="font-bold text-sm pr-4">
+                  <div className="min-w-[0px] font-bold text-sm pr-4">
                     {isMultiline ? (
                       <>
                         Special<br />Rules
@@ -314,9 +318,15 @@ const FighterCard = memo(function FighterCard({
                       <span className="whitespace-nowrap">Special Rules</span>
                     )}
                   </div>
-                  <div className="text-sm break-words">
+                  <div className="min-w-[0px] text-sm break-words">
                     {special_rules.join(', ')}
                   </div>
+                </>
+              )}
+              {note && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Notes</div>
+                  <div className="min-w-[0px] text-sm break-words">{note}</div>
                 </>
               )}
             </div>

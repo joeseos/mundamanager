@@ -53,7 +53,8 @@ async function processGangData(gangData: any) {
     enslaved: fighter.enslaved || false,
     starved: fighter.starved || false,
     free_skill: fighter.free_skill || false,
-    special_rules: fighter.special_rules || []
+    special_rules: fighter.special_rules || [],
+    note: fighter.note
   })) as FighterProps[];
 
   const processedFighterTypes = (

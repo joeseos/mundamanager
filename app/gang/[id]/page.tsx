@@ -25,6 +25,7 @@ interface FighterTypeResponse {
   cost: number;
   gang_type_id: string;
   special_rules: string[];
+  note: string;
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -91,6 +92,7 @@ async function processGangData(gangData: any) {
         })) || [],
       vehicles: fighter.vehicles || [],
       special_rules: fighter.special_rules || [],
+      note: fighter.note,
       killed: fighter.killed || false,
       retired: fighter.retired || false,
       enslaved: fighter.enslaved || false,
