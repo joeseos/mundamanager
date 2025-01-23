@@ -104,6 +104,7 @@ export default function Gang({
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
+  const [vehicleName, setVehicleName] = useState('');
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -465,6 +466,7 @@ export default function Gang({
     }
 
     const cost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
+    const name = vehicleName || selectedVehicleType.vehicle_type;
 
     try {
       // Optimistically update credits
@@ -479,6 +481,7 @@ export default function Gang({
         body: JSON.stringify({
           vehicleTypeId: selectedVehicleTypeId,
           cost: cost,
+          vehicleName: name,
         }),
       });
 
@@ -510,6 +513,7 @@ export default function Gang({
       setShowAddVehicleModal(false);
       setSelectedVehicleTypeId('');
       setVehicleCost('');
+      setVehicleName('');
       setVehicleError(null);
       return true;
     } catch (error) {
@@ -660,6 +664,7 @@ export default function Gang({
                       const vehicle = vehicleTypes.find(v => v.id === e.target.value);
                       if (vehicle) {
                         setVehicleCost(vehicle.cost.toString());
+                        setVehicleName(vehicle.vehicle_type);
                       }
                     }}
                     className="w-full p-2 border rounded"
@@ -671,6 +676,19 @@ export default function Gang({
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Vehicle Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={vehicleName}
+                    onChange={(e) => setVehicleName(e.target.value)}
+                    className="w-full"
+                    placeholder="Enter vehicle name"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -698,6 +716,7 @@ export default function Gang({
               setShowAddVehicleModal(false);
               setSelectedVehicleTypeId('');
               setVehicleCost('');
+              setVehicleName('');
               setVehicleError(null);
             }}
             onConfirm={handleAddVehicle}
