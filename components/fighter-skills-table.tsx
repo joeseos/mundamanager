@@ -30,7 +30,7 @@ export function FighterSkillsTable({ skills, onDeleteSkill }: FighterSkillsTable
           <tbody>
             {!skills?.length ? (
               <tr>
-                <td colSpan={2} className="text-center py-4 text-gray-500">
+                <td colSpan={2} className="text-center py-1 text-gray-500">
                   No skills available
                 </td>
               </tr>
