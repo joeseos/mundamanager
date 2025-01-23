@@ -151,17 +151,19 @@ export function InjuriesList({
       <div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-1 py-1 text-left">Name</th>
-                <th className="px-1 py-1 text-right">Action</th>
-              </tr>
-            </thead>
+            {(injuries.length > 0) && (
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-1 py-1 text-left">Name</th>
+                  <th className="px-1 py-1 text-right">Action</th>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {injuries.length === 0 ? (
                 <tr>
                   <td colSpan={2} className="px-1 py-1 text-center text-gray-500">
-                    No injuries
+                    No injuries yet
                   </td>
                 </tr>
               ) : (

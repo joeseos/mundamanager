@@ -40,17 +40,19 @@ export function FighterWeaponsTable({
     <div>
       <div className="overflow-x-auto">
         <table className="w-full table-auto">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-1 py-1 text-left">Name</th>
-              <th className="px-1 py-1 text-right">Cost</th>
-              <th className="px-1 py-1 text-right">Action</th>
-            </tr>
-          </thead>
+          {(equipment?.length > 0) && (
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="px-1 py-1 text-left">Name</th>
+                <th className="px-1 py-1 text-right">Cost</th>
+                <th className="px-1 py-1 text-right">Action</th>
+              </tr>
+            </thead>
+          )}
           <tbody>
             {!equipment?.length ? (
               <tr>
-                <td colSpan={3} className="text-center py-4 text-gray-500">
+                <td colSpan={3} className="text-center py-1 text-gray-500">
                   No equipment available
                 </td>
               </tr>

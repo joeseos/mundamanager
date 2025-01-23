@@ -193,14 +193,16 @@ export function AdvancementsList({
       <div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-1 py-1 text-left">Name</th>
-                <th className="px-1 py-1 text-right">XP</th>
-                <th className="px-1 py-1 text-right">Cost</th>
-                <th className="px-1 py-1 text-right">Action</th>
-              </tr>
-            </thead>
+            {([...characteristics, ...skills].length > 0) && (
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-1 py-1 text-left">Name</th>
+                  <th className="px-1 py-1 text-right">XP</th>
+                  <th className="px-1 py-1 text-right">Cost</th>
+                  <th className="px-1 py-1 text-right">Action</th>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {[...characteristics, ...skills].length === 0 ? (
                 <tr>

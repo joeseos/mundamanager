@@ -151,7 +151,7 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
   ).sort((a, b) => a.territory_name.localeCompare(b.territory_name));
 
   if (isLoading) {
-    return <div className="text-center py-4">Loading territories...</div>;
+    return <div className="text-center py-1">Loading territories...</div>;
   }
 
   return (
