@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { useToast } from './ui/use-toast';
 import { Textarea } from './ui/textarea';
@@ -13,16 +13,14 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [wordCount, setWordCount] = useState(0);
+  const [charCount, setCharCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
-  // Update word count when note changes
+  // Update character count when note changes
   useEffect(() => {
-    // Ensure we're working with a string
     const noteText = note || '';
-    const count = noteText.split(/\s+/).length;
-    setWordCount(count);
+    setCharCount(noteText.length); // Use .length for character count
   }, [note]);
 
   // When initialNote changes, update the note state
@@ -34,10 +32,10 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
     try {
       setError(null);
       setIsSaving(true);
-      
+
       // Client-side validation
-      if (wordCount > 250) {
-        setError('Note cannot exceed 250 words');
+      if (charCount > 1000) {
+        setError('Note cannot exceed 1000 characters');
         return;
       }
 
@@ -80,8 +78,8 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
         <h3 className="text-lg font-semibold">Notes</h3>
         <div className="flex items-center gap-2">
           {isEditing && (
-            <span className={`text-sm ${wordCount > 250 ? 'text-red-500' : 'text-gray-500'}`}>
-              {wordCount}/250 words
+            <span className={`text-sm ${charCount > 1000 ? 'text-red-500' : 'text-gray-500'}`}>
+              {charCount}/1000 characters
             </span>
           )}
           <div className="flex gap-2">
@@ -98,9 +96,9 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSave}
-                  disabled={wordCount > 250 || isSaving}
+                  disabled={charCount > 1000 || isSaving}
                 >
                   {isSaving ? "Saving..." : "Save"}
                 </Button>
@@ -126,10 +124,10 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
           placeholder="Add notes here..."
         />
       ) : (
-        <div className="whitespace-pre-wrap">
+        <div className="whitespace-pre-wrap break-words">
           {note || 'No notes added.'}
         </div>
       )}
     </div>
   );
-} 
+}
