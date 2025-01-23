@@ -49,7 +49,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { vehicleTypeId, cost } = await request.json();
+    const { vehicleTypeId, cost, vehicleName } = await request.json();
     const gangId = params.id;
 
     // Get gang details to check credits
@@ -106,12 +106,14 @@ export async function POST(
       );
     }
 
-    // Then create the vehicle with the stash_id
+    // Then create the vehicle with the custom name, type and cost
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
         vehicle_type_id: vehicleTypeId,
-        vehicle_name: vehicleType.vehicle_type,
+        vehicle_name: vehicleName || vehicleType.vehicle_type,
+        vehicle_type: vehicleType.vehicle_type,
+        cost: vehicleCost,
         movement: vehicleType.movement,
         front: vehicleType.front,
         side: vehicleType.side,
