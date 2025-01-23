@@ -36,6 +36,15 @@ interface FighterDetailsCardProps {
   onEdit: () => void;
   kills: number;
   injuries?: Injury[];
+  vehicles?: Array<{
+    movement: number;
+    front: number;
+    side: number;
+    rear: number;
+    hull_points: number;
+    handling: number;
+    save: number;
+  }>;
 }
 
 export const FighterDetailsCard = memo(function FighterDetailsCard({
@@ -68,6 +77,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   onEdit,
   kills,
   injuries,
+  vehicles,
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData: FighterProps = {
@@ -107,13 +117,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   // Update stats object to handle crew stats
   const stats: Record<string, string | number> = {
     ...(isCrew ? {
-      'M': '*',
-      'Front': '*',
-      'Side': '*', 
-      'Rear': '*',
-      'HP': '*',
-      'Hnd': '*',
-      'Sv': '*',
+      'M': vehicles?.[0]?.movement ? `${vehicles[0].movement}"` : '*',
+      'Front': vehicles?.[0]?.front ?? '*',
+      'Side': vehicles?.[0]?.side ?? '*',
+      'Rear': vehicles?.[0]?.rear ?? '*',
+      'HP': vehicles?.[0]?.hull_points ?? '*',
+      'Hnd': vehicles?.[0]?.handling ? `${vehicles[0].handling}+` : '*',
+      'Sv': vehicles?.[0]?.save ? `${vehicles[0].save}+` : '*',
       'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
       'Ld': `${adjustedStats.leadership}+`,
       'Cl': `${adjustedStats.cool}+`,
