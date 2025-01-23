@@ -156,6 +156,15 @@ interface Fighter {
   cost_adjustment: number;
   base_credits: number;
   fighter_class: string;
+  vehicles?: Array<{
+    movement: number;
+    front: number;
+    side: number;
+    rear: number;
+    hull_points: number;
+    handling: number;
+    save: number;
+  }>;
 }
 
 interface Gang {
@@ -384,7 +393,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               [char.characteristic_name]: char
             }), {}) || {},
             skills: result.fighter.skills || {}
-          }
+          },
+          vehicles: result.fighter.vehicles
         },
         equipment: transformedEquipment,
         gang: {
@@ -994,6 +1004,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             starved={fighterData.fighter?.starved}
             kills={fighterData.fighter?.kills || 0}
             injuries={fighterData.fighter?.injuries || []}
+            vehicles={fighterData.fighter?.vehicles}
           />
           
           <WeaponList 
