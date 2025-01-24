@@ -86,7 +86,7 @@ export default function Gang({
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(initialName)
-  const [editedCredits, setEditedCredits] = useState((initialCredits ?? 0).toString())
+  const [editedCredits, setEditedCredits] = useState('');
   const [editedReputation, setEditedReputation] = useState((initialReputation ?? 0).toString())
   const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
   const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
@@ -114,9 +114,8 @@ export default function Gang({
 
   const handleSave = async () => {
     try {
-      const newCredits = parseInt(editedCredits);
-      const operation = newCredits >= credits ? 'add' : 'subtract';
-      const creditsDifference = Math.abs(newCredits - credits);
+      const creditsDifference = parseInt(editedCredits) || 0;
+      const operation = creditsDifference >= 0 ? 'add' : 'subtract';
 
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
@@ -125,7 +124,7 @@ export default function Gang({
         },
         body: JSON.stringify({
           name: editedName,
-          credits: creditsDifference,
+          credits: Math.abs(creditsDifference),
           operation: operation,
           alignment: editedAlignment,
           reputation: parseInt(editedReputation),
@@ -312,6 +311,16 @@ export default function Gang({
     }
   };
 
+  const handleEditModalOpen = () => {
+    setEditedName(name);
+    setEditedCredits('');
+    setEditedAlignment(alignment);
+    setEditedReputation(reputation?.toString() || '0');
+    setEditedMeat(meat?.toString() || '0');
+    setEditedExplorationPoints(explorationPoints?.toString() || '0');
+    setShowEditModal(true);
+  };
+
   const editModalContent = (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -343,10 +352,16 @@ export default function Gang({
         <Input
           type="number"
           value={editedCredits}
-          onChange={(e) => setEditedCredits(e.target.value)}
-          className="w-full"
-          placeholder="Credits"
+          onChange={(e) => {
+            const value = e.target.value;
+            setEditedCredits(value);
+          }}
+          className="flex-1"
+          placeholder="Enter amount (negative to subtract)"
         />
+        <p className="text-sm text-gray-500">
+          Current credits: {credits}
+        </p>
       </div>
 
       <div>
@@ -531,7 +546,7 @@ export default function Gang({
           <div className="flex gap-2">
             {additionalButtons}
             <Button
-              onClick={() => setShowEditModal(true)}
+              onClick={handleEditModalOpen}
               className="bg-black text-white hover:bg-gray-800 print:hidden"
             >
               Edit
@@ -625,7 +640,10 @@ export default function Gang({
           <Modal
             title="Edit Gang"
             content={editModalContent}
-            onClose={() => setShowEditModal(false)}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditedCredits('');
+            }}
             onConfirm={handleSave}
             confirmText="Save Changes"
           />
