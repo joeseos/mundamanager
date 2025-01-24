@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { sql } from 'drizzle-orm';
 
 interface WeaponProfile {
   profile_name: string;
@@ -179,48 +180,71 @@ export async function PUT(request: Request) {
     }
 
     const data = await request.json();
-    console.log('Received equipment update data:', data);
+    const {
+      equipment_name,
+      trading_post_category,
+      availability,
+      cost,
+      faction,
+      variants,
+      equipment_category,
+      equipment_category_id,
+      equipment_type,
+      core_equipment,
+      weapon_profiles,
+      vehicle_profiles,
+      fighter_types
+    } = data;
 
     // Update equipment
     const { error: equipmentError } = await supabase
       .from('equipment')
       .update({
-        equipment_name: data.equipment_name,
-        trading_post_category: data.trading_post_category,
-        availability: data.availability,
-        cost: data.cost,
-        faction: data.faction,
-        variants: data.variants,
-        equipment_category: data.equipment_category,
-        equipment_category_id: data.equipment_category_id,
-        equipment_type: data.equipment_type,
-        core_equipment: data.core_equipment
+        equipment_name,
+        trading_post_category,
+        availability,
+        cost,
+        faction,
+        variants,
+        equipment_category,
+        equipment_category_id,
+        equipment_type,
+        core_equipment
       })
       .eq('id', id);
 
     if (equipmentError) throw equipmentError;
 
-    // If it's a weapon, update the profiles
-    if (data.equipment_type.toLowerCase() === 'weapon') {
-      console.log('Updating weapon profiles:', data.weapon_profiles);
+    // Handle weapon profiles if this is a weapon
+    if (equipment_type === 'weapon' && weapon_profiles) {
       // Delete existing profiles
       const { error: deleteError } = await supabase
         .from('weapon_profiles')
         .delete()
-        .eq('weapon_id', id);
+        .eq('equipment_id', id);
 
       if (deleteError) throw deleteError;
 
-      // Insert new profiles if any
-      if (data.weapon_profiles?.length > 0) {
+      // Insert new profiles
+      if (weapon_profiles.length > 0) {
         const { error: profilesError } = await supabase
           .from('weapon_profiles')
           .insert(
-            data.weapon_profiles.map((profile: WeaponProfile) => ({
-              ...profile,
-              weapon_id: id,
-              // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
-              weapon_group_id: profile.weapon_group_id || id
+            weapon_profiles.map(profile => ({
+              equipment_id: id,
+              profile_name: profile.profile_name,
+              range_short: profile.range_short,
+              range_long: profile.range_long,
+              acc_short: profile.acc_short,
+              acc_long: profile.acc_long,
+              strength: profile.strength,
+              ap: profile.ap,
+              damage: profile.damage,
+              ammo: profile.ammo,
+              traits: profile.traits,
+              is_default_profile: profile.is_default_profile,
+              weapon_group_id: profile.weapon_group_id || id,
+              sort_order: profile.sort_order
             }))
           );
 
@@ -228,38 +252,68 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Handle fighter type defaults
-    if (data.fighter_types) {
-      // First delete existing defaults for this equipment
+    // Handle vehicle profiles if this is a vehicle upgrade
+    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
+      // Delete existing vehicle profiles
       const { error: deleteError } = await supabase
-        .from('fighter_defaults')
+        .from('vehicle_equipment_profiles')
         .delete()
         .eq('equipment_id', id);
 
       if (deleteError) throw deleteError;
 
-      // Then insert new defaults if any fighter types are selected
-      if (data.fighter_types.length > 0) {
-        const defaults = data.fighter_types.map((fighter_type_id: string) => ({
-          equipment_id: id,
-          fighter_type_id,
-          skill_id: null // Since this is equipment, skill_id should be null
-        }));
+      // Insert new vehicle profiles
+      if (vehicle_profiles.length > 0) {
+        const { error: profilesError } = await supabase
+          .from('vehicle_equipment_profiles')
+          .insert(
+            vehicle_profiles.map(profile => ({
+              equipment_id: id,
+              profile_name: profile.profile_name,
+              // Convert empty strings to null or 0 for numeric fields
+              movement: profile.movement || null,
+              front: profile.front || null,
+              side: profile.side || null,
+              rear: profile.rear || null,
+              hull_points: profile.hull_points || null,
+              save: profile.save || null
+            }))
+          );
 
+        if (profilesError) throw profilesError;
+      }
+    }
+
+    // Update fighter type associations
+    if (fighter_types) {
+      const { error: deleteError } = await supabase
+        .from('fighter_type_equipment')
+        .delete()
+        .eq('equipment_id', id);
+
+      if (deleteError) throw deleteError;
+
+      if (fighter_types.length > 0) {
         const { error: insertError } = await supabase
-          .from('fighter_defaults')
-          .insert(defaults);
+          .from('fighter_type_equipment')
+          .insert(
+            fighter_types.map(fighter_type_id => ({
+              fighter_type_id,
+              equipment_id: id
+            }))
+          );
 
         if (insertError) throw insertError;
       }
     }
 
     return NextResponse.json({ success: true });
+
   } catch (error) {
-    console.error('Error in PUT equipment:', error);
+    console.error('Error updating equipment:', error);
     return NextResponse.json(
       { 
-        error: 'Error updating equipment',
+        error: 'Failed to update equipment',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
