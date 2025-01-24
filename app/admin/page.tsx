@@ -133,6 +133,27 @@ export default function AdminPage() {
     }
   };
 
+  // Add a reset function for the vehicle form
+  const resetVehicleForm = () => {
+    setVehicleForm({
+      cost: '',
+      movement: '',
+      front: '',
+      side: '',
+      rear: '',
+      hull_points: '',
+      handling: '',
+      save: '',
+      body_slots: '',
+      drive_slots: '',
+      engine_slots: '',
+      special_rules: [],
+      vehicle_type: '',
+      gang_type_id: ''
+    });
+    setSelectedVehicle(''); // Also reset the selected vehicle
+  };
+
   const adminSections = [
     {
       title: "Add Fighter Type",
@@ -460,7 +481,10 @@ export default function AdminPage() {
                   </div>
                 </div>
               }
-              onClose={() => setShowAddVehicle(false)}
+              onClose={() => {
+                setShowAddVehicle(false);
+                resetVehicleForm();
+              }}
               onConfirm={async () => {
                 try {
                   const response = await fetch('/api/admin/vehicles', {
@@ -480,24 +504,7 @@ export default function AdminPage() {
                     description: "Vehicle type has been created successfully",
                   });
 
-                  // Reset form
-                  setVehicleForm({
-                    cost: '',
-                    movement: '',
-                    front: '',
-                    side: '',
-                    rear: '',
-                    hull_points: '',
-                    handling: '',
-                    save: '',
-                    body_slots: '',
-                    drive_slots: '',
-                    engine_slots: '',
-                    special_rules: [],  // Initialize as empty array
-                    vehicle_type: '',
-                    gang_type_id: ''
-                  });
-
+                  resetVehicleForm();
                   return true; // Close modal
                 } catch (error) {
                   console.error('Error submitting vehicle type:', error);
@@ -765,7 +772,10 @@ export default function AdminPage() {
                   </div>
                 </div>
               }
-              onClose={() => setShowEditVehicle(false)}
+              onClose={() => {
+                setShowEditVehicle(false);
+                resetVehicleForm();
+              }}
               onConfirm={async () => {
                 try {
                   const response = await fetch('/api/admin/vehicles', {
@@ -775,7 +785,7 @@ export default function AdminPage() {
                     },
                     body: JSON.stringify({
                       ...vehicleForm,
-                      id: selectedVehicle // Add the selected vehicle ID
+                      id: selectedVehicle
                     }),
                   });
 
@@ -788,25 +798,7 @@ export default function AdminPage() {
                     description: "Vehicle type has been updated successfully",
                   });
 
-                  // Reset form and selection
-                  setSelectedVehicle('');
-                  setVehicleForm({
-                    cost: '',
-                    movement: '',
-                    front: '',
-                    side: '',
-                    rear: '',
-                    hull_points: '',
-                    handling: '',
-                    save: '',
-                    body_slots: '',
-                    drive_slots: '',
-                    engine_slots: '',
-                    special_rules: [],
-                    vehicle_type: '',
-                    gang_type_id: ''
-                  });
-
+                  resetVehicleForm();
                   return true; // Close modal
                 } catch (error) {
                   console.error('Error updating vehicle type:', error);
