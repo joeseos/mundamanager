@@ -5,13 +5,13 @@ import React, { useState } from 'react';
 interface TabsProps {
   children: React.ReactNode[];
   tabTitles?: string[];
+  tabIcons?: React.ReactNode[]; // Accept icons for each tab
 }
 
-const Tabs = ({ children, tabTitles }: TabsProps) => {
+const Tabs = ({ children, tabTitles, tabIcons }: TabsProps) => {
   const [activeTab, setActiveTab] = useState(0);
 
-  const defaultTabTitles = ['Details', 'Stash', 'Notes'];
-  
+  const defaultTabTitles = ['Gang', 'Stash', 'Notes'];
   const titles = tabTitles || defaultTabTitles;
 
   return (
@@ -22,12 +22,13 @@ const Tabs = ({ children, tabTitles }: TabsProps) => {
             key={index}
             onClick={() => setActiveTab(index)}
             className={`flex-1 py-4 text-center transition-colors ${
-              activeTab === index 
-                ? 'text-black font-medium' 
+              activeTab === index
+                ? 'text-black font-medium'
                 : 'text-gray-500 hover:text-gray-700'
-            }`}
+            } flex items-center justify-center`}
           >
-            {title}
+            {tabIcons && tabIcons[index]} {/* Render the icon */}
+            <span className="ml-2 hidden sm:inline">{title}</span> {/* Text visible only on small screens and larger */}
           </button>
         ))}
       </div>
@@ -41,4 +42,4 @@ const Tabs = ({ children, tabTitles }: TabsProps) => {
   );
 };
 
-export default Tabs; 
+export default Tabs;
