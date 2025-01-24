@@ -56,7 +56,7 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
           {/* Conditionally Render Toughness Header Row */}
           {isCrew && (
             <tr>
-              <th colSpan={1}></th> {/* Empty column before Toughness */}
+              <th colSpan={1}></th>{/* Empty column before Toughness */}
               <th colSpan={3} className="text-[10px] sm:text-xs font-semibold text-center">
                 Toughness
               </th>
