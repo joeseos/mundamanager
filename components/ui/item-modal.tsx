@@ -397,17 +397,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               <span className="text-sm font-medium">{item.equipment_name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              {item.discounted_cost !== undefined && item.discounted_cost < item.cost ? (
+                              {item.discounted_cost !== undefined && item.discounted_cost < (item.base_cost ?? item.cost) ? (
                                 <div className="flex items-center gap-1">
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-400 text-white line-through">
-                                    <span className="text-[10px] font-medium">{item.cost}</span>
-                                  </div>
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500 text-white">
                                     <span className="text-[10px] font-medium">{item.discounted_cost ?? item.cost}</span>
                                   </div>
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
+                                    <span className="text-[10px] font-medium">{item.base_cost}</span>
+                                  </div>
+                                  
                                 </div>
                               ) : (
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-900 text-white">
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
                                   <span className="text-[10px] font-medium">{item.cost}</span>
                                 </div>
                               )}
