@@ -18,6 +18,12 @@ import { StashItem } from '@/types/gang';
 import GangVehicles from "@/components/gang-vehicles";
 import { VehicleProps } from '@/types/vehicle';
 
+// Tab icons
+import { FaBox, FaUsers } from "react-icons/fa6";
+import { FaTruckMoving } from 'react-icons/fa';
+import { FiMap } from "react-icons/fi";
+import { LuNotepadText  } from "react-icons/lu";
+
 // Add this interface at the top of the file
 interface FighterTypeResponse {
   id: string;
@@ -279,7 +285,15 @@ export default function GangPage({ params }: { params: { id: string } }) {
 
   return (
     <div>
-      <Tabs tabTitles={['Details', 'Stash', 'Vehicles', 'Campaign', 'Notes']}>
+      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
+         tabIcons={[
+           <FaUsers key="users" />,
+           <FaBox key="box" />,
+           <FaTruckMoving key="car" />,
+           <FiMap key="map" />,
+           <LuNotepadText key="note" />
+         ]}
+        >
         <GangPageContent 
           processedData={gangData.processedData} 
           gangData={gangData} 
