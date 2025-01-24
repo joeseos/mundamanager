@@ -10,7 +10,7 @@ interface AdminCreateEquipmentModalProps {
   onSubmit?: () => void;
 }
 
-const EQUIPMENT_TYPES = ['wargear', 'weapon'] as const;
+const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
 interface WeaponProfile {
@@ -26,6 +26,16 @@ interface WeaponProfile {
   traits: string;
   is_default_profile: boolean;
   weapon_group_id?: string | null;
+}
+
+interface VehicleProfile {
+  profile_name: string;
+  movement: string;
+  front: string;
+  side: string;
+  rear: string;
+  hull_points: string;
+  save: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -54,6 +64,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   }]);
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
   const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
+  const [vehicleProfiles, setVehicleProfiles] = useState<VehicleProfile[]>([{
+    profile_name: '',
+    movement: '',
+    front: '',
+    side: '',
+    rear: '',
+    hull_points: '',
+    save: ''
+  }]);
   
   const { toast } = useToast();
 
@@ -129,6 +148,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
+  const handleVehicleProfileChange = (index: number, field: keyof VehicleProfile, value: string) => {
+    const newProfiles = [...vehicleProfiles];
+    newProfiles[index] = {
+      ...newProfiles[index],
+      [field]: value
+    };
+    setVehicleProfiles(newProfiles);
+  };
+
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
       toast({
@@ -154,6 +182,16 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         traits: profile.traits || null
       })) : undefined;
 
+      const cleanedVehicleProfiles = equipmentType === 'vehicle_upgrade' ? vehicleProfiles.map(profile => ({
+        ...profile,
+        movement: profile.movement || null,
+        front: profile.front || null,
+        side: profile.side || null,
+        rear: profile.rear || null,
+        hull_points: profile.hull_points || null,
+        save: profile.save || null
+      })) : undefined;
+
       const response = await fetch('/api/admin/equipment', {
         method: 'POST',
         headers: {
@@ -169,7 +207,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
-          weapon_profiles: cleanedWeaponProfiles
+          weapon_profiles: cleanedWeaponProfiles,
+          vehicle_profiles: cleanedVehicleProfiles
         }),
       });
 
@@ -321,34 +360,45 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </label>
               <select
                 value={equipmentType}
-                onChange={(e) => setEquipmentType(e.target.value as EquipmentType)}
+                onChange={(e) => {
+                  const newType = e.target.value as EquipmentType;
+                  setEquipmentType(newType);
+                  if (newType === 'vehicle_upgrade') {
+                    setCoreEquipment(false);
+                  }
+                }}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select equipment type</option>
                 {EQUIPMENT_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {type === 'vehicle_upgrade' 
+                      ? 'Vehicle Upgrade'
+                      : type.charAt(0).toUpperCase() + type.slice(1)
+                    }
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="col-span-3">
-              <label className="flex items-start space-x-2">
-                <input
-                  type="checkbox"
-                  checked={coreEquipment}
-                  onChange={(e) => setCoreEquipment(e.target.checked)}
-                  className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <div>
-                  <span className="text-sm font-medium text-gray-700">Exclusive Equipment</span>
-                  <p className="text-sm text-gray-500 mt-1">
-                    When checked, this equipment will be restricted to specific fighters and will not appear in the trading post. For example, the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
-                  </p>
-                </div>
-              </label>
-            </div>
+            {equipmentType !== 'vehicle_upgrade' && (
+              <div className="col-span-3">
+                <label className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={coreEquipment}
+                    onChange={(e) => setCoreEquipment(e.target.checked)}
+                    className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Exclusive Equipment</span>
+                    <p className="text-sm text-gray-500 mt-1">
+                      When checked, this equipment will be restricted to specific fighters and will not appear in the trading post. For example, the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
 
             {equipmentType === 'weapon' && (
               <div className="col-span-3 space-y-4">
@@ -519,6 +569,97 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {equipmentType === 'vehicle_upgrade' && (
+              <div className="col-span-3 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-lg font-semibold">Vehicle Profile</h4>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="border p-4 rounded-lg space-y-4 bg-white">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Profile Name
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].profile_name}
+                          onChange={(e) => handleVehicleProfileChange(0, 'profile_name', e.target.value)}
+                          placeholder="e.g. Standard"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Movement
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].movement}
+                          onChange={(e) => handleVehicleProfileChange(0, 'movement', e.target.value)}
+                          placeholder="Enter movement value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Front Armor
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].front}
+                          onChange={(e) => handleVehicleProfileChange(0, 'front', e.target.value)}
+                          placeholder="Enter front armor value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Side Armor
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].side}
+                          onChange={(e) => handleVehicleProfileChange(0, 'side', e.target.value)}
+                          placeholder="Enter side armor value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Rear Armor
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].rear}
+                          onChange={(e) => handleVehicleProfileChange(0, 'rear', e.target.value)}
+                          placeholder="Enter rear armor value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Hull Points
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].hull_points}
+                          onChange={(e) => handleVehicleProfileChange(0, 'hull_points', e.target.value)}
+                          placeholder="Enter hull points value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Save
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].save}
+                          onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
+                          placeholder="Enter save value"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

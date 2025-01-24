@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const data = await request.json();
     const {
       equipment_name,
       trading_post_category,
@@ -107,8 +107,9 @@ export async function POST(request: Request) {
       equipment_category_id,
       equipment_type,
       core_equipment,
-      weapon_profiles
-    } = body;
+      weapon_profiles,
+      vehicle_profiles
+    } = data;
 
     // First get the category name from the ID
     const { data: categoryData, error: categoryError } = await supabase
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
     if (categoryError) throw categoryError;
 
     // Create the equipment
-    const { data, error } = await supabase
+    const { data: equipment, error: equipmentError } = await supabase
       .from('equipment')
       .insert({
         equipment_name,
@@ -137,11 +138,11 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (equipmentError) throw equipmentError;
 
     // If this is a weapon and has profiles, insert them
     if (equipment_type.toLowerCase() === 'weapon' && weapon_profiles && weapon_profiles.length > 0) {
-      const weaponId = data.id;
+      const weaponId = equipment.id;
       const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfile) => ({
         ...profile,
         weapon_id: weaponId,
@@ -166,7 +167,25 @@ export async function POST(request: Request) {
       if (profileError) throw profileError;
     }
 
-    return NextResponse.json(data);
+    // Handle vehicle profile if this is a vehicle upgrade
+    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
+      const { error: vehicleProfileError } = await supabase
+        .from('vehicle_equipment_profiles')
+        .insert({
+          equipment_id: equipment.id,
+          profile_name: vehicle_profiles[0].profile_name,
+          movement: vehicle_profiles[0].movement || null,
+          front: vehicle_profiles[0].front || null,
+          side: vehicle_profiles[0].side || null,
+          rear: vehicle_profiles[0].rear || null,
+          hull_points: vehicle_profiles[0].hull_points || null,
+          save: vehicle_profiles[0].save || null
+        });
+
+      if (vehicleProfileError) throw vehicleProfileError;
+    }
+
+    return NextResponse.json(equipment);
   } catch (error) {
     console.error('Error in POST equipment:', error);
     return NextResponse.json(
