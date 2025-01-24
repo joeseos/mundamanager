@@ -15,6 +15,17 @@ interface WeaponProfile {
   traits: string;
   is_default_profile: boolean;
   weapon_group_id?: string | null;
+  sort_order: number;
+}
+
+interface VehicleProfile {
+  profile_name: string;
+  movement: string | null;
+  front: string | null;
+  side: string | null;
+  rear: string | null;
+  hull_points: string | null;
+  save: string | null;
 }
 
 export async function GET(request: Request) {
@@ -229,7 +240,7 @@ export async function PUT(request: Request) {
         const { error: profilesError } = await supabase
           .from('weapon_profiles')
           .insert(
-            weapon_profiles.map(profile => ({
+            weapon_profiles.map((profile: WeaponProfile) => ({
               equipment_id: id,
               profile_name: profile.profile_name,
               range_short: profile.range_short,
@@ -266,10 +277,9 @@ export async function PUT(request: Request) {
         const { error: profilesError } = await supabase
           .from('vehicle_equipment_profiles')
           .insert(
-            vehicle_profiles.map(profile => ({
+            vehicle_profiles.map((profile: VehicleProfile) => ({
               equipment_id: id,
               profile_name: profile.profile_name,
-              // Convert empty strings to null or 0 for numeric fields
               movement: profile.movement || null,
               front: profile.front || null,
               side: profile.side || null,
