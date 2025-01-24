@@ -152,4 +152,59 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { vehicleId, fighterId } = await request.json();
+    const supabase = createClient();
+    
+    // Get the current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Verify user has access to this gang
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.id)
+      .single();
+
+    if (gangError || !gangData || gangData.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Gang not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    // Update the vehicle with the fighter_id
+    const { error: updateError } = await supabase
+      .from('vehicles')
+      .update({ fighter_id: fighterId })
+      .eq('id', vehicleId);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: 'Failed to update vehicle' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating vehicle:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 } 

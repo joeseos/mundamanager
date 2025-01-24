@@ -15,6 +15,8 @@ import GangTerritories from "@/components/gang-territories";
 import { Equipment } from "@/types/fighter";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { StashItem } from '@/types/gang';
+import GangVehicles from "@/components/gang-vehicles";
+import { VehicleProps } from '@/types/vehicle';
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -148,7 +150,8 @@ const processedFighterTypes = (
     ...gangData,
     alignment: gangData.alignment,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes // Use processed fighter types
+    fighterTypes: processedFighterTypes, // Use processed fighter types
+    vehicles: gangData.vehicles || [],
   };
 }
 
@@ -170,10 +173,13 @@ interface GangDataState {
     fighters: FighterProps[];
     fighterTypes: FighterType[];
     stash: StashItem[];
+    vehicles: VehicleProps[];
     note?: string;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
+  onVehicleUpdate: (newVehicles: VehicleProps[]) => void;
+  onFighterUpdate: (updatedFighter: FighterProps) => void;
 }
 
 export default function GangPage({ params }: { params: { id: string } }) {
@@ -225,6 +231,32 @@ export default function GangPage({ params }: { params: { id: string } }) {
                   stash: newStash
                 };
               });
+            },
+            onVehicleUpdate: (newVehicles: VehicleProps[]) => {
+              setGangData((prev: GangDataState | null) => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    vehicles: newVehicles
+                  }
+                };
+              });
+            },
+            onFighterUpdate: (updatedFighter: FighterProps) => {
+              setGangData((prev: GangDataState | null) => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(fighter =>
+                      fighter.id === updatedFighter.id ? updatedFighter : fighter
+                    )
+                  }
+                };
+              });
             }
           });
         }
@@ -247,7 +279,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
 
   return (
     <div>
-      <Tabs tabTitles={['Details', 'Stash', 'Campaign', 'Notes']}>
+      <Tabs tabTitles={['Details', 'Stash', 'Vehicles', 'Campaign', 'Notes']}>
         <GangPageContent 
           processedData={gangData.processedData} 
           gangData={gangData} 
@@ -257,6 +289,13 @@ export default function GangPage({ params }: { params: { id: string } }) {
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={gangData.onStashUpdate}
+        />
+        <GangVehicles 
+          vehicles={gangData.processedData.vehicles || []} 
+          fighters={gangData.processedData.fighters}
+          gangId={gangData.processedData.id}
+          onVehicleUpdate={gangData.onVehicleUpdate}
+          onFighterUpdate={gangData.onFighterUpdate}
         />
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-2xl font-bold mb-4">Territories</h2>
