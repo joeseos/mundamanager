@@ -17,4 +17,6 @@ export interface VehicleProps {
   engine_slots_occupied: number;
   special_rules: string[];
   cost: number;
+  created_at: string;
+  fighter_id?: string;
 } 

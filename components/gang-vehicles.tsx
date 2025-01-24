@@ -63,9 +63,14 @@ export default function GangVehicles({
       // Update the fighter with the new vehicle
       const selectedFighterData = fighters.find(f => f.id === selectedFighter);
       if (selectedFighterData && onFighterUpdate) {
+        const updatedVehicle = {
+          ...vehicle,
+          fighter_id: selectedFighter
+        };
+        
         const updatedFighter = {
           ...selectedFighterData,
-          vehicles: [...(selectedFighterData.vehicles || []), vehicle]
+          vehicles: [...(selectedFighterData.vehicles || []), updatedVehicle]
         };
         onFighterUpdate(updatedFighter);
       }
