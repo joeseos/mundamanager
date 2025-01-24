@@ -28,6 +28,11 @@ interface VehicleProfile {
   save: string | null;
 }
 
+interface FighterTypeEquipment {
+  fighter_type_id: string;
+  equipment_id: string;
+}
+
 export async function GET(request: Request) {
   const supabase = createClient();
   const { searchParams } = new URL(request.url);
@@ -306,7 +311,7 @@ export async function PUT(request: Request) {
         const { error: insertError } = await supabase
           .from('fighter_type_equipment')
           .insert(
-            fighter_types.map(fighter_type_id => ({
+            fighter_types.map((fighter_type_id: string) => ({
               fighter_type_id,
               equipment_id: id
             }))
