@@ -22,7 +22,7 @@ import { VehicleProps } from '@/types/vehicle';
 import { FaBox, FaUsers } from "react-icons/fa6";
 import { FaTruckMoving } from 'react-icons/fa';
 import { FiMap } from "react-icons/fi";
-import { LuNotepadText  } from "react-icons/lu";
+import { LuClipboard } from "react-icons/lu";
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -291,7 +291,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
            <FaBox key="box" />,
            <FaTruckMoving key="car" />,
            <FiMap key="map" />,
-           <LuNotepadText key="note" />
+           <LuClipboard key="note" />
          ]}
         >
         <GangPageContent 
