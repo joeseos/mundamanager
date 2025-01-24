@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { sql } from 'drizzle-orm';
 
 interface WeaponProfile {
   profile_name: string;
