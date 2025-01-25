@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 
+// Add Edge Function configurations
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 // Define TypeScript types for better type checking
 type Weapon = {
   weapon_id: string;
