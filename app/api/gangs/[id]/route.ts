@@ -19,46 +19,38 @@ export async function GET(
   const supabase = createClient();
 
   try {
-    // Get gang details including campaign info
-    const response = await fetch(
-      'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-        },
-        body: JSON.stringify({
-          "p_gang_id": params.id
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch gang details');
-    }
-
-    const [gangData] = await response.json();
-
-    // If gang has a campaign, get their territories
-    let territories: Territory[] = [];
-    if (gangData.campaigns?.[0]?.campaign_id) {
-      const { data: territoryData, error: territoryError } = await supabase
+    // Get both gang and territory data in parallel
+    const [gangResponse, campaignResponse] = await Promise.all([
+      supabase
+        .from('gangs')
+        .select(`
+          *,
+          campaigns:campaign_gangs(campaign_id)
+        `)
+        .eq('id', params.id)
+        .single(),
+      
+      supabase
         .from('campaign_territories')
         .select('id, territory_name')
-        .eq('campaign_id', gangData.campaigns[0].campaign_id)
-        .contains('owner', { [params.id]: {} });
+        .contains('owner', { [params.id]: {} })
+    ]);
 
-      if (territoryError) throw territoryError;
-      territories = territoryData || [];
-    }
+    const { data: gangData, error: gangError } = gangResponse;
+    const { data: territories = [], error: territoryError } = campaignResponse;
 
-    return NextResponse.json({ territories });
+    if (gangError) throw gangError;
+    if (territoryError) throw territoryError;
+
+    return NextResponse.json({ 
+      territories,
+      gang: gangData 
+    });
 
   } catch (error) {
-    console.error('Error fetching gang territories:', error);
+    console.error('Error fetching gang data:', error);
     return NextResponse.json(
-      { error: "Failed to fetch gang territories" },
+      { error: "Failed to fetch gang data" },
       { status: 500 }
     );
   }
