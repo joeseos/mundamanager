@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from 'next/headers';
 
+// Add Edge Function configurations
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
