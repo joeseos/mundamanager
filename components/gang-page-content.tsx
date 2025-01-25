@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Gang from "@/components/gang";
 import { FighterProps } from '@/types/fighter';
 import { FighterType } from '@/types/fighter-type';
@@ -39,16 +39,25 @@ interface GangPageContentProps {
 
 export default function GangPageContent({ processedData, gangData }: GangPageContentProps) {
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
+  const [rating, setRating] = useState(processedData.rating);
+
+  const handleFighterDeleted = useCallback((fighterId: string, fighterCost: number) => {
+    // Optimistically update fighters list and rating
+    setFighters(prev => prev.filter(f => f.id !== fighterId));
+    setRating(prev => prev - fighterCost);
+  }, []);
 
   return (
     <div className="container max-w-5xl w-full space-y-4 print:print-fighters">
       <Gang
         {...processedData}
+        rating={rating}
         initialFighters={fighters}
         fighterTypes={processedData.fighterTypes}
         campaigns={processedData.campaigns}
         stash={processedData.stash || []}
         onStashUpdate={gangData.onStashUpdate}
+        onFighterDeleted={handleFighterDeleted}
       />
     </div>
   );

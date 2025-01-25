@@ -45,6 +45,7 @@ interface GangProps {
   }[];
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
+  onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
 }
 
 interface FighterType {
@@ -75,6 +76,7 @@ export default function Gang({
   campaigns,
   stash,
   onStashUpdate,
+  onFighterDeleted,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -294,20 +296,38 @@ export default function Gang({
   };
 
   const handleDeleteFighter = async (fighterId: string) => {
+    const fighter = fighters.find(f => f.id === fighterId);
+    if (!fighter) return;
+
     try {
+      // Optimistically update UI
+      const fighterCost = fighter.credits;
+      setFighters(prev => prev.filter(f => f.id !== fighterId));
+      setRating(prev => prev - fighterCost);
+      onFighterDeleted?.(fighterId, fighterCost);
+
       const response = await fetch(`/api/fighters/${fighterId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
+        // Revert optimistic update if the request fails
+        setFighters(prev => [...prev, fighter]);
+        setRating(prev => prev + fighterCost);
         throw new Error('Failed to delete fighter');
       }
 
-      const data = await response.json();
-      setFighters(fighters.filter(fighter => fighter.id !== fighterId));
-      setRating(data.gang.rating);
+      toast({
+        description: "Fighter deleted successfully",
+        variant: "default"
+      });
     } catch (error) {
       console.error('Error deleting fighter:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete fighter. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
