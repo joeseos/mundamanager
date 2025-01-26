@@ -18,5 +18,5 @@ export interface VehicleProps {
   special_rules: string[];
   cost: number;
   created_at: string;
-  fighter_id?: string;
+  fighter_id?: string | null;
 } 

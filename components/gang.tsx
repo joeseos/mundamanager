@@ -539,7 +539,7 @@ export default function Gang({
           cost: cost,
           vehicle_type: selectedVehicleType.vehicle_type,
           gang_id: id,
-          fighter_id: null,
+          fighter_id: undefined,
         };
         onVehicleAdd(newVehicle);
       }
