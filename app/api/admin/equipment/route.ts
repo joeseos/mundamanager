@@ -255,7 +255,7 @@ export async function PUT(request: Request) {
       const { error: deleteError } = await supabase
         .from('weapon_profiles')
         .delete()
-        .eq('equipment_id', id);
+        .eq('weapon_id', id);
 
       if (deleteError) throw deleteError;
 
@@ -265,7 +265,7 @@ export async function PUT(request: Request) {
           .from('weapon_profiles')
           .insert(
             weapon_profiles.map((profile: WeaponProfile) => ({
-              equipment_id: id,
+              weapon_id: id,
               profile_name: profile.profile_name,
               range_short: profile.range_short,
               range_long: profile.range_long,
