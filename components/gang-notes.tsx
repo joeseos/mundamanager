@@ -14,16 +14,17 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [wordCount, setWordCount] = useState(0);
+  const [charCount, setCharCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
+  // Update character count when note changes
   useEffect(() => {
     const noteText = note || '';
-    const count = noteText.split(/\s+/).length;
-    setWordCount(count);
+    setCharCount(noteText.length); // Use .length for character count
   }, [note]);
 
+  // When initialNote changes, update the note state
   useEffect(() => {
     setNote(initialNote || '');
   }, [initialNote]);
@@ -32,9 +33,10 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
     try {
       setError(null);
       setIsSaving(true);
-      
-      if (wordCount > 250) {
-        setError('Note cannot exceed 250 words');
+
+      // Client-side validation
+      if (charCount > 1500) {
+        setError('Notes cannot exceed 1500 characters');
         return;
       }
 
@@ -53,17 +55,17 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
       }
 
       toast({
-        description: "Gang history updated successfully",
+        description: "Gang Notes updated successfully",
         variant: "default"
       });
 
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating gang history:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update gang history');
+      console.error('Error updating gang notes:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update gang notes');
       toast({
         title: "Error",
-        description: "Failed to update gang history",
+        description: "Failed to update gang notes",
         variant: "destructive"
       });
     } finally {
@@ -79,8 +81,8 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
             <h2 className="text-2xl font-bold mb-6">Gang Notes</h2>
             <div className="flex items-center gap-2">
               {isEditing && (
-                <span className={`text-sm ${wordCount > 250 ? 'text-red-500' : 'text-gray-500'}`}>
-                  {wordCount}/250 words
+                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>
+                  {charCount}/1500 characters
                 </span>
               )}
               <div className="flex gap-2">
@@ -97,9 +99,9 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
                     >
                       Cancel
                     </Button>
-                    <Button 
+                    <Button
                       onClick={handleSave}
-                      disabled={wordCount > 250 || isSaving}
+                      disabled={charCount > 1500 || isSaving}
                     >
                       {isSaving ? "Saving..." : "Save"}
                     </Button>
@@ -122,11 +124,11 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="min-h-[200px]"
-              placeholder="Write your gang's history here..."
+              placeholder="Add notes here..."
             />
           ) : (
-            <div className="whitespace-pre-wrap">
-              {note || 'No history recorded yet.'}
+            <div className="whitespace-pre-wrap break-words">
+              {note || 'No notes added.'}
             </div>
           )}
         </div>

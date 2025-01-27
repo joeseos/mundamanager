@@ -35,7 +35,7 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
 
       // Client-side validation
       if (charCount > 1000) {
-        setError('Note cannot exceed 1000 characters');
+        setError('Notes cannot exceed 1000 characters');
         return;
       }
 
