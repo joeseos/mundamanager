@@ -5,6 +5,7 @@ import Gang from "@/components/gang";
 import { FighterProps } from '@/types/fighter';
 import { FighterType } from '@/types/fighter-type';
 import { StashItem } from '@/types/gang';
+import { VehicleProps } from '@/types/vehicle';
 
 interface GangPageContentProps {
   processedData: {
@@ -34,6 +35,7 @@ interface GangPageContentProps {
   gangData: {
     stash: StashItem[];
     onStashUpdate?: (newStash: StashItem[]) => void;
+    onVehicleAdd?: (newVehicle: VehicleProps) => void;
   };
 }
 
@@ -58,6 +60,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
         stash={processedData.stash || []}
         onStashUpdate={gangData.onStashUpdate}
         onFighterDeleted={handleFighterDeleted}
+        onVehicleAdd={gangData.onVehicleAdd}
       />
     </div>
   );

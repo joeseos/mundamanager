@@ -13,11 +13,23 @@ import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StashItem } from '@/types/gang';
+import { VehicleProps } from '@/types/vehicle';
 
 interface VehicleType {
   id: string;
   vehicle_type: string;
   cost: number;
+  movement: number;
+  front: number;
+  side: number;
+  rear: number;
+  hull_points: number;
+  handling: number;
+  save: number;
+  body_slots: number;
+  drive_slots: number;
+  engine_slots: number;
+  special_rules: string[];
 }
 
 interface GangProps {
@@ -46,6 +58,7 @@ interface GangProps {
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
+  onVehicleAdd?: (newVehicle: VehicleProps) => void;
 }
 
 interface FighterType {
@@ -77,6 +90,7 @@ export default function Gang({
   stash,
   onStashUpdate,
   onFighterDeleted,
+  onVehicleAdd,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -528,16 +542,32 @@ export default function Gang({
         throw new Error(data.error || 'Failed to add vehicle');
       }
 
-      // Update the stash through the parent component
-      if (onStashUpdate) {
-        const newStashItem: StashItem = {
-          id: data.stash_id,
+      // After successful API response, call onVehicleAdd with the new vehicle
+      if (onVehicleAdd) {
+        const newVehicle: VehicleProps = {
+          id: data.id,
+          vehicle_name: name,
           cost: cost,
-          type: 'vehicle',
-          vehicle_id: data.id,
-          vehicle_name: data.vehicle_name
+          vehicle_type: selectedVehicleType.vehicle_type,
+          gang_id: id,
+          fighter_id: null,
+          movement: selectedVehicleType.movement,
+          front: selectedVehicleType.front,
+          side: selectedVehicleType.side,
+          rear: selectedVehicleType.rear,
+          hull_points: selectedVehicleType.hull_points,
+          handling: selectedVehicleType.handling,
+          save: selectedVehicleType.save,
+          body_slots: selectedVehicleType.body_slots,
+          body_slots_occupied: 0,
+          drive_slots: selectedVehicleType.drive_slots,
+          drive_slots_occupied: 0,
+          engine_slots: selectedVehicleType.engine_slots,
+          engine_slots_occupied: 0,
+          special_rules: selectedVehicleType.special_rules || [],
+          created_at: new Date().toISOString(),
         };
-        onStashUpdate([...stash, newStashItem]);
+        onVehicleAdd(newVehicle);
       }
 
       toast({

@@ -281,6 +281,20 @@ export default function GangPage({ params }: { params: { id: string } }) {
     };
   }, [params.id]);
 
+  // Add a handler for adding new vehicles
+  const handleVehicleAdd = (newVehicle: VehicleProps) => {
+    setGangData((prev: GangDataState | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          vehicles: [...prev.processedData.vehicles, newVehicle]
+        }
+      };
+    });
+  };
+
   if (!gangData) return null;
 
   return (
@@ -296,7 +310,10 @@ export default function GangPage({ params }: { params: { id: string } }) {
         >
         <GangPageContent 
           processedData={gangData.processedData} 
-          gangData={gangData} 
+          gangData={{
+            ...gangData,
+            onVehicleAdd: handleVehicleAdd // Pass the handler down
+          }} 
         />
         <GangInventory
           stash={gangData.stash} 
