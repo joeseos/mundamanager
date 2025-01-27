@@ -1,41 +1,29 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
+import { checkAdmin } from "@/utils/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createClient();
 
   try {
-    // First check if user is admin
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.user_role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // If user is admin, fetch gang types
-    const { data: gangTypes, error } = await supabase
+    const { data, error } = await supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type, alignment')
+      .select('gang_type_id, gang_type')
       .order('gang_type');
 
     if (error) throw error;
-
-    return NextResponse.json(gangTypes)
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching gang types:', error)
-    return NextResponse.json({ error: 'Error fetching gang types' }, { status: 500 })
+    console.error('Error fetching gang types:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch gang types' },
+      { status: 500 }
+    );
   }
 }
 

@@ -33,6 +33,11 @@ interface FighterTypeEquipment {
   equipment_id: string;
 }
 
+interface GangDiscount {
+  gang_type_id: string;
+  discount: number;
+}
+
 export async function GET(request: Request) {
   const supabase = createClient();
   const { searchParams } = new URL(request.url);
@@ -47,15 +52,61 @@ export async function GET(request: Request) {
 
   try {
     if (id) {
-      // Handle single equipment fetch
-      const { data, error } = await supabase
+      // Fetch equipment details
+      const { data: equipment, error } = await supabase
         .from('equipment')
         .select('*')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return NextResponse.json(data);
+
+      // First fetch the discounts
+      const { data: discounts, error: discountsError } = await supabase
+        .from('equipment_discounts')
+        .select('discount, gang_type_id')
+        .eq('equipment_id', id)
+        .is('fighter_type_id', null);
+
+      if (discountsError) throw discountsError;
+      console.log('Fetched discounts:', discounts); // Debug log
+
+      // Then fetch all gang types
+      const { data: gangTypes, error: gangTypesError } = await supabase
+        .from('gang_types')
+        .select('gang_type_id, gang_type');
+
+      if (gangTypesError) throw gangTypesError;
+      console.log('Fetched gang types:', gangTypes); // Debug log
+
+      // Create a map of gang type IDs to names
+      const gangTypeMap = new Map(
+        gangTypes.map((gt: { gang_type_id: string; gang_type: string }) => 
+          [gt.gang_type_id, gt.gang_type]
+        )
+      );
+      console.log('Gang type map:', Object.fromEntries(gangTypeMap)); // Debug log
+
+      // Format the discounts with null check
+      interface DiscountData {
+        discount: string;
+        gang_type_id: string | null;  // Allow null
+      }
+
+      const formattedDiscounts = (discounts as DiscountData[] || [])
+        .filter(d => d.gang_type_id !== null)  // Filter out null gang_type_ids
+        .map(d => ({
+          gang_type: gangTypeMap.get(d.gang_type_id!) || '',  // Use non-null assertion since we filtered
+          gang_type_id: d.gang_type_id!,
+          discount: parseInt(d.discount)
+        }));
+
+      console.log('Formatted discounts:', formattedDiscounts); // Debug log
+
+      return NextResponse.json({
+        ...equipment,
+        gang_discounts: formattedDiscounts
+      });
 
     } else if (equipment_category) {
       // Return equipment filtered by category
@@ -227,7 +278,8 @@ export async function PUT(request: Request) {
       core_equipment,
       weapon_profiles,
       vehicle_profiles,
-      fighter_types
+      fighter_types,
+      gang_discounts
     } = data;
 
     // Update equipment
@@ -337,6 +389,55 @@ export async function PUT(request: Request) {
           );
 
         if (insertError) throw insertError;
+      }
+    }
+
+    // Handle gang discounts
+    if (gang_discounts) {
+      // First, delete existing discounts for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_discounts')
+        .delete()
+        .eq('equipment_id', id)
+        .is('fighter_type_id', null); // Only delete gang-level discounts
+
+      if (deleteError) throw deleteError;
+
+      // If there are new discounts to add
+      if (gang_discounts.length > 0) {
+        // First get the gang type IDs
+        const { data: gangTypes, error: gangTypesError } = await supabase
+          .from('gang_types')
+          .select('gang_type_id, gang_type');
+
+        if (gangTypesError) throw gangTypesError;
+
+        // In the PUT function, add proper typing for the gang type mapping
+        interface GangTypeData {
+          gang_type_id: string;
+          gang_type: string;
+        }
+
+        // Create a map of gang type names to IDs with proper typing
+        const gangTypeMap = new Map(
+          (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
+        );
+
+        // Add type for the discount in the map function
+        const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+          equipment_id: id,
+          gang_type_id: discount.gang_type_id,
+          discount: discount.discount.toString(),
+          fighter_type_id: null
+        }));
+
+        if (discountRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_discounts')
+            .insert(discountRecords);
+
+          if (insertError) throw insertError;
+        }
       }
     }
 
