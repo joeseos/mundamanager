@@ -19,4 +19,5 @@ export interface VehicleProps {
   cost: number;
   created_at: string;
   fighter_id?: string | null;
+  vehicle_type: string;
 } 

@@ -19,6 +19,17 @@ interface VehicleType {
   id: string;
   vehicle_type: string;
   cost: number;
+  movement: number;
+  front: number;
+  side: number;
+  rear: number;
+  hull_points: number;
+  handling: number;
+  save: number;
+  body_slots: number;
+  drive_slots: number;
+  engine_slots: number;
+  special_rules: string[];
 }
 
 interface GangProps {
@@ -539,7 +550,22 @@ export default function Gang({
           cost: cost,
           vehicle_type: selectedVehicleType.vehicle_type,
           gang_id: id,
-          fighter_id: undefined,
+          fighter_id: null,
+          movement: selectedVehicleType.movement,
+          front: selectedVehicleType.front,
+          side: selectedVehicleType.side,
+          rear: selectedVehicleType.rear,
+          hull_points: selectedVehicleType.hull_points,
+          handling: selectedVehicleType.handling,
+          save: selectedVehicleType.save,
+          body_slots: selectedVehicleType.body_slots,
+          body_slots_occupied: 0,
+          drive_slots: selectedVehicleType.drive_slots,
+          drive_slots_occupied: 0,
+          engine_slots: selectedVehicleType.engine_slots,
+          engine_slots_occupied: 0,
+          special_rules: selectedVehicleType.special_rules || [],
+          created_at: new Date().toISOString(),
         };
         onVehicleAdd(newVehicle);
       }
