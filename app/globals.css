@@ -85,6 +85,7 @@
     }
     .table-weapons th, .table-weapons td {
       padding: 1px !important;
+      padding-left: 2px !important;
     }
     .table-weapons-truncate {
       max-width: 10rem; /* Smaller width for smaller screens */

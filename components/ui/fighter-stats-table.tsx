@@ -35,8 +35,11 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
     if (isCrew) {
       if (key === 'Front') return 'border-l-[1px] border-[#a05236]';
       if (key === 'Rear') return 'border-r-[1px] border-[#a05236]';
-    }
-    if (key === 'Ld') return 'border-l-[1px] border-[#a05236]';
+      if (key === 'BS') return 'border-l-[1px] border-[#a05236]';
+    } else {
+      if (key === 'Ld') return 'border-l-[1px] border-[#a05236]';
+      }
+
     if (key === 'XP') return 'border-l-[1px] border-[#a05236]';
     return '';
   };
@@ -69,6 +72,9 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
                 key={key}
                 className={`font-semibold text-center p-1 border-b-[1px] border-[#a05236]
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
+                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
               >
@@ -92,6 +98,9 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
                 key={key}
                 className={`text-center p-1
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
+                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
               >
