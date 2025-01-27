@@ -42,6 +42,12 @@ interface VehicleProfile {
   save: string;
 }
 
+interface GangDiscount {
+  gang_type: string;
+  gang_type_id: string;
+  discount: number;
+}
+
 interface Equipment {
   id: string;
   equipment_name: string;
@@ -56,6 +62,7 @@ interface Equipment {
   weapon_profiles?: WeaponProfile[];
   vehicle_profiles?: VehicleProfile[];
   fighter_types?: string[];
+  gang_discounts?: GangDiscount[];
 }
 
 export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmentModalProps) {
@@ -99,6 +106,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
   const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
+  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
+  const [selectedGangType, setSelectedGangType] = useState("");
+  const [discountValue, setDiscountValue] = useState("");
+  const [gangDiscounts, setGangDiscounts] = useState<GangDiscount[]>([]);
+  const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
 
   const { toast } = useToast();
 
@@ -153,14 +165,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   useEffect(() => {
     const fetchEquipmentDetails = async () => {
       if (!selectedEquipmentId) {
-        // Reset form when no equipment is selected
         setEquipmentName('');
         setTradingPostCategory('');
         setAvailability('');
         setCost('');
         setFaction('');
         setVariants('');
-        setEquipmentCategory('');
         setEquipmentType('');
         setCoreEquipment(false);
         setWeaponProfiles([{
@@ -177,15 +187,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           is_default_profile: true,
           sort_order: 1
         }]);
-        setVehicleProfiles([{
-          profile_name: '',
-          movement: '',
-          front: '',
-          side: '',
-          rear: '',
-          hull_points: '',
-          save: ''
-        }]);
+        setGangDiscounts([]); // Reset gang discounts
         return;
       }
 
@@ -200,15 +202,24 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentName(data.equipment_name);
         setTradingPostCategory(data.trading_post_category || '');
         setAvailability(data.availability || '');
-        setCost(data.cost.toString());
+        setCost(data.cost?.toString() || '');
         setFaction(data.faction || '');
         setVariants(data.variants || '');
         setEquipmentCategory(data.equipment_category_id);
-        setEquipmentType(data.equipment_type.toLowerCase() as EquipmentType);
-        setCoreEquipment(data.core_equipment);
+        setEquipmentType(data.equipment_type);
+        setCoreEquipment(data.core_equipment || false);
+
+        // Set gang discounts if they exist
+        if (data.gang_discounts) {
+          setGangDiscounts(data.gang_discounts.map((d: any) => ({
+            gang_type: d.gang_type,
+            gang_type_id: d.gang_type_id,
+            discount: d.discount
+          })));
+        }
 
         // Load weapon profiles if they exist
-        if (data.equipment_type.toLowerCase() === 'weapon') {
+        if (data.equipment_type === 'weapon') {
           console.log('Fetching weapon profiles for ID:', selectedEquipmentId);
           
           const weaponResponse = await fetch(`/api/admin/equipment/weapon-profiles?id=${selectedEquipmentId}`);
@@ -239,7 +250,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           }
         }
 
-        if (data.equipment_type.toLowerCase() === 'vehicle_upgrade') {
+        if (data.equipment_type === 'vehicle_upgrade') {
           console.log('Fetching vehicle profiles for ID:', selectedEquipmentId);
           
           const vehicleResponse = await fetch(`/api/admin/equipment/vehicle-profiles?id=${selectedEquipmentId}`);
@@ -353,6 +364,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     fetchWeapons();
   }, [toast]);
 
+  // Add this useEffect to fetch gang types
+  useEffect(() => {
+    const fetchGangTypes = async () => {
+      if (showDiscountDialog) {
+        try {
+          const response = await fetch('/api/admin/gang-types');
+          if (!response.ok) throw new Error('Failed to fetch gang types');
+          const data = await response.json();
+          setGangTypeOptions(data);
+        } catch (error) {
+          console.error('Error fetching gang types:', error);
+          toast({
+            description: 'Failed to load gang types',
+            variant: "destructive"
+          });
+        }
+      }
+    };
+
+    fetchGangTypes();
+  }, [showDiscountDialog, toast]);
+
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
@@ -463,7 +496,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             hull_points: profile.hull_points || null,
             save: profile.save || null
           })) : undefined,
-          fighter_types: selectedFighterTypes
+          fighter_types: selectedFighterTypes,
+          gang_discounts: gangDiscounts.map(d => ({
+            gang_type_id: d.gang_type_id,
+            discount: d.discount
+          }))
         }),
       });
 
@@ -755,6 +792,135 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {equipmentType !== 'vehicle_upgrade' && (
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Gang Discounts
+                </label>
+                <Button
+                  onClick={() => setShowDiscountDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                >
+                  Add Gang Discount
+                </Button>
+
+                {gangDiscounts.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {gangDiscounts.map((discount, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{discount.gang_type} (-{discount.discount} credits)</span>
+                        <button
+                          onClick={() => setGangDiscounts(prev => 
+                            prev.filter((_, i) => i !== index)
+                          )}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showDiscountDialog && (
+                  <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    onClick={(e) => {
+                      // Only close if clicking the backdrop (not the dialog itself)
+                      if (e.target === e.currentTarget) {
+                        setShowDiscountDialog(false);
+                        setSelectedGangType("");
+                        setDiscountValue("");
+                      }
+                    }}
+                  >
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <h3 className="text-xl font-bold mb-4">Gang Discount Menu</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select your gang and enter a discount</p>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <select
+                            value={selectedGangType}
+                            onChange={(e) => {
+                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              if (selected) {
+                                setSelectedGangType(e.target.value);
+                              }
+                            }}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Select a gang type</option>
+                            {gangTypeOptions.map((gang) => (
+                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                {gang.gang_type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Discount (credits)</label>
+                          <Input
+                            type="number"
+                            value={discountValue}
+                            onChange={(e) => setDiscountValue(e.target.value)}
+                            placeholder="Enter discount in credits"
+                            min="0"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 justify-end mt-6">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowDiscountDialog(false);
+                              setSelectedGangType("");
+                              setDiscountValue("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (selectedGangType && discountValue) {
+                                const discount = parseInt(discountValue);
+                                if (discount >= 0) {
+                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                  if (selectedGang) {
+                                    setGangDiscounts(prev => [
+                                      ...prev,
+                                      {
+                                        gang_type: selectedGang.gang_type,
+                                        gang_type_id: selectedGang.gang_type_id,
+                                        discount
+                                      }
+                                    ]);
+                                    setShowDiscountDialog(false);
+                                    setSelectedGangType("");
+                                    setDiscountValue("");
+                                  }
+                                }
+                              }
+                            }}
+                            disabled={!selectedGangType || !discountValue}
+                          >
+                            Save Discount
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
