@@ -26,24 +26,16 @@ export default async function AboutPage() {
       a: "Munda Manager is a fan-created tool for managing gangs, fighters, and campaigns in Necromunda, a tabletop game published by Games Workshop. It's designed to help players keep track of their gang details and campaign progress."
     },
     {
-      q: "Is Munda Manager affiliated with Games Workshop?",
-      a: "No, Munda Manager is an independent, fan-made project. We are not affiliated with, endorsed by, or associated with Games Workshop Group PLC. All content on this website is created independently and does not use any images or intellectual property from Games Workshop."
-    },
-    {
-      q: "Does Munda Manager include rules for Necromunda?",
-      a: "No, Munda Manager does not include or reproduce any game rules. Our tool only allows users to track stats, equipment, resources, and campaign progress based on the information provided by players. To play Necromunda, you will need the official rulebooks published by Games Workshop."
-    },
-    {
       q: "Is there a cost to use Munda Manager?",
-      a: "Munda Manager is free to use! Our goal is to support the community and make it easier for players to manage their gangs and campaigns. However, if you would like to support the development, you can become a Patreon member here."
+      a: "Munda Manager is free to use! Our goal is to support the community and make it easier for players to manage their gangs and campaigns. However, if you would like to support the development, you can become a Patreon member."
     },
     {
       q: "How can I provide feedback or request features?",
-      a: <>We'd love to hear from you! For support, feedback, or feature requests, please contact us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a>.</>
+      a: <>We'd love to hear from you! For support, feedback, or feature requests, please contact us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a> or join our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a>.</>
     },
     {
       q: "Can I report a bug or technical issue?",
-      a: <>Yes, please reach out to us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a> with a description of the issue. We'll do our best to address it as soon as possible.</>
+      a: <>Yes, please reach out to us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a> or on our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. We'll do our best to address it as soon as possible.</>
     },
     {
       q: "How is my data stored?",
@@ -104,7 +96,16 @@ export default async function AboutPage() {
                 For support or feedback, please contact us at{' '}
                 <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">
                   {emailAddress}
-                </a>
+                </a>{' '}
+                or join our{' '}
+                <a 
+                  href="https://discord.gg/FrqEWShQd7" 
+                  className="text-blue-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Discord server
+                </a>.
               </p>
             </section>
 
@@ -123,7 +124,17 @@ export default async function AboutPage() {
             <section>
               <h2 className="text-xl font-semibold mb-2">Disclaimer</h2>
               <p className="text-gray-700 text-sm">
-                "Mundamanager.com" is an independent fan-made website designed to assist users in playing a game published by Games Workshop Group PLC. This website is not affiliated with, endorsed by, or associated with Games Workshop. Mundamanager.com does not use any images, logos, or other intellectual property belonging to Games Workshop. All content on this site is created independently to support players and provide resources for the game experience. Games Workshop and its trademarks remain the exclusive property of Games Workshop Group PLC.
+                "Mundamanager.com" is an independent fan-made website designed to assist users in playing Necromunda, a game published by Games Workshop Group PLC. This website is not affiliated with, endorsed by, or associated with Games Workshop.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-2">Copyright Information</h2>
+              <p className="text-gray-700 text-sm">
+                Games Workshop, Citadel, Black Library, Forge World, Warhammer, Warhammer 40,000, the 'Aquila' Double-headed Eagle logo, Space Marine, 40K, 40,000, Warhammer Age of Sigmar, Battletome, Stormcast Eternals, Warhammer: The Horus Heresy, the 'winged-hammer' Warhammer logo, White Dwarf, Blood Bowl, Necromunda, Space Hulk, Battlefleet Gothic, Mordheim, Inquisitor, and all associated logos, illustrations, images, names, creatures, races, vehicles, locations, weapons, characters, and the distinctive likenesses thereof are either ® or TM, and/or © Games Workshop Limited, variably registered around the world. All Rights Reserved.
+              </p>
+              <p className="text-gray-700 text-sm mt-2">
+                Content on Munda Manager is not meant, and does not, constitute a challenge to any rights possessed by any intellectual property holder.
               </p>
             </section>
           </div>
