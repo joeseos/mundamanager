@@ -876,6 +876,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             onChange={(e) => setDiscountValue(e.target.value)}
                             placeholder="Enter discount in credits"
                             min="0"
+                            onKeyDown={(e) => {
+                              if (e.key === '-') {
+                                e.preventDefault();
+                              }
+                            }}
                           />
                         </div>
 
@@ -912,7 +917,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 }
                               }
                             }}
-                            disabled={!selectedGangType || !discountValue}
+                            disabled={!selectedGangType || !discountValue || parseInt(discountValue) < 0}
                           >
                             Save Discount
                           </Button>
