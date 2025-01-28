@@ -372,7 +372,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         cost: item.purchase_cost,
         base_cost: item.original_cost,
         weapon_profiles: item.weapon_profiles,
-        core_equipment: item.core_equipment
+        core_equipment: item.core_equipment,
+        equipment_category: item.equipment_category
       }));
 
       // Update state in a single operation

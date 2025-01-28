@@ -7,6 +7,7 @@ interface FighterWeaponsTableProps {
   onDeleteEquipment: (fighterEquipmentId: string, equipmentId: string) => void;
   onSellEquipment: (fighterEquipmentId: string, equipmentId: string) => void;
   onStashEquipment: (fighterEquipmentId: string, equipmentId: string) => void;
+  onUpgradeEquipment: (fighterEquipmentId: string, equipmentId: string) => void;
   isLoading: boolean;
 }
 
@@ -14,7 +15,8 @@ export function FighterWeaponsTable({
   equipment, 
   onDeleteEquipment, 
   onSellEquipment, 
-  onStashEquipment, 
+  onStashEquipment,
+  onUpgradeEquipment,
   isLoading 
 }: FighterWeaponsTableProps) {
   const sortedEquipment = [...equipment].sort((a, b) => {
@@ -69,6 +71,15 @@ export function FighterWeaponsTable({
                     <div className="flex justify-end gap-1">
                       {!item.core_equipment && (
                         <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onUpgradeEquipment(item.fighter_equipment_id, item.equipment_id)}
+                            disabled={isLoading}
+                            className="text-xs px-1.5 h-6"
+                          >
+                            Upgrade
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
