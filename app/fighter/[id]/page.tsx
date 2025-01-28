@@ -568,10 +568,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const handleAddXp = async () => {
     const amount = parseInt(editState.xpAmount);
     
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(amount) || !Number.isInteger(Number(amount))) {
       setEditState(prev => ({
         ...prev,
-        xpError: 'Please enter a valid positive number'
+        xpError: 'Please enter a valid integer'
       }));
       return false;
     }
@@ -1167,7 +1167,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         xpAmount: e.target.value
                       }))}
                       placeholder="Enter XP amount"
-                      min="1"
                       className="w-full"
                     />
                     {editState.xpError && <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>}
