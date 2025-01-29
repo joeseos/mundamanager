@@ -5,6 +5,11 @@ import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury } from '@/types/fighter';
 import { Skull, Armchair, Key, Utensils } from "lucide-react";
+import { TbMeatOff } from "react-icons/tb";
+import { GiCrossedChains } from "react-icons/gi";
+import { IoSkull } from "react-icons/io5";
+import { LuArmchair } from "react-icons/lu";
+import { MdChair } from "react-icons/md";
 
 interface FighterDetailsCardProps {
   id: string;
@@ -152,10 +157,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center mb-4">
         <h1 className="text-2xl font-bold break-words flex-1 mb-2 sm:mb-0 flex items-center gap-2">
           {name}
-          {killed && <Skull className="h-6 w-6 text-red-600" />}
-          {retired && <Armchair className="h-6 w-7 text-amber-900" />}
-          {enslaved && <Key className="h-6 w-6 text-gray-600" />}
-          {starved && <Utensils className="h-6 w-6 text-orange-600" />}
+          {killed && <IoSkull className="text-gray-400" />}
+          {retired && <MdChair className="text-gray-600" />}
+          {enslaved && <GiCrossedChains className="text-sky-200" />}
+          {starved && <TbMeatOff className="text-red-500" />}
         </h1>
         <div className="flex flex-wrap gap-2">
           <Button 

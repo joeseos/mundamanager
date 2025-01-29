@@ -210,34 +210,28 @@ const FighterCard = memo(function FighterCard({
                 zIndex: 0,
                 backgroundPosition: 'center',
                 backgroundSize: '100% 100%'
-              }}
-            />
-            <div
-              className="absolute z-10 pl-1 sm:pl-4 flex items-center gap-2 max-w-[100%]"
-              style={{
-                height: '65px',
-                marginTop: '0px'
-              }}
-            >
-              {label && (
-                <span className="inline-flex items-center rounded-sm bg-white px-1.5 py-0.5 text-xs font-bold text-black uppercase">
-                  {label}
-                </span>
-              )}
-              <div className="flex flex-col items-baseline max-w-[100%]">
-                <span className="text-xl sm:leading-6 sm:text-2xl font-semibold text-white mr-2 print:text-black w-[60%] max-w-[80%] overflow-hidden whitespace-nowrap">{name}</span>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base">
-                  {type}
-                  {fighter_class && ` (${fighter_class})`}
+              }}>
+              <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[85%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+                {label && (
+                  <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase">
+                    {label}
+                  </div>
+                )}
+                <div className="flex flex-col items-baseline w-full">
+                  <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
+                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap">
+                    {type}
+                    {fighter_class && ` (${fighter_class})`}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
-            {killed && <IoSkull  className="text-red-600" />}
-            {retired && <MdChair className="text-amber-900" />}
-            {enslaved && <GiCrossedChains className="text-gray-600" />}
-            {starved && <TbMeatOff className="text-orange-600" />}
+            {killed && <IoSkull className="text-gray-300" />}
+            {retired && <MdChair className="text-gray-600" />}
+            {enslaved && <GiCrossedChains className="text-sky-200" />}
+            {starved && <TbMeatOff className="text-red-500" />}
           </div>
           {!isInactive && (
             <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
