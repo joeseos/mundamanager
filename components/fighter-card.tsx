@@ -69,7 +69,7 @@ const FighterCard = memo(function FighterCard({
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
 
-  const isInactive = killed || retired || enslaved;
+  const isInactive = killed || retired;
 
   const fighterData: FighterCardData = {
     id,
