@@ -25,6 +25,9 @@ export default async function Home() {
               <p className="text-gray-600 mb-4">
                 Munda Manager is a comprehensive gang management tool for Necromunda, helping you keep track of your gangs, fighters, and campaigns.
               </p>
+              <p className="text-red-600 font-bold mb-4">
+                Please note, Munda Manager is still in development and not quite ready yet.
+              </p>
             </div>
             <CreateGangButton />
           </div>
