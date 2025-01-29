@@ -3,7 +3,7 @@
 import React from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home } from 'lucide-react'
+import { LuHouse } from "react-icons/lu";
 import { createClient } from "@/utils/supabase/client"
 import {
   Breadcrumb,
@@ -228,57 +228,57 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
   const getBreadcrumbItems = React.useMemo(() => {
     if (pathNames[0] === 'fighter') {
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: `/gang/${breadcrumbState.gang.id}`, text: breadcrumbState.gang.name },
         { href: null, text: breadcrumbState.fighter.name }
       ]
     }
     if (pathNames[0] === 'gang') {
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: null, text: breadcrumbState.gang.name }
       ]
     }
     if (pathNames[0] === 'profile') {
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: null, text: 'Profile' }
       ]
     }
     if (pathNames[0] === 'about') {
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: null, text: 'About' }
       ]
     }
     if (pathNames[0] === 'campaigns') {
       if (pathNames.length > 1) {
         return [
-          { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+          { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
           { href: '/campaigns', text: 'Campaigns' },
           { href: `/campaigns/${pathNames[1]}`, text: breadcrumbState.campaign.name }
         ]
       }
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: null, text: 'Campaigns' }
       ]
     }
     if (pathNames[0] === 'admin') {
       if (pathNames.length > 1) {
         return [
-          { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+          { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
           { href: '/admin', text: 'Admin' },
           { href: null, text: pathNames[1].charAt(0).toUpperCase() + pathNames[1].slice(1) }
         ]
       }
       return [
-        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: '/', text: <LuHouse className="h-4 w-4" />, isHome: true },
         { href: null, text: 'Admin' }
       ]
     }
     return [
-      { href: null, text: <Home className="h-4 w-4" />, isHome: true }
+      { href: null, text: <LuHouse className="h-4 w-4" />, isHome: true }
     ]
   }, [pathNames, breadcrumbState])
 
@@ -304,7 +304,7 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
                 >
                   {item.isHome ? (
                     <span aria-hidden="true">
-                      <Home className="h-4 w-4" />
+                      <LuHouse className="h-4 w-4" />
                     </span>
                   ) : (
                     item.text
@@ -313,7 +313,7 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
               </BreadcrumbLink>
             ) : (
               <BreadcrumbPage 
-                className="text-gray-900 font-medium flex items-center"
+                className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
                 {item.text}
@@ -332,7 +332,7 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
       aria-label="Breadcrumb"
     >
       <div className="w-full">
-        <Breadcrumb className="h-10 flex items-center px-4">
+        <Breadcrumb className="h-10 flex items-center px-4 leading-[0.5rem]">
           {renderBreadcrumbItems}
         </Breadcrumb>
       </div>
