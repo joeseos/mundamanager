@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury, Vehicle } from '@/types/fighter';
-import { Skull, Armchair, Key, Utensils } from "lucide-react";
+import { TbMeatOff } from "react-icons/tb";
+import { GiCrossedChains } from "react-icons/gi";
+import { IoSkull } from "react-icons/io5";
+import { LuArmchair } from "react-icons/lu";
+import { MdChair } from "react-icons/md";
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
   name: string;  // maps to fighter_name
@@ -65,7 +69,7 @@ const FighterCard = memo(function FighterCard({
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
 
-  const isInactive = killed || retired || enslaved || starved;
+  const isInactive = killed || retired || enslaved;
 
   const fighterData: FighterCardData = {
     id,
@@ -194,50 +198,46 @@ const FighterCard = memo(function FighterCard({
           fontSize: 'calc(10px + 0.2vmin)'
         }}
       >
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-start gap-3 flex-grow">
-            <div className="name-banner-container relative w-full">
-              <div 
-                className="absolute inset-0 bg-no-repeat bg-cover print:hidden"
-                style={{
-                  backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
-                  width: 'calc(100% + 100px)',
-                  height: '65px',
-                  marginLeft: '-12px',
-                  marginTop: '0px',
-                  zIndex: 0,
-                  backgroundPosition: 'center',
-                  backgroundSize: '100% 100%',
-                  right: '-24px'
-                }}
-              />
-              <div 
-                className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 max-w-full truncate"
-                style={{ 
-                  height: '65px', 
-                  marginTop: '0px'
-                }}
-              >
-                {label && (
-                  <span className="inline-flex items-center rounded-sm bg-white px-1.5 py-0.5 text-xs font-bold text-black uppercase">
-                    {label}
-                  </span>
-                )}
-                <div className="flex flex-wrap items-baseline">
-                  <span className="max-w-full text-xl sm:leading-6 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</span>
-                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base">
-                    {type}
-                    {fighter_class && ` (${fighter_class})`}
-                  </div>
+        <div className="flex mb-2">
+          <div className="flex w-full">
+            <div
+              className="absolute inset-0 bg-no-repeat bg-cover print:hidden"
+              style={{
+                backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+                width: '100%',
+                height: '65px',
+                marginTop: '16px',
+                zIndex: 0,
+                backgroundPosition: 'center',
+                backgroundSize: '100% 100%'
+              }}
+            />
+            <div
+              className="absolute z-10 pl-1 sm:pl-4 flex items-center gap-2 max-w-[100%]"
+              style={{
+                height: '65px',
+                marginTop: '0px'
+              }}
+            >
+              {label && (
+                <span className="inline-flex items-center rounded-sm bg-white px-1.5 py-0.5 text-xs font-bold text-black uppercase">
+                  {label}
+                </span>
+              )}
+              <div className="flex flex-col items-baseline max-w-[100%]">
+                <span className="text-xl sm:leading-6 sm:text-2xl font-semibold text-white mr-2 print:text-black w-[60%] max-w-[80%] overflow-hidden whitespace-nowrap">{name}</span>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base">
+                  {type}
+                  {fighter_class && ` (${fighter_class})`}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 z-10" style={{ marginTop: '16px' }}>
-              {killed && <Skull className="h-7 w-7 text-red-600" />}
-              {retired && <Armchair className="h-7 w-7 text-amber-900" />}
-              {enslaved && <Key className="h-7 w-7 text-gray-600" />}
-              {starved && <Utensils className="h-7 w-7 text-orange-600" />}
-            </div>
+          </div>
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+            {killed && <IoSkull  className="text-red-600" />}
+            {retired && <MdChair className="text-amber-900" />}
+            {enslaved && <GiCrossedChains className="text-gray-600" />}
+            {starved && <TbMeatOff className="text-orange-600" />}
           </div>
           {!isInactive && (
             <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
