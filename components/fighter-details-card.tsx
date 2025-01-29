@@ -4,7 +4,6 @@ import { FighterStatsTable } from './ui/fighter-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury } from '@/types/fighter';
-import { Skull, Armchair, Key, Utensils } from "lucide-react";
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
