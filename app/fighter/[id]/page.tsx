@@ -528,11 +528,21 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   const fetchGangFighters = useCallback(async (gangId: string) => {
     try {
+      const supabase = createClient();
+      // Get authenticated session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No session found');
+        return;
+      }
+
       const response = await fetch(
-        `https://iojoritxhpijprgkjfre.supabase.co/rest/v1/fighters?gang_id=eq.${gangId}&select=id,fighter_name,fighter_type,xp`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?gang_id=eq.${gangId}&select=id,fighter_name,fighter_type,xp`,
         {
           headers: {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`,
           },
         }
       );
