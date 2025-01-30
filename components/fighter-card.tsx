@@ -201,7 +201,7 @@ const FighterCard = memo(function FighterCard({
         <div className="flex mb-2">
           <div className="flex w-full">
             <div
-              className="absolute inset-0 bg-no-repeat bg-cover print:hidden"
+              className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
               style={{
                 backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
                 width: '100%',
@@ -211,15 +211,15 @@ const FighterCard = memo(function FighterCard({
                 backgroundPosition: 'center',
                 backgroundSize: '100% 100%'
               }}>
-              <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[85%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+              <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
                 {label && (
-                  <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase">
+                  <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
                     {label}
                   </div>
                 )}
                 <div className="flex flex-col items-baseline w-full">
                   <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
-                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap">
+                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                     {type}
                     {fighter_class && ` (${fighter_class})`}
                   </div>
