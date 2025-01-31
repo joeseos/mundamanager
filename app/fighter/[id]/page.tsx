@@ -1171,6 +1171,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   <div>
                     <Input
                       type="number"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={editState.xpAmount}
                       onChange={(e) => setEditState(prev => ({
                         ...prev,
