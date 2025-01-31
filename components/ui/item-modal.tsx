@@ -38,6 +38,7 @@ interface RawEquipmentData {
 
 interface PurchaseModalProps {
   item: Equipment;
+  gangCredits: number;
   onClose: () => void;
   onConfirm: (cost: number) => void;
 }
@@ -47,8 +48,20 @@ interface Category {
   category_name: string;
 }
 
-function PurchaseModal({ item, onClose, onConfirm }: PurchaseModalProps) {
+function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState(item.discounted_cost ?? item.cost);
+  const [creditError, setCreditError] = useState<string | null>(null);
+
+  const handleConfirm = () => {
+    if (manualCost > gangCredits) {
+      setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
+      return false; // Explicitly return false to prevent modal closure
+    }
+
+    setCreditError(null);
+    onConfirm(manualCost);
+    return true; // Allow modal to close
+  };
 
   return (
     <Modal
@@ -56,38 +69,49 @@ function PurchaseModal({ item, onClose, onConfirm }: PurchaseModalProps) {
       content={
         <div className="space-y-4">
           <p>Are you sure you want to buy {item.equipment_name}?</p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cost
-              </label>
-              <input
-                type="number"
-                value={manualCost}
-                onChange={(e) => setManualCost(Number(e.target.value))}
-                className="w-full p-2 border rounded-md"
-                min="0"
-              />
+          <div className="space-y-2">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cost
+                </label>
+                <input
+                  type="number"
+                  value={manualCost}
+                  onChange={(e) => {
+                    const newCost = Number(e.target.value);
+                    setManualCost(newCost);
+                    if (newCost <= gangCredits) {
+                      setCreditError(null);
+                    }
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  min="0"
+                />
+              </div>
             </div>
+            {creditError && (
+              <p className="text-red-500 text-sm">{creditError}</p>
+            )}
           </div>
         </div>
       }
       onClose={onClose}
-      onConfirm={() => onConfirm(manualCost)}
+      onConfirm={handleConfirm}
     />
   );
 }
 
-const ItemModal: React.FC<ItemModalProps> = ({ 
-  title, 
-  onClose, 
-  gangCredits, 
+const ItemModal: React.FC<ItemModalProps> = ({
+  title,
+  onClose,
+  gangCredits,
   gangId,
   gangTypeId,
-  fighterId, 
+  fighterId,
   fighterTypeId,
   fighterCredits,
-  onEquipmentBought 
+  onEquipmentBought
 }) => {
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
@@ -118,7 +142,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   useEffect(() => {
     const fetchCategories = async () => {
       if (!session) return;
-      
+
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/equipment_categories?select=id,category_name&order=category_name`,
@@ -129,7 +153,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             }
           }
         );
-        
+
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setCategories(data);
@@ -148,20 +172,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
-    
+
     if (!gangTypeId || !fighterTypeId) {
       console.error('Missing required IDs:', { gangTypeId, fighterTypeId });
       setError('Missing required data');
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
       return;
     }
-    
+
     console.log('Request parameters:', {
       gang_type_id: gangTypeId,
       fighter_type_id: fighterTypeId,
       equipment_category: categoryQuery
     });
-    
+
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -187,11 +211,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
-      
-      const filteredData = data.filter(item => 
+
+      const filteredData = data.filter(item =>
         showAllEquipment || item.fighter_type_equipment
       );
-      
+
       const formattedData = filteredData
         .map((item: RawEquipmentData) => ({
           ...item,
@@ -282,7 +306,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         fighter_equipment_id: fighterEquipmentId,
         cost: manualCost
       });
-      
+
       toast({
         title: "Equipment purchased",
         description: `Successfully bought ${item.equipment_name} for ${manualCost} credits`,
@@ -307,22 +331,22 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [showAllEquipment]);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="w-[600px] rounded-lg bg-white shadow-xl">
         <div className="relative border-b p-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8 rounded-full absolute right-4 top-4"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </Button>
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pr-8">
             <h2 className="text-xl font-semibold">Equipment</h2>
             <div className="flex flex-wrap items-center gap-3">
@@ -335,8 +359,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   }}
                   id="show-all-equipment"
                 />
-                <label 
-                  htmlFor="show-all-equipment" 
+                <label
+                  htmlFor="show-all-equipment"
                   className="text-sm text-gray-600 cursor-pointer whitespace-nowrap"
                 >
                   Show All Equipment
@@ -355,7 +379,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         <div className="h-[600px] overflow-y-auto">
           <div className="flex flex-col">
             {error && <p className="text-red-500 p-4">{error}</p>}
-            
+
             {categories
               .sort((a, b) => {
                 const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
@@ -387,7 +411,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                       equipment[category.category_name].map((item) => {
                         const affordable = canAffordEquipment(item);
                         const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
-                        
+
                         return (
                           <div
                             key={item.equipment_id}
@@ -405,20 +429,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
                                     <span className="text-[10px] font-medium">{item.base_cost}</span>
                                   </div>
-                                  
+
                                 </div>
                               ) : (
                                 <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
                                   <span className="text-[10px] font-medium">{item.cost}</span>
                                 </div>
                               )}
-                              {affordable && (
+                              {(
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setBuyModalData(item);
                                   }}
-                                  className="bg-green-500 hover:bg-green-600 text-white text-xs py-0.5 px-2 h-6"
+                                  className={`text-white text-xs py-0.5 px-2 h-6 ${
+                                    affordable
+                                      ? "bg-green-500 hover:bg-green-600"
+                                      : "bg-gray-500 hover:bg-gray-600"
+                                  }`}
                                 >
                                   Buy
                                 </Button>
@@ -440,10 +468,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
       </div>
-      
+
       {buyModalData && (
         <PurchaseModal
           item={buyModalData}
+          gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
           onConfirm={(manualCost) => handleBuyEquipment(buyModalData, manualCost)}
         />
