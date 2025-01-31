@@ -12,6 +12,7 @@ import { AdminEditEquipmentModal } from "@/components/ui/admin-edit-equipment";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
+import { Input } from "@/components/ui/input";
 
 // Add this CSS class to remove arrows from number inputs while keeping numeric validation
 const numericInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -41,7 +42,7 @@ export default function AdminPage() {
     body_slots: '',
     drive_slots: '',
     engine_slots: '',
-    special_rules: [] as string[],  // Initialize as empty array
+    special_rules: '',
     vehicle_type: '',
     gang_type_id: ''
   });
@@ -62,7 +63,7 @@ export default function AdminPage() {
 
     setVehicleForm(prev => ({
       ...prev,
-      special_rules: rulesArray
+      special_rules: rulesArray.join(',')
     }));
   };
 
@@ -118,7 +119,9 @@ export default function AdminPage() {
         body_slots: vehicleData.body_slots?.toString() || '',
         drive_slots: vehicleData.drive_slots?.toString() || '',
         engine_slots: vehicleData.engine_slots?.toString() || '',
-        special_rules: vehicleData.special_rules || [],
+        special_rules: Array.isArray(vehicleData.special_rules) 
+          ? vehicleData.special_rules.join(', ') 
+          : '',
         vehicle_type: vehicleData.vehicle_type || '',
         gang_type_id: vehicleData.gang_type_id ? vehicleData.gang_type_id.toString() : "0"
       });
@@ -147,7 +150,7 @@ export default function AdminPage() {
       body_slots: '',
       drive_slots: '',
       engine_slots: '',
-      special_rules: [],
+      special_rules: '',
       vehicle_type: '',
       gang_type_id: ''
     });
@@ -463,20 +466,23 @@ export default function AdminPage() {
                       />
                     </div>
 
-                    {/* Special Rules - textarea */}
+                    {/* Special Rules - Input component */}
                     <div className="col-span-3">
                       <label className="block text-sm font-medium text-gray-700">
                         Special Rules <span className="text-gray-700">*</span>
                       </label>
-                      <textarea
+                      <Input
+                        type="text"
                         name="special_rules"
-                        value={Array.isArray(vehicleForm.special_rules) ? vehicleForm.special_rules.join(', ') : ''}
-                        onChange={handleSpecialRulesChange}
-                        rows={3}
-                        className={regularInputClass}
+                        value={vehicleForm.special_rules}
+                        onChange={handleVehicleFormChange}
+                        className="bg-white"
                         placeholder="Enter special rules, separated by commas (e.g. Agile, Wheeled)"
                         required
                       />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Separate multiple rules with commas
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -492,7 +498,23 @@ export default function AdminPage() {
                     headers: {
                       'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(vehicleForm),
+                    body: JSON.stringify({
+                      ...vehicleForm,
+                      gang_type_id: vehicleForm.gang_type_id === "0" ? null : parseInt(vehicleForm.gang_type_id),
+                      cost: parseInt(vehicleForm.cost),
+                      movement: parseInt(vehicleForm.movement),
+                      front: parseInt(vehicleForm.front),
+                      side: parseInt(vehicleForm.side),
+                      rear: parseInt(vehicleForm.rear),
+                      hull_points: parseInt(vehicleForm.hull_points),
+                      body_slots: parseInt(vehicleForm.body_slots),
+                      drive_slots: parseInt(vehicleForm.drive_slots),
+                      engine_slots: parseInt(vehicleForm.engine_slots),
+                      special_rules: vehicleForm.special_rules
+                        .split(',')
+                        .map(rule => rule.trim())
+                        .filter(rule => rule.length > 0),
+                    }),
                   });
 
                   if (!response.ok) {
@@ -758,16 +780,18 @@ export default function AdminPage() {
                       <label className="block text-sm font-medium text-gray-700">
                         Special Rules <span className="text-gray-700">*</span>
                       </label>
-                      <textarea
+                      <Input
+                        type="text"
                         name="special_rules"
-                        value={Array.isArray(vehicleForm.special_rules) ? vehicleForm.special_rules.join(', ') : ''}
-                        onChange={handleSpecialRulesChange}
-                        rows={3}
-                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        value={vehicleForm.special_rules}
+                        onChange={handleVehicleFormChange}
+                        className="bg-white"
                         placeholder="Enter special rules, separated by commas (e.g. Agile, Wheeled)"
                         required
-                        disabled={!selectedVehicle}
                       />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Separate multiple rules with commas
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -785,6 +809,10 @@ export default function AdminPage() {
                     },
                     body: JSON.stringify({
                       ...vehicleForm,
+                      special_rules: vehicleForm.special_rules
+                        .split(',')
+                        .map(rule => rule.trim())
+                        .filter(rule => rule.length > 0),
                       id: selectedVehicle
                     }),
                   });
