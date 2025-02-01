@@ -13,6 +13,7 @@ interface GangPageContentProps {
     name: string;
     gang_type_id: string;
     gang_type: string;
+    gang_type_image_url: string;
     credits: number;
     reputation: number;
     meat: number;
