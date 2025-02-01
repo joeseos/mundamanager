@@ -7,25 +7,17 @@ export default async function CampaignPage({ params }: { params: { id: string } 
   const supabase = createClient();
 
   try {
-    const response = await fetch(
-      'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_campaign_details',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-        },
-        body: JSON.stringify({
-          "campaign_id": params.id
-        })
-      }
-    );
+    const { data, error } = await supabase
+      .rpc('get_campaign_details', {
+        campaign_id: params.id
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch campaign details');
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
     }
 
-    const [campaignData] = await response.json();
+    const [campaignData] = data || [];
     
     if (!campaignData) {
       notFound();
