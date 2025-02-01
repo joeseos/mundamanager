@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
+import Image from 'next/image';
 
 interface VehicleType {
   id: string;
@@ -37,6 +38,7 @@ interface GangProps {
   name: string;
   gang_type_id: string;
   gang_type?: string;
+  gang_type_image_url: string;
   credits: number | null;
   reputation: number | null;
   meat: number | null;
@@ -74,6 +76,7 @@ export default function Gang({
   name: initialName, 
   gang_type_id,
   gang_type,
+  gang_type_image_url,
   credits: initialCredits, 
   reputation: initialReputation,
   meat: initialMeat, 
@@ -121,6 +124,11 @@ export default function Gang({
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error('Failed to load image:', e.currentTarget.src);
+    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+  };
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -590,100 +598,132 @@ export default function Gang({
 
   return (
     <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
-      <div className="bg-white shadow-md rounded-lg px-8 pt-4 pb-6 print:print-fighter-card print:border-4 print:border-black">
-        <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
-          <h2 className="text-2xl font-bold">{name}</h2>
-          <div className="flex gap-2">
-            {additionalButtons}
+      <div className="bg-white shadow-md rounded-lg p-6 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
+        {/* Left Section: Illustration */}
+        <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
+          {gang_type_image_url ? (
+            <Image
+              src={gang_type_image_url}
+              alt={name}
+              width={180}
+              height={180}
+              className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
+              priority={false}
+              quality={100}
+              onError={handleImageError}
+            />
+          ) : (
+            <div className="absolute w-[180px] h-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
+              {name.charAt(0)}
+            </div>
+          )}
+          <Image
+            src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
+            alt="Cogwheel"
+            width={250}
+            height={250}
+            className="absolute z-20 w-[250px] h-auto"
+            priority
+            quality={100}
+          />
+        </div>
+
+        {/* Right Section: Content */}
+        <div className="flex-grow">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-2xl font-bold">{name}</h2>
+            <div>
+              {additionalButtons}
+              <button
+                onClick={handleEditModalOpen}
+                className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        
+          <div className="text-gray-600 mb-4">
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                Type: <Badge variant="secondary">{gang_type}</Badge>
+              </div>
+              {campaigns?.[0] && (
+                <div className="flex items-center gap-2">
+                  Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                    <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
+                      {campaigns[0].campaign_name}
+                    </Link>
+                  </Badge>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
+            <StatItem
+              label="Credits"
+              value={credits}
+              isEditing={isEditing}
+              editedValue={editedCredits}
+              onChange={setEditedCredits}
+            />
+            <StatItem
+              label="Alignment"
+              value={alignment}
+              isEditing={isEditing}
+              editedValue={editedAlignment}
+              onChange={setEditedAlignment}
+              type="select"
+              options={['Law Abiding', 'Outlaw']}
+            />
+            <StatItem
+              label="Reputation"
+              value={reputation}
+              isEditing={isEditing}
+              editedValue={editedReputation}
+              onChange={setEditedReputation}
+            />
+            <StatItem
+              label="Meat"
+              value={meat}
+              isEditing={isEditing}
+              editedValue={editedMeat}
+              onChange={setEditedMeat}
+            />
+            <StatItem
+              label="Exploration Points"
+              value={explorationPoints}
+              isEditing={isEditing}
+              editedValue={editedExplorationPoints}
+              onChange={setEditedExplorationPoints}
+            />
+            <StatItem
+              label="Rating"
+              value={rating}
+              isEditing={false}
+              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+              onChange={() => {}}
+            />
+          </div>
+          <div className="mt-3 flex flex-col sm:flex-row sm:justify-between text-sm text-gray-600 space-y-1 sm:space-y-0">
+            <span>Created: {formatDate(created_at)}</span>
+            <span>Last Updated: {formatDate(lastUpdated)}</span>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
             <Button
-              onClick={handleEditModalOpen}
+              onClick={() => setShowAddVehicleModal(true)}
               className="bg-black text-white hover:bg-gray-800 print:hidden"
             >
-              Edit
+              Add Vehicle
+            </Button>
+            <Button
+              onClick={() => setShowAddFighterModal(true)}
+              className="bg-black text-white hover:bg-gray-800 print:hidden"
+            >
+              Add Fighter
             </Button>
           </div>
-        </div>
-        
-        <div className="text-gray-600 mb-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2">
-              Type: <Badge variant="secondary">{gang_type}</Badge>
-            </div>
-            {campaigns?.[0] && (
-              <div className="flex items-center gap-2">
-                Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                  <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
-                    {campaigns[0].campaign_name}
-                  </Link>
-                </Badge>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
-          <StatItem 
-            label="Credits" 
-            value={credits} 
-            isEditing={isEditing} 
-            editedValue={editedCredits} 
-            onChange={setEditedCredits} 
-          />
-          <StatItem 
-            label="Alignment" 
-            value={alignment} 
-            isEditing={isEditing}
-            editedValue={editedAlignment}
-            onChange={setEditedAlignment}
-            type="select"
-            options={['Law Abiding', 'Outlaw']}
-          />
-          <StatItem 
-            label="Reputation" 
-            value={reputation} 
-            isEditing={isEditing} 
-            editedValue={editedReputation} 
-            onChange={setEditedReputation} 
-          />
-          <StatItem 
-            label="Meat" 
-            value={meat} 
-            isEditing={isEditing} 
-            editedValue={editedMeat} 
-            onChange={setEditedMeat} 
-          />
-          <StatItem 
-            label="Exploration Points" 
-            value={explorationPoints} 
-            isEditing={isEditing} 
-            editedValue={editedExplorationPoints} 
-            onChange={setEditedExplorationPoints} 
-          />
-          <StatItem 
-            label="Rating" 
-            value={rating} 
-            isEditing={false}
-            editedValue={typeof rating === 'number' ? rating.toString() : '0'}
-            onChange={() => {}}
-          />
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row sm:justify-between text-sm text-gray-600 space-y-1 sm:space-y-0">
-          <span>Created: {formatDate(created_at)}</span>
-          <span>Last Updated: {formatDate(lastUpdated)}</span>
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button 
-            onClick={() => setShowAddVehicleModal(true)}
-            className="bg-black text-white hover:bg-gray-800 print:hidden"
-          >
-            Add Vehicle
-          </Button>
-          <Button 
-            onClick={() => setShowAddFighterModal(true)}
-            className="bg-black text-white hover:bg-gray-800 print:hidden"
-          >
-            Add Fighter
-          </Button>
         </div>
 
         {showEditModal && (
