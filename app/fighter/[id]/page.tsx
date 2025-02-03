@@ -947,6 +947,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }));
   };
 
+  const debugFighterData = () => {
+    console.log('Fighter data:', {
+      gang_type_id: fighterData.fighter?.gang_type_id,
+      fighter_type_id: fighterData.fighter?.fighter_type?.fighter_type_id,
+      fighter: fighterData.fighter
+    });
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1060,24 +1068,20 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           </div>
           
           {uiState.modals.addWeapon && (
-            <>
-              {console.log('Fighter data:', {
-                gang_type_id: fighterData.fighter?.gang_type_id,
-                fighter_type_id: fighterData.fighter?.fighter_type?.fighter_type_id,
-                fighter: fighterData.fighter
-              })}
-              <ItemModal
-                title="Equipment"
-                onClose={() => handleModalToggle('addWeapon', false)}
-                gangCredits={fighterData.gang?.credits || 0}
-                gangId={fighterData.gang?.id || ''}
-                gangTypeId={fighterData.fighter?.gang_type_id || ''}
-                fighterId={fighterData.fighter?.id || ''}
-                fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
-                fighterCredits={fighterData.fighter?.credits || 0}
-                onEquipmentBought={handleEquipmentBought}
-              />
-            </>
+            <ItemModal
+              title="Equipment"
+              onClose={() => {
+                debugFighterData();
+                handleModalToggle('addWeapon', false);
+              }}
+              gangCredits={fighterData.gang?.credits || 0}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.fighter?.gang_type_id || ''}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentBought={handleEquipmentBought}
+            />
           )}
           
           <div className="mt-6">
