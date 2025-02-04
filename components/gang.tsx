@@ -574,6 +574,7 @@ export default function Gang({
           engine_slots_occupied: 0,
           special_rules: selectedVehicleType.special_rules || [],
           created_at: new Date().toISOString(),
+          equipment: []
         };
         onVehicleAdd(newVehicle);
       }

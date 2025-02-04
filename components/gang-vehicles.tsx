@@ -65,7 +65,8 @@ export default function GangVehicles({
       if (selectedFighterData && onFighterUpdate) {
         const updatedVehicle = {
           ...vehicle,
-          fighter_id: selectedFighter
+          fighter_id: selectedFighter,
+          equipment: vehicle.equipment || []
         };
         
         const updatedFighter = {

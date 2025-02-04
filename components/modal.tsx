@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 
 interface ModalProps {
   title: React.ReactNode;
-  content: React.ReactNode;
+  content?: React.ReactNode;
+  children?: React.ReactNode;
   onClose: () => void;
   onConfirm?: (() => Promise<boolean>) | (() => void);
   confirmText?: string;
@@ -14,7 +15,8 @@ interface ModalProps {
 
 export default function Modal({ 
   title, 
-  content, 
+  content,
+  children,
   onClose, 
   onConfirm,
   confirmText = 'Confirm',
@@ -61,7 +63,7 @@ export default function Modal({
         </div>
         
         <div className="px-[10px] py-4">
-          {content}
+          {content || children}
         </div>
 
         {onConfirm && (

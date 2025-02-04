@@ -4,7 +4,7 @@ import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps, Injury, Vehicle } from '@/types/fighter';
+import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -25,11 +25,68 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   injuries: Injury[];
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
+  vehicleEquipment?: (Equipment | VehicleEquipment)[];
 }
 
 type FighterCardData = FighterProps & {
   label?: string;
   note?: string;
+};
+
+const calculateVehicleStats = (
+  baseStats: Vehicle, 
+  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment> & {
+    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+  }>
+) => {
+  if (!baseStats) return {
+    movement: 0,
+    front: 0,
+    side: 0,
+    rear: 0,
+    hull_points: 0,
+    save: 0,
+  };
+
+  // Start with base stats
+  const stats = {
+    movement: baseStats.movement || 0,
+    front: baseStats.front || 0,
+    side: baseStats.side || 0,
+    rear: baseStats.rear || 0,
+    hull_points: baseStats.hull_points || 0,
+    save: baseStats.save || 0,
+  };
+
+  // Add bonuses from vehicle equipment
+  vehicleEquipment?.forEach(equipment => {
+    if (equipment.vehicle_equipment_profiles) {
+      equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
+        const statUpdates = {
+          movement: profile.movement,
+          front: profile.front,
+          side: profile.side,
+          rear: profile.rear,
+          hull_points: profile.hull_points,
+          save: profile.save,
+        };
+
+        // Update each stat if the profile has a value
+        Object.entries(statUpdates).forEach(([key, value]) => {
+          if (value !== null) {
+            stats[key as keyof typeof stats] += value;
+          }
+        });
+      });
+    }
+  });
+
+  // Add some debugging
+  console.log('Base vehicle stats:', baseStats);
+  console.log('Vehicle equipment:', vehicleEquipment);
+  console.log('Final vehicle stats:', stats);
+
+  return stats;
 };
 
 const FighterCard = memo(function FighterCard({
@@ -65,6 +122,7 @@ const FighterCard = memo(function FighterCard({
   injuries = [],
   note,
   vehicle,
+  vehicleEquipment = [],
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -106,15 +164,18 @@ const FighterCard = memo(function FighterCard({
   const adjustedStats = calculateAdjustedStats(fighterData);
 
   const isCrew = fighter_class === 'Crew';
+  
+  // Calculate vehicle stats with equipment bonuses
+  const vehicleStats = isCrew && vehicle ? calculateVehicleStats(vehicle, vehicle.equipment || []) : null;
 
   const stats: Record<string, string | number> = isCrew ? {
-    'M': vehicle ? `${vehicle.movement}"` : '*',
-    'Front': vehicle ? vehicle.front : '*',
-    'Side': vehicle ? vehicle.side : '*', 
-    'Rear': vehicle ? vehicle.rear : '*',
-    'HP': vehicle ? vehicle.hull_points : '*',
+    'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
+    'Front': vehicleStats ? vehicleStats.front : '*',
+    'Side': vehicleStats ? vehicleStats.side : '*', 
+    'Rear': vehicleStats ? vehicleStats.rear : '*',
+    'HP': vehicleStats ? vehicleStats.hull_points : '*',
     'Hnd': vehicle ? `${vehicle.handling}+` : '*',
-    'Sv': vehicle ? `${vehicle.save}+` : '*',
+    'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
     'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
     'Ld': `${adjustedStats.leadership}+`,
     'Cl': `${adjustedStats.cool}+`,

@@ -1,4 +1,5 @@
 import { Weapon } from './weapon';
+import { Equipment as BaseEquipment } from '@/types/equipment';
 
 export interface FighterType {
   id: string;
@@ -50,9 +51,28 @@ export interface Injury {
   acquired_at: string;
 }
 
+export interface VehicleEquipmentProfile {
+  id: string;
+  equipment_id: string;
+  movement: number | null;
+  front: number | null;
+  side: number | null;
+  rear: number | null;
+  hull_points: number | null;
+  save: number | null;
+  profile_name: string;
+}
+
+export interface VehicleEquipment extends BaseEquipment {
+  vehicle_id: string;
+  vehicle_equipment_id: string;
+  vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+}
+
 export interface Vehicle {
   id: string;
   created_at: string;
+  vehicle_name: string;
   movement: number;
   front: number;
   side: number;
@@ -60,14 +80,16 @@ export interface Vehicle {
   hull_points: number;
   handling: number;
   save: number;
-  body_slots: number;
-  body_slots_occupied: number | null;
-  drive_slots: number;
-  drive_slots_occupied: number | null;
-  engine_slots: number;
-  engine_slots_occupied: number | null;
+  body_slots?: number;
+  body_slots_occupied?: number;
+  drive_slots?: number;
+  drive_slots_occupied?: number;
+  engine_slots?: number;
+  engine_slots_occupied?: number;
   special_rules: string[];
-  vehicle_name: string;
+  equipment: Array<BaseEquipment & Partial<VehicleEquipment> & {
+    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+  }>;
 }
 
 export interface FighterProps {
@@ -124,13 +146,4 @@ export interface WeaponProfile {
   traits: string;
   weapon_group_id: string;
   is_default_profile: boolean;
-}
-
-export interface Equipment {
-  fighter_weapon_id: string;
-  equipment_id: string;
-  equipment_name: string;
-  equipment_type: 'weapon' | 'wargear';
-  cost: number;
-  weapon_profiles?: WeaponProfile[];
 }

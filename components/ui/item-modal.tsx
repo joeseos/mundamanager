@@ -19,6 +19,8 @@ interface ItemModalProps {
   fighterId: string;
   fighterTypeId: string;
   fighterCredits: number;
+  vehicleId?: string;
+  isVehicleEquipment?: boolean;
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -34,6 +36,8 @@ interface RawEquipmentData {
   created_at: string;
   weapon_profiles?: WeaponProfile[];
   fighter_type_equipment: boolean;
+  fighter_weapon_id?: string;
+  fighter_equipment_id: string;
 }
 
 interface PurchaseModalProps {
@@ -111,6 +115,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterId,
   fighterTypeId,
   fighterCredits,
+  vehicleId,
+  isVehicleEquipment,
   onEquipmentBought
 }) => {
   const { toast } = useToast();
@@ -224,7 +230,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.discounted_cost,
           base_cost: item.base_cost,
           discounted_cost: item.discounted_cost,
-          equipment_type: item.equipment_type as 'weapon' | 'wargear'
+          equipment_type: item.equipment_type as 'weapon' | 'wargear',
+          fighter_weapon_id: item.fighter_weapon_id || undefined
         }))
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
@@ -280,8 +287,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
           body: JSON.stringify({
             equipment_id: item.equipment_id,
             gang_id: gangId,
-            fighter_id: fighterId,
-            manual_cost: manualCost
+            manual_cost: manualCost,
+            ...(isVehicleEquipment 
+              ? { vehicle_id: vehicleId }
+              : { fighter_id: fighterId }
+            )
           }),
         }
       );

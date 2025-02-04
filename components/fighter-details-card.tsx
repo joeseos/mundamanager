@@ -9,6 +9,26 @@ import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { Equipment } from '@/types/equipment';
+
+// Vehicle equipment profile interface
+interface VehicleEquipmentProfile {
+  id: string;
+  equipment_id: string;
+  movement: number | null;
+  front: number | null;
+  side: number | null;
+  rear: number | null;
+  hull_points: number | null;
+  save: number | null;
+  profile_name: string;
+}
+
+// Vehicle equipment interface that extends Equipment
+interface VehicleEquipment extends Equipment {
+  vehicle_id: string;
+  vehicle_equipment_id: string;
+}
 
 interface FighterDetailsCardProps {
   id: string;
@@ -49,7 +69,57 @@ interface FighterDetailsCardProps {
     handling: number;
     save: number;
   }>;
+  vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
 }
+
+// Update the stats calculation to include vehicle equipment bonuses
+const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | VehicleEquipment)[] = []) => {
+  if (!baseStats) return {
+    movement: 0,
+    front: 0,
+    side: 0,
+    rear: 0,
+    hull_points: 0,
+    save: 0,
+  };
+
+  // Start with base stats
+  const stats = {
+    movement: baseStats.movement || 0,
+    front: baseStats.front || 0,
+    side: baseStats.side || 0,
+    rear: baseStats.rear || 0,
+    hull_points: baseStats.hull_points || 0,
+    save: baseStats.save || 0,
+  };
+
+  // Add bonuses from vehicle equipment
+  if (Array.isArray(vehicleEquipment)) {
+    vehicleEquipment.forEach(equipment => {
+      if ('vehicle_equipment_profiles' in equipment && equipment.vehicle_equipment_profiles) {
+        equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
+          const statUpdates = {
+            movement: profile.movement,
+            front: profile.front,
+            side: profile.side,
+            rear: profile.rear,
+            hull_points: profile.hull_points,
+            save: profile.save,
+          };
+
+          // Update each stat if the profile has a value
+          Object.entries(statUpdates).forEach(([key, value]) => {
+            if (value !== null) {
+              stats[key as keyof typeof stats] += value;
+            }
+          });
+        });
+      }
+    });
+  }
+
+  return stats;
+};
 
 export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
@@ -82,9 +152,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   kills,
   injuries,
   vehicles,
+  vehicleEquipment = [],
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
-  const fighterData: FighterProps = {
+  const fighterData = useMemo<FighterProps>(() => ({
     id,
     fighter_name: name,
     fighter_type: type,
@@ -112,22 +183,33 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     special_rules: [],
     injuries: injuries || [],
     fighter_class,
-  };
+  }), [
+    id, name, type, credits, movement, weapon_skill, ballistic_skill,
+    strength, toughness, wounds, initiative, attacks, leadership,
+    cool, willpower, intelligence, xp, kills, advancements, injuries,
+    fighter_class
+  ]);
 
   // Calculate adjusted stats
-  const adjustedStats = calculateAdjustedStats(fighterData);
+  const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
   const isCrew = fighter_class === 'Crew';
 
+  // Calculate vehicle stats once
+  const vehicleStats = useMemo(() => 
+    isCrew ? calculateVehicleStats(vehicles?.[0], vehicleEquipment) : null,
+    [isCrew, vehicles, vehicleEquipment]
+  );
+
   // Update stats object to handle crew stats
-  const stats: Record<string, string | number> = {
+  const stats = useMemo<Record<string, string | number>>(() => ({
     ...(isCrew ? {
-      'M': vehicles?.[0]?.movement ? `${vehicles[0].movement}"` : '*',
-      'Front': vehicles?.[0]?.front ?? '*',
-      'Side': vehicles?.[0]?.side ?? '*',
-      'Rear': vehicles?.[0]?.rear ?? '*',
-      'HP': vehicles?.[0]?.hull_points ?? '*',
+      'M': `${vehicleStats?.movement}"`,
+      'Front': vehicleStats?.front,
+      'Side': vehicleStats?.side,
+      'Rear': vehicleStats?.rear,
+      'HP': vehicleStats?.hull_points,
       'Hnd': vehicles?.[0]?.handling ? `${vehicles[0].handling}+` : '*',
-      'Sv': vehicles?.[0]?.save ? `${vehicles[0].save}+` : '*',
+      'Sv': `${vehicleStats?.save}+`,
       'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
       'Ld': `${adjustedStats.leadership}+`,
       'Cl': `${adjustedStats.cool}+`,
@@ -149,7 +231,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Int': `${adjustedStats.intelligence}+`,
       'XP': xp ?? 0
     })
-  };
+  }), [isCrew, vehicleStats, vehicles, adjustedStats, xp]);
 
   return (
     <div className="relative">
