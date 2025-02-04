@@ -58,7 +58,10 @@ export function FighterWeaponsTable({
               </tr>
             ) : (
               sortedEquipment.map((item) => (
-                <tr key={item.fighter_equipment_id} className="border-b">
+                <tr 
+                  key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`} 
+                  className="border-b"
+                >
                   <td className="px-1 py-1">
                     {item.equipment_name}
                   </td>

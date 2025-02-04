@@ -17,6 +17,7 @@ import { SkillsList } from "@/components/skills-list";
 import { InjuriesList } from "@/components/injuries-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
+import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -157,6 +158,7 @@ interface Fighter {
   base_credits: number;
   fighter_class: string;
   vehicles?: Array<{
+    id: string;
     movement: number;
     front: number;
     side: number;
@@ -164,6 +166,14 @@ interface Fighter {
     hull_points: number;
     handling: number;
     save: number;
+    equipment?: Array<{
+      id: string;
+      equipment_name: string;
+      equipment_type: string;
+      purchase_cost: number;
+      original_cost: number;
+      weapon_profiles?: WeaponProfile[];
+    }>;
   }>;
 }
 
@@ -180,10 +190,17 @@ interface Advancement {
   created_at: string;
 }
 
+// Add a new interface for vehicle equipment near the top with other interfaces
+interface VehicleEquipment extends Equipment {
+  vehicle_id: string;
+  vehicle_equipment_id: string;
+}
+
 // First, define our consolidated state interfaces
 interface FighterPageState {
   fighter: Fighter | null;
   equipment: Equipment[];
+  vehicleEquipment: VehicleEquipment[];
   advancements: Advancement[];
   gang: Gang | null;
   gangFighters: {
@@ -199,14 +216,15 @@ interface UIState {
   error: string | null;
   modals: {
     delete: boolean;
-    addWeapon: boolean;
-    addXp: boolean;
-    advancement: boolean;
     kill: boolean;
     retire: boolean;
     enslave: boolean;
     starve: boolean;
+    addXp: boolean;
+    advancement: boolean;
     editFighter: boolean;
+    addWeapon: boolean;
+    addVehicleEquipment: boolean;
   };
 }
 
@@ -301,6 +319,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const [fighterData, setFighterData] = useState<FighterPageState>({
     fighter: null,
     equipment: [],
+    vehicleEquipment: [],
     advancements: [],
     gang: null,
     gangFighters: []
@@ -311,14 +330,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     error: null,
     modals: {
       delete: false,
-      addWeapon: false,
-      addXp: false,
-      advancement: false,
       kill: false,
       retire: false,
       enslave: false,
       starve: false,
-      editFighter: false
+      addXp: false,
+      advancement: false,
+      editFighter: false,
+      addWeapon: false,
+      addVehicleEquipment: false
     }
   });
 
@@ -333,6 +353,25 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   const router = useRouter();
   const { toast } = useToast();
+
+  // Add state for delete modal
+  const [deleteVehicleEquipmentData, setDeleteVehicleEquipmentData] = useState<{
+    id: string;
+    equipmentId: string;
+    name: string;
+  } | null>(null);
+
+  // Add state for stash modal
+  const [stashVehicleEquipmentData, setStashVehicleEquipmentData] = useState<{
+    id: string;
+    equipmentId: string;
+    name: string;
+    cost: number;
+  } | null>(null);
+
+  // Add state for sell modal with cost state
+  const [sellVehicleEquipmentData, setSellVehicleEquipmentData] = useState<Equipment | null>(null);
+  const [sellCost, setSellCost] = useState<number>(0);
 
   // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
@@ -363,7 +402,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       const [{ result }] = await response.json();
       
-      // Transform equipment data
+      // Transform regular equipment data
       const transformedEquipment = (result.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
         equipment_id: item.equipment_id,
@@ -373,6 +412,20 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         base_cost: item.original_cost,
         weapon_profiles: item.weapon_profiles,
         core_equipment: item.core_equipment
+      }));
+
+      // Transform vehicle equipment data from the nested structure
+      const transformedVehicleEquipment = (result.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+        fighter_equipment_id: item.fighter_equipment_id,
+        equipment_id: item.equipment_id,
+        equipment_name: item.equipment_name,
+        equipment_type: item.equipment_type,
+        cost: item.purchase_cost,
+        base_cost: item.original_cost,
+        vehicle_equipment_profiles: item.vehicle_equipment_profiles || [],
+        core_equipment: false,
+        vehicle_id: result.fighter?.vehicles?.[0]?.id,
+        vehicle_equipment_id: item.id
       }));
 
       // Update state in a single operation
@@ -397,6 +450,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           vehicles: result.fighter.vehicles
         },
         equipment: transformedEquipment,
+        vehicleEquipment: transformedVehicleEquipment,
         gang: {
           id: result.gang.id,
           credits: result.gang.credits
@@ -511,18 +565,23 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }));
   }, []);
 
-  const handleEquipmentBought = useCallback((newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => {
+  const handleEquipmentBought = useCallback((newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, isVehicleEquipment: boolean = false) => {
     setFighterData(prev => ({
       ...prev,
       fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
-      gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-    }));
-    setFighterData(prev => ({
-      ...prev,
-      equipment: [...prev.equipment, {
-        ...boughtEquipment,
-        cost: boughtEquipment.cost
-      }]
+      gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
+      ...(isVehicleEquipment ? {
+        vehicleEquipment: [...prev.vehicleEquipment, {
+          ...boughtEquipment,
+          vehicle_id: prev.fighter?.vehicles?.[0]?.id || '',
+          vehicle_equipment_id: '',
+        } as VehicleEquipment]
+      } : {
+        equipment: [...prev.equipment, {
+          ...boughtEquipment,
+          cost: boughtEquipment.cost
+        }]
+      })
     }));
   }, []);
 
@@ -955,6 +1014,232 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     });
   };
 
+  // Update the handleVehicleEquipmentDelete function to log the IDs
+  const handleVehicleEquipmentDelete = async (fighterEquipmentId: string, equipmentId: string) => {
+    console.log('Delete request for:', { fighterEquipmentId, equipmentId });
+    
+    // Find the equipment to delete for the modal
+    const equipmentToDelete = fighterData.vehicleEquipment.find(
+      e => e.fighter_equipment_id === fighterEquipmentId
+    );
+    
+    if (!equipmentToDelete) {
+      console.log('Available equipment:', fighterData.vehicleEquipment);
+      toast({
+        title: "Error",
+        description: "Equipment not found",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Show confirmation modal
+    setDeleteVehicleEquipmentData({
+      id: equipmentToDelete.fighter_equipment_id, // Use the correct ID field
+      equipmentId: equipmentToDelete.equipment_id,
+      name: equipmentToDelete.equipment_name
+    });
+  };
+
+  // Update the handleConfirmVehicleEquipmentDelete function to log the data
+  const handleConfirmVehicleEquipmentDelete = async () => {
+    if (!deleteVehicleEquipmentData) return;
+    
+    console.log('Attempting to delete:', deleteVehicleEquipmentData);
+    
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_equipment?id=eq.${deleteVehicleEquipmentData.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete response:', errorText);
+        throw new Error('Failed to delete equipment');
+      }
+
+      // Update local state
+      setFighterData(prev => ({
+        ...prev,
+        vehicleEquipment: prev.vehicleEquipment.filter(
+          equip => equip.fighter_equipment_id !== deleteVehicleEquipmentData.id
+        )
+      }));
+
+      toast({
+        description: "Equipment deleted successfully",
+        variant: "default"
+      });
+
+      setDeleteVehicleEquipmentData(null);
+    } catch (error) {
+      console.error('Error deleting equipment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete equipment",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add the handleVehicleEquipmentStash function
+  const handleVehicleEquipmentStash = async (fighterEquipmentId: string, equipmentId: string) => {
+    try {
+      // Find the equipment to stash for the modal
+      const equipmentToStash = fighterData.vehicleEquipment.find(
+        e => e.fighter_equipment_id === fighterEquipmentId
+      );
+      
+      if (!equipmentToStash) {
+        toast({
+          title: "Error",
+          description: "Equipment not found",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show confirmation modal
+      setStashVehicleEquipmentData({
+        id: equipmentToStash.fighter_equipment_id,
+        equipmentId: equipmentToStash.equipment_id,
+        name: equipmentToStash.equipment_name,
+        cost: equipmentToStash.cost || 0
+      });
+    } catch (error) {
+      console.error('Error preparing to stash equipment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare equipment for stash",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add the actual stash function
+  const handleConfirmVehicleEquipmentStash = async () => {
+    if (!stashVehicleEquipmentData) return;
+    
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_to_gang_stash`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            fighter_equipment_id: stashVehicleEquipmentData.id
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Stash response:', errorText);
+        throw new Error('Failed to stash equipment');
+      }
+
+      // Update local state
+      setFighterData(prev => ({
+        ...prev,
+        vehicleEquipment: prev.vehicleEquipment.filter(
+          equip => equip.fighter_equipment_id !== stashVehicleEquipmentData.id
+        ),
+        fighter: prev.fighter ? {
+          ...prev.fighter,
+          credits: (prev.fighter.credits || 0) - (stashVehicleEquipmentData.cost || 0)
+        } : null
+      }));
+
+      toast({
+        description: "Equipment moved to stash",
+        variant: "default"
+      });
+
+      setStashVehicleEquipmentData(null);
+    } catch (error) {
+      console.error('Error stashing equipment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to stash equipment",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add the sell handler
+  const handleVehicleEquipmentSell = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No session found');
+        return;
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/sell_equipment_from_fighter`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            fighter_equipment_id: fighterEquipmentId,
+            manual_cost: manualCost
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Sell response:', errorText);
+        throw new Error('Failed to sell equipment');
+      }
+
+      const data = await response.json();
+      
+      // Update local state
+      setFighterData(prev => ({
+        ...prev,
+        vehicleEquipment: prev.vehicleEquipment.filter(
+          item => item.fighter_equipment_id !== fighterEquipmentId
+        ),
+        gang: prev.gang ? {
+          ...prev.gang,
+          credits: (prev.gang.credits || 0) + data.equipment_sold.sell_value
+        } : null
+      }));
+
+      toast({
+        title: "Success",
+        description: `Equipment sold for ${data.equipment_sold.sell_value} credits`,
+      });
+    } catch (error) {
+      console.error('Error selling equipment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sell equipment",
+        variant: "destructive"
+      });
+    } finally {
+      setSellVehicleEquipmentData(null);
+      setSellCost(0);
+    }
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1023,7 +1308,34 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             kills={fighterData.fighter?.kills || 0}
             injuries={fighterData.fighter?.injuries || []}
             vehicles={fighterData.fighter?.vehicles}
+            vehicleEquipment={fighterData.vehicleEquipment}
           />
+          
+          {fighterData.fighter?.fighter_class === 'Crew' && (
+            <div className="mt-6">
+              <div className="flex flex-wrap justify-between items-center mb-2">
+                <h2 className="text-2xl font-bold">Vehicle Equipment</h2>
+                <Button 
+                  onClick={() => handleModalToggle('addVehicleEquipment', true)}
+                  className="bg-black hover:bg-gray-800 text-white"
+                >
+                  Add
+                </Button>
+              </div>
+              <FighterWeaponsTable 
+                equipment={fighterData.vehicleEquipment}
+                onDeleteEquipment={handleVehicleEquipmentDelete}
+                onSellEquipment={(fighterEquipmentId, equipmentId) => {
+                  const item = fighterData.vehicleEquipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
+                  if (item) {
+                    setSellVehicleEquipmentData(item);
+                  }
+                }}
+                onStashEquipment={handleVehicleEquipmentStash}
+                isLoading={uiState.isLoading}
+              />
+            </div>
+          )}
           
           <WeaponList 
             fighterId={params.id} 
@@ -1381,6 +1693,77 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 }
               }}
             />
+          )}
+          
+          {uiState.modals.addVehicleEquipment && (
+            <ItemModal
+              title="Vehicle Equipment"
+              onClose={() => handleModalToggle('addVehicleEquipment', false)}
+              gangCredits={fighterData.gang?.credits || 0}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.fighter?.gang_type_id || ''}
+              fighterId={fighterData.fighter?.id || ''}
+              vehicleId={fighterData.fighter?.vehicles?.[0]?.id}
+              fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
+                handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
+              }
+              isVehicleEquipment={true}
+            />
+          )}
+          
+          {deleteVehicleEquipmentData && (
+            <Modal
+              title="Confirm Deletion"
+              onClose={() => setDeleteVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentDelete}
+            >
+              <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}? This action cannot be undone.</p>
+            </Modal>
+          )}
+          
+          {stashVehicleEquipmentData && (
+            <Modal
+              title="Confirm Stash"
+              onClose={() => setStashVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentStash}
+            >
+              <p>Are you sure you want to stash {stashVehicleEquipmentData.name}? This action cannot be undone.</p>
+            </Modal>
+          )}
+          
+          {sellVehicleEquipmentData && (
+            <Modal
+              title="Confirm Sale"
+              onClose={() => {
+                setSellVehicleEquipmentData(null);
+                setSellCost(0);
+              }}
+              onConfirm={() => handleVehicleEquipmentSell(
+                sellVehicleEquipmentData.fighter_equipment_id,
+                sellVehicleEquipmentData.equipment_id,
+                sellCost || sellVehicleEquipmentData.cost || 0
+              )}
+            >
+              <div className="space-y-4">
+                <p>Are you sure you want to sell {sellVehicleEquipmentData.equipment_name}?</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cost
+                    </label>
+                    <input
+                      type="number"
+                      defaultValue={sellVehicleEquipmentData.cost}
+                      onChange={(e) => setSellCost(parseInt(e.target.value, 10))}
+                      className="w-full p-2 border rounded-md"
+                      min="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </Modal>
           )}
         </div>
       </div>

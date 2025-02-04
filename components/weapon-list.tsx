@@ -130,7 +130,6 @@ export function WeaponList({
   };
 
   const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
-    setIsLoading(true);
     try {
       const equipmentToSell = equipment.find(
         item => item.fighter_equipment_id === fighterEquipmentId
@@ -145,7 +144,6 @@ export function WeaponList({
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Authorization': `Bearer ${session.access_token}`,
-            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
           },
           body: JSON.stringify({
             fighter_equipment_id: fighterEquipmentId,

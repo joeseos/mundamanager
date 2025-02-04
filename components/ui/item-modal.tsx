@@ -19,6 +19,8 @@ interface ItemModalProps {
   fighterId: string;
   fighterTypeId: string;
   fighterCredits: number;
+  vehicleId?: string;
+  isVehicleEquipment?: boolean;
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -111,6 +113,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterId,
   fighterTypeId,
   fighterCredits,
+  vehicleId,
+  isVehicleEquipment,
   onEquipmentBought
 }) => {
   const { toast } = useToast();
@@ -279,7 +283,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
           },
           body: JSON.stringify({
             equipment_id: item.equipment_id,
-            fighter_id: fighterId,
+            ...(isVehicleEquipment 
+              ? { vehicle_id: vehicleId }
+              : { fighter_id: fighterId }
+            ),
             gang_id: gangId,
             manual_cost: manualCost
           }),
