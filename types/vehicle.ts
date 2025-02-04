@@ -1,4 +1,5 @@
 import { Equipment } from '@/types/equipment';
+import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 
 export interface VehicleProps {
   id: string;
