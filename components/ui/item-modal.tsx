@@ -36,6 +36,8 @@ interface RawEquipmentData {
   created_at: string;
   weapon_profiles?: WeaponProfile[];
   fighter_type_equipment: boolean;
+  fighter_weapon_id?: string;
+  fighter_equipment_id: string;
 }
 
 interface PurchaseModalProps {
@@ -228,7 +230,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.discounted_cost,
           base_cost: item.base_cost,
           discounted_cost: item.discounted_cost,
-          equipment_type: item.equipment_type as 'weapon' | 'wargear'
+          equipment_type: item.equipment_type as 'weapon' | 'wargear',
+          fighter_weapon_id: item.fighter_weapon_id || undefined
         }))
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 

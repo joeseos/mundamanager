@@ -9,17 +9,7 @@ import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
-
-// Base Equipment interface with optional properties
-interface Equipment {
-  fighter_equipment_id: string;
-  equipment_id: string;
-  equipment_name: string;
-  equipment_type: string;
-  cost: number;
-  base_cost?: number; // Make optional
-  vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-}
+import { Equipment } from '@/types/equipment';
 
 // Vehicle equipment profile interface
 interface VehicleEquipmentProfile {
@@ -83,7 +73,7 @@ interface FighterDetailsCardProps {
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
-const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | VehicleEquipment)[]) => {
+const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | VehicleEquipment)[] = []) => {
   if (!baseStats) return {
     movement: 0,
     front: 0,
@@ -104,27 +94,29 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
   };
 
   // Add bonuses from vehicle equipment
-  vehicleEquipment?.forEach(equipment => {
-    if ('vehicle_equipment_profiles' in equipment && equipment.vehicle_equipment_profiles) {
-      equipment.vehicle_equipment_profiles.forEach(profile => {
-        const statUpdates = {
-          movement: profile.movement,
-          front: profile.front,
-          side: profile.side,
-          rear: profile.rear,
-          hull_points: profile.hull_points,
-          save: profile.save,
-        };
+  if (Array.isArray(vehicleEquipment)) {
+    vehicleEquipment.forEach(equipment => {
+      if ('vehicle_equipment_profiles' in equipment && equipment.vehicle_equipment_profiles) {
+        equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
+          const statUpdates = {
+            movement: profile.movement,
+            front: profile.front,
+            side: profile.side,
+            rear: profile.rear,
+            hull_points: profile.hull_points,
+            save: profile.save,
+          };
 
-        // Update each stat if the profile has a value
-        Object.entries(statUpdates).forEach(([key, value]) => {
-          if (value !== null) {
-            stats[key as keyof typeof stats] += value;
-          }
+          // Update each stat if the profile has a value
+          Object.entries(statUpdates).forEach(([key, value]) => {
+            if (value !== null) {
+              stats[key as keyof typeof stats] += value;
+            }
+          });
         });
-      });
-    }
-  });
+      }
+    });
+  }
 
   return stats;
 };

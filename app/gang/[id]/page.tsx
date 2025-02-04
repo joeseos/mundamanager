@@ -12,7 +12,7 @@ import Tabs from "@/components/tabs";
 import GangInventory from "@/components/gang-stash";
 import { GangNotes } from "@/components/gang-notes";
 import GangTerritories from "@/components/gang-territories";
-import { Equipment } from "@/types/fighter";
+import { Equipment } from "@/types/equipment";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { StashItem } from '@/types/gang';
 import GangVehicles from "@/components/gang-vehicles";
@@ -87,7 +87,7 @@ async function processGangData(gangData: any) {
           weapon_name: item.equipment_name,
           weapon_id: item.equipment_id,
           cost: item.cost,
-          fighter_weapon_id: item.fighter_weapon_id,
+          fighter_weapon_id: item.fighter_weapon_id || item.fighter_equipment_id,
           weapon_profiles: item.weapon_profiles || []
         })) || [],
       wargear: validEquipment

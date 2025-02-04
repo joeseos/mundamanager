@@ -1,3 +1,5 @@
+import { VehicleEquipmentProfile } from '@/types/fighter';
+
 export interface WeaponProfile {
   id: string;
   profile_name: string;
@@ -15,6 +17,7 @@ export interface WeaponProfile {
 
 export interface Equipment {
   fighter_equipment_id: string;
+  fighter_weapon_id?: string;
   equipment_id: string;
   equipment_name: string;
   equipment_type: 'weapon' | 'wargear';
@@ -27,4 +30,5 @@ export interface Equipment {
   created_at?: string;
   weapon_profiles?: WeaponProfile[] | null;
   core_equipment?: boolean;
+  vehicle_equipment_profiles?: VehicleEquipmentProfile[];
 } 
