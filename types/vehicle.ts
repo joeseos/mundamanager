@@ -1,3 +1,5 @@
+import { Equipment } from '@/types/equipment';
+
 export interface VehicleProps {
   id: string;
   gang_id: string;
@@ -20,4 +22,7 @@ export interface VehicleProps {
   created_at: string;
   fighter_id?: string | null;
   vehicle_type: string;
+  equipment: Array<Equipment & Partial<VehicleEquipment> & {
+    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+  }>;
 } 
