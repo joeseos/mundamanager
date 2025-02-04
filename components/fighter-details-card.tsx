@@ -9,7 +9,7 @@ import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
-import { Equipment } from '@/types/equipment';
+import { Equipment, WeaponProfile } from '@/types/equipment';
 
 // Vehicle equipment profile interface
 interface VehicleEquipmentProfile {
@@ -61,6 +61,7 @@ interface FighterDetailsCardProps {
   kills: number;
   injuries?: Injury[];
   vehicles?: Array<{
+    id: string;
     movement: number;
     front: number;
     side: number;
@@ -68,6 +69,16 @@ interface FighterDetailsCardProps {
     hull_points: number;
     handling: number;
     save: number;
+    vehicle_type?: string;
+    vehicle_name?: string;
+    equipment?: Array<{
+      id: string;
+      equipment_name: string;
+      equipment_type: string;
+      purchase_cost: number;
+      original_cost: number;
+      weapon_profiles?: WeaponProfile[];
+    }>;
   }>;
   vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
 }
@@ -271,6 +282,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         <p className="text-lg text-gray-600">
           Kills: {kills}
         </p>
+        {fighter_class === 'Crew' && (
+          <p className="text-lg text-gray-600">
+            Vehicle: {vehicles?.[0]?.vehicle_name || vehicles?.[0]?.vehicle_type || 'None'}
+          </p>
+        )}
       </div>
       <div className="mt-4">
         <FighterStatsTable data={stats} isCrew={isCrew} />
