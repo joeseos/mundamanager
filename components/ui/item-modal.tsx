@@ -279,8 +279,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           },
           body: JSON.stringify({
             equipment_id: item.equipment_id,
-            fighter_id: fighterId,
             gang_id: gangId,
+            fighter_id: fighterId,
             manual_cost: manualCost
           }),
         }
