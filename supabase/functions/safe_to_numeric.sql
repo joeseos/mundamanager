@@ -1,0 +1,9 @@
+
+BEGIN
+    IF v IS NULL OR v = '' THEN
+        RETURN 0;
+    END IF;
+    RETURN v::numeric;
+EXCEPTION WHEN OTHERS THEN
+    RETURN 0;
+END;
