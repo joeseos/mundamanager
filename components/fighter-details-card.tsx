@@ -284,7 +284,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </p>
         {fighter_class === 'Crew' && (
           <p className="text-lg text-gray-600">
-            Vehicle: {vehicles?.[0]?.vehicle_name || vehicles?.[0]?.vehicle_type || 'None'}
+            {vehicles?.[0]
+              ? vehicles[0].vehicle_name
+                ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
+              : 'None'}
           </p>
         )}
       </div>

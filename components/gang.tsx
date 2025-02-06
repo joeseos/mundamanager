@@ -764,6 +764,19 @@ export default function Gang({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
+                    Vehicle Name
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter vehicle name"
+                    value={vehicleName}
+                    onChange={(e) => setVehicleName(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
                     Vehicle Type
                   </label>
                   <select
@@ -773,7 +786,6 @@ export default function Gang({
                       const vehicle = vehicleTypes.find(v => v.id === e.target.value);
                       if (vehicle) {
                         setVehicleCost(vehicle.cost.toString());
-                        setVehicleName(vehicle.vehicle_type);
                       }
                     }}
                     className="w-full p-2 border rounded"
@@ -789,23 +801,11 @@ export default function Gang({
 
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Vehicle Name
-                  </label>
-                  <Input
-                    type="text"
-                    value={vehicleName}
-                    onChange={(e) => setVehicleName(e.target.value)}
-                    className="w-full"
-                    placeholder="Enter vehicle name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
                     Cost (credits)
                   </label>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     value={vehicleCost}
                     onChange={(e) => setVehicleCost(e.target.value)}
                     className="w-full"
@@ -830,7 +830,7 @@ export default function Gang({
             }}
             onConfirm={handleAddVehicle}
             confirmText="Add Vehicle"
-            confirmDisabled={!selectedVehicleTypeId}
+            confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
           />
         )}
       </div>

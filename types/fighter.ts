@@ -73,6 +73,7 @@ export interface Vehicle {
   id: string;
   created_at: string;
   vehicle_name: string;
+  vehicle_type: string;
   movement: number;
   front: number;
   side: number;
