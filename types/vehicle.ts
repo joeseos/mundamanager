@@ -5,6 +5,7 @@ export interface VehicleProps {
   id: string;
   gang_id: string;
   vehicle_name: string;
+  vehicle_type: string;
   movement: number;
   front: number;
   side: number;
@@ -22,7 +23,6 @@ export interface VehicleProps {
   cost: number;
   created_at: string;
   fighter_id?: string | null;
-  vehicle_type: string;
   equipment: Array<Equipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>;

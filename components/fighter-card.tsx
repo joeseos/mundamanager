@@ -349,7 +349,7 @@ const FighterCard = memo(function FighterCard({
               {isCrew && vehicle && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                  <div className="min-w-[0px] text-sm break-words">{vehicle.vehicle_name}</div>
+                  <div className="min-w-[0px] text-sm break-words">{vehicle.vehicle_name} - {vehicle.vehicle_type}</div>
                   
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
                   <div className="min-w-[0px] text-sm break-words">
