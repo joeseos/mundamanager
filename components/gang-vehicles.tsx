@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { FighterProps, Vehicle, WeaponProfile } from '@/types/fighter';
+import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -63,58 +63,10 @@ export default function GangVehicles({
       // Update the fighter with the new vehicle
       const selectedFighterData = fighters.find(f => f.id === selectedFighter);
       if (selectedFighterData && onFighterUpdate) {
-        // Transform the equipment to match the expected structure
-        const transformedEquipment = vehicle.equipment?.map(equip => {
-          // Convert weapon profiles to the fighter.ts format if they exist
-          const convertedWeaponProfiles = equip.weapon_profiles?.map(profile => ({
-            id: profile.id,
-            profile_name: profile.profile_name,
-            range_short: profile.range_short.toString(),
-            range_long: profile.range_long.toString(),
-            acc_short: profile.acc_short.toString(),
-            acc_long: profile.acc_long?.toString() || '',
-            strength: profile.strength.toString(),
-            ap: profile.ap.toString(),
-            damage: profile.damage.toString(),
-            ammo: profile.ammo.toString(),
-            traits: profile.traits || '',
-            weapon_group_id: '', // Required by fighter.ts WeaponProfile
-            is_default_profile: profile.is_default_profile
-          } as WeaponProfile));
-
-          return {
-            id: equip.fighter_equipment_id,
-            fighter_equipment_id: equip.fighter_equipment_id,
-            equipment_id: equip.equipment_id,
-            equipment_name: equip.equipment_name,
-            equipment_type: equip.equipment_type,
-            purchase_cost: equip.cost || 0,
-            original_cost: equip.base_cost || 0,
-            weapon_profiles: convertedWeaponProfiles,
-            vehicle_equipment_profiles: equip.vehicle_equipment_profiles
-          };
-        }) || [];
-
-        const updatedVehicle: Vehicle = {
-          id: vehicle.id,
-          created_at: vehicle.created_at,
-          vehicle_name: vehicle.vehicle_name,
-          vehicle_type: vehicle.vehicle_type,
-          movement: vehicle.movement,
-          front: vehicle.front,
-          side: vehicle.side,
-          rear: vehicle.rear,
-          hull_points: vehicle.hull_points,
-          handling: vehicle.handling,
-          save: vehicle.save,
-          body_slots: vehicle.body_slots,
-          body_slots_occupied: vehicle.body_slots_occupied,
-          drive_slots: vehicle.drive_slots,
-          drive_slots_occupied: vehicle.drive_slots_occupied,
-          engine_slots: vehicle.engine_slots,
-          engine_slots_occupied: vehicle.engine_slots_occupied,
-          special_rules: vehicle.special_rules,
-          equipment: transformedEquipment
+        const updatedVehicle = {
+          ...vehicle,
+          fighter_id: selectedFighter,
+          equipment: vehicle.equipment || []
         };
         
         const updatedFighter = {

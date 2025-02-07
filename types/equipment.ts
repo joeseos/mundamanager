@@ -20,7 +20,7 @@ export interface Equipment {
   fighter_weapon_id?: string;
   equipment_id: string;
   equipment_name: string;
-  equipment_type: 'weapon' | 'wargear' | 'vehicle upgrades';
+  equipment_type: 'weapon' | 'wargear';
   cost: number;
   base_cost?: number;
   discounted_cost?: number;
