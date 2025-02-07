@@ -349,16 +349,31 @@ const FighterCard = memo(function FighterCard({
               {isCrew && vehicle && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                  <div className="min-w-[0px] text-sm break-words">{vehicle.vehicle_name} - {vehicle.vehicle_type}</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
+                  </div>
                   
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
                   <div className="min-w-[0px] text-sm break-words">
                     {formatUpgradeSlots(vehicle)}
                   </div>
 
+                  {Array.isArray(vehicle?.equipment) && vehicle.equipment.length > 0 && (
+                    <>
+                      <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
+                      <div className="min-w-[0px] text-sm break-words">
+                        {vehicle.equipment
+                          .filter(upgrade => upgrade?.equipment_name)
+                          .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                          .map(upgrade => upgrade.equipment_name)
+                          .join(', ')}
+                      </div>
+                    </>
+                  )}
+
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {vehicle.special_rules.join(', ')}
+                    {Array.isArray(vehicle?.special_rules) ? vehicle.special_rules.join(', ') : ''}
                   </div>
                 </>
               )}
