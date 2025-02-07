@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { FighterProps, Vehicle } from '@/types/fighter';
+import { FighterProps, Vehicle, WeaponProfile } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -64,17 +64,36 @@ export default function GangVehicles({
       const selectedFighterData = fighters.find(f => f.id === selectedFighter);
       if (selectedFighterData && onFighterUpdate) {
         // Transform the equipment to match the expected structure
-        const transformedEquipment = vehicle.equipment?.map(equip => ({
-          id: equip.fighter_equipment_id, // or equip.id
-          fighter_equipment_id: equip.fighter_equipment_id,
-          equipment_id: equip.equipment_id,
-          equipment_name: equip.equipment_name,
-          equipment_type: equip.equipment_type,
-          purchase_cost: equip.cost || 0,
-          original_cost: equip.base_cost || 0,
-          weapon_profiles: equip.weapon_profiles,
-          vehicle_equipment_profiles: equip.vehicle_equipment_profiles
-        })) || [];
+        const transformedEquipment = vehicle.equipment?.map(equip => {
+          // Convert weapon profiles to the fighter.ts format if they exist
+          const convertedWeaponProfiles = equip.weapon_profiles?.map(profile => ({
+            id: profile.id,
+            profile_name: profile.profile_name,
+            range_short: profile.range_short.toString(),
+            range_long: profile.range_long.toString(),
+            acc_short: profile.acc_short.toString(),
+            acc_long: profile.acc_long?.toString() || '',
+            strength: profile.strength.toString(),
+            ap: profile.ap.toString(),
+            damage: profile.damage.toString(),
+            ammo: profile.ammo.toString(),
+            traits: profile.traits || '',
+            weapon_group_id: '', // Required by fighter.ts WeaponProfile
+            is_default_profile: profile.is_default_profile
+          } as WeaponProfile));
+
+          return {
+            id: equip.fighter_equipment_id,
+            fighter_equipment_id: equip.fighter_equipment_id,
+            equipment_id: equip.equipment_id,
+            equipment_name: equip.equipment_name,
+            equipment_type: equip.equipment_type,
+            purchase_cost: equip.cost || 0,
+            original_cost: equip.base_cost || 0,
+            weapon_profiles: convertedWeaponProfiles,
+            vehicle_equipment_profiles: equip.vehicle_equipment_profiles
+          };
+        }) || [];
 
         const updatedVehicle: Vehicle = {
           ...vehicle,
