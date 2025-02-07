@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, Vehicle } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
 
