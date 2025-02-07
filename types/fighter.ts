@@ -88,7 +88,15 @@ export interface Vehicle {
   engine_slots?: number;
   engine_slots_occupied?: number;
   special_rules: string[];
-  equipment: Array<BaseEquipment & Partial<VehicleEquipment> & {
+  equipment?: Array<{
+    id: string;
+    fighter_equipment_id: string;
+    equipment_id: string;
+    equipment_name: string;
+    equipment_type: "weapon" | "wargear" | "vehicle upgrades";
+    purchase_cost: number;
+    original_cost: number;
+    weapon_profiles?: WeaponProfile[] | null;
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>;
 }

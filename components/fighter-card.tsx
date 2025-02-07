@@ -4,7 +4,7 @@ import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile, WeaponProfile } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -35,7 +35,15 @@ type FighterCardData = FighterProps & {
 
 const calculateVehicleStats = (
   baseStats: Vehicle, 
-  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment> & {
+  vehicleEquipment: Array<{
+    id: string;
+    fighter_equipment_id: string;
+    equipment_id: string;
+    equipment_name: string;
+    equipment_type: "weapon" | "wargear" | "vehicle upgrades";
+    purchase_cost: number;
+    original_cost: number;
+    weapon_profiles?: WeaponProfile[] | null;
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>
 ) => {
@@ -58,8 +66,15 @@ const calculateVehicleStats = (
     save: baseStats.save || 0,
   };
 
+  // Map vehicle equipment to the expected format
+  const mappedEquipment = vehicleEquipment.map(equip => ({
+    ...equip,
+    cost: equip.purchase_cost,
+    base_cost: equip.original_cost,
+  }));
+
   // Add bonuses from vehicle equipment
-  vehicleEquipment?.forEach(equipment => {
+  mappedEquipment.forEach(equipment => {
     if (equipment.vehicle_equipment_profiles) {
       equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
         const statUpdates = {
@@ -355,6 +370,18 @@ const FighterCard = memo(function FighterCard({
                   <div className="min-w-[0px] text-sm break-words">
                     {formatUpgradeSlots(vehicle)}
                   </div>
+
+                  {vehicle.equipment && vehicle.equipment.some(e => e.equipment_type === "vehicle upgrades") && (
+                    <>
+                      <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
+                      <div className="min-w-[0px] text-sm break-words">
+                        {vehicle.equipment
+                          .filter(e => e.equipment_type === "vehicle upgrades")
+                          .map(e => e.equipment_name)
+                          .join(', ')}
+                      </div>
+                    </>
+                  )}
 
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">
