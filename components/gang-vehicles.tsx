@@ -96,8 +96,24 @@ export default function GangVehicles({
         }) || [];
 
         const updatedVehicle: Vehicle = {
-          ...vehicle,
-          fighter_id: selectedFighter,
+          id: vehicle.id,
+          created_at: vehicle.created_at,
+          vehicle_name: vehicle.vehicle_name,
+          vehicle_type: vehicle.vehicle_type,
+          movement: vehicle.movement,
+          front: vehicle.front,
+          side: vehicle.side,
+          rear: vehicle.rear,
+          hull_points: vehicle.hull_points,
+          handling: vehicle.handling,
+          save: vehicle.save,
+          body_slots: vehicle.body_slots,
+          body_slots_occupied: vehicle.body_slots_occupied,
+          drive_slots: vehicle.drive_slots,
+          drive_slots_occupied: vehicle.drive_slots_occupied,
+          engine_slots: vehicle.engine_slots,
+          engine_slots_occupied: vehicle.engine_slots_occupied,
+          special_rules: vehicle.special_rules,
           equipment: transformedEquipment
         };
         
