@@ -63,10 +63,23 @@ export default function GangVehicles({
       // Update the fighter with the new vehicle
       const selectedFighterData = fighters.find(f => f.id === selectedFighter);
       if (selectedFighterData && onFighterUpdate) {
-        const updatedVehicle = {
+        // Transform the equipment to match the expected structure
+        const transformedEquipment = vehicle.equipment?.map(equip => ({
+          id: equip.fighter_equipment_id, // or equip.id
+          fighter_equipment_id: equip.fighter_equipment_id,
+          equipment_id: equip.equipment_id,
+          equipment_name: equip.equipment_name,
+          equipment_type: equip.equipment_type,
+          purchase_cost: equip.cost || 0,
+          original_cost: equip.base_cost || 0,
+          weapon_profiles: equip.weapon_profiles,
+          vehicle_equipment_profiles: equip.vehicle_equipment_profiles
+        })) || [];
+
+        const updatedVehicle: Vehicle = {
           ...vehicle,
           fighter_id: selectedFighter,
-          equipment: vehicle.equipment || []
+          equipment: transformedEquipment
         };
         
         const updatedFighter = {
