@@ -200,18 +200,32 @@ const FighterCard = memo(function FighterCard({
 
   const formatUpgradeSlots = (vehicle: Vehicle) => {
     const slots = [];
+    
+    // Count upgrades by type
+    const countUpgradesByType = (type: string) => {
+      return vehicle.equipment?.reduce((count, equip) => {
+        const hasUpgradeType = equip.vehicle_equipment_profiles?.some(
+          profile => profile.upgrade_type === type
+        );
+        return hasUpgradeType ? count + 1 : count;
+      }, 0) || 0;
+    };
+
     if (vehicle.body_slots) {
-      const occupied = vehicle.body_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.body_slots} Body`);
+      const bodyUpgrades = countUpgradesByType('body');
+      slots.push(`${bodyUpgrades}/${vehicle.body_slots} Body`);
     }
+    
     if (vehicle.drive_slots) {
-      const occupied = vehicle.drive_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.drive_slots} Drive`);
+      const driveUpgrades = countUpgradesByType('drive');
+      slots.push(`${driveUpgrades}/${vehicle.drive_slots} Drive`);
     }
+    
     if (vehicle.engine_slots) {
-      const occupied = vehicle.engine_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.engine_slots} Engine`);
+      const engineUpgrades = countUpgradesByType('engine');
+      slots.push(`${engineUpgrades}/${vehicle.engine_slots} Engine`);
     }
+    
     return slots.join(', ');
   };
 

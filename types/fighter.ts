@@ -53,6 +53,7 @@ export interface Injury {
 
 export interface VehicleEquipmentProfile {
   id: string;
+  created_at: string;
   equipment_id: string;
   movement: number | null;
   front: number | null;
@@ -61,6 +62,7 @@ export interface VehicleEquipmentProfile {
   hull_points: number | null;
   save: number | null;
   profile_name: string;
+  upgrade_type: 'body' | 'drive' | 'engine';
 }
 
 export interface VehicleEquipment extends BaseEquipment {
