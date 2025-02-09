@@ -26,7 +26,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
   vehicleEquipment?: (Equipment | VehicleEquipment)[];
-  disableLink?: boolean;  // Add this prop
+  disableLink?: boolean;
 }
 
 type FighterCardData = FighterProps & {

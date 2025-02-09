@@ -517,25 +517,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       );
 
       if (!deleteResponse.ok) {
-        throw new Error('Failed to delete fighter');
+        const errorData = await deleteResponse.json();
+        throw new Error(errorData.message || 'Failed to delete fighter');
       }
-
-      // Then update the gang's position data
-      const currentPositions = fighterData.gang?.positioning || {};
-      const newPositions = Object.entries(currentPositions).reduce((acc, [pos, fighterId]) => {
-        if (fighterId !== fighterData.fighter?.id) {
-          acc[Number(pos)] = fighterId;
-        }
-        return acc;
-      }, {} as Record<number, string>);
-
-      const gangResponse = await fetch(`/api/gangs/${fighterData.gang.id}/positioning`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ positions: newPositions }),
-      });
 
       toast({
         description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
