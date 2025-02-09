@@ -9,11 +9,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings, LogOut, User, Bell, Swords, Flag, Info, Menu } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
+
+// Icons
+import { Settings, LogOut, User, Bell, Info, Menu } from 'lucide-react';
+import { FaUsers } from "react-icons/fa6";
+import { FiMap } from "react-icons/fi";
 
 interface SettingsModalProps {
   user: SupabaseUser;
@@ -77,13 +81,13 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/" className="w-full cursor-pointer">
-            <Swords className="mr-2 h-4 w-4" />
+            <FaUsers className="mr-2 h-4 w-4" />
             Gangs
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/campaigns" className="w-full cursor-pointer">
-            <Flag className="mr-2 h-4 w-4" />
+            <FiMap className="mr-2 h-4 w-4" />
             Campaigns
           </Link>
         </DropdownMenuItem>
