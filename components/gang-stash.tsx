@@ -160,7 +160,7 @@ export default function GangInventory({
               <div className="flex items-center text-sm font-medium text-gray-700 px-4 py-2">
                 <div className="w-4 mr-3" />
                 <div className="flex-grow">Name</div>
-                <div className="w-32 text-right">Type</div>
+                <div className="w-32 text-right">Category</div>
                 <div className="w-20 text-right">Value</div>
               </div>
               <div className="space-y-2 px-4">
