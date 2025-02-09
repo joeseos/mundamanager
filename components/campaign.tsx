@@ -9,6 +9,12 @@ import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
 
+// Tab icons
+import { FaCity } from "react-icons/fa";
+import { FiMap } from "react-icons/fi";
+import { LuSwords } from "react-icons/lu";
+import { LuClipboard } from "react-icons/lu";
+
 interface CampaignProps {
   id: string;
   campaign_name: string;
@@ -169,7 +175,16 @@ export default function Campaign({
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
-        <Tabs tabTitles={['Details', 'Territories', 'Notes']}>
+        <Tabs tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
+           tabIcons={[
+             <FiMap key="campaign" />,
+             <FaCity  key="territories" />,
+             <LuSwords  key="battles" />,
+             <LuClipboard key="notes" />
+           ]}
+          >
+
+          {/* 1st tab */}
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
             <div className="flex justify-between items-start mb-2">
               <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
@@ -194,18 +209,36 @@ export default function Campaign({
               </div>
             </div>
           </div>
+
+          {/* 2nd tab */}
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
             <h1 className="text-2xl font-bold mb-4">Territories</h1>
-            <TerritoryList 
-              isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'} 
-              campaignId={id}
-              campaignTypeId={campaign_type_id}
-            />
+            <div className="flex flex-col gap-6">
+              <div>
+                <p className="text-gray-600">Add all the territories you want to include in your campaign. You can add each territory multiple times.</p>
+              </div>
+              <div>
+                <TerritoryList
+                  isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'}
+                  campaignId={id}
+                  campaignTypeId={campaign_type_id}
+                />
+              </div>
+            </div>
           </div>
+
+          {/* 3rd tab */}
+          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+            <h1 className="text-2xl font-bold mb-4">Battle Logs</h1>
+            <p className="text-gray-600">See the Campaign tab.</p>
+          </div>
+
+          {/* 4th tab */}
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
             <h1 className="text-2xl font-bold mb-4">Notes</h1>
             <p className="text-gray-600">Notes content coming soon...</p>
           </div>
+
         </Tabs>
       ) : (
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
