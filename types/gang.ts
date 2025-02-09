@@ -16,4 +16,6 @@ export interface StashItem {
   vehicle_id?: string;
   vehicle_name?: string;
   equipment_name?: string;
+  equipment_type?: 'weapon' | 'wargear' | 'vehicle_upgrade' | 'vehicle_wargear' | 'ammo';
+  equipment_category?: string;
 } 

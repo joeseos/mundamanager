@@ -156,7 +156,17 @@ const processedFighterTypes = (
     ...gangData,
     alignment: gangData.alignment,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes, // Use processed fighter types
+    fighterTypes: processedFighterTypes,
+    stash: (gangData.stash || []).map((item: any) => ({
+      id: item.id,
+      equipment_name: item.equipment_name,
+      vehicle_name: item.vehicle_name,
+      cost: item.cost,
+      type: item.type || 'equipment',
+      equipment_type: item.equipment_type,
+      equipment_category: item.equipment_category,
+      vehicle_id: item.vehicle_id
+    })),
     vehicles: gangData.vehicles || [],
   };
 }
@@ -321,6 +331,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={gangData.onStashUpdate}
+          vehicles={gangData.processedData.vehicles || []}
         />
         <GangVehicles 
           vehicles={gangData.processedData.vehicles || []} 
