@@ -32,6 +32,7 @@ interface GangPageContentProps {
       status: string | null;
     }[];
     stash: StashItem[];
+    positioning: Record<number, string>;
   };
   gangData: {
     stash: StashItem[];
@@ -43,7 +44,7 @@ interface GangPageContentProps {
 export default function GangPageContent({ processedData, gangData }: GangPageContentProps) {
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
   const [rating, setRating] = useState(processedData.rating);
-
+  
   const handleFighterDeleted = useCallback((fighterId: string, fighterCost: number) => {
     // Optimistically update fighters list and rating
     setFighters(prev => prev.filter(f => f.id !== fighterId));

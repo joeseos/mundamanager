@@ -26,6 +26,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
   vehicleEquipment?: (Equipment | VehicleEquipment)[];
+  disableLink?: boolean;  // Add this prop
 }
 
 type FighterCardData = FighterProps & {
@@ -123,6 +124,7 @@ const FighterCard = memo(function FighterCard({
   note,
   vehicle,
   vehicleEquipment = [],
+  disableLink = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -262,117 +264,116 @@ const FighterCard = memo(function FighterCard({
     };
   }, [special_rules]);
 
-  return (
-    <Link href={`/fighter/${id}`}>
-      <div 
-        className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
-        style={{
-          backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          fontSize: 'calc(10px + 0.2vmin)'
-        }}
-      >
-        <div className="flex mb-2">
-          <div className="flex w-full">
-            <div
-              className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
-              style={{
-                backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
-                width: '100%',
-                height: '65px',
-                marginTop: '16px',
-                zIndex: 0,
-                backgroundPosition: 'center',
-                backgroundSize: '100% 100%'
-              }}>
-              <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
-                {label && (
-                  <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
-                    {label}
-                  </div>
-                )}
-                <div className="flex flex-col items-baseline w-full">
-                  <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
-                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
-                    {type}
-                    {fighter_class && ` (${fighter_class})`}
-                  </div>
+  const cardContent = (
+    <div 
+      className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
+      style={{
+        backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        fontSize: 'calc(10px + 0.2vmin)'
+      }}
+    >
+      <div className="flex mb-2">
+        <div className="flex w-full">
+          <div
+            className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
+            style={{
+              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+              width: '100%',
+              height: '65px',
+              marginTop: '16px',
+              zIndex: 0,
+              backgroundPosition: 'center',
+              backgroundSize: '100% 100%'
+            }}>
+            <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+              {label && (
+                <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
+                  {label}
+                </div>
+              )}
+              <div className="flex flex-col items-baseline w-full">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                  {type}
+                  {fighter_class && ` (${fighter_class})`}
                 </div>
               </div>
             </div>
           </div>
-          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
-            {killed && <IoSkull className="text-gray-300" />}
-            {retired && <MdChair className="text-gray-600" />}
-            {enslaved && <GiCrossedChains className="text-sky-200" />}
-            {starved && <TbMeatOff className="text-red-500" />}
+        </div>
+        <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          {killed && <IoSkull className="text-gray-300" />}
+          {retired && <MdChair className="text-gray-600" />}
+          {enslaved && <GiCrossedChains className="text-sky-200" />}
+          {starved && <TbMeatOff className="text-red-500" />}
+        </div>
+        {!isInactive && (
+          <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+            <span className="leading-6 font-bold text-2xl">{credits}</span>
+            <span className="leading-3 text-xs">Credits</span>
           </div>
-          {!isInactive && (
-            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-              <span className="leading-6 font-bold text-2xl">{credits}</span>
-              <span className="leading-3 text-xs">Credits</span>
+        )}
+      </div>
+      
+      {!isInactive && (
+        <>
+          <StatsTable data={stats} isCrew={isCrew} />
+          {weapons && weapons.length > 0 && (
+            <div className="mt-4">
+              <WeaponTable weapons={weapons} />
             </div>
           )}
-        </div>
-        
-        {!isInactive && (
-          <>
-            <StatsTable data={stats} isCrew={isCrew} />
-            {weapons && weapons.length > 0 && (
-              <div className="mt-4">
-                <WeaponTable weapons={weapons} />
-              </div>
+          <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
+            {wargear && wargear.length > 0 && (
+              <>
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
+                <div className="min-w-[0px] text-sm break-words">
+                  {wargear
+                    .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
+                    .map(item => item.wargear_name)
+                    .join(', ')}
+                </div>
+              </>
             )}
-            <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
-              {wargear && wargear.length > 0 && (
-                <>
-                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
-                  <div className="min-w-[0px] text-sm break-words">
-                    {wargear
-                      .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
-                      .map(item => item.wargear_name)
-                      .join(', ')}
-                  </div>
-                </>
-              )}
-              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
-                <>
-                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
-                  <div className="min-w-[0px] text-sm break-words">
-                    {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
-                      Object.keys(advancements.skills)
-                        .sort((a, b) => a.localeCompare(b))
-                        .join(', ')
-                    ) : free_skill ? (
-                      <div className="flex items-center gap-2 text-amber-700">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 24 24" 
-                          fill="currentColor" 
-                          className="w-4 h-4"
-                        >
-                          <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                        </svg>
-                        Starting skill missing.
-                      </div>
-                    ) : null}
-                  </div>
-                </>
-              )}
-              {isCrew && vehicle && (
-                <>
-                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                  <div className="min-w-[0px] text-sm break-words">
+            {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
+              <>
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
+                <div className="min-w-[0px] text-sm break-words">
+                  {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
+                    Object.keys(advancements.skills)
+                      .sort((a, b) => a.localeCompare(b))
+                      .join(', ')
+                  ) : free_skill ? (
+                    <div className="flex items-center gap-2 text-amber-700">
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor" 
+                        className="w-4 h-4"
+                      >
+                        <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                      </svg>
+                      Starting skill missing.
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
+            {isCrew && vehicle && (
+              <>
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
+                <div className="min-w-[0px] text-sm break-words">
                     {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
                   </div>
-                  
-                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
-                  <div className="min-w-[0px] text-sm break-words">
-                    {formatUpgradeSlots(vehicle)}
-                  </div>
+                
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
+                <div className="min-w-[0px] text-sm break-words">
+                  {formatUpgradeSlots(vehicle)}
+                </div>
 
-                  {Array.isArray(vehicle?.equipment) && vehicle.equipment.length > 0 && (
+                {Array.isArray(vehicle?.equipment) && vehicle.equipment.length > 0 && (
                     <>
                       <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
                       <div className="min-w-[0px] text-sm break-words">
@@ -415,8 +416,13 @@ const FighterCard = memo(function FighterCard({
               )}
             </div>
           </>
-        )}
-      </div>
+      )}
+    </div>
+  );
+  //this link check is needed to prevent the card from being clickable when it's being dragged. Unless there is some other way to do this?
+  return disableLink ? cardContent : (
+    <Link href={`/fighter/${id}`}>
+      {cardContent}
     </Link>
   );
 });

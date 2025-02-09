@@ -180,6 +180,7 @@ interface Fighter {
 interface Gang {
   id: string;
   credits: number;
+  positioning?: Record<number, string>;
 }
 
 interface Advancement {
@@ -486,7 +487,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
-      const response = await fetch(
+      // First delete the fighter and their equipment
+      const deleteResponse = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/delete_fighter_and_equipment',
         {
           method: 'POST',
@@ -514,10 +516,26 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete fighter');
+      if (!deleteResponse.ok) {
+        throw new Error('Failed to delete fighter');
       }
+
+      // Then update the gang's position data
+      const currentPositions = fighterData.gang?.positioning || {};
+      const newPositions = Object.entries(currentPositions).reduce((acc, [pos, fighterId]) => {
+        if (fighterId !== fighterData.fighter?.id) {
+          acc[Number(pos)] = fighterId;
+        }
+        return acc;
+      }, {} as Record<number, string>);
+
+      const gangResponse = await fetch(`/api/gangs/${fighterData.gang.id}/positioning`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ positions: newPositions }),
+      });
 
       toast({
         description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
