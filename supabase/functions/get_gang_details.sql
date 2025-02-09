@@ -1,3 +1,4 @@
+
 BEGIN
    RETURN QUERY
    WITH gang_fighters AS (
@@ -37,7 +38,7 @@ BEGIN
        WHERE f.gang_id = p_gang_id
    ),
    fighter_injuries AS (
-       SELECT
+       SELECT 
            fi.fighter_id,
            json_agg(
                json_build_object(
@@ -63,11 +64,11 @@ BEGIN
            JOIN weapon_profiles wp ON wp.weapon_id = e.id
            WHERE e.id = wp.weapon_group_id
        )
-       SELECT
+       SELECT 
            f.f_id AS fighter_id,
            COALESCE(SUM(fe.purchase_cost), 0) as total_equipment_cost,
            json_agg(
-               CASE
+               CASE 
                    WHEN e.equipment_type = 'weapon' AND NOT EXISTS (
                        SELECT 1 FROM weapon_profiles wp_check
                        JOIN weapon_groups wg ON wg.weapon_group_id = wp_check.weapon_group_id
@@ -101,7 +102,7 @@ BEGIN
                                    ORDER BY wp2.sort_order NULLS LAST,
                                           wp2.profile_name
                                ), '[]'::json)
-                               FROM weapon_profiles wp2
+                               FROM weapon_profiles wp2 
                                WHERE wp2.weapon_id IN (
                                    SELECT fe2.equipment_id
                                    FROM fighter_equipment fe2
@@ -129,8 +130,8 @@ BEGIN
                        )
                    ELSE NULL
                END
-           ) FILTER (WHERE
-               e.equipment_type != 'weapon' OR
+           ) FILTER (WHERE 
+               e.equipment_type != 'weapon' OR 
                NOT EXISTS (
                    SELECT 1 FROM weapon_profiles wp_check
                    JOIN weapon_groups wg ON wg.weapon_group_id = wp_check.weapon_group_id
@@ -144,14 +145,14 @@ BEGIN
        GROUP BY f.f_id
    ),
    fighter_advancements AS (
-       SELECT
+       SELECT 
            f.f_id AS fighter_id,
            (
                COALESCE((SELECT SUM(fc2.credits_increase) FROM fighter_characteristics fc2 WHERE fc2.fighter_id = f.f_id), 0) +
                COALESCE((SELECT SUM(fs2.credits_increase) FROM fighter_skills fs2 WHERE fs2.fighter_id = f.f_id), 0)
            ) as total_advancement_credits,
            json_build_object(
-               'characteristics',
+               'characteristics', 
                COALESCE(
                    (SELECT json_object_agg(
                        c.name,
@@ -190,7 +191,7 @@ BEGIN
        GROUP BY f.f_id
    ),
    vehicle_equipment_profiles AS (
-       SELECT
+       SELECT 
            vep.id,
            vep.created_at,
            vep.equipment_id,
@@ -200,12 +201,13 @@ BEGIN
            vep.rear,
            vep.hull_points,
            vep.save,
-           vep.profile_name
+           vep.profile_name,
+           vep.upgrade_type 
        FROM vehicle_equipment_profiles vep
        JOIN fighter_equipment fe ON fe.equipment_id = vep.equipment_id
        WHERE fe.vehicle_id IN (
-           SELECT v.id
-           FROM vehicles v
+           SELECT v.id 
+           FROM vehicles v 
            WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM gang_fighters)
        )
    ),
@@ -216,11 +218,11 @@ BEGIN
            JOIN weapon_profiles wp ON wp.weapon_id = e.id
            WHERE e.id = wp.weapon_group_id
        )
-       SELECT
+       SELECT 
            ve.vehicle_id,
            COALESCE(SUM(ve.purchase_cost), 0) as total_equipment_cost,
            json_agg(
-               CASE
+               CASE 
                    WHEN e.equipment_type = 'weapon' AND NOT EXISTS (
                        SELECT 1 FROM weapon_profiles wp_check
                        JOIN weapon_groups wg ON wg.weapon_group_id = wp_check.weapon_group_id
@@ -254,7 +256,7 @@ BEGIN
                                    ORDER BY wp2.sort_order NULLS LAST,
                                           wp2.profile_name
                                ), '[]'::json)
-                               FROM weapon_profiles wp2
+                               FROM weapon_profiles wp2 
                                WHERE wp2.weapon_id IN (
                                    SELECT ve2.equipment_id
                                    FROM fighter_equipment ve2
@@ -283,7 +285,8 @@ BEGIN
                                        'rear', vep.rear,
                                        'hull_points', vep.hull_points,
                                        'save', vep.save,
-                                       'profile_name', vep.profile_name
+                                       'profile_name', vep.profile_name,
+                                       'upgrade_type', vep.upgrade_type
                                    )
                                ), '[]'::json)
                                FROM vehicle_equipment_profiles vep
@@ -309,7 +312,8 @@ BEGIN
                                        'rear', vep.rear,
                                        'hull_points', vep.hull_points,
                                        'save', vep.save,
-                                       'profile_name', vep.profile_name
+                                       'profile_name', vep.profile_name,
+                                       'upgrade_type', vep.upgrade_type
                                    )
                                ), '[]'::json)
                                FROM vehicle_equipment_profiles vep
@@ -318,8 +322,8 @@ BEGIN
                        )
                    ELSE NULL
                END
-           ) FILTER (WHERE
-               e.equipment_type != 'weapon' OR
+           ) FILTER (WHERE 
+               e.equipment_type != 'weapon' OR 
                NOT EXISTS (
                    SELECT 1 FROM weapon_profiles wp_check
                    JOIN weapon_groups wg ON wg.weapon_group_id = wp_check.weapon_group_id
@@ -333,7 +337,7 @@ BEGIN
        GROUP BY ve.vehicle_id
    ),
    gang_vehicles AS (
-       SELECT
+       SELECT 
            v.id,
            v.fighter_id,
            v.gang_id,
@@ -353,7 +357,6 @@ BEGIN
            v.engine_slots_occupied,
            v.special_rules,
            v.vehicle_name,
-           v.vehicle_type,
            v.cost,
            v.vehicle_type_id,
            COALESCE(ve.equipment, '[]'::json) as equipment,
@@ -363,7 +366,7 @@ BEGIN
        WHERE (v.fighter_id IN (SELECT f_id FROM gang_fighters) OR v.gang_id = p_gang_id)
    ),
    gang_owned_vehicles AS (
-       SELECT
+       SELECT 
            gv.id,
            gv.gang_id,
            gv.created_at,
@@ -388,7 +391,7 @@ BEGIN
        WHERE gv.gang_id = p_gang_id
    ),
    complete_fighters AS (
-       SELECT
+       SELECT 
            f.f_id AS id,
            f.fighter_name,
            f.label,
@@ -417,8 +420,8 @@ BEGIN
            f.enslaved,
            f.free_skill,
            f.cost_adjustment,
-           (COALESCE(f.base_credits, 0) +
-            COALESCE(g.total_equipment_cost, 0) +
+           (COALESCE(f.base_credits, 0) + 
+            COALESCE(g.total_equipment_cost, 0) + 
             COALESCE(a.total_advancement_credits, 0) +
             COALESCE(f.cost_adjustment, 0)) as total_credits,
            COALESCE(g.equipment, '[]'::json) as equipment,
@@ -430,7 +433,6 @@ BEGIN
                        'id', gv.id,
                        'created_at', gv.created_at,
                        'vehicle_name', gv.vehicle_name,
-                       'vehicle_type', gv.vehicle_type,
                        'movement', gv.movement,
                        'front', gv.front,
                        'side', gv.side,
@@ -458,7 +460,7 @@ BEGIN
        LEFT JOIN fighter_injuries i ON i.fighter_id = f.f_id
    ),
    gang_totals AS (
-       SELECT
+       SELECT 
            SUM(total_credits) + COALESCE((
                SELECT SUM(cost + total_equipment_cost)
                FROM gang_owned_vehicles
@@ -466,7 +468,7 @@ BEGIN
        FROM complete_fighters
    ),
    gang_stash AS (
-       SELECT
+       SELECT 
            gs.gang_id,
            json_agg(
                json_build_object(
@@ -486,7 +488,7 @@ BEGIN
        GROUP BY gs.gang_id
    ),
    gang_campaigns AS (
-       SELECT
+       SELECT 
            cg.gang_id,
            json_agg(
                json_build_object(
@@ -504,7 +506,7 @@ BEGIN
        WHERE cg.gang_id = p_gang_id
        GROUP BY cg.gang_id
    )
-   SELECT
+   SELECT 
        g.id,
        g.name,
        g.gang_type,
@@ -554,7 +556,7 @@ BEGIN
                    'injuries', cf.injuries,
                    'vehicles', cf.vehicles,
                    'cost_adjustment', cf.cost_adjustment,
-                   'special_rules', CASE
+                   'special_rules', CASE 
                        WHEN cf.special_rules IS NULL THEN '[]'::json
                        ELSE to_json(cf.special_rules)
                    END,
@@ -581,7 +583,6 @@ BEGIN
                    'vehicle_type_id', v.vehicle_type_id,
                    'cost', v.cost,
                    'vehicle_name', v.vehicle_name,
-                   'vehicle_type', v.vehicle_type,
                    'movement', v.movement,
                    'front', v.front,
                    'side', v.side,

@@ -1,4 +1,3 @@
-
 DECLARE
   op JSONB;
   result TEXT := '';
@@ -12,7 +11,7 @@ BEGIN
   -- Start a transaction
   BEGIN
     -- First, get the fighter's credits and gang_id
-    SELECT
+    SELECT 
       credits,
       gang_id
     INTO fighter_credits, fighter_gang_id
@@ -53,7 +52,7 @@ BEGIN
         RAISE;
       END;
     END LOOP;
-
+    
     -- Update the gang's rating
     UPDATE gangs
     SET rating = GREATEST(0, rating - fighter_credits)
