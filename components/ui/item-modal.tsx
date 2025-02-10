@@ -21,6 +21,7 @@ interface ItemModalProps {
   fighterCredits: number;
   vehicleId?: string;
   isVehicleEquipment?: boolean;
+  allowedCategories?: string[];
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -117,6 +118,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterCredits,
   vehicleId,
   isVehicleEquipment,
+  allowedCategories,
   onEquipmentBought
 }) => {
   const { toast } = useToast();
@@ -391,6 +393,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             {error && <p className="text-red-500 p-4">{error}</p>}
 
             {categories
+              .filter(category => !isVehicleEquipment || !allowedCategories || allowedCategories.includes(category.category_name))
               .sort((a, b) => {
                 const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
                 const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;

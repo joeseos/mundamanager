@@ -237,6 +237,14 @@ interface EditState {
   xpError: string;
 }
 
+const VEHICLE_EQUIPMENT_CATEGORIES = [
+  "Ammo",
+  "Basic Weapons", 
+  "Special Weapons",
+  "Vehicle Upgrades",
+  "Vehicle Wargear"
+];
+
 const calculateInjuryModifications = (injuries: Array<{
   code_1?: string;
   characteristic_1?: number;
@@ -1710,6 +1718,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
               }
               isVehicleEquipment={true}
+              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
             />
           )}
           
