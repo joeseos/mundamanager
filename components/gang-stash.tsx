@@ -140,26 +140,26 @@ export default function GangInventory({
         // First get all the required VehicleProps fields
         const baseVehicle: VehicleProps = {
           id: vehicle.id,
-          gang_id: vehicle.gang_id || '',
-          vehicle_name: vehicle.vehicle_name || 'Unknown Vehicle',
-          vehicle_type: vehicle.vehicle_type || '',
-          movement: vehicle.movement || 0,
-          front: vehicle.front || 0,
-          side: vehicle.side || 0,
-          rear: vehicle.rear || 0,
-          hull_points: vehicle.hull_points || 0,
-          handling: vehicle.handling || 0,
-          save: vehicle.save || 0,
-          body_slots: vehicle.body_slots || 0,
-          body_slots_occupied: vehicle.body_slots_occupied || 0,
-          drive_slots: vehicle.drive_slots || 0,
-          drive_slots_occupied: vehicle.drive_slots_occupied || 0,
-          engine_slots: vehicle.engine_slots || 0,
-          engine_slots_occupied: vehicle.engine_slots_occupied || 0,
-          special_rules: vehicle.special_rules || [],
-          cost: 0, // Default cost
-          created_at: vehicle.created_at || new Date().toISOString(),
-          equipment: vehicle.equipment || []
+          gang_id: '', // Default value since Vehicle type doesn't have gang_id
+          vehicle_name: vehicle.vehicle_name,
+          vehicle_type: vehicle.vehicle_type,
+          movement: vehicle.movement,
+          front: vehicle.front,
+          side: vehicle.side,
+          rear: vehicle.rear,
+          hull_points: vehicle.hull_points,
+          handling: vehicle.handling,
+          save: vehicle.save,
+          body_slots: vehicle.body_slots ?? 0,
+          body_slots_occupied: vehicle.body_slots_occupied ?? 0,
+          drive_slots: vehicle.drive_slots ?? 0,
+          drive_slots_occupied: vehicle.drive_slots_occupied ?? 0,
+          engine_slots: vehicle.engine_slots ?? 0,
+          engine_slots_occupied: vehicle.engine_slots_occupied ?? 0,
+          special_rules: vehicle.special_rules,
+          cost: 0, // Default cost since Vehicle type doesn't have cost
+          created_at: vehicle.created_at,
+          equipment: vehicle.equipment
         };
 
         return baseVehicle;
