@@ -134,7 +134,11 @@ export default function GangInventory({
   const getAllVehicles = () => {
     const crewVehicles = fighters
       .filter(fighter => fighter.vehicles)
-      .flatMap(fighter => fighter.vehicles || []);
+      .flatMap(fighter => (fighter.vehicles || []).map(vehicle => ({
+        ...vehicle,
+        vehicle_name: vehicle.vehicle_name || 'Unknown Vehicle',
+        cost: vehicle.cost || 0
+      } as VehicleProps)));
     
     return [...vehicles, ...crewVehicles];
   };
@@ -215,8 +219,8 @@ export default function GangInventory({
                               key={`vehicle-${vehicle.id}`}
                               value={`vehicle-${vehicle.id}`}
                             >
-                              {vehicle.vehicle_name}
-                              {typeof vehicle.cost === 'number' && ` (${vehicle.cost} credits)`}
+                              {vehicle.vehicle_name || 'Unknown Vehicle'}
+                              {vehicle.cost ? ` (${vehicle.cost} credits)` : ''}
                             </option>
                           ))}
                         </optgroup>
