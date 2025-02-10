@@ -215,7 +215,7 @@ export default function GangInventory({
                               key={`vehicle-${vehicle.id}`}
                               value={`vehicle-${vehicle.id}`}
                             >
-                              {vehicle.vehicle_name} ({vehicle.cost} credits)
+                              {vehicle.vehicle_name}
                             </option>
                           ))}
                         </optgroup>
