@@ -261,12 +261,11 @@ const FighterCard = memo(function FighterCard({
       })) as unknown as Weapon[]; // Use double type assertion to avoid type mismatch
   };
 
-  // Update the vehicle upgrades filter
+  // Update the vehicle upgrades filter to exclude weapons
   const vehicleUpgrades = vehicle?.equipment?.filter(
     (item): item is (Equipment & Partial<VehicleEquipment>) => 
       item.equipment_type === 'vehicle_upgrade' || 
-      item.equipment_type === 'wargear' || 
-      item.equipment_type === 'weapon'
+      item.equipment_type === 'wargear'  // Remove 'weapon' from the filter
   ) || [];
 
   // Get vehicle weapons
