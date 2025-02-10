@@ -433,6 +433,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             <div className="flex-1">
                               <span className="text-sm font-medium">{item.equipment_name}</span>
                             </div>
+
                             <div className="flex items-center gap-2">
                               {item.discounted_cost !== undefined && item.discounted_cost < (item.base_cost ?? item.cost) ? (
                                 <div className="flex items-center gap-1">
@@ -449,6 +450,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   <span className="text-[10px] font-medium">{item.cost}</span>
                                 </div>
                               )}
+
+                              <div className="w-6 h-6 rounded-md flex items-center justify-center bg-sky-500 text-white">
+                                <span className="text-[10px] font-medium">{item.availability}</span>
+                              </div>
+
                               {(
                                 <Button
                                   onClick={(e) => {
