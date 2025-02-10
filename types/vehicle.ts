@@ -26,5 +26,4 @@ export interface VehicleProps {
   equipment: Array<Equipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>;
-  cost?: number;
 } 
