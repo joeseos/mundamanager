@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
@@ -56,12 +56,11 @@ export default function GangInventory({
     getSession();
   }, []);
 
-  const getItemName = (item: StashItem) => {
-    return item.vehicle_name || item.equipment_name || 'Unknown Item';
-  };
+  const getItemName = (item: StashItem): string => 
+    item.vehicle_name || item.equipment_name || 'Unknown Item';
 
-  const isVehicle = (item: StashItem) => item.type === 'vehicle';
-  const isCrew = (fighter: FighterProps) => fighter.fighter_class === 'Crew';
+  const isVehicle = (item: StashItem): boolean => item.type === 'vehicle';
+  const isCrew = (fighter: FighterProps): boolean => fighter.fighter_class === 'Crew';
 
   const getSelectableFighters = () => {
     if (!selectedItem) return fighters;
@@ -73,6 +72,9 @@ export default function GangInventory({
     }
     return fighters;
   };
+
+  const findFighter = (id: string): FighterProps | undefined => 
+    fighters.find(f => f.id === id);
 
   const handleMoveToFighter = async () => {
     if (!selectedItem || !selectedFighter || !session) return;
@@ -137,10 +139,20 @@ export default function GangInventory({
       .flatMap(fighter => (fighter.vehicles || []).map(vehicle => ({
         ...vehicle,
         vehicle_name: vehicle.vehicle_name || 'Unknown Vehicle',
-        cost: vehicle.cost || 0
+        cost: vehicle.cost || 0,
+        gang_id: vehicle.gang_id || '',
+        created_at: vehicle.created_at || new Date().toISOString(),
+        equipment: vehicle.equipment || []
       } as VehicleProps)));
     
     return [...vehicles, ...crewVehicles];
+  };
+
+  const getSelectedStashItem = (): StashItem | null => 
+    selectedItem !== null ? stash[selectedItem] : null;
+
+  const handleFighterSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedFighter(e.target.value);
   };
 
   return (
@@ -189,30 +201,30 @@ export default function GangInventory({
               <div className="border-t pt-4">
                 <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Select Fighter or Vehicle
-                  {selectedItem !== null && isVehicle(stash[selectedItem]) && (
+                  {selectedItem !== null && isVehicle(getSelectedStashItem()!) && (
                     <span className="text-sm text-gray-500 ml-2">(Only Crew fighters can receive vehicles)</span>
                   )}
                 </label>
                 <select
                   id="fighter-select"
                   value={selectedFighter}
-                  onChange={(e) => setSelectedFighter(e.target.value)}
+                  onChange={handleFighterSelect}
                   className={`w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4 
                     ${selectedItem === null ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   disabled={selectedItem === null}
                 >
                   <option value="">
                     {selectedItem !== null && 
-                      (isVehicleExclusive(stash[selectedItem])
+                      (isVehicleExclusive(getSelectedStashItem()!)
                         ? "Select a vehicle"
-                        : isVehicleCompatible(stash[selectedItem])
+                        : isVehicleCompatible(getSelectedStashItem()!)
                           ? "Select a fighter or vehicle"
                           : "Select a fighter"
                       )}
                   </option>
                   {selectedItem !== null && (
                     <>
-                      {isVehicleCompatible(stash[selectedItem]) && (
+                      {isVehicleCompatible(getSelectedStashItem()!) && (
                         <optgroup label="Vehicles">
                           {getAllVehicles().map((vehicle) => (
                             <option 
@@ -226,11 +238,11 @@ export default function GangInventory({
                         </optgroup>
                       )}
                       
-                      {!isVehicleExclusive(stash[selectedItem]) && (
+                      {!isVehicleExclusive(getSelectedStashItem()!) && (
                         <optgroup label="Fighters">
                           {fighters.map((fighter) => {
                             const isDisabled = selectedItem !== null && 
-                                             isVehicle(stash[selectedItem]) && 
+                                             isVehicle(getSelectedStashItem()!) && 
                                              !isCrew(fighter);
                             
                             return (
@@ -257,10 +269,10 @@ export default function GangInventory({
                     selectedItem === null || 
                     !selectedFighter || 
                     isLoading || 
-                    (isVehicle(stash[selectedItem]) && !isCrew(fighters.find(f => f.id === selectedFighter)!)) ||
-                    (isVehicleExclusive(stash[selectedItem]) && !selectedFighter.startsWith('vehicle-')) ||
-                    (!selectedFighter.startsWith('vehicle-') && 
-                     isVehicleExclusive(stash[selectedItem]))
+                    (isVehicle(getSelectedStashItem()!) && 
+                     !isCrew(findFighter(selectedFighter) ?? { fighter_class: '' })) ||
+                    (isVehicleExclusive(getSelectedStashItem()!) && !selectedFighter.startsWith('vehicle-')) ||
+                    (!selectedFighter.startsWith('vehicle-') && isVehicleExclusive(getSelectedStashItem()!))
                   }
                   className="w-full"
                 >
