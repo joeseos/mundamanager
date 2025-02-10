@@ -3,13 +3,15 @@ import { StatsTable } from './ui/table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
+import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
   name: string;  // maps to fighter_name
@@ -229,6 +231,47 @@ const FighterCard = memo(function FighterCard({
     return slots.join(', ');
   };
 
+  // Update the getVehicleWeapons function
+  const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
+    if (!vehicle?.equipment) return [];
+    
+    return vehicle.equipment
+      .filter(item => item.equipment_type === 'weapon')
+      .map(weapon => ({
+        fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
+        weapon_id: weapon.equipment_id,
+        weapon_name: weapon.equipment_name,
+        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+          ...profile,
+          // Keep numeric types
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          traits: profile.traits || '',
+          id: profile.id,
+          profile_name: profile.profile_name,
+          is_default_profile: profile.is_default_profile
+        })) || [],
+        cost: weapon.cost
+      })) as unknown as Weapon[]; // Use double type assertion to avoid type mismatch
+  };
+
+  // Update the vehicle upgrades filter
+  const vehicleUpgrades = vehicle?.equipment?.filter(
+    (item): item is (Equipment & Partial<VehicleEquipment>) => 
+      item.equipment_type === 'vehicle_upgrade' || 
+      item.equipment_type === 'wargear' || 
+      item.equipment_type === 'weapon'
+  ) || [];
+
+  // Get vehicle weapons
+  const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
+
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
@@ -319,11 +362,22 @@ const FighterCard = memo(function FighterCard({
         {!isInactive && (
           <>
             <StatsTable data={stats} isCrew={isCrew} />
+            
+            {/* Show fighter weapons */}
             {weapons && weapons.length > 0 && (
               <div className="mt-4">
                 <WeaponTable weapons={weapons} />
               </div>
             )}
+
+            {/* Add vehicle weapons section */}
+            {isCrew && vehicleWeapons.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-bold mb-1">Vehicle Weapons</div>
+                <WeaponTable weapons={vehicleWeapons} />
+              </div>
+            )}
+
             <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
               {wargear && wargear.length > 0 && (
                 <>
@@ -360,6 +414,17 @@ const FighterCard = memo(function FighterCard({
                   </div>
                 </>
               )}
+              {isCrew && vehicleUpgrades.length > 0 && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {vehicleUpgrades
+                      .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                      .map(upgrade => upgrade.equipment_name)
+                      .join(', ')}
+                  </div>
+                </>
+              )}
               {isCrew && vehicle && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
@@ -371,19 +436,6 @@ const FighterCard = memo(function FighterCard({
                   <div className="min-w-[0px] text-sm break-words">
                     {formatUpgradeSlots(vehicle)}
                   </div>
-
-                  {Array.isArray(vehicle?.equipment) && vehicle.equipment.length > 0 && (
-                    <>
-                      <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
-                      <div className="min-w-[0px] text-sm break-words">
-                        {vehicle.equipment
-                          .filter(upgrade => upgrade?.equipment_name)
-                          .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
-                          .map(upgrade => upgrade.equipment_name)
-                          .join(', ')}
-                      </div>
-                    </>
-                  )}
 
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">

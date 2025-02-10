@@ -68,6 +68,7 @@ export interface VehicleEquipmentProfile {
 export interface VehicleEquipment extends BaseEquipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
+  vehicle_weapon_id?: string;
   vehicle_equipment_profiles?: VehicleEquipmentProfile[];
 }
 
