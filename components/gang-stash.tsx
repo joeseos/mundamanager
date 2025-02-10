@@ -184,7 +184,7 @@ export default function GangInventory({
         <h2 className="text-2xl font-bold mb-6">{title}</h2>
         
         {stash.length === 0 ? (
-          <p className="text-gray-500 italic">No items in stash</p>
+          <p className="text-gray-500 italic">No items in stash.</p>
         ) : (
           <>
             <div className="mb-4">
@@ -196,7 +196,7 @@ export default function GangInventory({
               </div>
               <div className="space-y-2 px-4">
                 {stash.map((item, index) => (
-                  <div 
+                  <label
                     key={index}
                     className="flex items-center p-2 bg-gray-50 rounded-md"
                   >
@@ -215,7 +215,7 @@ export default function GangInventory({
                       }
                     </span>
                     <span className="w-20 text-right">{item.cost}</span>
-                  </div>
+                  </label>
                 ))}
               </div>
             </div>
@@ -247,6 +247,26 @@ export default function GangInventory({
                   </option>
                   {selectedItem !== null && (
                     <>
+                      {!isVehicleExclusive(getSelectedStashItem()!) && (
+                        <optgroup label="Fighters">
+                          {fighters.map((fighter) => {
+                            const isDisabled = selectedItem !== null &&
+                                             isVehicle(getSelectedStashItem()!) &&
+                                             !isCrew(fighter);
+
+                            return (
+                              <option
+                                key={fighter.id}
+                                value={fighter.id}
+                                disabled={isDisabled}
+                                className={isDisabled ? 'text-gray-400' : ''}
+                              >
+                                {fighter.fighter_name} ({fighter.fighter_class}) - {fighter.credits} credits
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
                       {isVehicleCompatible(getSelectedStashItem()!) && (
                         <optgroup label="Vehicles">
                           {getAllVehicles().map((vehicle) => (
@@ -255,31 +275,10 @@ export default function GangInventory({
                               value={`vehicle-${vehicle.id}`}
                             >
                               {vehicle.vehicle_name || 'Unknown Vehicle'}
-                              {vehicle.cost ? ` (${vehicle.cost} credits)` : ''}
+                              {vehicle.vehicle_type ? ` (${vehicle.vehicle_type})` : ''}
+                              {vehicle.cost ? ` - ${vehicle.cost} credits` : ''}
                             </option>
                           ))}
-                        </optgroup>
-                      )}
-                      
-                      {!isVehicleExclusive(getSelectedStashItem()!) && (
-                        <optgroup label="Fighters">
-                          {fighters.map((fighter) => {
-                            const isDisabled = selectedItem !== null && 
-                                             isVehicle(getSelectedStashItem()!) && 
-                                             !isCrew(fighter);
-                            
-                            return (
-                              <option 
-                                key={fighter.id} 
-                                value={fighter.id}
-                                disabled={isDisabled}
-                                className={isDisabled ? 'text-gray-400' : ''}
-                              >
-                                {fighter.fighter_name} ({fighter.credits} credits)
-                                {fighter.fighter_class === 'Crew' ? ' - Crew' : ''}
-                              </option>
-                            );
-                          })}
                         </optgroup>
                       )}
                     </>

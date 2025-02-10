@@ -99,7 +99,7 @@
 
 /* tailwindcss fix for Firefox */
 @layer base {
-  option {
+  option, optgroup {
     font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     font-feature-settings: normal;
     font-variation-settings: normal;
