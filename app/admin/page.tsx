@@ -574,6 +574,23 @@ export default function AdminPage() {
                       </select>
                     </div>
 
+                    {/* Add Vehicle Type Name Input */}
+                    <div className="col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Vehicle Type Name <span className="text-gray-700">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="vehicle_type"
+                        value={vehicleForm.vehicle_type}
+                        onChange={handleVehicleFormChange}
+                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        placeholder="e.g. Rockgrinder"
+                        required
+                        disabled={!selectedVehicle}
+                      />
+                    </div>
+
                     {/* Gang Type */}
                     <div className="col-span-3">
                       <label className="block text-sm font-medium text-gray-700">
