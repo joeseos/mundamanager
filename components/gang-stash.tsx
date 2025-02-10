@@ -60,7 +60,10 @@ export default function GangInventory({
     item.vehicle_name || item.equipment_name || 'Unknown Item';
 
   const isVehicle = (item: StashItem): boolean => item.type === 'vehicle';
-  const isCrew = (fighter: FighterProps): boolean => fighter.fighter_class === 'Crew';
+  
+  // Update isCrew to handle undefined
+  const isCrew = (fighter: FighterProps | undefined): boolean => 
+    fighter?.fighter_class === 'Crew';
 
   const getSelectableFighters = () => {
     if (!selectedItem) return fighters;
@@ -290,7 +293,8 @@ export default function GangInventory({
                     !selectedFighter || 
                     isLoading || 
                     (isVehicle(getSelectedStashItem()!) && 
-                     !isCrew(findFighter(selectedFighter) ?? { fighter_class: '' })) ||
+                     !isCrew(findFighter(selectedFighter)) && 
+                     !selectedFighter.startsWith('vehicle-')) ||
                     (isVehicleExclusive(getSelectedStashItem()!) && !selectedFighter.startsWith('vehicle-')) ||
                     (!selectedFighter.startsWith('vehicle-') && isVehicleExclusive(getSelectedStashItem()!))
                   }
