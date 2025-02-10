@@ -136,14 +136,34 @@ export default function GangInventory({
   const getAllVehicles = () => {
     const crewVehicles = fighters
       .filter(fighter => fighter.vehicles)
-      .flatMap(fighter => (fighter.vehicles || []).map(vehicle => ({
-        ...vehicle,
-        vehicle_name: vehicle.vehicle_name || 'Unknown Vehicle',
-        cost: vehicle.cost || 0,
-        gang_id: vehicle.gang_id || '',
-        created_at: vehicle.created_at || new Date().toISOString(),
-        equipment: vehicle.equipment || []
-      } as VehicleProps)));
+      .flatMap(fighter => (fighter.vehicles || []).map(vehicle => {
+        // First get all the required VehicleProps fields
+        const baseVehicle: VehicleProps = {
+          id: vehicle.id,
+          gang_id: vehicle.gang_id || '',
+          vehicle_name: vehicle.vehicle_name || 'Unknown Vehicle',
+          vehicle_type: vehicle.vehicle_type || '',
+          movement: vehicle.movement || 0,
+          front: vehicle.front || 0,
+          side: vehicle.side || 0,
+          rear: vehicle.rear || 0,
+          hull_points: vehicle.hull_points || 0,
+          handling: vehicle.handling || 0,
+          save: vehicle.save || 0,
+          body_slots: vehicle.body_slots || 0,
+          body_slots_occupied: vehicle.body_slots_occupied || 0,
+          drive_slots: vehicle.drive_slots || 0,
+          drive_slots_occupied: vehicle.drive_slots_occupied || 0,
+          engine_slots: vehicle.engine_slots || 0,
+          engine_slots_occupied: vehicle.engine_slots_occupied || 0,
+          special_rules: vehicle.special_rules || [],
+          cost: 0, // Default cost
+          created_at: vehicle.created_at || new Date().toISOString(),
+          equipment: vehicle.equipment || []
+        };
+
+        return baseVehicle;
+      }));
     
     return [...vehicles, ...crewVehicles];
   };
