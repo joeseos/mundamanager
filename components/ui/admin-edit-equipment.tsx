@@ -599,7 +599,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 type="text"
                 value={equipmentName}
                 onChange={(e) => setEquipmentName(e.target.value)}
-                placeholder="e.g. Bolt Pistol, Combat Knife, etc."
+                placeholder="E.g. Bolt pistol, Combat knife"
                 disabled={!selectedEquipmentId}
               />
             </div>
@@ -612,7 +612,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 type="text"
                 value={tradingPostCategory}
                 onChange={(e) => setTradingPostCategory(e.target.value)}
-                placeholder="Enter trading post category"
+                placeholder="E.g. Core Trading Post"
                 disabled={!selectedEquipmentId}
               />
             </div>
@@ -625,7 +625,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 type="text"
                 value={availability}
                 onChange={(e) => setAvailability(e.target.value)}
-                placeholder="Enter availability"
+                placeholder="E.g. E, C, R9, I13"
                 disabled={!selectedEquipmentId}
               />
             </div>
@@ -638,7 +638,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 type="number"
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
-                placeholder="Enter cost in credits"
+                placeholder="E.g. 130"
                 disabled={!selectedEquipmentId}
               />
             </div>
