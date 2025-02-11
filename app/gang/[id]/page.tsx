@@ -160,6 +160,14 @@ const processedFighterTypes = (
     alignment: gangData.alignment,
     fighters: processedFighters,
     fighterTypes: processedFighterTypes,
+    campaigns: gangData.campaigns?.map((campaign: any) => ({
+      campaign_id: campaign.campaign_id,
+      campaign_name: campaign.campaign_name,
+      role: campaign.role,
+      status: campaign.status,
+      has_meat: campaign.has_meat ?? false,
+      has_exploration_points: campaign.has_exploration_points ?? false
+    })),
     stash: (gangData.stash || []).map((item: any) => ({
       id: item.id,
       equipment_name: item.equipment_name,

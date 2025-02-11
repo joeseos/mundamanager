@@ -30,6 +30,8 @@ interface GangPageContentProps {
       campaign_name: string;
       role: string | null;
       status: string | null;
+      has_meat: boolean;
+      has_exploration_points: boolean;
     }[];
     stash: StashItem[];
   };
