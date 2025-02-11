@@ -56,6 +56,8 @@ interface GangProps {
     campaign_name: string;
     role: string | null;
     status: string | null;
+    has_meat: boolean;
+    has_exploration_points: boolean;
   }[];
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
@@ -79,8 +81,8 @@ export default function Gang({
   gang_type_image_url,
   credits: initialCredits, 
   reputation: initialReputation,
-  meat: initialMeat, 
-  exploration_points: initialExplorationPoints, 
+  meat: initialMeat,
+  exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
   created_at, 
@@ -685,20 +687,24 @@ export default function Gang({
               editedValue={editedReputation}
               onChange={setEditedReputation}
             />
-            <StatItem
-              label="Meat"
-              value={meat}
-              isEditing={isEditing}
-              editedValue={editedMeat}
-              onChange={setEditedMeat}
-            />
-            <StatItem
-              label="Exploration Points"
-              value={explorationPoints}
-              isEditing={isEditing}
-              editedValue={editedExplorationPoints}
-              onChange={setEditedExplorationPoints}
-            />
+            {campaigns?.[0]?.has_meat && (
+              <StatItem
+                label="Meat"
+                value={meat}
+                isEditing={isEditing}
+                editedValue={editedMeat}
+                onChange={setEditedMeat}
+              />
+            )}
+            {campaigns?.[0]?.has_exploration_points && (
+              <StatItem
+                label="Exploration Points"
+                value={explorationPoints}
+                isEditing={isEditing}
+                editedValue={editedExplorationPoints}
+                onChange={setEditedExplorationPoints}
+              />
+            )}
             <StatItem
               label="Rating"
               value={rating}

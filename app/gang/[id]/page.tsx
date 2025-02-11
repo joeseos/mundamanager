@@ -152,6 +152,9 @@ const processedFighterTypes = (
     return (a.fighter_type || "").localeCompare(b.fighter_type || ""); // Secondary sorting: By fighter_type
   });
 
+  // Get campaign settings from the campaigns array
+  const campaign = gangData.campaigns?.[0];
+  
   return {
     ...gangData,
     alignment: gangData.alignment,
@@ -226,11 +229,18 @@ export default function GangPage({ params }: { params: { id: string } }) {
         }
 
         const [data] = await response.json();
+        console.log('API Response:', data?.campaigns?.[0]); // Log the campaign data
+
         if (!data) {
           return redirect("/");
         }
 
         const processedData = await processGangData(data);
+        console.log('Processed Data:', {
+          has_meat: processedData.campaign_has_meat,
+          has_exploration: processedData.campaign_has_exploration_points,
+          has_scavenging: processedData.campaign_has_scavenging_rolls
+        });
         
         if (isSubscribed) {
           setGangData({
@@ -323,7 +333,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           processedData={gangData.processedData} 
           gangData={{
             ...gangData,
-            onVehicleAdd: handleVehicleAdd // Pass the handler down
+            onVehicleAdd: handleVehicleAdd
           }} 
         />
         <GangInventory
