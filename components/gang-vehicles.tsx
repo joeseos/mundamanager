@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
+import { createClient } from '@/utils/supabase/client';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -38,24 +39,50 @@ export default function GangVehicles({
     try {
       const vehicle = vehicles[selectedVehicle];
       
-      const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vehicleId: vehicle.id,
-          fighterId: selectedFighter,
-        }),
-      });
+      // Get the session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No authenticated session found');
+      }
+      
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/assign_crew_to_vehicle`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            p_vehicle_id: vehicle.id,
+            p_fighter_id: selectedFighter,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to move vehicle to fighter');
       }
 
+      const data = await response.json();
+
       // Update local state by removing the assigned vehicle
       const updatedVehicles = vehicles.filter((_, index) => index !== selectedVehicle);
+
+      // If there was a vehicle swap, add the old vehicle back to the list
+      if (data.removed_from) {
+        updatedVehicles.push({
+          ...data.removed_from,
+          fighter_id: null,
+          gang_id: gangId,
+          equipment: []
+        });
+      }
+
       if (onVehicleUpdate) {
         onVehicleUpdate(updatedVehicles);
       }
@@ -71,7 +98,7 @@ export default function GangVehicles({
         
         const updatedFighter = {
           ...selectedFighterData,
-          vehicles: [...(selectedFighterData.vehicles || []), updatedVehicle]
+          vehicles: [updatedVehicle] // Replace any existing vehicles
         };
         onFighterUpdate(updatedFighter);
       }
