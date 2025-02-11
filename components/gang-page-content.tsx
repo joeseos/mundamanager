@@ -30,6 +30,8 @@ interface GangPageContentProps {
       campaign_name: string;
       role: string | null;
       status: string | null;
+      has_meat: boolean;
+      has_exploration_points: boolean;
     }[];
     stash: StashItem[];
   };
@@ -45,7 +47,6 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   const [rating, setRating] = useState(processedData.rating);
 
   const handleFighterDeleted = useCallback((fighterId: string, fighterCost: number) => {
-    // Optimistically update fighters list and rating
     setFighters(prev => prev.filter(f => f.id !== fighterId));
     setRating(prev => prev - fighterCost);
   }, []);
