@@ -66,7 +66,7 @@ export function StatsTable({ data, isCrew = false }: StatsTableProps) {
           {isCrew && (
             <tr>
               <th colSpan={1}></th>{/* Empty column before Toughness */}
-              <th colSpan={3} className="text-[10px] sm:text-xs font-semibold text-center">
+              <th colSpan={3} className="text-[10px] sm:text-xs font-semibold text-center print:hidden">
                 Toughness
               </th>
             </tr>

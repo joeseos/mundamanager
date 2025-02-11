@@ -372,7 +372,7 @@ const FighterCard = memo(function FighterCard({
             {/* Add vehicle weapons section */}
             {isCrew && vehicleWeapons.length > 0 && (
               <div className="mt-4">
-                <div className="text-sm font-bold mb-1">Vehicle Weapons</div>
+                <div className="text-sm font-bold mb-1 print:hidden">Vehicle Weapons</div>
                 <WeaponTable weapons={vehicleWeapons} />
               </div>
             )}
