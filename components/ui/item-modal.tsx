@@ -347,7 +347,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="w-[600px] min-h-0 max-h-screen overflow-y-auto rounded-lg bg-white shadow-xl">
+      <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-white shadow-xl">
         <div className="relative border-b p-4">
           <Button
             variant="ghost"
