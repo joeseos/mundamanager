@@ -73,6 +73,16 @@ interface Injury {
   characteristic_2?: number;
 }
 
+interface Campaign {
+  campaign_id: string;
+  campaign_name: string;
+  role: string | null;
+  status: string | null;
+  has_meat: boolean;
+  has_exploration_points: boolean;
+  has_scavenging_rolls: boolean;
+}
+
 interface Fighter {
   id: string;
   fighter_name: string;
@@ -175,11 +185,13 @@ interface Fighter {
       weapon_profiles?: WeaponProfile[];
     }>;
   }>;
+  campaigns?: Campaign[];
 }
 
 interface Gang {
   id: string;
   credits: number;
+  gang_type_id: string;
 }
 
 interface Advancement {
@@ -461,7 +473,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         vehicleEquipment: transformedVehicleEquipment,
         gang: {
           id: result.gang.id,
-          credits: result.gang.credits
+          credits: result.gang.credits,
+          gang_type_id: result.gang.gang_type_id
         }
       }));
 
@@ -1248,6 +1261,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Keep the meat-checking functionality
+  const isMeatEnabled = useCallback(() => {
+    return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
+  }, [fighterData.fighter?.campaigns]);
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1427,13 +1445,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               >
                 {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
               </Button>
-              <Button
-                variant={fighterData.fighter?.starved ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
-                onClick={() => handleModalToggle('starve', true)}
-              >
-                {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
-              </Button>
+              {isMeatEnabled() && (
+                <Button
+                  variant={fighterData.fighter?.starved ? 'success' : 'default'}
+                  className="flex-1 min-w-[200px]"
+                  onClick={() => handleModalToggle('starve', true)}
+                >
+                  {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
+                </Button>
+              )}
               <Button 
                 variant="destructive"
                 className="flex-1 min-w-[200px]"
