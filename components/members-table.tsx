@@ -413,8 +413,17 @@ export default function MembersTable({
                 <td className="px-4 py-2">
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {member.gangs[0].gang_name}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group">
+                          {(currentUserId === member.user_id || isAdmin) && (
+                          <button //Admin View Campain Member Gang Button
+                            onClick={() => {
+                              window.open("http://localhost:3000/gang/" + member.gangs[0].gang_id)
+                              //this will need work becuase Im assuming we dont want a hyperlink in the code but rather a more elegant solution 
+                            }}
+                          >
+                            {member.gangs[0].gang_name}
+                          </button>
+                        )}
                         {(currentUserId === member.user_id || isAdmin) && (
                           <button
                             onClick={() => {
