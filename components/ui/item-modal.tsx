@@ -347,7 +347,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="w-[600px] rounded-lg bg-white shadow-xl">
+      <div className="w-[600px] min-h-0 max-h-screen overflow-y-auto rounded-lg bg-white shadow-xl">
         <div className="relative border-b p-4">
           <Button
             variant="ghost"
@@ -388,7 +388,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
 
-        <div className="h-[600px] overflow-y-auto">
+        <div>
           <div className="flex flex-col">
             {error && <p className="text-red-500 p-4">{error}</p>}
 
@@ -451,7 +451,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                 </div>
                               )}
 
-                              <div className="w-6 h-6 rounded-md flex items-center justify-center bg-sky-500 text-white">
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
                                 <span className="text-[10px] font-medium">{item.availability}</span>
                               </div>
 
