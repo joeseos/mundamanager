@@ -1,5 +1,40 @@
 import React from 'react';
 
+// Add these types at the top of the file
+type CrewStats = {
+  'M': string | number;
+  'Front': string | number;
+  'Side': string | number;
+  'Rear': string | number;
+  'HP': string | number;
+  'Hnd': string;
+  'Sv': string;
+  'BS': string;
+  'Ld': string;
+  'Cl': string;
+  'Wil': string;
+  'Int': string;
+  'XP': number;
+}
+
+type FighterStats = {
+  'M': string;
+  'WS': string;
+  'BS': string;
+  'S': number;
+  'T': number;
+  'W': number;
+  'I': string;
+  'A': number;
+  'Ld': string;
+  'Cl': string;
+  'Wil': string;
+  'Int': string;
+  'XP': number;
+}
+
+export type StatsType = CrewStats | FighterStats;
+
 export const Table: React.FC<React.HTMLAttributes<HTMLTableElement>> = ({ children, ...props }) => (
   <table {...props}>{children}</table>
 );
@@ -25,14 +60,27 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement
 );
 
 interface StatsTableProps {
-  data?: Record<string, number | string>;
+  data?: StatsType;
   isCrew?: boolean;
 }
 
-export function StatsTable({ data, isCrew = false }: StatsTableProps) {
+export function StatsTable({ data, isCrew }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No stats available</p>;
   }
+
+  // Define the order of stats based on fighter type
+  const statOrder = isCrew
+    ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP']
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
+
+  // Filter and sort the stats according to the correct order
+  const orderedStats = statOrder
+    .filter(key => key in data)
+    .reduce((acc, key) => ({
+      ...acc,
+      [key]: data[key],
+    }), {} as Record<string, number | string>);
 
   const specialBackgroundStats = isCrew
     ? ['BS', 'Ld', 'Cl', 'Wil', 'Int']
@@ -73,7 +121,7 @@ export function StatsTable({ data, isCrew = false }: StatsTableProps) {
           )}
           {/* Main Header Row */}
           <tr>
-            {Object.keys(data).map((key) => (
+            {Object.keys(orderedStats).map((key) => (
               <th
                 key={key}
                 className={`font-semibold text-center p-1 border-b-[1px] border-[#a05236]
@@ -99,7 +147,7 @@ export function StatsTable({ data, isCrew = false }: StatsTableProps) {
         </thead>
         <tbody>
           <tr>
-            {Object.entries(data).map(([key, value]) => (
+            {Object.entries(orderedStats).map(([key, value]) => (
               <td
                 key={key}
                 className={`text-center p-1
