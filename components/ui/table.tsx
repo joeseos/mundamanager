@@ -64,6 +64,9 @@ interface StatsTableProps {
   isCrew?: boolean;
 }
 
+// Add a type for valid stat keys
+type StatKey = keyof CrewStats | keyof FighterStats;
+
 export function StatsTable({ data, isCrew }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No stats available</p>;
@@ -71,16 +74,16 @@ export function StatsTable({ data, isCrew }: StatsTableProps) {
 
   // Define the order of stats based on fighter type
   const statOrder = isCrew
-    ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP']
-    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
+    ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
 
   // Filter and sort the stats according to the correct order
   const orderedStats = statOrder
-    .filter(key => key in data)
-    .reduce((acc, key) => ({
+    .filter((key): key is StatKey => key in data)
+    .reduce<Record<string, number | string>>((acc, key) => ({
       ...acc,
       [key]: data[key],
-    }), {} as Record<string, number | string>);
+    }), {});
 
   const specialBackgroundStats = isCrew
     ? ['BS', 'Ld', 'Cl', 'Wil', 'Int']
