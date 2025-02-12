@@ -77,13 +77,35 @@ export function StatsTable({ data, isCrew }: StatsTableProps) {
     ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
     : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
 
+  // Type guard to check if data is CrewStats
+  const isCrewStats = (data: StatsType): data is CrewStats => {
+    return 'Front' in data;
+  };
+
+  // Type guard to check if data is FighterStats
+  const isFighterStats = (data: StatsType): data is FighterStats => {
+    return 'WS' in data;
+  };
+
   // Filter and sort the stats according to the correct order
   const orderedStats = statOrder
-    .filter((key): key is StatKey => key in data)
-    .reduce<Record<string, number | string>>((acc, key) => ({
-      ...acc,
-      [key]: data[key],
-    }), {});
+    .filter(key => {
+      if (isCrew && isCrewStats(data)) {
+        return key in data;
+      }
+      if (!isCrew && isFighterStats(data)) {
+        return key in data;
+      }
+      return false;
+    })
+    .reduce<Record<string, number | string>>((acc, key) => {
+      if (isCrew && isCrewStats(data)) {
+        acc[key] = data[key as keyof CrewStats];
+      } else if (!isCrew && isFighterStats(data)) {
+        acc[key] = data[key as keyof FighterStats];
+      }
+      return acc;
+    }, {});
 
   const specialBackgroundStats = isCrew
     ? ['BS', 'Ld', 'Cl', 'Wil', 'Int']
