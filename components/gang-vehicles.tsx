@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
@@ -18,6 +18,12 @@ interface GangVehiclesProps {
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
 }
 
+// Update the type to match VehicleProps
+type CombinedVehicleProps = VehicleProps & {
+  assigned_to?: string;
+  // Remove fighter_id since it's already in VehicleProps with the correct type
+};
+
 export default function GangVehicles({ 
   vehicles, 
   fighters,
@@ -30,18 +36,40 @@ export default function GangVehicles({
   const [selectedFighter, setSelectedFighter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [editingVehicle, setEditingVehicle] = useState<VehicleProps | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [editedVehicleName, setEditedVehicleName] = useState('');
 
   // Filter for only Crew fighters
   const crewFighters = fighters.filter(fighter => fighter.fighter_class === 'Crew');
+
+  // Get all vehicles, including those assigned to fighters
+  const allVehicles = useMemo<CombinedVehicleProps[]>(() => {
+    const fighterVehicles = fighters
+      .flatMap(fighter => (fighter.vehicles || [])
+        .map(vehicle => ({
+          ...vehicle,
+          assigned_to: fighter.fighter_name,
+          gang_id: gangId,
+          cost: 0,
+          body_slots: 0,
+          body_slots_occupied: 0,
+          drive_slots: 0,
+          drive_slots_occupied: 0,
+          engine_slots: 0,
+          engine_slots_occupied: 0,
+          special_rules: vehicle.special_rules || [],
+          equipment: vehicle.equipment || []
+        } as CombinedVehicleProps)));
+    
+    return [...vehicles, ...fighterVehicles];
+  }, [vehicles, fighters, gangId]);
 
   const handleMoveToFighter = async () => {
     if (selectedVehicle === null || !selectedFighter) return;
     
     setIsLoading(true);
     try {
-      const vehicle = vehicles[selectedVehicle];
+      const vehicle = allVehicles[selectedVehicle];
       
       // Get the session
       const supabase = createClient();
@@ -75,13 +103,12 @@ export default function GangVehicles({
       const data = await response.json();
 
       // Update local state by removing the assigned vehicle
-      const updatedVehicles = vehicles.filter((_, index) => index !== selectedVehicle);
+      const updatedVehicles = allVehicles.filter((_, index) => index !== selectedVehicle);
 
       // If there was a vehicle swap, add the old vehicle back to the list
       if (data.removed_from) {
         updatedVehicles.push({
           ...data.removed_from,
-          fighter_id: null,
           gang_id: gangId,
           equipment: []
         });
@@ -128,7 +155,7 @@ export default function GangVehicles({
     }
   };
 
-  const handleEditClick = (e: React.MouseEvent, vehicle: VehicleProps) => {
+  const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
     e.preventDefault();
     setEditingVehicle(vehicle);
     setEditedVehicleName(vehicle.vehicle_name);
@@ -156,7 +183,7 @@ export default function GangVehicles({
 
       // Update local state
       if (onVehicleUpdate) {
-        const updatedVehicles = vehicles.map(v => 
+        const updatedVehicles = allVehicles.map(v => 
           v.id === editingVehicle.id 
             ? { ...v, vehicle_name: editedVehicleName }
             : v
@@ -181,12 +208,58 @@ export default function GangVehicles({
     }
   };
 
+  const VehicleListItem = ({
+    vehicle,
+    index,
+    isSelected,
+    onSelect,
+    onEdit
+  }: {
+    vehicle: CombinedVehicleProps;
+    index: number;
+    isSelected: boolean;
+    onSelect: (index: number) => void;
+    onEdit: (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => void;
+  }) => (
+    <label className="flex items-center p-2 bg-gray-50 rounded-md">
+      <input
+        type="radio"
+        name="vehicle-item"
+        checked={isSelected}
+        onChange={() => onSelect(index)}
+        className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
+      />
+      <span className="flex w-64 overflow-hidden text-ellipsis">
+        {vehicle.vehicle_name || vehicle.vehicle_type}
+      </span>
+      <span className="w-64 overflow-hidden text-ellipsis">
+        {vehicle.vehicle_type}
+      </span>
+      <span className="w-64 overflow-hidden text-ellipsis text-gray-600">
+        {vehicle.assigned_to || '-'}
+      </span>
+      <div className="flex-1" />
+      <div className="w-32 flex justify-end gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-xs py-0"
+          onClick={(e) => onEdit(e, vehicle)}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Saving...' : 'Edit'}
+        </Button>
+      </div>
+      <span className="w-20 text-right">{vehicle.cost}</span>
+    </label>
+  );
+
   return (
     <div className="container max-w-5xl w-full space-y-4">
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-2xl font-bold mb-6">{title}</h2>
         
-        {vehicles.length === 0 ? (
+        {allVehicles.length === 0 ? (
           <p className="text-gray-500 italic">No vehicles available.</p>
         ) : (
           <>
@@ -195,39 +268,22 @@ export default function GangVehicles({
                 <div className="w-4 mr-5" />
                 <div className="flex w-64">Name</div>
                 <div className="w-64">Type</div>
+                <div className="w-64">Assigned To</div>
                 <div className="flex-1" />
                 <div className="w-32 text-right">Actions</div>
                 <div className="w-20 text-right">Value</div>
               </div>
               
               <div className="space-y-2 px-0">
-                {vehicles.map((vehicle, index) => (
-                  <label
+                {allVehicles.map((vehicle, index) => (
+                  <VehicleListItem
                     key={vehicle.id}
-                    className="flex items-center p-2 bg-gray-50 rounded-md"
-                  >
-                    <input
-                      type="radio"
-                      name="vehicle-item"
-                      checked={selectedVehicle === index}
-                      onChange={() => setSelectedVehicle(index)}
-                      className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
-                    />
-                    <span className="flex w-64 overflow-hidden text-ellipsis">{vehicle.vehicle_name}</span>
-                    <span className="w-64">{vehicle.vehicle_type}</span>
-                    <div className="flex-1" />
-                    <div className="w-32 flex justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs py-0"
-                        onClick={(e) => handleEditClick(e, vehicle)}
-                      >
-                        Edit
-                      </Button>
-                    </div>
-                    <span className="w-20 text-right">{vehicle.cost}</span>
-                  </label>
+                    vehicle={vehicle}
+                    index={index}
+                    isSelected={selectedVehicle === index}
+                    onSelect={setSelectedVehicle}
+                    onEdit={handleEditClick}
+                  />
                 ))}
               </div>
             </div>
