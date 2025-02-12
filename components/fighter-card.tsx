@@ -365,7 +365,10 @@ const FighterCard = memo(function FighterCard({
         
         {!isInactive && (
           <>
-            <StatsTable data={stats} isCrew={isCrew} />
+            <StatsTable 
+              data={stats} 
+              isCrew={isCrew}
+            />
             
             {/* Show fighter weapons */}
             {weapons && weapons.length > 0 && (
