@@ -6,6 +6,8 @@ import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from '@/utils/supabase/client';
+import Modal from "@/components/modal";
+import { Input } from "@/components/ui/input";
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -28,6 +30,8 @@ export default function GangVehicles({
   const [selectedFighter, setSelectedFighter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [editingVehicle, setEditingVehicle] = useState<VehicleProps | null>(null);
+  const [editedVehicleName, setEditedVehicleName] = useState('');
 
   // Filter for only Crew fighters
   const crewFighters = fighters.filter(fighter => fighter.fighter_class === 'Crew');
@@ -124,6 +128,59 @@ export default function GangVehicles({
     }
   };
 
+  const handleEditClick = (e: React.MouseEvent, vehicle: VehicleProps) => {
+    e.preventDefault();
+    setEditingVehicle(vehicle);
+    setEditedVehicleName(vehicle.vehicle_name);
+  };
+
+  const handleSaveVehicleName = async () => {
+    if (!editingVehicle) return true;
+    
+    try {
+      const response = await fetch(`/api/gangs/${gangId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vehicleId: editingVehicle.id,
+          vehicle_name: editedVehicleName,
+          operation: 'update_vehicle_name'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update vehicle name');
+      }
+
+      // Update local state
+      if (onVehicleUpdate) {
+        const updatedVehicles = vehicles.map(v => 
+          v.id === editingVehicle.id 
+            ? { ...v, vehicle_name: editedVehicleName }
+            : v
+        );
+        onVehicleUpdate(updatedVehicles);
+      }
+
+      toast({
+        title: "Success",
+        description: "Vehicle name updated successfully",
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating vehicle name:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update vehicle name",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return (
     <div className="container max-w-5xl w-full space-y-4">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -138,7 +195,9 @@ export default function GangVehicles({
                 <div className="w-4 mr-5" />
                 <div className="flex w-64">Name</div>
                 <div className="w-64">Type</div>
-                <div className="ml-auto w-20 text-right">Value</div>
+                <div className="flex-1" />
+                <div className="w-32 text-right">Actions</div>
+                <div className="w-20 text-right">Value</div>
               </div>
               
               <div className="space-y-2 px-0">
@@ -156,7 +215,18 @@ export default function GangVehicles({
                     />
                     <span className="flex w-64 overflow-hidden text-ellipsis">{vehicle.vehicle_name}</span>
                     <span className="w-64">{vehicle.vehicle_type}</span>
-                    <span className="ml-auto w-20 text-right">{vehicle.cost}</span>
+                    <div className="flex-1" />
+                    <div className="w-32 flex justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs py-0"
+                        onClick={(e) => handleEditClick(e, vehicle)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                    <span className="w-20 text-right">{vehicle.cost}</span>
                   </label>
                 ))}
               </div>
@@ -196,6 +266,28 @@ export default function GangVehicles({
           </>
         )}
       </div>
+      {editingVehicle && (
+        <Modal
+          title="Edit Vehicle Name"
+          onClose={() => setEditingVehicle(null)}
+          onConfirm={handleSaveVehicleName}
+          confirmText="Save"
+        >
+          <div>
+            <label htmlFor="vehicleName" className="block text-sm font-medium text-gray-700">
+              Vehicle Name
+            </label>
+            <Input
+              type="text"
+              id="vehicleName"
+              value={editedVehicleName}
+              onChange={(e) => setEditedVehicleName(e.target.value)}
+              className="mt-1 w-full"
+              placeholder="Enter vehicle name"
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 } 
