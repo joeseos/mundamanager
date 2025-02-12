@@ -351,10 +351,10 @@ export default function GangPage({ params }: { params: { id: string } }) {
           onStashUpdate={gangData.onStashUpdate}
           vehicles={gangData.processedData.vehicles || []}
         />
-        <GangVehicles 
-          vehicles={gangData.processedData.vehicles || []} 
-          fighters={gangData.processedData.fighters}
-          gangId={gangData.processedData.id}
+        <GangVehicles
+          vehicles={gangData.processedData.vehicles || []}
+          fighters={gangData.processedData.fighters || []}
+          gangId={params.id}
           onVehicleUpdate={gangData.onVehicleUpdate}
           onFighterUpdate={gangData.onFighterUpdate}
         />

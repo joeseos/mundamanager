@@ -10,6 +10,9 @@ import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
 import { Equipment, WeaponProfile } from '@/types/equipment';
+import Modal from "@/components/modal";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 
 // Vehicle equipment profile interface
 interface VehicleEquipmentProfile {
@@ -81,6 +84,7 @@ interface FighterDetailsCardProps {
     }>;
   }>;
   vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
+  gangId: string;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -164,7 +168,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   injuries,
   vehicles,
   vehicleEquipment = [],
+  gangId
 }: FighterDetailsCardProps) {
+  const [editingVehicle, setEditingVehicle] = useState<{id: string, name: string} | null>(null);
+  const { toast } = useToast();
+
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
     id,
@@ -244,6 +252,42 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     })
   }), [isCrew, vehicleStats, vehicles, adjustedStats, xp]);
 
+  const handleEditVehicleName = async () => {
+    if (!editingVehicle) return true;
+    
+    try {
+      const response = await fetch(`/api/gangs/${gangId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vehicleId: editingVehicle.id,
+          vehicle_name: editingVehicle.name,
+          operation: 'update_vehicle_name'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update vehicle name');
+      }
+
+      toast({
+        title: "Success",
+        description: "Vehicle name updated successfully",
+      });
+      
+      return true;
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update vehicle name",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return (
     <div className="relative">
       <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center mb-4">
@@ -295,6 +339,42 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       <div className="mt-4">
         <FighterStatsTable data={stats} isCrew={isCrew} />
       </div>
+
+      {/* Add vehicle section */}
+      {vehicles && vehicles.length > 0 && (
+        <div className="mt-4 border-t pt-4">
+          <h3 className="text-lg font-semibold mb-2">Vehicle</h3>
+          {vehicles.map(vehicle => (
+            <div key={vehicle.id} className="flex items-center justify-between">
+              <span>{vehicle.vehicle_name || vehicle.vehicle_type}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingVehicle({ id: vehicle.id, name: vehicle.vehicle_name || '' })}
+              >
+                Edit Name
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add edit modal */}
+      {editingVehicle && (
+        <Modal
+          title="Edit Vehicle Name"
+          onClose={() => setEditingVehicle(null)}
+          onConfirm={handleEditVehicleName}
+          confirmText="Save"
+        >
+          <Input
+            type="text"
+            value={editingVehicle.name}
+            onChange={(e) => setEditingVehicle(prev => prev ? { ...prev, name: e.target.value } : null)}
+            placeholder="Enter vehicle name"
+          />
+        </Modal>
+      )}
     </div>
   );
 }); 

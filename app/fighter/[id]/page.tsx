@@ -1334,6 +1334,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             kills={fighterData.fighter?.kills || 0}
             injuries={fighterData.fighter?.injuries || []}
             vehicles={fighterData.fighter?.vehicles}
+            gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
           />
           
