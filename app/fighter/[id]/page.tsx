@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
 import { WeaponList } from "@/components/weapon-list";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
@@ -319,6 +319,32 @@ const transformFighterData = (fighter: Fighter | null) => {
     skills: transformedSkills,
     advancements: fighter.advancements || [],
     note: fighter.note || ''
+  };
+};
+
+// Regular function outside component
+const transformFighterChangesData = (fighter: Fighter | null) => {
+  if (!fighter) return { advancement: [], characteristics: [], skills: {} };
+  
+  // Transform the skills object to include is_advance
+  const transformedSkills = Object.entries(fighter.skills || {}).reduce((acc, [key, value]) => {
+    acc[key] = {
+      ...value,
+      is_advance: true  // Add the missing is_advance property
+    };
+    return acc;
+  }, {} as Record<string, {
+    id: string;
+    xp_cost: number;
+    credits_increase: number;
+    acquired_at: string;
+    is_advance: boolean;
+  }>);
+  
+  return {
+    advancement: fighter.fighter_changes?.advancement || [],
+    characteristics: fighter.characteristics || [],
+    skills: transformedSkills
   };
 };
 
@@ -1266,6 +1292,17 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
   }, [fighterData.fighter?.campaigns]);
 
+  // Memoize the transform function inside the component
+  const transformFighterChanges = useCallback((fighter: Fighter | null) => {
+    return transformFighterChangesData(fighter);
+  }, []);
+
+  // Memoize the transformed data
+  const memoizedFighterChanges = useMemo(() => 
+    transformFighterChanges(fighterData.fighter),
+    [fighterData.fighter, transformFighterChanges]
+  );
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1385,7 +1422,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
-            fighterChanges={transformFighterData(fighterData.fighter)}
+            fighterChanges={memoizedFighterChanges}
             fighterId={fighterData.fighter?.id || ''}
             onAdvancementDeleted={fetchFighterData}
           />
