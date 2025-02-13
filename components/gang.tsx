@@ -858,19 +858,19 @@ export default function Gang({
           <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
             <Button
               onClick={() => setShowAddFighterModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
             >
               Add Fighter
             </Button>
             <Button
               onClick={() => setShowAddVehicleModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
             >
               Add Vehicle
             </Button>
             <Button
               onClick={() => setShowGangAdditionsModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
             >
               Gang Additions
             </Button>
