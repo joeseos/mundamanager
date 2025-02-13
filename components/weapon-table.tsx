@@ -16,19 +16,22 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
       if (value === null || value === undefined) return '-';
       return value.toString();
     },
-    formatAccuracy: (value: number | null): string => {
-      if (value === null || value === 0) return '-';
+    formatAccuracy: (value: number | null | undefined): string => {
+      if (value === null || value === undefined) return '-';
       return value.toString();
     },
-    formatAp: (value: number): string => {
-      return value === 0 ? '-' : value.toString();
+    formatAp: (value: number | null | undefined): string => {
+      if (value === null || value === undefined || value === 0) return '-';
+      return value.toString();
     },
-    formatAmmo: (value: number): string => {
-      return value === 0 ? '-' : value.toString();
+    formatAmmo: (value: number | null | undefined): string => {
+      if (value === null || value === undefined || value === 0) return '-';
+      return value.toString();
     }
   }), []);
 
-  const formatStrength = (strength: string) => {
+  const formatStrength = (strength: string | null | undefined) => {
+    if (strength === null || strength === undefined) return '-';
     return strength.toString();
   };
 
