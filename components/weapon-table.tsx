@@ -3,9 +3,10 @@ import { Weapon, WeaponProfile } from '@/types/weapon';
 
 interface WeaponTableProps {
   weapons: Weapon[];
+  entity?: 'crew' | 'vehicle';
 }
 
-const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
+const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
   if (!weapons || weapons.length === 0) {
     return <p>No weapons available.</p>;
   }
@@ -69,7 +70,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
         </colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
+            <th className="text-left p-1 align-bottom" rowSpan={2}>{entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Range</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
