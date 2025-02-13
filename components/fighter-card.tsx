@@ -279,18 +279,19 @@ const FighterCard = memo(function FighterCard({
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
-        setTimeout(() => {
-          const contentHeight = contentRef.current?.clientHeight || 0;
-          const contentWidth = contentRef.current?.clientWidth || 0;
-          const text = contentRef.current?.textContent || '';
-          const shouldBeMultiline = contentHeight > 24 && text.length > (contentWidth / 8);
-          setIsMultiline(shouldBeMultiline);
-        }, 0);
+        const contentHeight = contentRef.current?.clientHeight || 0;
+        const contentWidth = contentRef.current?.clientWidth || 0;
+        const text = contentRef.current?.textContent || '';
+        const shouldBeMultiline = contentHeight > 24 && text.length > (contentWidth / 8);
+        setIsMultiline(shouldBeMultiline);
       }
     };
-
-    const observer = new MutationObserver(checkHeight);
-
+    
+    // Debounce the resize handler
+    const debouncedCheckHeight = debounce(checkHeight, 250);
+    
+    const observer = new MutationObserver(debouncedCheckHeight);
+    
     if (contentRef.current) {
       observer.observe(contentRef.current, {
         childList: true,
@@ -300,12 +301,12 @@ const FighterCard = memo(function FighterCard({
       });
     }
 
-    checkHeight();
-    window.addEventListener('resize', checkHeight);
+    debouncedCheckHeight();
+    window.addEventListener('resize', debouncedCheckHeight);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', checkHeight);
+      window.removeEventListener('resize', debouncedCheckHeight);
     };
   }, [special_rules]);
 
@@ -487,3 +488,12 @@ const FighterCard = memo(function FighterCard({
 });
 
 export default FighterCard;
+
+// Add this utility function
+function debounce(fn: Function, ms: number) {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return function (...args: any[]) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(null, args), ms);
+  };
+}

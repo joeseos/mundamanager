@@ -56,6 +56,12 @@ const nextConfig = {
   generateEtags: true,
   pageExtensions: ['tsx', 'ts'],
   productionBrowserSourceMaps: false,
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+    responseLimit: '4mb',
+  },
 }
 
 module.exports = nextConfig
