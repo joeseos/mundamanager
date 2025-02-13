@@ -36,6 +36,7 @@ interface VehicleProfile {
   rear: string;
   hull_points: string;
   save: string;
+  upgrade_type?: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -71,7 +72,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     side: '',
     rear: '',
     hull_points: '',
-    save: ''
+    save: '',
+    upgrade_type: ''
   }]);
   
   const { toast } = useToast();
@@ -189,7 +191,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         side: profile.side || null,
         rear: profile.rear || null,
         hull_points: profile.hull_points || null,
-        save: profile.save || null
+        save: profile.save || null,
+        upgrade_type: profile.upgrade_type || null
       })) : undefined;
 
       const response = await fetch('/api/admin/equipment', {
@@ -657,6 +660,22 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
                           placeholder="Enter save value"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Upgrade Type
+                        </label>
+                        <select
+                          value={vehicleProfiles[0].upgrade_type || ''}
+                          onChange={(e) => handleVehicleProfileChange(0, 'upgrade_type', e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Select upgrade type</option>
+                          <option value="body">Body</option>
+                          <option value="drive">Drive</option>
+                          <option value="engine">Engine</option>
+                        </select>
                       </div>
                     </div>
                   </div>

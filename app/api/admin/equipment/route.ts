@@ -26,6 +26,7 @@ interface VehicleProfile {
   rear: string | null;
   hull_points: string | null;
   save: string | null;
+  upgrade_type: string | null;
 }
 
 interface FighterTypeEquipment {
@@ -103,9 +104,29 @@ export async function GET(request: Request) {
 
       console.log('Formatted discounts:', formattedDiscounts); // Debug log
 
+      // When fetching equipment details, include upgrade_type in the vehicle profiles query
+      const { data: vehicleProfiles, error: vehicleProfilesError } = await supabase
+        .from('vehicle_equipment_profiles')
+        .select(`
+          id,
+          profile_name,
+          movement,
+          front,
+          side,
+          rear,
+          hull_points,
+          save,
+          upgrade_type
+        `)
+        .eq('equipment_id', id);
+
+      if (vehicleProfilesError) throw vehicleProfilesError;
+      console.log('Fetched vehicle profiles:', vehicleProfiles); // Debug log
+
       return NextResponse.json({
         ...equipment,
-        gang_discounts: formattedDiscounts
+        gang_discounts: formattedDiscounts,
+        vehicle_profiles: vehicleProfiles
       });
 
     } else if (equipment_category) {
@@ -230,7 +251,8 @@ export async function POST(request: Request) {
           side: vehicle_profiles[0].side || null,
           rear: vehicle_profiles[0].rear || null,
           hull_points: vehicle_profiles[0].hull_points || null,
-          save: vehicle_profiles[0].save || null
+          save: vehicle_profiles[0].save || null,
+          upgrade_type: vehicle_profiles[0].upgrade_type || null
         });
 
       if (vehicleProfileError) throw vehicleProfileError;
@@ -356,12 +378,13 @@ export async function PUT(request: Request) {
             vehicle_profiles.map((profile: VehicleProfile) => ({
               equipment_id: id,
               profile_name: profile.profile_name,
-              movement: profile.movement || null,
-              front: profile.front || null,
-              side: profile.side || null,
-              rear: profile.rear || null,
-              hull_points: profile.hull_points || null,
-              save: profile.save || null
+              movement: profile.movement,
+              front: profile.front,
+              side: profile.side,
+              rear: profile.rear,
+              hull_points: profile.hull_points,
+              save: profile.save,
+              upgrade_type: profile.upgrade_type
             }))
           );
 
