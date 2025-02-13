@@ -69,10 +69,41 @@ export async function PATCH(
     reputation,
     meat,
     exploration_points,
-    note
+    note,
+    vehicleId,
+    vehicle_name
   } = await request.json();
 
   try {
+    // Get the current user using server-side auth
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // For vehicle name updates
+    if (operation === 'update_vehicle_name') {
+      // RLS will handle gang ownership and vehicle-to-gang relationship checks
+      const { error: updateError } = await supabase
+        .from('vehicles')
+        .update({ vehicle_name })
+        .eq('id', vehicleId)
+        .eq('gang_id', params.id);
+
+      if (updateError) {
+        return NextResponse.json(
+          { error: 'Failed to update vehicle name' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     // Prepare update object
     const updates: any = {
       last_updated: new Date().toISOString()

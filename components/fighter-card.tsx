@@ -1,17 +1,20 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { StatsTable } from './ui/table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
+import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
+import { StatsType } from './ui/table';  // Add this import
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -25,11 +28,10 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   injuries: Injury[];
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
-  vehicleEquipment?: (Equipment | VehicleEquipment)[];
   disableLink?: boolean;
 }
 
-type FighterCardData = FighterProps & {
+type FighterCardData = Omit<FighterProps, 'vehicles'> & {
   label?: string;
   note?: string;
 };
@@ -40,16 +42,8 @@ const calculateVehicleStats = (
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>
 ) => {
-  if (!baseStats) return {
-    movement: 0,
-    front: 0,
-    side: 0,
-    rear: 0,
-    hull_points: 0,
-    save: 0,
-  };
+  if (!baseStats) return null;
 
-  // Start with base stats
   const stats = {
     movement: baseStats.movement || 0,
     front: baseStats.front || 0,
@@ -59,10 +53,13 @@ const calculateVehicleStats = (
     save: baseStats.save || 0,
   };
 
-  // Add bonuses from vehicle equipment
+  const processedProfiles = new Set<string>();
+
   vehicleEquipment?.forEach(equipment => {
     if (equipment.vehicle_equipment_profiles) {
       equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
+        if (profile.id && processedProfiles.has(profile.id)) return;
+
         const statUpdates = {
           movement: profile.movement,
           front: profile.front,
@@ -72,20 +69,18 @@ const calculateVehicleStats = (
           save: profile.save,
         };
 
-        // Update each stat if the profile has a value
         Object.entries(statUpdates).forEach(([key, value]) => {
           if (value !== null) {
             stats[key as keyof typeof stats] += value;
           }
         });
+
+        if (profile.id) {
+          processedProfiles.add(profile.id);
+        }
       });
     }
   });
-
-  // Add some debugging
-  console.log('Base vehicle stats:', baseStats);
-  console.log('Vehicle equipment:', vehicleEquipment);
-  console.log('Final vehicle stats:', stats);
 
   return stats;
 };
@@ -123,20 +118,24 @@ const FighterCard = memo(function FighterCard({
   injuries = [],
   note,
   vehicle,
-  vehicleEquipment = [],
   disableLink = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
+  const isCrew = fighter_class === 'Crew';
 
-  const isInactive = killed || retired;
+  // Calculate vehicle stats using the equipment from the vehicle object
+  const vehicleStats = useMemo(() => {
+    if (!isCrew || !vehicle) return null;
+    return calculateVehicleStats(vehicle, vehicle.equipment || []);
+  }, [isCrew, vehicle]);
 
-  const fighterData: FighterCardData = {
+  // Create fighter data for stat calculations
+  const fighterData = useMemo<FighterProps>(() => ({
     id,
     fighter_name: name,
     fighter_type: type,
     fighter_class,
-    label,
     credits,
     movement,
     weapon_skill,
@@ -158,47 +157,55 @@ const FighterCard = memo(function FighterCard({
     },
     weapons,
     wargear,
-    special_rules,
+    special_rules: special_rules || [],
     injuries: injuries || [],
-    note,
-  };
+  }), [
+    id, name, type, fighter_class, credits, movement, weapon_skill,
+    ballistic_skill, strength, toughness, wounds, initiative,
+    attacks, leadership, cool, willpower, intelligence, xp,
+    kills, advancements, weapons, wargear, special_rules, injuries
+  ]);
 
-  const adjustedStats = calculateAdjustedStats(fighterData);
+  const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
-  const isCrew = fighter_class === 'Crew';
-  
-  // Calculate vehicle stats with equipment bonuses
-  const vehicleStats = isCrew && vehicle ? calculateVehicleStats(vehicle, vehicle.equipment || []) : null;
+  // Update stats object for crew
+  const stats = useMemo((): StatsType => {
+    if (isCrew) {
+      return {
+        'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
+        'Front': vehicleStats ? vehicleStats.front : '*',
+        'Side': vehicleStats ? vehicleStats.side : '*',
+        'Rear': vehicleStats ? vehicleStats.rear : '*',
+        'HP': vehicleStats ? vehicleStats.hull_points : '*',
+        'Hnd': vehicle ? `${vehicle.handling}+` : '*',
+        'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+        'Ld': `${adjustedStats.leadership}+`,
+        'Cl': `${adjustedStats.cool}+`,
+        'Wil': `${adjustedStats.willpower}+`,
+        'Int': `${adjustedStats.intelligence}+`,
+        'XP': xp
+      };
+    } else {
+      return {
+        'M': `${adjustedStats.movement}"`,
+        'WS': `${adjustedStats.weapon_skill}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+        'S': adjustedStats.strength,
+        'T': adjustedStats.toughness,
+        'W': adjustedStats.wounds,
+        'I': `${adjustedStats.initiative}+`,
+        'A': adjustedStats.attacks,
+        'Ld': `${adjustedStats.leadership}+`,
+        'Cl': `${adjustedStats.cool}+`,
+        'Wil': `${adjustedStats.willpower}+`,
+        'Int': `${adjustedStats.intelligence}+`,
+        'XP': xp
+      };
+    }
+  }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
 
-  const stats: Record<string, string | number> = isCrew ? {
-    'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
-    'Front': vehicleStats ? vehicleStats.front : '*',
-    'Side': vehicleStats ? vehicleStats.side : '*', 
-    'Rear': vehicleStats ? vehicleStats.rear : '*',
-    'HP': vehicleStats ? vehicleStats.hull_points : '*',
-    'Hnd': vehicle ? `${vehicle.handling}+` : '*',
-    'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-    'Ld': `${adjustedStats.leadership}+`,
-    'Cl': `${adjustedStats.cool}+`,
-    'Wil': `${adjustedStats.willpower}+`,
-    'Int': `${adjustedStats.intelligence}+`,
-    'XP': xp
-  } : {
-    'M': `${adjustedStats.movement}"`,
-    'WS': `${adjustedStats.weapon_skill}+`,
-    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-    'S': adjustedStats.strength,
-    'T': adjustedStats.toughness,
-    'W': adjustedStats.wounds,
-    'I': `${adjustedStats.initiative}+`,
-    'A': adjustedStats.attacks,
-    'Ld': `${adjustedStats.leadership}+`,
-    'Cl': `${adjustedStats.cool}+`,
-    'Wil': `${adjustedStats.willpower}+`,
-    'Int': `${adjustedStats.intelligence}+`,
-    'XP': xp
-  };
+  const isInactive = killed || retired;
 
   const formatUpgradeSlots = (vehicle: Vehicle) => {
     const slots = [];
@@ -231,21 +238,62 @@ const FighterCard = memo(function FighterCard({
     return slots.join(', ');
   };
 
+  // Update the getVehicleWeapons function
+  const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
+    if (!vehicle?.equipment) return [];
+    
+    return vehicle.equipment
+      .filter(item => item.equipment_type === 'weapon')
+      .map(weapon => ({
+        fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
+        weapon_id: weapon.equipment_id,
+        weapon_name: weapon.equipment_name,
+        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+          ...profile,
+          // Keep numeric types
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          traits: profile.traits || '',
+          id: profile.id,
+          profile_name: profile.profile_name,
+          is_default_profile: profile.is_default_profile
+        })) || [],
+        cost: weapon.cost
+      })) as unknown as Weapon[]; // Use double type assertion to avoid type mismatch
+  };
+
+  // Update the vehicle upgrades filter to exclude weapons
+  const vehicleUpgrades = vehicle?.equipment?.filter(
+    (item): item is (Equipment & Partial<VehicleEquipment>) => 
+      item.equipment_type === 'vehicle_upgrade' || 
+      item.equipment_type === 'wargear'  // Remove 'weapon' from the filter
+  ) || [];
+
+  // Get vehicle weapons
+  const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
+
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
-        setTimeout(() => {
-          const contentHeight = contentRef.current?.clientHeight || 0;
-          const contentWidth = contentRef.current?.clientWidth || 0;
-          const text = contentRef.current?.textContent || '';
-          const shouldBeMultiline = contentHeight > 24 && text.length > (contentWidth / 8);
-          setIsMultiline(shouldBeMultiline);
-        }, 0);
+        const contentHeight = contentRef.current?.clientHeight || 0;
+        const contentWidth = contentRef.current?.clientWidth || 0;
+        const text = contentRef.current?.textContent || '';
+        const shouldBeMultiline = contentHeight > 24 && text.length > (contentWidth / 8);
+        setIsMultiline(shouldBeMultiline);
       }
     };
-
-    const observer = new MutationObserver(checkHeight);
-
+    
+    // Debounce the resize handler
+    const debouncedCheckHeight = debounce(checkHeight, 250);
+    
+    const observer = new MutationObserver(debouncedCheckHeight);
+    
     if (contentRef.current) {
       observer.observe(contentRef.current, {
         childList: true,
@@ -255,136 +303,153 @@ const FighterCard = memo(function FighterCard({
       });
     }
 
-    checkHeight();
-    window.addEventListener('resize', checkHeight);
+    debouncedCheckHeight();
+    window.addEventListener('resize', debouncedCheckHeight);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', checkHeight);
+      window.removeEventListener('resize', debouncedCheckHeight);
     };
   }, [special_rules]);
 
   const cardContent = (
     <div 
-      className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
-      style={{
-        backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        fontSize: 'calc(10px + 0.2vmin)'
-      }}
-    >
-      <div className="flex mb-2">
-        <div className="flex w-full">
-          <div
-            className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
-            style={{
-              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
-              width: '100%',
-              height: '65px',
-              marginTop: '16px',
-              zIndex: 0,
-              backgroundPosition: 'center',
-              backgroundSize: '100% 100%'
-            }}>
-            <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
-              {label && (
-                <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
-                  {label}
-                </div>
-              )}
-              <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
-                  {type}
-                  {fighter_class && ` (${fighter_class})`}
+        className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
+        style={{
+          backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          fontSize: 'calc(10px + 0.2vmin)'
+        }}
+      >
+        <div className="flex mb-2">
+          <div className="flex w-full">
+            <div
+              className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
+              style={{
+                backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+                width: '100%',
+                height: '65px',
+                marginTop: '16px',
+                zIndex: 0,
+                backgroundPosition: 'center',
+                backgroundSize: '100% 100%'
+              }}>
+              <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+                {label && (
+                  <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
+                    {label}
+                  </div>
+                )}
+                <div className="flex flex-col items-baseline w-full">
+                  <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
+                  <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                    {type}
+                    {fighter_class && ` (${fighter_class})`}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
-          {killed && <IoSkull className="text-gray-300" />}
-          {retired && <MdChair className="text-gray-600" />}
-          {enslaved && <GiCrossedChains className="text-sky-200" />}
-          {starved && <TbMeatOff className="text-red-500" />}
-        </div>
-        {!isInactive && (
-          <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-            <span className="leading-6 font-bold text-2xl">{credits}</span>
-            <span className="leading-3 text-xs">Credits</span>
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+            {killed && <IoSkull className="text-gray-300" />}
+            {retired && <MdChair className="text-gray-600" />}
+            {enslaved && <GiCrossedChains className="text-sky-200" />}
+            {starved && <TbMeatOff className="text-red-500" />}
           </div>
-        )}
-      </div>
-      
-      {!isInactive && (
-        <>
-          <StatsTable data={stats} isCrew={isCrew} />
-          {weapons && weapons.length > 0 && (
-            <div className="mt-4">
-              <WeaponTable weapons={weapons} />
+          {!isInactive && (
+            <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+              <span className="leading-6 font-bold text-2xl">{credits}</span>
+              <span className="leading-3 text-xs">Credits</span>
             </div>
           )}
-          <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
-            {wargear && wargear.length > 0 && (
-              <>
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
-                <div className="min-w-[0px] text-sm break-words">
-                  {wargear
-                    .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
-                    .map(item => item.wargear_name)
-                    .join(', ')}
-                </div>
-              </>
+        </div>
+        
+        {!isInactive && (
+          <>
+            <StatsTable 
+              data={stats} 
+              isCrew={isCrew}
+            />
+
+            {/* Add vehicle weapons section */}
+            {isCrew && vehicleWeapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={vehicleWeapons} entity="vehicle" />
+              </div>
             )}
-            {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
-              <>
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
-                <div className="min-w-[0px] text-sm break-words">
-                  {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
-                    Object.keys(advancements.skills)
-                      .sort((a, b) => a.localeCompare(b))
-                      .join(', ')
-                  ) : free_skill ? (
-                    <div className="flex items-center gap-2 text-amber-700">
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 24 24" 
-                        fill="currentColor" 
-                        className="w-4 h-4"
-                      >
-                        <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                      </svg>
-                      Starting skill missing.
-                    </div>
-                  ) : null}
-                </div>
-              </>
+
+            {/* Show fighter weapons */}
+            {isCrew && weapons && weapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={weapons} entity="crew" />
+              </div>
             )}
-            {isCrew && vehicle && (
-              <>
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                <div className="min-w-[0px] text-sm break-words">
+
+            {/* Show fighter weapons */}
+            {!isCrew && weapons && weapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={weapons} />
+              </div>
+            )}
+            <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
+              {wargear && wargear.length > 0 && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {wargear
+                      .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
+                      .map(item => item.wargear_name)
+                      .join(', ')}
+                  </div>
+                </>
+              )}
+              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
+                      Object.keys(advancements.skills)
+                        .sort((a, b) => a.localeCompare(b))
+                        .join(', ')
+                    ) : free_skill ? (
+                      <div className="flex items-center gap-2 text-amber-700">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor" 
+                          className="w-4 h-4"
+                        >
+                          <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                        </svg>
+                        Starting skill missing.
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              )}
+              {isCrew && vehicleUpgrades.length > 0 && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {vehicleUpgrades
+                      .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                      .map(upgrade => upgrade.equipment_name)
+                      .join(', ')}
+                  </div>
+                </>
+              )}
+              {isCrew && vehicle && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
+                  <div className="min-w-[0px] text-sm break-words">
                     {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
                   </div>
-                
-                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
-                <div className="min-w-[0px] text-sm break-words">
-                  {formatUpgradeSlots(vehicle)}
-                </div>
-
-                {Array.isArray(vehicle?.equipment) && vehicle.equipment.length > 0 && (
-                    <>
-                      <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
-                      <div className="min-w-[0px] text-sm break-words">
-                        {vehicle.equipment
-                          .filter(upgrade => upgrade?.equipment_name)
-                          .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
-                          .map(upgrade => upgrade.equipment_name)
-                          .join(', ')}
-                      </div>
-                    </>
-                  )}
+                  
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {formatUpgradeSlots(vehicle)}
+                  </div>
 
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">
@@ -428,3 +493,12 @@ const FighterCard = memo(function FighterCard({
 });
 
 export default FighterCard;
+
+// Add this utility function
+function debounce(fn: Function, ms: number) {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return function (...args: any[]) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(null, args), ms);
+  };
+}

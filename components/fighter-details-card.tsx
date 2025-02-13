@@ -10,6 +10,9 @@ import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
 import { Equipment, WeaponProfile } from '@/types/equipment';
+import Modal from "@/components/modal";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 
 // Vehicle equipment profile interface
 interface VehicleEquipmentProfile {
@@ -81,6 +84,7 @@ interface FighterDetailsCardProps {
     }>;
   }>;
   vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
+  gangId: string;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -164,7 +168,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   injuries,
   vehicles,
   vehicleEquipment = [],
+  gangId
 }: FighterDetailsCardProps) {
+  const { toast } = useToast();
+
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
     id,

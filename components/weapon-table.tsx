@@ -3,9 +3,10 @@ import { Weapon, WeaponProfile } from '@/types/weapon';
 
 interface WeaponTableProps {
   weapons: Weapon[];
+  entity?: 'crew' | 'vehicle';
 }
 
-const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
+const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
   if (!weapons || weapons.length === 0) {
     return <p>No weapons available.</p>;
   }
@@ -69,7 +70,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
         </colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
+            <th className="text-left p-1 align-bottom" rowSpan={2}>{entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Range</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
@@ -80,8 +81,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
             <th className="text-center p-1 border-l border-black">S</th>
             <th className="text-center p-1">L</th>
             <th className="text-center p-1 border-l border-black">Str</th>
-            <th className="text-center p-1 border-l border-black">D</th>
             <th className="text-center p-1 border-l border-black">AP</th>
+            <th className="text-center p-1 border-l border-black">D</th>
             <th className="text-center p-1 border-l border-black">Am</th>
             <th className="text-left p-1 border-l border-black">Traits</th>
           </tr>
@@ -117,10 +118,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
                   {formatStrength(profile.strength)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatValue(profile.damage)}
+                  {formatters.formatAp(profile.ap)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatAp(profile.ap)}
+                  {formatters.formatValue(profile.damage)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatAmmo(profile.ammo)}

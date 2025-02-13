@@ -150,7 +150,7 @@ async function processGangData(gangData: any) {
     }
     return (a.fighter_type || "").localeCompare(b.fighter_type || ""); // Secondary sorting: By fighter_type
   });
-
+  
   // init or fix positioning for all fighters
   let positioning = gangData.positioning || {};
 
@@ -218,11 +218,32 @@ async function processGangData(gangData: any) {
     }
   }
 
+  // Get campaign settings from the campaigns array
+  const campaign = gangData.campaigns?.[0];
+  
   return {
     ...gangData,
     alignment: gangData.alignment,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes, // Use processed fighter types
+    fighterTypes: processedFighterTypes,
+    campaigns: gangData.campaigns?.map((campaign: any) => ({
+      campaign_id: campaign.campaign_id,
+      campaign_name: campaign.campaign_name,
+      role: campaign.role,
+      status: campaign.status,
+      has_meat: campaign.has_meat ?? false,
+      has_exploration_points: campaign.has_exploration_points ?? false
+    })),
+    stash: (gangData.stash || []).map((item: any) => ({
+      id: item.id,
+      equipment_name: item.equipment_name,
+      vehicle_name: item.vehicle_name,
+      cost: item.cost,
+      type: item.type || 'equipment',
+      equipment_type: item.equipment_type,
+      equipment_category: item.equipment_category,
+      vehicle_id: item.vehicle_id
+    })),
     vehicles: gangData.vehicles || [],
     positioning
   };
@@ -285,11 +306,18 @@ export default function GangPage({ params }: { params: { id: string } }) {
         }
 
         const [data] = await response.json();
+        console.log('API Response:', data?.campaigns?.[0]); // Log the campaign data
+
         if (!data) {
           return redirect("/");
         }
 
         const processedData = await processGangData(data);
+        console.log('Processed Data:', {
+          has_meat: processedData.campaign_has_meat,
+          has_exploration: processedData.campaign_has_exploration_points,
+          has_scavenging: processedData.campaign_has_scavenging_rolls
+        });
         
 
         console.log('processedData', processedData.positioning );
@@ -384,7 +412,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           processedData={gangData.processedData} 
           gangData={{
             ...gangData,
-            onVehicleAdd: handleVehicleAdd // Pass the handler down
+            onVehicleAdd: handleVehicleAdd
           }} 
         />
         <GangInventory
@@ -392,11 +420,12 @@ export default function GangPage({ params }: { params: { id: string } }) {
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={gangData.onStashUpdate}
+          vehicles={gangData.processedData.vehicles || []}
         />
-        <GangVehicles 
-          vehicles={gangData.processedData.vehicles || []} 
-          fighters={gangData.processedData.fighters}
-          gangId={gangData.processedData.id}
+        <GangVehicles
+          vehicles={gangData.processedData.vehicles || []}
+          fighters={gangData.processedData.fighters || []}
+          gangId={params.id}
           onVehicleUpdate={gangData.onVehicleUpdate}
           onFighterUpdate={gangData.onFighterUpdate}
         />

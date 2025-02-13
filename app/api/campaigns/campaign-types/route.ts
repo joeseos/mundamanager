@@ -21,7 +21,7 @@ export async function GET() {
       campaign_type: type.campaign_type_name
     }));
 
-    console.log('Campaign types fetched:', transformedTypes);
+    //console.log('Campaign types fetched:', transformedTypes);
     return NextResponse.json(transformedTypes)
   } catch (error) {
     console.error('Error fetching campaign types:', error)

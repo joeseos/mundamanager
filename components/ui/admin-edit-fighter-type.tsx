@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { X, Plus, Minus } from "lucide-react";
 import { FighterType } from "@/types/fighter";
 import { GangType, Equipment } from "@/types/gang";
 
@@ -62,6 +62,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
+  const [equipmentDiscounts, setEquipmentDiscounts] = useState<{
+    equipment_id: string;
+    discount: number;
+  }[]>([]);
+  const [selectedDiscountEquipment, setSelectedDiscountEquipment] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
 
   const { toast } = useToast();
 
@@ -151,6 +158,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setSelectedEquipment(data.default_equipment || []);
         setSelectedSkills(data.default_skills || []);
         setEquipmentListSelections(data.equipment_list || []);
+        setEquipmentDiscounts(data.equipment_discounts || []);
       } catch (error) {
         console.error('Error fetching fighter type details:', error);
         toast({
@@ -314,7 +322,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         free_skill: freeSkill,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
-        equipment_list: equipmentListSelections
+        equipment_list: equipmentListSelections,
+        equipment_discounts: equipmentDiscounts
       };
 
       console.log('Sending update data:', updateData);
@@ -371,12 +380,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
+  const handleAddDiscount = () => {
+    if (!selectedDiscountEquipment || !discountAmount) return;
+    
+    const newDiscount = {
+      equipment_id: selectedDiscountEquipment,
+      discount: parseInt(discountAmount)
+    };
+
+    setEquipmentDiscounts([...equipmentDiscounts, newDiscount]);
+    setSelectedDiscountEquipment('');
+    setDiscountAmount('');
+  };
+
+  const handleRemoveDiscount = (equipmentId: string) => {
+    setEquipmentDiscounts(equipmentDiscounts.filter(
+      discount => discount.equipment_id !== equipmentId
+    ));
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Edit Fighter Type</h3>
@@ -834,6 +862,144 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   );
                 })}
               </div>
+            </div>
+
+            <div className="col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Equipment Discounts
+              </label>
+              <Button
+                onClick={() => setShowDiscountDialog(true)}
+                variant="outline"
+                size="sm"
+                className="mb-2"
+                disabled={!gangTypeFilter || !selectedFighterTypeId}
+              >
+                Add Equipment Discount
+              </Button>
+              {(!gangTypeFilter || !selectedFighterTypeId) && (
+                <p className="text-sm text-gray-500 mb-2">
+                  Select a gang type and fighter type to add equipment discounts
+                </p>
+              )}
+
+              {equipmentDiscounts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {equipmentDiscounts.map((discount) => {
+                    const item = equipment.find(e => e.id === discount.equipment_id);
+                    if (!item) return null;
+                    
+                    return (
+                      <div 
+                        key={discount.equipment_id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{item.equipment_name} (-{discount.discount} credits)</span>
+                        <button
+                          onClick={() => setEquipmentDiscounts(prev => 
+                            prev.filter(d => d.equipment_id !== discount.equipment_id)
+                          )}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {showDiscountDialog && (
+                <div 
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowDiscountDialog(false);
+                      setSelectedDiscountEquipment("");
+                      setDiscountAmount("");
+                    }
+                  }}
+                >
+                  <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                    <h3 className="text-xl font-bold mb-4">Equipment Discount Menu</h3>
+                    <p className="text-sm text-gray-500 mb-4">Select equipment and enter a discount</p>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Equipment</label>
+                        <select
+                          value={selectedDiscountEquipment}
+                          onChange={(e) => setSelectedDiscountEquipment(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Select equipment</option>
+                          {equipment
+                            .filter(item => !equipmentDiscounts.some(
+                              discount => discount.equipment_id === item.id
+                            ))
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.equipment_name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Discount (credits)</label>
+                        <Input
+                          type="number"
+                          value={discountAmount}
+                          onChange={(e) => setDiscountAmount(e.target.value)}
+                          placeholder="Enter discount in credits"
+                          min="0"
+                          onKeyDown={(e) => {
+                            if (e.key === '-') {
+                              e.preventDefault();
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex gap-2 justify-end mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowDiscountDialog(false);
+                            setSelectedDiscountEquipment("");
+                            setDiscountAmount("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (selectedDiscountEquipment && discountAmount) {
+                              const discount = parseInt(discountAmount);
+                              if (discount >= 0) {
+                                setEquipmentDiscounts(prev => [
+                                  ...prev,
+                                  {
+                                    equipment_id: selectedDiscountEquipment,
+                                    discount
+                                  }
+                                ]);
+                                setShowDiscountDialog(false);
+                                setSelectedDiscountEquipment("");
+                                setDiscountAmount("");
+                              }
+                            }
+                          }}
+                          disabled={!selectedDiscountEquipment || !discountAmount || parseInt(discountAmount) < 0}
+                          className="bg-black hover:bg-gray-800 text-white"
+                        >
+                          Save Discount
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

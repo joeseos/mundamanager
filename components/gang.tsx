@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import DeleteGangButton from "./delete-gang-button";
-import { Weapon } from '@/types/weapon';
 import { FighterProps } from '@/types/fighter';
 import { Equipment } from '@/types/equipment';
 import Modal from '@/components/modal';
@@ -15,6 +14,16 @@ import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PlusCircle } from "lucide-react";
+import { FiMap } from "react-icons/fi";
+import { FaUsers } from "react-icons/fa";
+import { StatsTable } from "./ui/table";
 
 interface VehicleType {
   id: string;
@@ -56,6 +65,8 @@ interface GangProps {
     campaign_name: string;
     role: string | null;
     status: string | null;
+    has_meat: boolean;
+    has_exploration_points: boolean;
   }[];
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
@@ -72,6 +83,29 @@ interface FighterType {
   fighter_class: string;
 }
 
+interface WeaponOption {
+  id: string;
+  cost: number;
+  max_quantity: number;
+}
+
+interface WeaponOptions {
+  select_type: 'single' | 'multiple';
+  options: WeaponOption[];
+  upgrades?: WeaponOption[];
+}
+
+interface EquipmentOptions {
+  weapons?: WeaponOptions;
+}
+
+interface EquipmentDetails {
+  [key: string]: {
+    id: string;
+    name: string;
+  };
+}
+
 export default function Gang({ 
   id, 
   name: initialName, 
@@ -80,8 +114,8 @@ export default function Gang({
   gang_type_image_url,
   credits: initialCredits, 
   reputation: initialReputation,
-  meat: initialMeat, 
-  exploration_points: initialExplorationPoints, 
+  meat: initialMeat,
+  exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
   created_at, 
@@ -128,6 +162,9 @@ export default function Gang({
   const [vehicleName, setVehicleName] = useState('');
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
 
+  const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
+  const [gangAdditions, setGangAdditions] = useState<FighterType[]>([]);
+  const [selectedAdditionId, setSelectedAdditionId] = useState('');
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -656,9 +693,138 @@ export default function Gang({
     initializePositions();
   }, [fighters, id]);
 
+  const fetchGangAdditions = async () => {
+    try {
+      const response = await fetch(`/api/fighter-types?gang_type_id=${gang_type_id}&is_gang_addition=true`);
+      if (!response.ok) throw new Error('Failed to fetch gang additions');
+      const data = await response.json();
+      setGangAdditions(data);
+    } catch (error) {
+      console.error('Error fetching gang additions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load gang additions",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddGangAddition = async () => {
+    if (!selectedAdditionId) {
+      toast({
+        title: "Error",
+        description: "Please select an addition",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const selectedAddition = gangAdditions.find(a => a.id === selectedAdditionId);
+      if (!selectedAddition) {
+        throw new Error('Selected addition not found');
+      }
+
+      const response = await fetch(`/api/fighter-types/${selectedAddition.id}/add_to_gang`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gang_id: id,
+          cost: selectedAddition.cost
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add addition to gang');
+      }
+
+      const data = await response.json();
+
+      if (!data?.fighter_id) {
+        throw new Error('Failed to add addition to gang');
+      }
+
+      const newFighter = {
+        id: data.fighter_id,
+        fighter_name: selectedAddition.fighter_type,
+        fighter_type_id: selectedAddition.id,
+        fighter_type: selectedAddition.fighter_type,
+        fighter_class: selectedAddition.fighter_class,
+        credits: selectedAddition.cost,
+        movement: data.stats.movement,
+        weapon_skill: data.stats.weapon_skill,
+        ballistic_skill: data.stats.ballistic_skill,
+        strength: data.stats.strength,
+        toughness: data.stats.toughness,
+        wounds: data.stats.wounds,
+        initiative: data.stats.initiative,
+        attacks: data.stats.attacks,
+        leadership: data.stats.leadership,
+        cool: data.stats.cool,
+        willpower: data.stats.willpower,
+        intelligence: data.stats.intelligence,
+        xp: data.stats.xp,
+        kills: 0,
+        weapons: data.equipment
+          .filter((item: any) => item.equipment_type === 'weapon')
+          .map((item: any) => ({
+            weapon_name: item.equipment_name,
+            weapon_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id,
+            weapon_profiles: item.weapon_profiles || []
+          })),
+        wargear: data.equipment
+          .filter((item: any) => item.equipment_type === 'wargear')
+          .map((item: any) => ({
+            wargear_name: item.equipment_name,
+            wargear_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id
+          })),
+        injuries: [],
+        special_rules: data.special_rules || [],
+        advancements: {
+          characteristics: {},
+          skills: {}
+        },
+        free_skill: data.free_skill
+      };
+
+      setFighters(prev => [...prev, newFighter]);
+      setShowGangAdditionsModal(false);
+      setSelectedAdditionId('');
+
+      toast({
+        description: `${selectedAddition.fighter_type} added to gang successfully`,
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error adding gang addition:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add gang addition. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAdditionSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const additionId = e.target.value;
+    setSelectedAdditionId(additionId);
+  };
+
+  useEffect(() => {
+    if (showGangAdditionsModal) {
+      fetchGangAdditions();
+    }
+  }, [showGangAdditionsModal]);
+
   return (
     <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
-      <div className="bg-white shadow-md rounded-lg p-6 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
+      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
         {/* Left Section: Illustration */}
         <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
           {gang_type_image_url ? (
@@ -689,7 +855,7 @@ export default function Gang({
         </div>
 
         {/* Right Section: Content */}
-        <div className="flex-grow">
+        <div className="flex-grow w-full">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-2xl font-bold">{name}</h2>
             <div>
@@ -744,20 +910,24 @@ export default function Gang({
               editedValue={editedReputation}
               onChange={setEditedReputation}
             />
-            <StatItem
-              label="Meat"
-              value={meat}
-              isEditing={isEditing}
-              editedValue={editedMeat}
-              onChange={setEditedMeat}
-            />
-            <StatItem
-              label="Exploration Points"
-              value={explorationPoints}
-              isEditing={isEditing}
-              editedValue={editedExplorationPoints}
-              onChange={setEditedExplorationPoints}
-            />
+            {campaigns?.[0]?.has_meat && (
+              <StatItem
+                label="Meat"
+                value={meat}
+                isEditing={isEditing}
+                editedValue={editedMeat}
+                onChange={setEditedMeat}
+              />
+            )}
+            {campaigns?.[0]?.has_exploration_points && (
+              <StatItem
+                label="Exploration Points"
+                value={explorationPoints}
+                isEditing={isEditing}
+                editedValue={editedExplorationPoints}
+                onChange={setEditedExplorationPoints}
+              />
+            )}
             <StatItem
               label="Rating"
               value={rating}
@@ -770,18 +940,24 @@ export default function Gang({
             <span>Created: {formatDate(created_at)}</span>
             <span>Last Updated: {formatDate(lastUpdated)}</span>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
+            <Button
+              onClick={() => setShowAddFighterModal(true)}
+              className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
+            >
+              Add Fighter
+            </Button>
             <Button
               onClick={() => setShowAddVehicleModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
             >
               Add Vehicle
             </Button>
             <Button
-              onClick={() => setShowAddFighterModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              onClick={() => setShowGangAdditionsModal(true)}
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
             >
-              Add Fighter
+              Gang Additions
             </Button>
           </div>
         </div>
@@ -798,7 +974,6 @@ export default function Gang({
             confirmText="Save Changes"
           />
         )}
-
         {showAddFighterModal && (
           <Modal
             title="Add New Fighter"
@@ -890,6 +1065,42 @@ export default function Gang({
             onConfirm={handleAddVehicle}
             confirmText="Add Vehicle"
             confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
+          />
+        )}
+
+        {showGangAdditionsModal && (
+          <Modal
+            title="Gang Additions"
+            content={
+              <div className="space-y-4 w-full max-w-3xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Select Addition
+                    </label>
+                    <select
+                      value={selectedAdditionId}
+                      onChange={handleAdditionSelect}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select an addition</option>
+                      {gangAdditions.map((addition) => (
+                        <option key={addition.id} value={addition.id}>
+                          {addition.fighter_type} ({addition.fighter_class}) - {addition.cost} credits
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            }
+            onClose={() => {
+              setShowGangAdditionsModal(false);
+              setSelectedAdditionId('');
+            }}
+            onConfirm={handleAddGangAddition}
+            confirmText="Add to Gang"
+            confirmDisabled={!selectedAdditionId}
           />
         )}
       </div>

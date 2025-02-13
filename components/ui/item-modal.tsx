@@ -21,6 +21,7 @@ interface ItemModalProps {
   fighterCredits: number;
   vehicleId?: string;
   isVehicleEquipment?: boolean;
+  allowedCategories?: string[];
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -117,6 +118,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterCredits,
   vehicleId,
   isVehicleEquipment,
+  allowedCategories,
   onEquipmentBought
 }) => {
   const { toast } = useToast();
@@ -345,7 +347,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="w-[600px] rounded-lg bg-white shadow-xl">
+      <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-white shadow-xl">
         <div className="relative border-b p-4">
           <Button
             variant="ghost"
@@ -386,11 +388,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
 
-        <div className="h-[600px] overflow-y-auto">
+        <div>
           <div className="flex flex-col">
             {error && <p className="text-red-500 p-4">{error}</p>}
 
             {categories
+              .filter(category => !isVehicleEquipment || !allowedCategories || allowedCategories.includes(category.category_name))
               .sort((a, b) => {
                 const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
                 const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
@@ -430,6 +433,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             <div className="flex-1">
                               <span className="text-sm font-medium">{item.equipment_name}</span>
                             </div>
+
                             <div className="flex items-center gap-2">
                               {item.discounted_cost !== undefined && item.discounted_cost < (item.base_cost ?? item.cost) ? (
                                 <div className="flex items-center gap-1">
@@ -446,6 +450,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   <span className="text-[10px] font-medium">{item.cost}</span>
                                 </div>
                               )}
+
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                <span className="text-[10px] font-medium">{item.availability}</span>
+                              </div>
+
                               {(
                                 <Button
                                   onClick={(e) => {

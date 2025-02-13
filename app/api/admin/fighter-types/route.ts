@@ -38,7 +38,11 @@ export async function GET(request: Request) {
           gang_type_id,
           gang_type,
           fighter_class,
-          cost
+          cost,
+          equipment_discounts:equipment_discounts(
+            equipment_id,
+            discount
+          )
         `)
         .in('id', fighterTypeIds);
 
@@ -71,7 +75,11 @@ export async function GET(request: Request) {
           intelligence,
           attacks,
           special_rules,
-          free_skill
+          free_skill,
+          equipment_discounts:equipment_discounts(
+            equipment_id,
+            discount
+          )
         `)
         .eq('id', id)
         .single();
@@ -127,7 +135,11 @@ export async function GET(request: Request) {
         ...fighterType,
         default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
         default_skills: defaultSkills?.map(d => d.skill_id) || [],
-        equipment_list: equipmentList?.map(e => e.equipment_id) || []
+        equipment_list: equipmentList?.map(e => e.equipment_id) || [],
+        equipment_discounts: fighterType.equipment_discounts?.map(d => ({
+          equipment_id: d.equipment_id,
+          discount: d.discount
+        })) || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -142,7 +154,11 @@ export async function GET(request: Request) {
         gang_type_id,
         gang_type,
         fighter_class,
-        cost
+        cost,
+        equipment_discounts:equipment_discounts(
+          equipment_id,
+          discount
+        )
       `)
       .order('gang_type', { ascending: true })
       .order('fighter_type', { ascending: true });
@@ -280,6 +296,38 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Handle equipment discounts
+    if (data.equipment_discounts) {
+      // First, delete existing discounts for this fighter type
+      const { error: deleteError } = await supabase
+        .from('equipment_discounts')
+        .delete()
+        .eq('fighter_type_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // If there are new discounts to add
+      if (data.equipment_discounts.length > 0) {
+        const discountRecords = data.equipment_discounts.map((discount: {
+          equipment_id: string;
+          discount: number;
+        }) => ({
+          equipment_id: discount.equipment_id,
+          fighter_type_id: id,
+          discount: discount.discount.toString(),
+          gang_type_id: null // Set to null since this is a fighter type discount
+        }));
+
+        if (discountRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_discounts')
+            .insert(discountRecords);
+
+          if (insertError) throw insertError;
+        }
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in PUT fighter-type:', error);
@@ -321,15 +369,15 @@ export async function POST(request: Request) {
       throw new Error('Gang type not found');
     }
 
-    // Insert the fighter type with both class name and ID, and gang type
+    // Insert the fighter type
     const { data: newFighterType, error: insertError } = await supabase
       .from('fighter_types')
       .insert({
         fighter_type: data.fighterType,
         gang_type_id: data.gangTypeId,
-        gang_type: gangType.gang_type,        // Add the gang type name
-        fighter_class: data.fighterClass,     // The class name
-        fighter_class_id: data.fighterClassId,// The class ID
+        gang_type: gangType.gang_type,
+        fighter_class: data.fighterClass,
+        fighter_class_id: data.fighterClassId,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
@@ -350,6 +398,25 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+
+    // Handle equipment discounts if provided
+    if (data.equipment_discounts && data.equipment_discounts.length > 0) {
+      const discountRecords = data.equipment_discounts.map((discount: {
+        equipment_id: string;
+        discount: number;
+      }) => ({
+        equipment_id: discount.equipment_id,
+        fighter_type_id: newFighterType.id,
+        discount: discount.discount.toString(),
+        gang_type_id: null // Set to null since this is a fighter type discount
+      }));
+
+      const { error: discountError } = await supabase
+        .from('equipment_discounts')
+        .insert(discountRecords);
+
+      if (discountError) throw discountError;
+    }
 
     // Handle default equipment if provided
     if (data.default_equipment && data.default_equipment.length > 0) {

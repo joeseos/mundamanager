@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Campaign from "@/components/campaign";
 import TerritoryGangModal from "@/components/territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -63,6 +63,11 @@ interface Territory {
   gang_id: string | null;
   created_at: string;
   owning_gangs?: Gang[];
+  owner?: {
+    [key: string]: {
+      assigned_at: string;
+    };
+  } | null;
 }
 
 interface CampaignData {
@@ -161,6 +166,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const [selectedDefender, setSelectedDefender] = useState('');
   const [selectedWinner, setSelectedWinner] = useState('');
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
+  const isLoadingRef = useRef(false);
 
   // Fetch user data once and determine role
   useEffect(() => {
@@ -339,55 +345,73 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   // Load gang details for territories
   useEffect(() => {
     const loadGangDetails = async () => {
+      // Prevent multiple simultaneous requests
+      if (isLoadingRef.current) return;
+      
       // Skip if all territories already have their gang details loaded
       const needsGangDetails = campaignData.territories.some(t => 
-        t.gang_id && (!t.owning_gangs || t.owning_gangs.length === 0)
+        (t.gang_id || (t.owner && Object.keys(t.owner).length > 0)) && 
+        (!t.owning_gangs || t.owning_gangs.length === 0)
       );
 
       if (!needsGangDetails) return;
 
-      const territoriesWithGangs = campaignData.territories.filter(t => t.gang_id);
-     
-      // Get all gang IDs and deduplicate them
-      const gangIds = Array.from(new Set(
-        territoriesWithGangs.map(t => t.gang_id).filter((id): id is string => id !== null)
-      ));
+      try {
+        isLoadingRef.current = true;
+        
+        const territoriesWithGangs = campaignData.territories.filter(t => 
+          t.gang_id || (t.owner && Object.keys(t.owner).length > 0)
+        );
+        
+        const gangIds = Array.from(new Set(
+          territoriesWithGangs.flatMap(t => {
+            const ids: string[] = [];
+            if (t.gang_id) ids.push(t.gang_id);
+            if (t.owner) ids.push(...Object.keys(t.owner));
+            return ids;
+          })
+        ));
 
-      if (gangIds.length === 0) return;
-      
-      const { data: gangs, error } = await supabase
-        .from('gangs')
-        .select('id, name, gang_type')
-        .in('id', gangIds);
+        if (gangIds.length === 0) return;
 
-      if (error) {
+        const { data: gangs, error } = await supabase
+          .from('gangs')
+          .select('id, name, gang_type')
+          .in('id', gangIds);
+
+        if (error) throw error;
+
+        // Update territories with gang details
+        const updatedTerritories = campaignData.territories.map(territory => {
+          const effectiveGangId = territory.gang_id || 
+            (territory.owner ? Object.keys(territory.owner)[0] : null);
+          
+          const gang = effectiveGangId ? gangs?.find(g => g.id === effectiveGangId) : null;
+          const territoryGangs = gang ? [{
+            id: gang.id,
+            name: gang.name,
+            gang_type: gang.gang_type
+          }] : [];
+
+          return {
+            ...territory,
+            owning_gangs: territoryGangs
+          };
+        });
+
+        setCampaignData(prev => ({
+          ...prev,
+          territories: updatedTerritories
+        }));
+      } catch (error) {
         console.error('Error loading gang details:', error);
-        return;
+      } finally {
+        isLoadingRef.current = false;
       }
-
-      // Update territories with gang details
-      const updatedTerritories = campaignData.territories.map(territory => {
-        const gang = territory.gang_id ? gangs?.find(g => g.id === territory.gang_id) : null;
-        const territoryGangs = gang ? [{
-          id: gang.id,
-          name: gang.name,
-          gang_type: gang.gang_type
-        }] : [];
-
-        return {
-          ...territory,
-          owning_gangs: territoryGangs
-        };
-      });
-
-      setCampaignData(prev => ({
-        ...prev,
-        territories: updatedTerritories
-      }));
     };
 
     loadGangDetails();
-  }, [campaignData.territories]);
+  }, [campaignData.id]); // Only run when campaign ID changes, not on every territory update
 
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 

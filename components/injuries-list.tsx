@@ -35,7 +35,7 @@ export function InjuriesList({
   useEffect(() => {
     const fetchInjuries = async () => {
       try {
-        const response = await fetch('/api/injuries');
+        const response = await fetch('/api/fighters/injuries');
         if (!response.ok) throw new Error('Failed to fetch injuries');
         const data = await response.json();
         setAvailableInjuries(data);
