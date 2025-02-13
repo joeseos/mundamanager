@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -18,14 +18,22 @@ export function DraggableFighters({
   initialPositions
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
-
-
+  function isMobile() {
+    if (typeof window !== 'undefined') {
+      return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
+    }
+    return false;
+  }
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      // Add a small delay so we can actually click on it before enabling drag 
+    useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 150,
+        delay: 250,
         tolerance: 5,
+      },
+    }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: isMobile() ? Infinity : 5, // Disable pointer sensor on mobile
       },
     }),
     useSensor(KeyboardSensor, {
