@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { MyFighters } from './my-fighters';
 import DeleteGangButton from "./delete-gang-button";
 import { FighterProps } from '@/types/fighter';
 import { Equipment } from '@/types/equipment';
@@ -14,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
+import { DraggableFighters } from './draggable-fighters';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,6 +72,7 @@ interface GangProps {
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
+  positioning: Record<number, string>;
 }
 
 interface FighterType {
@@ -128,6 +129,7 @@ export default function Gang({
   onStashUpdate,
   onFighterDeleted,
   onVehicleAdd,
+  positioning,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -158,6 +160,8 @@ export default function Gang({
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
+  const [positions, setPositions] = useState<Record<number, string>>(positioning);
+
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangAdditions, setGangAdditions] = useState<FighterType[]>([]);
   const [selectedAdditionId, setSelectedAdditionId] = useState('');
@@ -332,6 +336,21 @@ export default function Gang({
           free_skill: data.free_skill
         };
 
+        // Add new fighter to end of positions
+        const newPositions = { ...positions };
+        const maxPosition = Math.max(...Object.keys(positions).map(Number), -1);
+        newPositions[maxPosition + 1] = data.fighter_id;
+        setPositions(newPositions);
+
+        // Update positions with call
+        await fetch(`/api/gangs/${id}/positioning`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ positions: newPositions }),
+        });
+
         setFighters(prev => [...prev, newFighter]);
         setShowAddFighterModal(false);
         setSelectedFighterTypeId('');
@@ -364,7 +383,7 @@ export default function Gang({
       setFighters(prev => prev.filter(f => f.id !== fighterId));
       setRating(prev => prev - fighterCost);
       onFighterDeleted?.(fighterId, fighterCost);
-
+      
       const response = await fetch(`/api/fighters/${fighterId}`, {
         method: 'DELETE',
       });
@@ -633,6 +652,46 @@ export default function Gang({
       return false;
     }
   };
+
+  const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
+    setPositions(newPositions);
+    
+    // Update positions in the backend
+    await fetch(`/api/gangs/${id}/positioning`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ positions: newPositions }),
+    });
+  };
+
+  // Initialize positions for all fighters if none exist
+  useEffect(() => {
+    const initializePositions = async () => {
+      if (Object.keys(positions).length === 0 && fighters.length > 0) {
+        const newPositions = fighters.reduce((acc, fighter, index) => ({
+          ...acc,
+          [index]: fighter.id
+        }), {});
+
+        setPositions(newPositions);
+        
+        // Update positions in the backend
+        await fetch(`/api/gangs/${id}/positioning`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ positions: newPositions }),
+        });
+
+        console.log('Initialized positions for existing fighters:', newPositions);
+      }
+    };
+
+    initializePositions();
+  }, [fighters, id]);
 
   const fetchGangAdditions = async () => {
     try {
@@ -1048,7 +1107,12 @@ export default function Gang({
 
       <div className="print:visible">
         {fighters.length > 0 ? (
-          <MyFighters fighters={fighters} />
+          <DraggableFighters 
+            fighters={fighters} 
+            onPositionsUpdate={handlePositionsUpdate}
+            onFightersReorder={setFighters}
+            initialPositions={positions}
+          />
         ) : (
           <div className="text-white italic">No fighters available.</div>
         )}

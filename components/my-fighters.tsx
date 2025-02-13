@@ -2,13 +2,16 @@ import React, { useMemo, useEffect } from 'react';
 import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
+import { SortableFighter } from './sortable-fighter';
 
 // Add interface definition for MyFightersProps
 interface MyFightersProps {
   fighters: FighterProps[];
   isLoading?: boolean;
   error?: string;
+  positions: Record<number, string>;
 }
+
 
 // Optimize image URL with Cloudinary transformations
 const BACKGROUND_IMAGE_URL = "https://res.cloudinary.com/dle0tkpbl/image/upload/f_auto,q_auto:good,w_800,c_limit/v1732964932/light-texture-bg-sm_wqttn8.jpg";
@@ -20,7 +23,7 @@ const imageSizes = {
   desktop: '800px'
 };
 
-export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
+export function MyFighters({ fighters, positions, isLoading, error }: MyFightersProps) {
   const memoizedFormatters = useMemo(() => ({
     getSortedWargear: (wargear: any[]) => 
       wargear
@@ -49,9 +52,9 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
     }
   }), []);
 
-  useEffect(() => {
-    console.log('Fighters data in MyFighters:', fighters);
-  }, [fighters]);
+  // useEffect(() => {
+  //   console.log('Fighters data in MyFighters:', fighters);
+  // }, [fighters]);
 
   const imageProps = useMemo(() => ({
     src: BACKGROUND_IMAGE_URL,
@@ -68,25 +71,11 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
 
   const sortedFighters = useMemo(() => {
     return [...fighters].sort((a, b) => {
-      // Helper function to get fighter status priority (higher number = lower in list)
-      const getStatusPriority = (fighter: FighterProps) => {
-        if (fighter.killed) return 3;
-        if (fighter.starved || fighter.enslaved) return 2;
-        if (fighter.retired) return 1;
-        return 0;
-      };
-
-      const statusA = getStatusPriority(a);
-      const statusB = getStatusPriority(b);
-
-      // First sort by status
-      if (statusA !== statusB) {
-        return statusA - statusB;
-      }
-      // Then by name if status is the same
-      return a.fighter_name.localeCompare(b.fighter_name);
+      const posA = Object.entries(positions).find(([_, id]) => id === a.id)?.[0];
+      const posB = Object.entries(positions).find(([_, id]) => id === b.id)?.[0];
+      return Number(posA) - Number(posB);
     });
-  }, [fighters]);
+  }, [fighters, positions]);
 
   // Filter out any invalid fighters
   const validFighters = fighters.filter(fighter => 
@@ -106,36 +95,14 @@ export function MyFighters({ fighters, isLoading, error }: MyFightersProps) {
   }
 
   return (
-    <div className="flex flex-col space-y-4 w-full print:flex print:flex-wrap print:flex-row print:space-y-0">
-      {sortedFighters.map((fighter) => {
-        const {
-          id,
-          fighter_name,
-          fighter_type,
-          fighter_class,
-          free_skill,
-          kills = 0,
-          vehicles = [], // Extract vehicles from fighter
-          ...otherProps
-        } = fighter;
-
-        // Get the first vehicle if it exists
-        const vehicle = vehicles && vehicles.length > 0 ? vehicles[0] : undefined;
-
-        return (
-          <FighterCard
-            key={id}
-            id={id}
-            name={fighter_name}
-            type={fighter_type}
-            fighter_class={fighter_class}
-            free_skill={free_skill}
-            kills={kills}
-            vehicle={vehicle}
-            {...otherProps}
-          />
-        );
-      })}
+    <div className="space-y-4">
+      {sortedFighters.map((fighter) => (
+        <SortableFighter
+          key={fighter.id}
+          fighter={fighter}
+          positions={positions}
+        />
+      ))}
     </div>
   );
 }

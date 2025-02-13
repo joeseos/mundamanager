@@ -28,6 +28,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   injuries: Injury[];
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
+  disableLink?: boolean;
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -117,6 +118,7 @@ const FighterCard = memo(function FighterCard({
   injuries = [],
   note,
   vehicle,
+  disableLink = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -310,9 +312,8 @@ const FighterCard = memo(function FighterCard({
     };
   }, [special_rules]);
 
-  return (
-    <Link href={`/fighter/${id}`}>
-      <div 
+  const cardContent = (
+    <div 
         className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
@@ -391,7 +392,6 @@ const FighterCard = memo(function FighterCard({
                 <WeaponTable weapons={weapons} />
               </div>
             )}
-
             <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
               {wargear && wargear.length > 0 && (
                 <>
@@ -481,8 +481,13 @@ const FighterCard = memo(function FighterCard({
               )}
             </div>
           </>
-        )}
-      </div>
+      )}
+    </div>
+  );
+  //this link check is needed to prevent the card from being clickable when it's being dragged. Unless there is some other way to do this?
+  return disableLink ? cardContent : (
+    <Link href={`/fighter/${id}`}>
+      {cardContent}
     </Link>
   );
 });

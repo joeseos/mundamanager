@@ -191,6 +191,7 @@ interface Fighter {
 interface Gang {
   id: string;
   credits: number;
+  positioning?: Record<number, string>;
   gang_type_id: string;
 }
 
@@ -533,7 +534,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
-      const response = await fetch(
+      // First delete the fighter and their equipment
+      const deleteResponse = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/delete_fighter_and_equipment',
         {
           method: 'POST',
@@ -561,8 +563,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.json();
         throw new Error(errorData.message || 'Failed to delete fighter');
       }
 
