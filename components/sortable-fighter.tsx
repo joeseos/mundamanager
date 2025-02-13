@@ -44,17 +44,15 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
       {...listeners}
       className="relative group"
     >
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity z-10">
         ⋮⋮
       </div>
-      <div className="pl-8">
-        <FighterCard 
-          {...fighter} 
-          name={fighter.fighter_name}
-          type={fighter.fighter_type}
-          disableLink={isDragging}
-        />
-      </div>
+      <FighterCard 
+        {...fighter} 
+        name={fighter.fighter_name}
+        type={fighter.fighter_type}
+        disableLink={isDragging}
+      />
     </div>
   );
 } 
