@@ -28,6 +28,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
     transform: CSS.Transform.toString(transform),
     transition,
     cursor: dndKitIsDragging ? 'grabbing' : 'grab',
+    touchAction: 'manipulation',
   };
 
   // Update isDragging when dndKitIsDragging changes
