@@ -22,10 +22,10 @@ export function DraggableFighters({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Reduce delay and increase tolerance for better mobile experience
+      // Add a small delay so we can actually click on it before enabling drag 
       activationConstraint: {
-        delay: 100,
-        tolerance: 8, // Increased tolerance for better mobile experience
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {

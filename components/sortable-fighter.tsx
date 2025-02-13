@@ -28,7 +28,6 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
     transform: CSS.Transform.toString(transform),
     transition,
     cursor: dndKitIsDragging ? 'grabbing' : 'grab',
-    touchAction: 'none',
   };
 
   // Update isDragging when dndKitIsDragging changes
@@ -42,19 +41,13 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
       style={style} 
       {...attributes} 
       {...listeners}
-      className="relative group"
     >
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
-        ⋮⋮
-      </div>
-      <div className="pl-8">
-        <FighterCard 
-          {...fighter} 
-          name={fighter.fighter_name}
-          type={fighter.fighter_type}
-          disableLink={isDragging}
-        />
-      </div>
+      <FighterCard 
+        {...fighter} 
+        name={fighter.fighter_name}
+        type={fighter.fighter_type}
+        disableLink={isDragging}
+      />
     </div>
   );
 } 
