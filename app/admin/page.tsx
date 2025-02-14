@@ -26,8 +26,8 @@ export default function AdminPage() {
   const [showEditEquipment, setShowEditEquipment] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
-  const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
-  const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);
+  const [gangTypes, setGangTypes] = useState<{ gang_type_id: string; gang_type: string }[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<{ id: string; vehicle_type: string }[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
 
   const [vehicleForm, setVehicleForm] = useState({
