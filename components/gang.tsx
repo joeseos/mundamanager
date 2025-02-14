@@ -77,24 +77,10 @@ interface GangProps {
 
 interface FighterType {
   id: string;
-  fighter_type_id: string;
   fighter_type: string;
-  fighter_class: string;
   cost: number;
   total_cost: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  special_rules: string[];
+  fighter_class: string;
 }
 
 interface WeaponOption {
@@ -117,23 +103,6 @@ interface EquipmentDetails {
   [key: string]: {
     id: string;
     name: string;
-  };
-}
-
-interface StatsTableProps {
-  stats: {
-    M: number;
-    WS: number;
-    BS: number;
-    S: number;
-    T: number;
-    W: number;
-    I: number;
-    A: number;
-    Ld: number;
-    Cl: number;
-    Wil: number;
-    Int: number;
   };
 }
 
@@ -195,6 +164,7 @@ export default function Gang({
 
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangAdditions, setGangAdditions] = useState<FighterType[]>([]);
+  const [selectedAdditionId, setSelectedAdditionId] = useState('');
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -265,19 +235,9 @@ export default function Gang({
   const handleFighterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const typeId = e.target.value;
     setSelectedFighterTypeId(typeId);
-    
     if (typeId) {
-      // Find the selected fighter type (could be a regular fighter or gang addition)
-      const selectedType = showGangAdditionsModal 
-        ? gangAdditions.find(a => a.id === typeId)
-        : fighterTypes.find(t => t.id === typeId);
-
-      // Set the initial cost from the selected type
-      if (selectedType) {
-        setFighterCost(selectedType.cost.toString());
-      } else {
-        setFighterCost('');
-      }
+      const selectedType = fighterTypes.find(t => t.id === typeId);
+      setFighterCost(selectedType?.total_cost.toString() || '');
     } else {
       setFighterCost('');
     }
@@ -749,6 +709,113 @@ export default function Gang({
     }
   };
 
+  const handleAddGangAddition = async () => {
+    if (!selectedAdditionId) {
+      toast({
+        title: "Error",
+        description: "Please select an addition",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const selectedAddition = gangAdditions.find(a => a.id === selectedAdditionId);
+      if (!selectedAddition) {
+        throw new Error('Selected addition not found');
+      }
+
+      const response = await fetch(`/api/fighter-types/${selectedAddition.id}/add_to_gang`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gang_id: id,
+          cost: selectedAddition.cost
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add addition to gang');
+      }
+
+      const data = await response.json();
+
+      if (!data?.fighter_id) {
+        throw new Error('Failed to add addition to gang');
+      }
+
+      const newFighter = {
+        id: data.fighter_id,
+        fighter_name: selectedAddition.fighter_type,
+        fighter_type_id: selectedAddition.id,
+        fighter_type: selectedAddition.fighter_type,
+        fighter_class: selectedAddition.fighter_class,
+        credits: selectedAddition.cost,
+        movement: data.stats.movement,
+        weapon_skill: data.stats.weapon_skill,
+        ballistic_skill: data.stats.ballistic_skill,
+        strength: data.stats.strength,
+        toughness: data.stats.toughness,
+        wounds: data.stats.wounds,
+        initiative: data.stats.initiative,
+        attacks: data.stats.attacks,
+        leadership: data.stats.leadership,
+        cool: data.stats.cool,
+        willpower: data.stats.willpower,
+        intelligence: data.stats.intelligence,
+        xp: data.stats.xp,
+        kills: 0,
+        weapons: data.equipment
+          .filter((item: any) => item.equipment_type === 'weapon')
+          .map((item: any) => ({
+            weapon_name: item.equipment_name,
+            weapon_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id,
+            weapon_profiles: item.weapon_profiles || []
+          })),
+        wargear: data.equipment
+          .filter((item: any) => item.equipment_type === 'wargear')
+          .map((item: any) => ({
+            wargear_name: item.equipment_name,
+            wargear_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id
+          })),
+        injuries: [],
+        special_rules: data.special_rules || [],
+        advancements: {
+          characteristics: {},
+          skills: {}
+        },
+        free_skill: data.free_skill
+      };
+
+      setFighters(prev => [...prev, newFighter]);
+      setShowGangAdditionsModal(false);
+      setSelectedAdditionId('');
+
+      toast({
+        description: `${selectedAddition.fighter_type} added to gang successfully`,
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error adding gang addition:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add gang addition. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAdditionSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const additionId = e.target.value;
+    setSelectedAdditionId(additionId);
+  };
+
   useEffect(() => {
     if (showGangAdditionsModal) {
       fetchGangAdditions();
@@ -1005,67 +1072,35 @@ export default function Gang({
           <Modal
             title="Gang Additions"
             content={
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Name
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Fighter name"
-                    value={fighterName}
-                    onChange={(e) => setFighterName(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Select Addition
-                  </label>
-                  <select
-                    value={selectedFighterTypeId}
-                    onChange={handleFighterTypeChange}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select an addition</option>
-                    {gangAdditions.map((addition) => (
-                      <option key={addition.id} value={addition.id}>
-                        {addition.fighter_type} ({addition.fighter_class}) - {addition.cost} credits
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Cost (credits)
-                  </label>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    value={fighterCost}
-                    onChange={(e) => setFighterCost(e.target.value)}
-                    className="w-full"
-                    min={0}
-                  />
-                  {selectedFighterTypeId && (
-                    <p className="text-sm text-gray-500">
-                      Base cost: {gangAdditions.find(a => a.id === selectedFighterTypeId)?.cost} credits
-                    </p>
-                  )}
+              <div className="space-y-4 w-full max-w-3xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Select Addition
+                    </label>
+                    <select
+                      value={selectedAdditionId}
+                      onChange={handleAdditionSelect}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select an addition</option>
+                      {gangAdditions.map((addition) => (
+                        <option key={addition.id} value={addition.id}>
+                          {addition.fighter_type} ({addition.fighter_class}) - {addition.cost} credits
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             }
             onClose={() => {
               setShowGangAdditionsModal(false);
-              setSelectedFighterTypeId('');
-              setFighterName('');
-              setFighterCost('');
+              setSelectedAdditionId('');
             }}
-            onConfirm={handleAddFighter}
+            onConfirm={handleAddGangAddition}
             confirmText="Add to Gang"
-            confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
+            confirmDisabled={!selectedAdditionId}
           />
         )}
       </div>
