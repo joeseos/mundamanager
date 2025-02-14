@@ -76,6 +76,7 @@
       width: 630px;
       height: 435px;
       break-inside: avoid;
+      display: inline-block; /* ios workaround for break-inside: avoid */
       background-image: none !important;
       box-shadow: none !important;
     }
