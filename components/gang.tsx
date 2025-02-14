@@ -284,76 +284,132 @@ export default function Gang({
   };
 
   const handleAddFighter = async () => {
-    try {
-      if (!selectedFighterTypeId || !fighterName || !fighterCost) {
-        setFetchError('Please fill in all required fields');
-        return false;
-      }
+    if (!selectedFighterTypeId || !fighterName || !fighterCost) {
+      setFetchError('Please fill in all fields');
+      return false;
+    }
 
-      // Get the selected fighter type
-      const selectedType = [...fighterTypes, ...gangAdditions].find(
-        type => type.id === selectedFighterTypeId
+    try {
+      let isMounted = true;
+
+      const response = await fetch(
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            p_gang_id: id,
+            p_fighter_type_id: selectedFighterTypeId,
+            p_fighter_name: fighterName,
+            p_cost: parseInt(fighterCost)
+          })
+        }
       );
 
-      if (!selectedType) {
-        setFetchError('Fighter type not found');
-        return false;
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.message?.includes('Not enough credits')) {
+          throw new Error('Not enough credits to add this fighter');
+        }
       }
 
-      // Check if there are enough credits
-      const cost = parseInt(fighterCost);
-      if (credits < cost) {
-        toast({
-          title: "Error",
-          description: "Not enough credits to add this fighter",
-          variant: "destructive"
-        });
-        return false;
+      const data = await response.json();
+
+      if (!data?.fighter_id) {
+        throw new Error('Not enough credits to add this fighter');
       }
 
-      const response = await fetch(`/api/gangs/${id}/fighters`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (isMounted) {
+        const actualCost = parseInt(fighterCost);
+        const newGangCredits = credits - actualCost;
+        const newRating = rating + actualCost;
+        setCredits(newGangCredits);
+        setRating(newRating);
+
+        const newFighter = {
+          id: data.fighter_id,
           fighter_name: fighterName,
           fighter_type_id: selectedFighterTypeId,
-          cost: cost
-        }),
-      });
+          fighter_type: data.fighter_type,
+          fighter_class: data.fighter_class,
+          credits: actualCost,
+          movement: data.stats.movement,
+          weapon_skill: data.stats.weapon_skill,
+          ballistic_skill: data.stats.ballistic_skill,
+          strength: data.stats.strength,
+          toughness: data.stats.toughness,
+          wounds: data.stats.wounds,
+          initiative: data.stats.initiative,
+          attacks: data.stats.attacks,
+          leadership: data.stats.leadership,
+          cool: data.stats.cool,
+          willpower: data.stats.willpower,
+          intelligence: data.stats.intelligence,
+          xp: data.stats.xp,
+          kills: 0,
+          weapons: data.equipment
+            .filter((item: any) => item.equipment_type === 'weapon')
+            .map((item: any) => ({
+              weapon_name: item.equipment_name,
+              weapon_id: item.equipment_id,
+              cost: item.cost,
+              fighter_weapon_id: item.fighter_equipment_id,
+              weapon_profiles: item.weapon_profiles || []
+            })),
+          wargear: data.equipment
+            .filter((item: any) => item.equipment_type === 'wargear')
+            .map((item: any) => ({
+              wargear_name: item.equipment_name,
+              wargear_id: item.equipment_id,
+              cost: item.cost,
+              fighter_weapon_id: item.fighter_equipment_id
+            })),
+          injuries: [],
+          special_rules: data.special_rules || [],
+          advancements: {
+            characteristics: {},
+            skills: {}
+          },
+          free_skill: data.free_skill
+        };
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to add fighter');
+        // Add new fighter to end of positions
+        const newPositions = { ...positions };
+        const maxPosition = Math.max(...Object.keys(positions).map(Number), -1);
+        newPositions[maxPosition + 1] = data.fighter_id;
+        setPositions(newPositions);
+
+        // Update positions with call
+        await fetch(`/api/gangs/${id}/positioning`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ positions: newPositions }),
+        });
+
+        setFighters(prev => [...prev, newFighter]);
+        setShowAddFighterModal(false);
+        setSelectedFighterTypeId('');
+        setFighterName('');
+        setFighterCost('');
+        setFetchError(null);
+
+        toast({
+          description: "Fighter added successfully",
+          variant: "default"
+        });
+
+        return true;
       }
-
-      const newFighter = await response.json();
-
-      setFighters(prev => [...prev, newFighter]);
-      setCredits(prev => prev - cost);
-      setRating(prev => prev + cost);
-
-      toast({
-        description: `${fighterName} added to gang successfully`,
-        variant: "default"
-      });
-
-      // Reset form
-      setFighterName('');
-      setSelectedFighterTypeId('');
-      setFighterCost('');
-      setFetchError(null);
-
-      return true; // Close modal
+      return false;
     } catch (error) {
       console.error('Error adding fighter:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add fighter",
-        variant: "destructive"
-      });
-      return false; // Keep modal open
+      setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
+      return false;
     }
   };
 
@@ -519,7 +575,6 @@ export default function Gang({
         </label>
         <Input
           type="number"
-          inputMode="numeric"
           value={fighterCost}
           onChange={(e) => setFighterCost(e.target.value)}
           className="w-full"
@@ -527,12 +582,7 @@ export default function Gang({
         />
         {selectedFighterTypeId && (
           <p className="text-sm text-gray-500">
-            Base cost: {fighterTypes.find(f => f.id === selectedFighterTypeId)?.cost} credits
-          </p>
-        )}
-        {fighterCost && parseInt(fighterCost) > credits && (
-          <p className="text-red-500 font-medium">
-            Not enough credits to add this fighter
+            Base cost: {fighterTypes.find(t => t.id === selectedFighterTypeId)?.total_cost} credits
           </p>
         )}
       </div>
@@ -860,81 +910,17 @@ export default function Gang({
         {showAddFighterModal && (
           <Modal
             title="Add New Fighter"
-            content={
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Name
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Fighter name"
-                    value={fighterName}
-                    onChange={(e) => setFighterName(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Type
-                  </label>
-                  <select
-                    value={selectedFighterTypeId}
-                    onChange={handleFighterTypeChange}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select fighter type</option>
-                    {fighterTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.fighter_type} ({type.fighter_class}) - {type.total_cost} credits
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Cost (credits)
-                  </label>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    value={fighterCost}
-                    onChange={(e) => setFighterCost(e.target.value)}
-                    className="w-full"
-                    min={0}
-                  />
-                  {selectedFighterTypeId && (
-                    <p className="text-sm text-gray-500">
-                      Base cost: {fighterTypes.find(f => f.id === selectedFighterTypeId)?.cost} credits
-                    </p>
-                  )}
-                  {fighterCost && parseInt(fighterCost) > credits && (
-                    <p className="text-red-500 font-medium">
-                      Not enough credits to add this fighter
-                    </p>
-                  )}
-                </div>
-
-                {fetchError && <p className="text-red-500">{fetchError}</p>}
-              </div>
-            }
+            content={addFighterModalContent}
             onClose={() => {
               setShowAddFighterModal(false);
-              setSelectedFighterTypeId('');
               setFighterName('');
+              setSelectedFighterTypeId('');
               setFighterCost('');
               setFetchError(null);
             }}
             onConfirm={handleAddFighter}
-            confirmText="Add to Gang"
-            confirmDisabled={
-              !selectedFighterTypeId || 
-              !fighterName || 
-              !fighterCost || 
-              parseInt(fighterCost) > credits
-            }
+            confirmText="Add Fighter"
+            confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
           />
         )}
 
@@ -972,7 +958,7 @@ export default function Gang({
                     className="w-full p-2 border rounded"
                   >
                     <option value="">Select vehicle type</option>
-                    {vehicleTypes.map((type) => (
+                    {vehicleTypes.map((type: VehicleType) => (
                       <option key={type.id} value={type.id}>
                         {type.vehicle_type} - {type.cost} credits
                       </option>
@@ -997,11 +983,6 @@ export default function Gang({
                       Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
                     </p>
                   )}
-                  {vehicleCost && parseInt(vehicleCost) > credits && (
-                    <p className="text-red-500 font-medium">
-                      Not enough credits to add this vehicle
-                    </p>
-                  )}
                 </div>
 
                 {vehicleError && <p className="text-red-500">{vehicleError}</p>}
@@ -1016,12 +997,7 @@ export default function Gang({
             }}
             onConfirm={handleAddVehicle}
             confirmText="Add Vehicle"
-            confirmDisabled={
-              !selectedVehicleTypeId || 
-              !vehicleName || 
-              !vehicleCost || 
-              parseInt(vehicleCost) > credits
-            }
+            confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
           />
         )}
 
@@ -1078,14 +1054,7 @@ export default function Gang({
                       Base cost: {gangAdditions.find(a => a.id === selectedFighterTypeId)?.cost} credits
                     </p>
                   )}
-                  {fighterCost && parseInt(fighterCost) > credits && (
-                    <p className="text-red-500 font-medium">
-                      Not enough credits to add this fighter
-                    </p>
-                  )}
                 </div>
-
-                {fetchError && <p className="text-red-500">{fetchError}</p>}
               </div>
             }
             onClose={() => {
@@ -1093,16 +1062,10 @@ export default function Gang({
               setSelectedFighterTypeId('');
               setFighterName('');
               setFighterCost('');
-              setFetchError(null);
             }}
             onConfirm={handleAddFighter}
             confirmText="Add to Gang"
-            confirmDisabled={
-              !selectedFighterTypeId || 
-              !fighterName || 
-              !fighterCost || 
-              parseInt(fighterCost) > credits
-            }
+            confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
           />
         )}
       </div>

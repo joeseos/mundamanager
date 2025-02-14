@@ -14,7 +14,7 @@ import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 import { StatsType } from './ui/table';  // Add this import
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -27,6 +27,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   kills: number;  // Required property
   injuries: Injury[];
   note?: string;
+  vehicle?: Vehicle;  // Add vehicle property
   disableLink?: boolean;
 }
 
@@ -116,15 +117,12 @@ const FighterCard = memo(function FighterCard({
   kills = 0,  // Default value
   injuries = [],
   note,
-  vehicles = [], // Add default empty array
+  vehicle,
   disableLink = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
   const isCrew = fighter_class === 'Crew';
-
-  // Get the first vehicle if it exists
-  const vehicle = vehicles?.[0];
 
   // Calculate vehicle stats using the equipment from the vehicle object
   const vehicleStats = useMemo(() => {
@@ -172,15 +170,15 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats object for crew
   const stats = useMemo((): StatsType => {
-    if (isCrew && vehicle) {
+    if (isCrew) {
       return {
-        'M': `${vehicle.movement}"`,
-        'Front': vehicle.front,
-        'Side': vehicle.side,
-        'Rear': vehicle.rear,
-        'HP': vehicle.hull_points,
-        'Hnd': `${vehicle.handling}+`,
-        'Sv': `${vehicle.save}+`,
+        'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
+        'Front': vehicleStats ? vehicleStats.front : '*',
+        'Side': vehicleStats ? vehicleStats.side : '*',
+        'Rear': vehicleStats ? vehicleStats.rear : '*',
+        'HP': vehicleStats ? vehicleStats.hull_points : '*',
+        'Hnd': vehicle ? `${vehicle.handling}+` : '*',
+        'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
         'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
         'Ld': `${adjustedStats.leadership}+`,
         'Cl': `${adjustedStats.cool}+`,
@@ -205,7 +203,7 @@ const FighterCard = memo(function FighterCard({
         'XP': xp
       };
     }
-  }, [isCrew, vehicle, adjustedStats, xp]);
+  }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
 
   const isInactive = killed || retired;
 
