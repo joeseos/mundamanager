@@ -18,20 +18,6 @@ interface CreateGangModalProps {
   onClose: () => void;
 }
 
-const FETCH_GANG_TYPES_QUERY = `
-  query FetchGangTypes {
-    gang_typesCollection {
-      edges {
-        node {
-          gang_type_id
-          gang_type
-          alignment
-        }
-      }
-    }
-  }
-`;
-
 const CREATE_GANG_MUTATION = `
   mutation CreateGang($input: gangs_insert_input!) {
     insertIntogangsCollection(objects: [$input]) {
@@ -70,7 +56,19 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
                 'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
               },
               body: JSON.stringify({
-                query: FETCH_GANG_TYPES_QUERY,
+                query: `
+                  query {
+                    gang_typesCollection(filter: { gang_type: { neq: "Other" } }) {
+                      edges {
+                        node {
+                          gang_type_id
+                          gang_type
+                          alignment
+                        }
+                      }
+                    }
+                  }
+                `
               }),
             }
           );

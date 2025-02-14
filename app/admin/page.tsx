@@ -493,6 +493,11 @@ export default function AdminPage() {
               }}
               onConfirm={async () => {
                 try {
+                  // First, find the selected gang type to get its UUID
+                  const selectedGangType = gangTypes.find(
+                    gang => gang.gang_type_id.toString() === vehicleForm.gang_type_id
+                  );
+
                   const response = await fetch('/api/admin/vehicles', {
                     method: 'POST',
                     headers: {
@@ -500,7 +505,8 @@ export default function AdminPage() {
                     },
                     body: JSON.stringify({
                       ...vehicleForm,
-                      gang_type_id: vehicleForm.gang_type_id === "0" ? null : parseInt(vehicleForm.gang_type_id),
+                      // Use the actual UUID from the gang type if one is selected
+                      gang_type_id: vehicleForm.gang_type_id === "0" ? null : selectedGangType?.gang_type_id,
                       cost: parseInt(vehicleForm.cost),
                       movement: parseInt(vehicleForm.movement),
                       front: parseInt(vehicleForm.front),
