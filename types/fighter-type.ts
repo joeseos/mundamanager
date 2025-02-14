@@ -16,7 +16,7 @@ export interface FighterType {
   cool: number;
   willpower: number;
   intelligence: number;
-  special_rules?: string[];
+  special_rules: string[];
   gang_type_id: string;
   gang_type: string;
   fighter_class_id?: string;
