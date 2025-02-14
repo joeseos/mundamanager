@@ -47,16 +47,6 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
   const [rating, setRating] = useState(processedData.rating);
   
-  // Map the fighter types to include fighter_type_id and ensure required fields are present
-  const mappedFighterTypes = processedData.fighterTypes.map(ft => ({
-    ...ft,
-    fighter_type_id: ft.id,
-    total_cost: ft.total_cost || ft.cost, // Fallback to cost if total_cost is not present
-    special_rules: ft.special_rules || [], // Ensure special_rules is always an array
-    gang_type_id: ft.gang_type_id,
-    gang_type: ft.gang_type
-  }));
-
   const handleFighterDeleted = useCallback((fighterId: string, fighterCost: number) => {
     setFighters(prev => prev.filter(f => f.id !== fighterId));
     setRating(prev => prev - fighterCost);
@@ -68,7 +58,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
         {...processedData}
         rating={rating}
         initialFighters={fighters}
-        fighterTypes={mappedFighterTypes} // Use the mapped fighter types
+        fighterTypes={processedData.fighterTypes}
         campaigns={processedData.campaigns}
         stash={processedData.stash || []}
         onStashUpdate={gangData.onStashUpdate}
