@@ -47,10 +47,11 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   const [fighters, setFighters] = useState<FighterProps[]>(processedData.fighters || []);
   const [rating, setRating] = useState(processedData.rating);
   
-  // Map the fighter types to include fighter_type_id
+  // Map the fighter types to include fighter_type_id and ensure total_cost is present
   const mappedFighterTypes = processedData.fighterTypes.map(ft => ({
     ...ft,
-    fighter_type_id: ft.id // Use the id as fighter_type_id
+    fighter_type_id: ft.id,
+    total_cost: ft.total_cost || ft.cost // Fallback to cost if total_cost is not present
   }));
 
   const handleFighterDeleted = useCallback((fighterId: string, fighterCost: number) => {

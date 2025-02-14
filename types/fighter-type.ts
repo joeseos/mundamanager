@@ -1,5 +1,6 @@
 export interface FighterType {
   id: string;
+  fighter_type_id: string;
   fighter_type: string;
   fighter_class: string;
   cost: number;
@@ -20,5 +21,5 @@ export interface FighterType {
   gang_type: string;
   fighter_class_id?: string;
   free_skill?: string;
-  total_cost?: number;
+  total_cost: number;
 } 
