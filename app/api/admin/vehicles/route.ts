@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       body_slots: parseInt(vehicleData.body_slots),
       drive_slots: parseInt(vehicleData.drive_slots),
       engine_slots: parseInt(vehicleData.engine_slots),
-      gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id),
+      gang_type_id: vehicleData.gang_type_id === "0" ? null : vehicleData.gang_type_id,
       // Initialize occupied slots to 0
       body_slots_occupied: 0,
       drive_slots_occupied: 0,
