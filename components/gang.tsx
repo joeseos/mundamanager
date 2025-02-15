@@ -197,7 +197,12 @@ export default function Gang({
   const [isLoadingAdditions, setIsLoadingAdditions] = useState(false);
   const [selectedAdditionId, setSelectedAdditionId] = useState('');
   const [selectedAdditionDetails, setSelectedAdditionDetails] = useState<GangAddition | null>(null);
-  const [selectedEquipment, setSelectedEquipment] = useState<Array<{id: string, name: string}>>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<Array<{
+    id: string;
+    name: string;
+    cost: number;
+  }>>([]);
+  const [gangAdditionFighterName, setGangAdditionFighterName] = useState('');
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -780,20 +785,94 @@ export default function Gang({
     }
   }, [showGangAdditionsModal]);
 
+  const handleEquipmentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const option = e.target.value;
+    if (option) {
+      const [id, name] = option.split('|');
+      if (selectedAdditionDetails?.equipment_options?.weapons?.select_type === 'single') {
+        const selectedOption = selectedAdditionDetails.equipment_options.weapons.options.find(opt => opt.id === id);
+        setSelectedEquipment([{ 
+          id, 
+          name, 
+          cost: selectedOption?.cost || 0 
+        }]);
+      }
+    } else {
+      setSelectedEquipment([]);
+    }
+  };
+
   const handleAddGangAddition = async () => {
     if (!selectedAdditionId) return false;
     
-    const addition = gangAdditions.find(a => a.id === selectedAdditionId);
-    if (!addition) return false;
+    try {
+      // First fetch the addition details
+      const detailsResponse = await fetch(`/api/gangs/${id}/additions/${selectedAdditionId}`);
+      if (!detailsResponse.ok) {
+        throw new Error('Failed to fetch gang addition details');
+      }
+      
+      const addition = await detailsResponse.json();
+      console.log('Complete gang addition data:', addition);
 
-    toast({
-      description: `Adding ${addition.gang_addition_name} coming soon`,
-      variant: "default"
-    });
-    
+      // Then create the fighter
+      const createResponse = await fetch(`/api/gangs/${id}/fighters`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gangAddition: {
+            ...addition,
+            fighter_name: gangAdditionFighterName || `${addition.gang_addition_name} ${Math.floor(Math.random() * 1000)}`
+          },
+          selectedEquipment: selectedEquipment.map(equipment => ({
+            id: equipment.id,
+            cost: equipment.cost
+          }))
+        }),
+      });
+
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        throw new Error(errorData.error || 'Failed to add fighter');
+      }
+
+      const data = await createResponse.json();
+      
+      toast({
+        title: "Success",
+        description: `${gangAdditionFighterName} added to gang successfully`,
+        duration: 5000,
+      });
+
+      // Update the fighters list with the new fighter
+      setFighters(prev => [...prev, data.fighter]);
+      setCredits(data.updatedCredits);
+      setRating(data.updatedRating);
+
+      setShowGangAdditionsModal(false);
+      setSelectedAdditionId('');
+      setGangAdditionFighterName('');
+      setSelectedEquipment([]);
+      return true;
+    } catch (error) {
+      console.error('Error adding gang addition:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add gang addition",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const handleCloseModal = () => {
     setShowGangAdditionsModal(false);
     setSelectedAdditionId('');
-    return true;
+    setSelectedAdditionDetails(null);
+    setSelectedEquipment([]);
+    setGangAdditionFighterName('');
   };
 
   return (
@@ -1131,21 +1210,24 @@ export default function Gang({
 
                           <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">
+                              Fighter Name
+                            </label>
+                            <input
+                              type="text"
+                              value={gangAdditionFighterName}
+                              onChange={(e) => setGangAdditionFighterName(e.target.value)}
+                              placeholder="Fighter name"
+                              className="w-full p-2 border rounded"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">
                               Equipment
                             </label>
                             <select
                               className="w-full p-2 border rounded"
-                              onChange={(e) => {
-                                const option = e.target.value;
-                                if (option) {
-                                  const [id, name] = option.split('|');
-                                  if (selectedAdditionDetails?.equipment_options?.weapons?.select_type === 'single') {
-                                    setSelectedEquipment([{ id, name }]);
-                                  } else {
-                                    setSelectedEquipment(prev => [...prev, { id, name }]);
-                                  }
-                                }
-                              }}
+                              onChange={handleEquipmentSelect}
                               value={selectedEquipment[0]?.id || ''}
                             >
                               <option value="">Select equipment</option>
@@ -1187,10 +1269,7 @@ export default function Gang({
                 )}
               </div>
             }
-            onClose={() => {
-              setShowGangAdditionsModal(false);
-              setSelectedAdditionId('');
-            }}
+            onClose={handleCloseModal}
             onConfirm={handleAddGangAddition}
             confirmText="Add to Gang"
             confirmDisabled={!selectedAdditionId}
