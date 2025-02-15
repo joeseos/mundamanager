@@ -44,6 +44,18 @@ export default function GangVehicles({
 
   // Get all vehicles, including those assigned to fighters
   const allVehicles = useMemo<CombinedVehicleProps[]>(() => {
+    // Create a map of vehicle IDs that are assigned to fighters
+    const assignedVehicleIds = new Set(
+      fighters.flatMap(fighter => 
+        (fighter.vehicles || []).map(vehicle => vehicle.id)
+      )
+    );
+
+    // Filter out vehicles that are already assigned to fighters
+    const unassignedVehicles = vehicles.filter(
+      vehicle => !assignedVehicleIds.has(vehicle.id)
+    );
+
     const fighterVehicles = fighters
       .flatMap(fighter => (fighter.vehicles || [])
         .map(vehicle => ({
@@ -61,7 +73,7 @@ export default function GangVehicles({
           equipment: vehicle.equipment || []
         } as CombinedVehicleProps)));
     
-    return [...vehicles, ...fighterVehicles];
+    return [...unassignedVehicles, ...fighterVehicles];
   }, [vehicles, fighters, gangId]);
 
   const handleMoveToFighter = async () => {
@@ -208,52 +220,6 @@ export default function GangVehicles({
     }
   };
 
-  const VehicleListItem = ({
-    vehicle,
-    index,
-    isSelected,
-    onSelect,
-    onEdit
-  }: {
-    vehicle: CombinedVehicleProps;
-    index: number;
-    isSelected: boolean;
-    onSelect: (index: number) => void;
-    onEdit: (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => void;
-  }) => (
-    <label className="flex items-center p-2 bg-gray-50 rounded-md">
-      <input
-        type="radio"
-        name="vehicle-item"
-        checked={isSelected}
-        onChange={() => onSelect(index)}
-        className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
-      />
-      <span className="flex w-64 overflow-hidden text-ellipsis">
-        {vehicle.vehicle_name || vehicle.vehicle_type}
-      </span>
-      <span className="w-64 overflow-hidden text-ellipsis">
-        {vehicle.vehicle_type}
-      </span>
-      <span className="w-64 overflow-hidden text-ellipsis text-gray-600">
-        {vehicle.assigned_to || '-'}
-      </span>
-      <div className="flex-1" />
-      <div className="w-32 flex justify-end gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 px-2 text-xs py-0"
-          onClick={(e) => onEdit(e, vehicle)}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Saving...' : 'Edit'}
-        </Button>
-      </div>
-      <span className="w-20 text-right">{vehicle.cost}</span>
-    </label>
-  );
-
   return (
     <div className="container max-w-5xl w-full space-y-4">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -276,14 +242,37 @@ export default function GangVehicles({
               
               <div className="space-y-2 px-0">
                 {allVehicles.map((vehicle, index) => (
-                  <VehicleListItem
-                    key={vehicle.id}
-                    vehicle={vehicle}
-                    index={index}
-                    isSelected={selectedVehicle === index}
-                    onSelect={setSelectedVehicle}
-                    onEdit={handleEditClick}
-                  />
+                  <div key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`} className="flex items-center p-2 bg-gray-50 rounded-md">
+                    <input
+                      type="radio"
+                      name="vehicle-item"
+                      checked={selectedVehicle === index}
+                      onChange={() => setSelectedVehicle(index)}
+                      className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
+                    />
+                    <span className="flex w-64 overflow-hidden text-ellipsis">
+                      {vehicle.vehicle_name || vehicle.vehicle_type}
+                    </span>
+                    <span className="w-64 overflow-hidden text-ellipsis">
+                      {vehicle.vehicle_type}
+                    </span>
+                    <span className="w-64 overflow-hidden text-ellipsis text-gray-600">
+                      {vehicle.assigned_to || '-'}
+                    </span>
+                    <div className="flex-1" />
+                    <div className="w-32 flex justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs py-0"
+                        onClick={(e) => handleEditClick(e, vehicle)}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? 'Saving...' : 'Edit'}
+                      </Button>
+                    </div>
+                    <span className="w-20 text-right">{vehicle.cost}</span>
+                  </div>
                 ))}
               </div>
             </div>
