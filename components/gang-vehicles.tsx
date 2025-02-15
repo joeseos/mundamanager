@@ -38,6 +38,7 @@ export default function GangVehicles({
   const { toast } = useToast();
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [editedVehicleName, setEditedVehicleName] = useState('');
+  const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
 
   // Filter for only Crew fighters
   const crewFighters = fighters.filter(fighter => fighter.fighter_class === 'Crew');
@@ -220,6 +221,69 @@ export default function GangVehicles({
     }
   };
 
+  const handleDeleteClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
+    e.preventDefault();
+    setDeletingVehicle(vehicle);
+  };
+
+  const handleDeleteVehicle = async () => {
+    if (!deletingVehicle) return false;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vehicleId: deletingVehicle.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete vehicle');
+      }
+
+      // Update local state
+      if (onVehicleUpdate) {
+        // Update both unassigned vehicles and fighter vehicles
+        const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
+        onVehicleUpdate(updatedVehicles);
+      }
+
+      // Update fighter's vehicles if needed
+      if (onFighterUpdate && deletingVehicle.assigned_to) {
+        const updatedFighter = fighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
+        if (updatedFighter) {
+          const fighterWithoutVehicle = {
+            ...updatedFighter,
+            vehicles: (updatedFighter.vehicles || []).filter(v => v.id !== deletingVehicle.id)
+          };
+          onFighterUpdate(fighterWithoutVehicle);
+        }
+      }
+
+      toast({
+        description: `${deletingVehicle.vehicle_name || deletingVehicle.vehicle_type} has been deleted.`,
+        variant: "default"
+      });
+
+      setDeletingVehicle(null);
+      return true;
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to delete vehicle',
+        variant: "destructive"
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="container max-w-5xl w-full space-y-4">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -236,7 +300,7 @@ export default function GangVehicles({
                 <div className="w-64">Type</div>
                 <div className="w-64">Assigned To</div>
                 <div className="flex-1" />
-                <div className="w-32 text-right">Actions</div>
+                <div className="w-48 text-right">Actions</div>
                 <div className="w-20 text-right">Value</div>
               </div>
               
@@ -260,7 +324,7 @@ export default function GangVehicles({
                       {vehicle.assigned_to || '-'}
                     </span>
                     <div className="flex-1" />
-                    <div className="w-32 flex justify-end gap-1">
+                    <div className="w-48 flex justify-end gap-1">
                       <Button
                         variant="outline"
                         size="sm"
@@ -269,6 +333,15 @@ export default function GangVehicles({
                         disabled={isLoading}
                       >
                         {isLoading ? 'Saving...' : 'Edit'}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-6 px-2 text-xs py-0"
+                        onClick={(e) => handleDeleteClick(e, vehicle)}
+                        disabled={isLoading}
+                      >
+                        Delete
                       </Button>
                     </div>
                     <span className="w-20 text-right">{vehicle.cost}</span>
@@ -330,6 +403,23 @@ export default function GangVehicles({
               className="mt-1 w-full"
               placeholder="Enter vehicle name"
             />
+          </div>
+        </Modal>
+      )}
+      {deletingVehicle && (
+        <Modal
+          title="Delete Vehicle"
+          onClose={() => setDeletingVehicle(null)}
+          onConfirm={handleDeleteVehicle}
+          confirmText="Delete"
+        >
+          <div className="space-y-4">
+            <p>
+              Are you sure you want to delete the vehicle &quot;{deletingVehicle.vehicle_name || deletingVehicle.vehicle_type}&quot;?
+            </p>
+            <p className="text-sm text-red-600">
+              This will permanently delete the vehicle and all its equipment.
+            </p>
           </div>
         </Modal>
       )}
