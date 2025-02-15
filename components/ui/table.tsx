@@ -60,36 +60,22 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement
 );
 
 interface StatsTableProps {
-  data: StatsType;
-  isCrew: boolean;
-  hideXP?: boolean;
+  data?: StatsType;
+  isCrew?: boolean;
 }
 
 // Add a type for valid stat keys
 type StatKey = keyof CrewStats | keyof FighterStats;
 
-// Define the stat order types
-type FighterStatOrder = ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
-type CrewStatOrder = ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
-
-// Create the actual arrays with proper type assertions
-const fighterStatOrder: FighterStatOrder = 
-  ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
-const crewStatOrder: CrewStatOrder = 
-  ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'];
-
-export function StatsTable({ data, isCrew, hideXP = false }: StatsTableProps) {
+export function StatsTable({ data, isCrew }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No stats available</p>;
   }
 
-  // Use the properly typed stat orders
-  let statOrder = isCrew ? crewStatOrder : fighterStatOrder;
-
-  // Remove XP from statOrder if hideXP is true
-  if (hideXP) {
-    statOrder = statOrder.filter(stat => stat !== 'XP') as typeof statOrder;
-  }
+  // Define the order of stats based on fighter type
+  const statOrder = isCrew
+    ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
+    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
 
   // Type guard to check if data is CrewStats
   const isCrewStats = (data: StatsType): data is CrewStats => {
