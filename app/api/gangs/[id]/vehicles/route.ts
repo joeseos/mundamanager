@@ -207,47 +207,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const supabase = createClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Get the vehicle ID from the request
-    const { vehicleId } = await request.json();
-
-    // Delete the vehicle - RLS will handle ownership checks
-    const { error: deleteError } = await supabase
-      .from('vehicles')
-      .delete()
-      .eq('id', vehicleId);
-
-    if (deleteError) {
-      return NextResponse.json(
-        { error: 'Failed to delete vehicle' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting vehicle:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
 } 
