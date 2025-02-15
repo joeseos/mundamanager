@@ -37,20 +37,20 @@ type FighterCardData = Omit<FighterProps, 'vehicles'> & {
 };
 
 const calculateVehicleStats = (
-  baseStats: Vehicle, 
+  baseStats: Vehicle | undefined, 
   vehicleEquipment: Array<Equipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-  }>
+  }> = []
 ) => {
   if (!baseStats) return null;
 
   const stats = {
-    movement: baseStats.movement || 0,
-    front: baseStats.front || 0,
-    side: baseStats.side || 0,
-    rear: baseStats.rear || 0,
-    hull_points: baseStats.hull_points || 0,
-    save: baseStats.save || 0,
+    movement: baseStats.movement ?? 0,
+    front: baseStats.front ?? 0,
+    side: baseStats.side ?? 0,
+    rear: baseStats.rear ?? 0,
+    hull_points: baseStats.hull_points ?? 0,
+    save: baseStats.save ?? 0,
   };
 
   const processedProfiles = new Set<string>();
@@ -126,6 +126,7 @@ const FighterCard = memo(function FighterCard({
 
   // Calculate vehicle stats using the equipment from the vehicle object
   const vehicleStats = useMemo(() => {
+    console.log('Vehicle Data:', { isCrew, vehicle, equipment: vehicle?.equipment });
     if (!isCrew || !vehicle) return null;
     return calculateVehicleStats(vehicle, vehicle.equipment || []);
   }, [isCrew, vehicle]);

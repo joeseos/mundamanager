@@ -54,6 +54,15 @@ async function processGangData(gangData: any) {
     // Filter out null equipment entries and process equipment
     const validEquipment = (fighter.equipment?.filter((item: Equipment | null) => item !== null) || []) as Equipment[];
     
+    // Ensure vehicle data is properly structured
+    const vehicle = fighter.vehicles?.[0] ? {
+      ...fighter.vehicles[0],
+      equipment: fighter.vehicles[0].equipment?.map((item: any) => ({
+        ...item,
+        vehicle_equipment_profiles: item.vehicle_equipment_profiles || []
+      })) || []
+    } : undefined;
+
     return {
       id: fighter.id,
       fighter_name: fighter.fighter_name,
@@ -105,6 +114,7 @@ async function processGangData(gangData: any) {
       enslaved: fighter.enslaved || false,
       starved: fighter.starved || false,
       free_skill: fighter.free_skill || false,
+      vehicle,
     };
   });
 
