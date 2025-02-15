@@ -23,15 +23,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
-    
-    // Add performance monitoring
-    if (error.message.includes('Violation')) {
-      // Log performance violations separately
-      console.warn('Performance violation detected:', error.message);
-      
-      // Optionally report to your analytics service
-      // reportPerformanceViolation(error);
-    }
   }
 
   public render() {
