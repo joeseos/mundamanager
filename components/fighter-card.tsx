@@ -370,17 +370,23 @@ const FighterCard = memo(function FighterCard({
             <StatsTable data={stats} isCrew={isCrew} />
             
             {/* Show fighter weapons */}
-            {weapons && weapons.length > 0 && (
+            {!isCrew && weapons && weapons.length > 0 && (
               <div className="mt-4">
                 <WeaponTable weapons={weapons} />
+              </div>
+            )}
+
+            {/* Show crew weapons */}
+            {isCrew && weapons && weapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={weapons} entity="crew" />
               </div>
             )}
 
             {/* Add vehicle weapons section */}
             {isCrew && vehicleWeapons.length > 0 && (
               <div className="mt-4">
-                <div className="text-sm font-bold mb-1 print:hidden">Vehicle Weapons</div>
-                <WeaponTable weapons={vehicleWeapons} />
+                <WeaponTable weapons={vehicleWeapons} entity="vehicle" />
               </div>
             )}
             <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
