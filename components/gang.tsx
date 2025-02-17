@@ -642,7 +642,7 @@ export default function Gang({
 
   return (
     <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
-      <div className="bg-white shadow-md rounded-lg p-6 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
+      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
         {/* Left Section: Illustration */}
         <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
           {gang_type_image_url ? (
@@ -673,7 +673,7 @@ export default function Gang({
         </div>
 
         {/* Right Section: Content */}
-        <div className="flex-grow">
+        <div className="flex-grow w-full">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-2xl font-bold">{name}</h2>
             <div>
@@ -758,7 +758,7 @@ export default function Gang({
             <span>Created: {formatDate(created_at)}</span>
             <span>Last Updated: {formatDate(lastUpdated)}</span>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
             <Button
               onClick={() => setShowAddVehicleModal(true)}
               className="bg-black text-white hover:bg-gray-800 print:hidden"
