@@ -1467,21 +1467,21 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="default"
-                className="flex-1 min-w-[200px] bg-primary text-primary-foreground hover:bg-primary/90"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => handleModalToggle('kill', true)}
               >
                 {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.retired ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('retire', true)}
               >
                 {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('enslave', true)}
               >
                 {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
@@ -1489,7 +1489,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               {isMeatEnabled() && (
                 <Button
                   variant={fighterData.fighter?.starved ? 'success' : 'default'}
-                  className="flex-1 min-w-[200px]"
+                  className="flex-1"
                   onClick={() => handleModalToggle('starve', true)}
                 >
                   {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
@@ -1497,7 +1497,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               )}
               <Button 
                 variant="destructive"
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('delete', true)}
               >
                 Delete Fighter
