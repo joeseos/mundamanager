@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { useToast } from './ui/use-toast';
 import Modal from './modal';
+import React from 'react';
 
 interface InjuryType {
   id: string;
@@ -28,7 +29,7 @@ interface InjuriesListProps {
   onInjuryAdded: () => void;
 }
 
-export function InjuriesList({ 
+export const InjuriesList = React.memo(function InjuriesList({ 
   injuries = [],
   availableInjuries = [],
   onDeleteInjury,
@@ -231,4 +232,4 @@ export function InjuriesList({
       )}
     </div>
   );
-} 
+}); 

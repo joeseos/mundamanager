@@ -389,7 +389,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/injuries`,
         {
-          method: 'GET',
           headers: {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Content-Type': 'application/json',
@@ -406,7 +405,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         variant: "destructive"
       });
     }
-  }, [toast]);
+  }, []);
 
   // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
@@ -515,8 +514,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchFighterData();
+  }, [fetchFighterData]);
+
+  useEffect(() => {
     fetchAvailableInjuries();
-  }, [fetchFighterData, fetchAvailableInjuries]);
+  }, [fetchAvailableInjuries]);
 
   const handleDeleteFighter = useCallback(async () => {
     if (!fighterData.fighter || !fighterData.gang) return;

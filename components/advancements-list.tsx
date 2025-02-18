@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -61,7 +61,7 @@ interface TransformedAdvancement {
   type: 'characteristic' | 'skill';
 }
 
-export function AdvancementsList({ 
+export const AdvancementsList = React.memo(function AdvancementsList({ 
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: {} },
   fighterId,
@@ -72,18 +72,15 @@ export function AdvancementsList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
   const { toast } = useToast();
 
-  const transformAdvancementsData = (fighterData: FighterChanges) => {
-    const characteristics: TransformedAdvancement[] = [];
-    const skills: TransformedAdvancement[] = [];
+  // Memoize the entire data transformation
+  const { characteristics, skills } = useMemo(() => {
+    const transformedCharacteristics: TransformedAdvancement[] = [];
+    const transformedSkills: TransformedAdvancement[] = [];
     
     // Transform characteristics
-    if (fighterData.characteristics && Array.isArray(fighterData.characteristics)) {
-      console.log('Raw characteristics data:', fighterData.characteristics);
-      
-      // Process each characteristic directly from the array
-      fighterData.characteristics.forEach((data) => {
-        console.log(`Processing characteristic:`, data);
-        characteristics.push({
+    if (fighterChanges.characteristics && Array.isArray(fighterChanges.characteristics)) {
+      fighterChanges.characteristics.forEach((data) => {
+        transformedCharacteristics.push({
           id: data.id,
           stat_change_name: data.characteristic_name,
           xp_spent: data.xp_cost,
@@ -95,16 +92,14 @@ export function AdvancementsList({
           type: 'characteristic'
         });
       });
-
-      console.log('Final characteristics array:', characteristics);
     }
 
-    // Transform skills - now with is_advance filter
-    if (fighterData.skills) {
-      Object.entries(fighterData.skills)
-        .filter(([_, data]) => data.is_advance) // Only include skills where is_advance is true
+    // Transform skills
+    if (fighterChanges.skills) {
+      Object.entries(fighterChanges.skills)
+        .filter(([_, data]) => data.is_advance)
         .forEach(([name, data]) => {
-          skills.push({
+          transformedSkills.push({
             id: data.id,
             stat_change_name: name,
             xp_spent: data.xp_cost,
@@ -118,17 +113,14 @@ export function AdvancementsList({
     }
 
     // Sort each array by acquired_at date
-    const sortByDate = (a: TransformedAdvancement, b: TransformedAdvancement) => {
-      return new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime();
-    };
+    const sortByDate = (a: TransformedAdvancement, b: TransformedAdvancement) => 
+      new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime();
 
     return {
-      characteristics: characteristics.sort(sortByDate),
-      skills: skills.sort(sortByDate)
+      characteristics: transformedCharacteristics.sort(sortByDate),
+      skills: transformedSkills.sort(sortByDate)
     };
-  };
-
-  const { characteristics, skills } = transformAdvancementsData(fighterChanges);
+  }, [fighterChanges]); // Only recompute when fighterChanges updates
 
   const handleDeleteAdvancement = async (advancementId: string, type: string) => {
     console.log(`Attempting to delete fighter ${type}:`, advancementId);
@@ -268,4 +260,4 @@ export function AdvancementsList({
       )}
     </div>
   );
-}
+});
