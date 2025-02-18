@@ -53,7 +53,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   }, []);
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 print:print-fighters">
+    <div className="container max-w-full w-full space-y-4 print:print-fighters">
       <Gang
         {...processedData}
         rating={rating}

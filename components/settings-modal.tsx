@@ -17,7 +17,7 @@ import Link from 'next/link';
 // Icons
 import { Settings, LogOut, User, Bell, Info, Menu } from 'lucide-react';
 import { FaUsers } from "react-icons/fa6";
-import { FiMap } from "react-icons/fi";
+import { FiMap, FiPrinter } from "react-icons/fi";
 
 interface SettingsModalProps {
   user: SupabaseUser;
@@ -57,7 +57,8 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           <Menu className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent 
+
+      <DropdownMenuContent
         align="end" 
         className="w-56"
         sideOffset={8}
@@ -67,36 +68,51 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           Signed in as:<br />
           <span className="font-medium text-gray-900">{user.email}</span>
         </div>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/profile" className="w-full cursor-pointer">
             <User className="mr-2 h-4 w-4" />
             Profile
           </Link>
         </DropdownMenuItem>
+
         <DropdownMenuItem onClick={handleDummyClick}>
           <Bell className="mr-2 h-4 w-4" />
           Notifications
         </DropdownMenuItem>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/" className="w-full cursor-pointer">
             <FaUsers className="mr-2 h-4 w-4" />
             Gangs
           </Link>
         </DropdownMenuItem>
+
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/campaigns" className="w-full cursor-pointer">
             <FiMap className="mr-2 h-4 w-4" />
             Campaigns
           </Link>
         </DropdownMenuItem>
+
+        <DropdownMenuItem asChild onClick={() => window.print()}>
+          <div className="w-full cursor-pointer">
+            <FiPrinter className="mr-2 h-4 w-4" />
+            Print
+          </div>
+        </DropdownMenuItem>
+
         <DropdownMenuItem asChild onClick={handleLinkClick}>
           <Link href="/about" className="w-full cursor-pointer">
             <Info className="mr-2 h-4 w-4" />
             About
           </Link>
         </DropdownMenuItem>
+
         {isAdmin && (
           <>
             <DropdownMenuSeparator />
@@ -108,7 +124,9 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
             </DropdownMenuItem>
           </>
         )}
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem 
           onClick={handleLogout}
           className="text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900 dark:hover:text-red-400"
