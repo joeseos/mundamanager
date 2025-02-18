@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, Sensor } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -18,26 +18,24 @@ export function DraggableFighters({
   initialPositions
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
-  function isMobile() {
-    if (typeof window !== 'undefined') {
-      return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
-    }
-    return false;
-  }
+  
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 50,
+      tolerance: 5,
+    },
+  });
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      delay: 150,
+      tolerance: 5,
+    },
+  });
   const sensors = useSensors(
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    }),
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: isMobile() ? Infinity : 5, // Disable pointer sensor on mobile
-      },
-    }),
+    typeof window === "undefined" ? pointerSensor :
+    /Mobi|Android|iPhone/i.test(navigator.userAgent) ? touchSensor : pointerSensor,
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: sortableKeyboardCoordinates
     })
   );
 
