@@ -110,7 +110,7 @@ interface FighterProps {
    npm run dev --host
    ```
    
-   On your mobile device, when connected to your wi-fi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
+   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
    http://192.168.1.5:3000
 
 ## Component Architecture
