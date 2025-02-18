@@ -67,12 +67,18 @@
   }
 
   @media print {
+    @page {
+      margin: 6mm;  /* this affects the margin in the printer settings */
+    }
+
     .print-reset {
       max-width: none !important;
       width: auto !important;
       padding: 0 !important;
     }
     .print-fighter-card {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
       width: 630px;
       height: 435px;
       break-inside: avoid !important;
