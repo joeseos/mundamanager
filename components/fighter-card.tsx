@@ -124,11 +124,55 @@ const FighterCard = memo(function FighterCard({
   const [isMultiline, setIsMultiline] = useState(false);
   const isCrew = fighter_class === 'Crew';
 
-  // Calculate vehicle stats using the equipment from the vehicle object
+  // Move getVehicleWeapons function before its usage
+  const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
+    if (!vehicle?.equipment) return [];
+    
+    return vehicle.equipment
+      .filter(item => item.equipment_type === 'weapon')
+      .map(weapon => ({
+        fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
+        weapon_id: weapon.equipment_id,
+        weapon_name: weapon.equipment_name,
+        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+          ...profile,
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          traits: profile.traits || '',
+          id: profile.id,
+          profile_name: profile.profile_name,
+          is_default_profile: profile.is_default_profile
+        })) || [],
+        cost: weapon.cost
+      })) as unknown as Weapon[];
+  };
+
+  // Only calculate vehicle stats for crew members
   const vehicleStats = useMemo(() => {
-    console.log('Vehicle Data:', { isCrew, vehicle, equipment: vehicle?.equipment });
-    if (!isCrew || !vehicle) return null;
-    return calculateVehicleStats(vehicle, vehicle.equipment || []);
+    if (!isCrew) return null;
+    return calculateVehicleStats(vehicle, vehicle?.equipment || []);
+  }, [isCrew, vehicle]);
+
+  // Get vehicle weapons only for crew members
+  const vehicleWeapons = useMemo(() => {
+    if (!isCrew || !vehicle) return [];
+    return getVehicleWeapons(vehicle);
+  }, [isCrew, vehicle]);
+
+  // Get vehicle upgrades only for crew members
+  const vehicleUpgrades = useMemo(() => {
+    if (!isCrew || !vehicle) return [];
+    return vehicle.equipment?.filter(
+      (item): item is (Equipment & Partial<VehicleEquipment>) => 
+        item.equipment_type === 'vehicle_upgrade' || 
+        item.equipment_type === 'wargear'
+    ) || [];
   }, [isCrew, vehicle]);
 
   // Create fighter data for stat calculations
@@ -169,7 +213,7 @@ const FighterCard = memo(function FighterCard({
 
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
-  // Update stats object for crew
+  // Calculate stats based on fighter type
   const stats = useMemo((): StatsType => {
     if (isCrew) {
       return {
@@ -187,23 +231,23 @@ const FighterCard = memo(function FighterCard({
         'Int': `${adjustedStats.intelligence}+`,
         'XP': xp
       };
-    } else {
-      return {
-        'M': `${adjustedStats.movement}"`,
-        'WS': `${adjustedStats.weapon_skill}+`,
-        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-        'S': adjustedStats.strength,
-        'T': adjustedStats.toughness,
-        'W': adjustedStats.wounds,
-        'I': `${adjustedStats.initiative}+`,
-        'A': adjustedStats.attacks,
-        'Ld': `${adjustedStats.leadership}+`,
-        'Cl': `${adjustedStats.cool}+`,
-        'Wil': `${adjustedStats.willpower}+`,
-        'Int': `${adjustedStats.intelligence}+`,
-        'XP': xp
-      };
     }
+    
+    return {
+      'M': `${adjustedStats.movement}"`,
+      'WS': `${adjustedStats.weapon_skill}+`,
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+      'S': adjustedStats.strength,
+      'T': adjustedStats.toughness,
+      'W': adjustedStats.wounds,
+      'I': `${adjustedStats.initiative}+`,
+      'A': adjustedStats.attacks,
+      'Ld': `${adjustedStats.leadership}+`,
+      'Cl': `${adjustedStats.cool}+`,
+      'Wil': `${adjustedStats.willpower}+`,
+      'Int': `${adjustedStats.intelligence}+`,
+      'XP': xp
+    };
   }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
 
   const isInactive = killed || retired;
@@ -238,46 +282,6 @@ const FighterCard = memo(function FighterCard({
     
     return slots.join(', ');
   };
-
-  // Update the getVehicleWeapons function
-  const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
-    if (!vehicle?.equipment) return [];
-    
-    return vehicle.equipment
-      .filter(item => item.equipment_type === 'weapon')
-      .map(weapon => ({
-        fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
-        weapon_id: weapon.equipment_id,
-        weapon_name: weapon.equipment_name,
-        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
-          ...profile,
-          // Keep numeric types
-          range_short: profile.range_short,
-          range_long: profile.range_long,
-          strength: profile.strength,
-          ap: profile.ap,
-          damage: profile.damage,
-          ammo: profile.ammo,
-          acc_short: profile.acc_short,
-          acc_long: profile.acc_long,
-          traits: profile.traits || '',
-          id: profile.id,
-          profile_name: profile.profile_name,
-          is_default_profile: profile.is_default_profile
-        })) || [],
-        cost: weapon.cost
-      })) as unknown as Weapon[]; // Use double type assertion to avoid type mismatch
-  };
-
-  // Update the vehicle upgrades filter to exclude weapons
-  const vehicleUpgrades = vehicle?.equipment?.filter(
-    (item): item is (Equipment & Partial<VehicleEquipment>) => 
-      item.equipment_type === 'vehicle_upgrade' || 
-      item.equipment_type === 'wargear'  // Remove 'weapon' from the filter
-  ) || [];
-
-  // Get vehicle weapons
-  const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
 
   useEffect(() => {
     const checkHeight = () => {
