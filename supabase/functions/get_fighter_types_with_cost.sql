@@ -3,7 +3,7 @@ DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
 
--- Then create our new function with optional parameter and is_gang_addition column
+-- Then create our new function with optional parameter and equipment_selection column
 CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL)
 RETURNS TABLE (
     id uuid,
@@ -26,6 +26,7 @@ RETURNS TABLE (
     intelligence numeric,
     attacks numeric,
     default_equipment jsonb,
+    equipment_selection jsonb,
     total_cost numeric,
     is_gang_addition boolean
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -67,7 +68,28 @@ BEGIN
             JOIN equipment e ON e.id = fd.equipment_id
             WHERE fd.fighter_type_id = ft.id
         ) AS default_equipment,
-        ft.cost AS total_cost,  -- Total cost is just the fighter's cost since default equipment is free
+        (
+            SELECT jsonb_set(
+                fes.equipment_selection::jsonb,
+                '{weapons,options}',
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'id', opt->>'id',
+                            'equipment_name', e.equipment_name,
+                            'cost', (opt->>'cost')::numeric,
+                            'max_quantity', (opt->>'max_quantity')::integer
+                        )
+                    )
+                    FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,options}') opt
+                    LEFT JOIN equipment e ON e.id::text = opt->>'id'
+                )
+            )
+            FROM fighter_equipment_selections fes
+            WHERE fes.fighter_type_id = ft.id
+            LIMIT 1
+        ) AS equipment_selection,
+        ft.cost AS total_cost,
         ft.is_gang_addition
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id

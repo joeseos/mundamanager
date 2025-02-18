@@ -15,6 +15,7 @@ import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
+import { FighterType, EquipmentOption } from '@/types/fighter-type';
 
 interface VehicleType {
   id: string;
@@ -31,6 +32,15 @@ interface VehicleType {
   drive_slots: number;
   engine_slots: number;
   special_rules: string[];
+}
+
+interface WeaponsSelection {
+  options: EquipmentOption[];
+  select_type: 'single' | 'multiple';
+}
+
+interface EquipmentSelection {
+  weapons?: WeaponsSelection;
 }
 
 interface GangProps {
@@ -64,14 +74,6 @@ interface GangProps {
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
-}
-
-interface FighterType {
-  id: string;
-  fighter_type: string;
-  cost: number;
-  total_cost: number;
-  fighter_class: string;
 }
 
 export default function Gang({ 
@@ -133,6 +135,7 @@ export default function Gang({
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
   const [gangAdditionCost, setGangAdditionCost] = useState('');
   const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -220,6 +223,9 @@ export default function Gang({
     try {
       let isMounted = true;
 
+      // Create array of selected equipment IDs
+      const selectedEquipmentIds = selectedEquipmentId ? [selectedEquipmentId] : [];
+
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
         {
@@ -232,7 +238,8 @@ export default function Gang({
             p_gang_id: id,
             p_fighter_type_id: selectedFighterTypeId,
             p_fighter_name: fighterName,
-            p_cost: parseInt(fighterCost)
+            p_cost: parseInt(fighterCost),
+            p_selected_equipment_ids: selectedEquipmentIds
           })
         }
       );
@@ -987,6 +994,53 @@ export default function Gang({
                   )}
                 </div>
 
+                {selectedGangAdditionTypeId && gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.equipment_selection?.weapons && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Equipment Selection
+                    </label>
+                    <select
+                      value={selectedEquipmentId}
+                      onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select equipment</option>
+                      {gangAdditionTypes
+                        .find(t => t.id === selectedGangAdditionTypeId)
+                        ?.equipment_selection
+                        ?.weapons
+                        ?.options
+                        ?.map((option: EquipmentOption) => (
+                          <option key={option.id} value={option.id}>
+                            {option.equipment_name} - {option.cost} credits
+                          </option>
+                        ))}
+                    </select>
+
+                    {selectedEquipmentId && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                          {(() => {
+                            const selectedOption = gangAdditionTypes
+                              .find(t => t.id === selectedGangAdditionTypeId)
+                              ?.equipment_selection
+                              ?.weapons
+                              ?.options
+                              ?.find(option => option.id === selectedEquipmentId);
+                            return `${selectedOption?.equipment_name} - ${selectedOption?.cost} credits`;
+                          })()}
+                          <button
+                            onClick={() => setSelectedEquipmentId('')}
+                            className="text-gray-500 hover:text-gray-700"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {fetchError && <p className="text-red-500">{fetchError}</p>}
               </div>
             }
@@ -995,11 +1049,13 @@ export default function Gang({
               setFighterName('');
               setSelectedGangAdditionTypeId('');
               setFighterCost('');
+              setSelectedEquipmentId('');
               setFetchError(null);
             }}
             onConfirm={handleAddFighter}
             confirmText="Add Fighter"
-            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost}
+            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost || 
+              (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.equipment_selection?.weapons && !selectedEquipmentId)}
           />
         )}
       </div>
