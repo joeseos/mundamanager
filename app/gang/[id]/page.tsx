@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { FighterProps } from "@/types/fighter";
@@ -54,8 +54,8 @@ async function processGangData(gangData: any) {
     // Filter out null equipment entries and process equipment
     const validEquipment = (fighter.equipment?.filter((item: Equipment | null) => item !== null) || []) as Equipment[];
     
-    // Ensure vehicle data is properly structured
-    const vehicle = fighter.vehicles?.[0] ? {
+    // Only process vehicle data for crew fighters
+    const vehicle = fighter.fighter_class === 'Crew' && fighter.vehicles?.[0] ? {
       ...fighter.vehicles[0],
       equipment: fighter.vehicles[0].equipment?.map((item: any) => ({
         ...item,
@@ -242,8 +242,12 @@ async function processGangData(gangData: any) {
       role: campaign.role,
       status: campaign.status,
       has_meat: campaign.has_meat ?? false,
-      has_exploration_points: campaign.has_exploration_points ?? false
+      has_exploration_points: campaign.has_exploration_points ?? false,
+      has_scavenging_rolls: campaign.has_scavenging_rolls ?? false
     })),
+    campaign_has_meat: gangData.campaigns?.[0]?.has_meat ?? false,
+    campaign_has_exploration_points: gangData.campaigns?.[0]?.has_exploration_points ?? false,
+    campaign_has_scavenging_rolls: gangData.campaigns?.[0]?.has_scavenging_rolls ?? false,
     stash: (gangData.stash || []).map((item: any) => ({
       id: item.id,
       equipment_name: item.equipment_name,
@@ -292,6 +296,74 @@ interface GangDataState {
 export default function GangPage({ params }: { params: { id: string } }) {
   const [gangData, setGangData] = useState<GangDataState | null>(null);
 
+  // Memoize the callbacks
+  const handleStashUpdate = useCallback((newStash: StashItem[]) => {
+    setGangData((prev: GangDataState | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          stash: newStash
+        },
+        stash: newStash
+      };
+    });
+  }, []);
+
+  const handleVehicleUpdate = useCallback((newVehicles: VehicleProps[]) => {
+    setGangData((prev: GangDataState | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          vehicles: newVehicles
+        }
+      };
+    });
+  }, []);
+
+  const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
+    setGangData((prev: GangDataState | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: prev.processedData.fighters.map(fighter =>
+            fighter.id === updatedFighter.id ? updatedFighter : fighter
+          )
+        }
+      };
+    });
+  }, []);
+
+  const handleVehicleAdd = useCallback((newVehicle: VehicleProps) => {
+    setGangData((prev: GangDataState | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          vehicles: [...prev.processedData.vehicles, newVehicle]
+        }
+      };
+    });
+  }, []);
+
+  // Memoize the processed data for the GangPageContent
+  const gangPageContentProps = useMemo(() => {
+    if (!gangData) return null;
+    return {
+      processedData: gangData.processedData,
+      gangData: {
+        ...gangData,
+        onVehicleAdd: handleVehicleAdd
+      }
+    };
+  }, [gangData, handleVehicleAdd]);
+
   useEffect(() => {
     let isSubscribed = true;
     
@@ -316,64 +388,24 @@ export default function GangPage({ params }: { params: { id: string } }) {
         }
 
         const [data] = await response.json();
-        console.log('API Response:', data?.campaigns?.[0]); // Log the campaign data
+        // console.log('API Response:', data?.campaigns?.[0]);
 
         if (!data) {
           return redirect("/");
         }
 
         const processedData = await processGangData(data);
-        console.log('Processed Data:', {
-          has_meat: processedData.campaign_has_meat,
-          has_exploration: processedData.campaign_has_exploration_points,
-          has_scavenging: processedData.campaign_has_scavenging_rolls
-        });
+        // console.log('Processed Data:', {...});
         
 
-        console.log('processedData', processedData.positioning );
+        // console.log('processedData', processedData.positioning);
         if (isSubscribed) {
           setGangData({
             processedData,
             stash: processedData.stash || [],
-            onStashUpdate: (newStash: StashItem[]) => {
-              setGangData((prev: GangDataState | null) => {
-                if (!prev) return null;
-                return {
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    stash: newStash
-                  },
-                  stash: newStash
-                };
-              });
-            },
-            onVehicleUpdate: (newVehicles: VehicleProps[]) => {
-              setGangData((prev: GangDataState | null) => {
-                if (!prev) return null;
-                return {
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    vehicles: newVehicles
-                  }
-                };
-              });
-            },
-            onFighterUpdate: (updatedFighter: FighterProps) => {
-              setGangData((prev: GangDataState | null) => {
-                if (!prev) return null;
-                return {
-                  ...prev,
-                  processedData: {
-                    ...prev.processedData,
-                    fighters: prev.processedData.fighters.map(fighter =>
-                      fighter.id === updatedFighter.id ? updatedFighter : fighter
-                    )
-                  }
-                };
-              });
-            }
+            onStashUpdate: handleStashUpdate,
+            onVehicleUpdate: handleVehicleUpdate,
+            onFighterUpdate: handleFighterUpdate
           });
         }
       } catch (error) {
@@ -389,21 +421,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
     return () => {
       isSubscribed = false;
     };
-  }, [params.id]);
-
-  // Add a handler for adding new vehicles
-  const handleVehicleAdd = (newVehicle: VehicleProps) => {
-    setGangData((prev: GangDataState | null) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        processedData: {
-          ...prev.processedData,
-          vehicles: [...prev.processedData.vehicles, newVehicle]
-        }
-      };
-    });
-  };
+  }, [params.id, handleStashUpdate, handleVehicleUpdate, handleFighterUpdate]);
 
   if (!gangData) return null;
 
@@ -418,40 +436,21 @@ export default function GangPage({ params }: { params: { id: string } }) {
            <LuClipboard key="note" />
          ]}
         >
-        <GangPageContent 
-          processedData={gangData.processedData} 
-          gangData={{
-            ...gangData,
-            onVehicleAdd: handleVehicleAdd
-          }} 
-        />
+        {gangPageContentProps && <GangPageContent {...gangPageContentProps} />}
         <GangInventory
           stash={gangData.stash} 
           fighters={gangData.processedData.fighters}
           title="Stash"
-          onStashUpdate={gangData.onStashUpdate}
-          onFighterUpdate={(updatedFighter) => {
-            setGangData(prev => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                processedData: {
-                  ...prev.processedData,
-                  fighters: prev.processedData.fighters.map(f => 
-                    f.id === updatedFighter.id ? updatedFighter : f
-                  )
-                }
-              };
-            });
-          }}
+          onStashUpdate={handleStashUpdate}
+          onFighterUpdate={handleFighterUpdate}
           vehicles={gangData.processedData.vehicles || []}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}
           fighters={gangData.processedData.fighters || []}
           gangId={params.id}
-          onVehicleUpdate={gangData.onVehicleUpdate}
-          onFighterUpdate={gangData.onFighterUpdate}
+          onVehicleUpdate={handleVehicleUpdate}
+          onFighterUpdate={handleFighterUpdate}
         />
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-2xl font-bold mb-4">Territories</h2>

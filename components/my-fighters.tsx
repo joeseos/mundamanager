@@ -3,6 +3,7 @@ import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { SortableFighter } from './sortable-fighter';
+import { fighterClassRank } from '@/utils/fighterClassRank';
 
 // Add interface definition for MyFightersProps
 interface MyFightersProps {
@@ -51,10 +52,6 @@ export function MyFighters({ fighters, positions, isLoading, error }: MyFighters
       };
     }
   }), []);
-
-  // useEffect(() => {
-  //   console.log('Fighters data in MyFighters:', fighters);
-  // }, [fighters]);
 
   const imageProps = useMemo(() => ({
     src: BACKGROUND_IMAGE_URL,
