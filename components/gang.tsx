@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { MyFighters } from './my-fighters';
 import DeleteGangButton from "./delete-gang-button";
 import { Weapon } from '@/types/weapon';
 import { FighterProps } from '@/types/fighter';
@@ -15,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
+import { DraggableFighters } from './draggable-fighters';
 
 interface VehicleType {
   id: string;
@@ -56,11 +56,14 @@ interface GangProps {
     campaign_name: string;
     role: string | null;
     status: string | null;
+    has_meat: boolean;
+    has_exploration_points: boolean;
   }[];
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
+  positioning: Record<number, string>;
 }
 
 interface FighterType {
@@ -79,8 +82,8 @@ export default function Gang({
   gang_type_image_url,
   credits: initialCredits, 
   reputation: initialReputation,
-  meat: initialMeat, 
-  exploration_points: initialExplorationPoints, 
+  meat: initialMeat,
+  exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
   created_at, 
@@ -94,6 +97,7 @@ export default function Gang({
   onStashUpdate,
   onFighterDeleted,
   onVehicleAdd,
+  positioning,
 }: GangProps) {
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
@@ -124,6 +128,7 @@ export default function Gang({
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
+  const [positions, setPositions] = useState<Record<number, string>>(positioning);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -295,6 +300,19 @@ export default function Gang({
           free_skill: data.free_skill
         };
 
+        const newPositions = { ...positions };
+        const maxPosition = Math.max(...Object.keys(positions).map(Number), -1);
+        newPositions[maxPosition + 1] = data.fighter_id;
+        setPositions(newPositions);
+
+        await fetch(`/api/gangs/${id}/positioning`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ positions: newPositions }),
+        });
+
         setFighters(prev => [...prev, newFighter]);
         setShowAddFighterModal(false);
         setSelectedFighterTypeId('');
@@ -327,7 +345,7 @@ export default function Gang({
       setFighters(prev => prev.filter(f => f.id !== fighterId));
       setRating(prev => prev - fighterCost);
       onFighterDeleted?.(fighterId, fighterCost);
-
+      
       const response = await fetch(`/api/fighters/${fighterId}`, {
         method: 'DELETE',
       });
@@ -597,9 +615,34 @@ export default function Gang({
     }
   };
 
+  const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
+    try {
+      const response = await fetch(`/api/gangs/${id}/positioning`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ positions: newPositions }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update positions');
+      }
+
+      setPositions(newPositions);
+    } catch (error) {
+      console.error('Error updating positions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update fighter positions",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
-      <div className="bg-white shadow-md rounded-lg p-6 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
+      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
         {/* Left Section: Illustration */}
         <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
           {gang_type_image_url ? (
@@ -630,7 +673,7 @@ export default function Gang({
         </div>
 
         {/* Right Section: Content */}
-        <div className="flex-grow">
+        <div className="flex-grow w-full">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-2xl font-bold">{name}</h2>
             <div>
@@ -685,20 +728,24 @@ export default function Gang({
               editedValue={editedReputation}
               onChange={setEditedReputation}
             />
-            <StatItem
-              label="Meat"
-              value={meat}
-              isEditing={isEditing}
-              editedValue={editedMeat}
-              onChange={setEditedMeat}
-            />
-            <StatItem
-              label="Exploration Points"
-              value={explorationPoints}
-              isEditing={isEditing}
-              editedValue={editedExplorationPoints}
-              onChange={setEditedExplorationPoints}
-            />
+            {campaigns?.[0]?.has_meat && (
+              <StatItem
+                label="Meat"
+                value={meat}
+                isEditing={isEditing}
+                editedValue={editedMeat}
+                onChange={setEditedMeat}
+              />
+            )}
+            {campaigns?.[0]?.has_exploration_points && (
+              <StatItem
+                label="Exploration Points"
+                value={explorationPoints}
+                isEditing={isEditing}
+                editedValue={editedExplorationPoints}
+                onChange={setEditedExplorationPoints}
+              />
+            )}
             <StatItem
               label="Rating"
               value={rating}
@@ -711,16 +758,16 @@ export default function Gang({
             <span>Created: {formatDate(created_at)}</span>
             <span>Last Updated: {formatDate(lastUpdated)}</span>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
             <Button
               onClick={() => setShowAddVehicleModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
             >
               Add Vehicle
             </Button>
             <Button
               onClick={() => setShowAddFighterModal(true)}
-              className="bg-black text-white hover:bg-gray-800 print:hidden"
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
             >
               Add Fighter
             </Button>
@@ -837,7 +884,12 @@ export default function Gang({
 
       <div className="print:visible">
         {fighters.length > 0 ? (
-          <MyFighters fighters={fighters} />
+          <DraggableFighters 
+            fighters={fighters} 
+            onPositionsUpdate={handlePositionsUpdate}
+            onFightersReorder={setFighters}
+            initialPositions={positions}
+          />
         ) : (
           <div className="text-white italic">No fighters available.</div>
         )}

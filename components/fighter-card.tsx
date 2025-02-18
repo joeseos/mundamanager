@@ -1,17 +1,20 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { StatsTable } from './ui/table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
+import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
+import { StatsType } from './ui/table';  // Add this import
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -25,43 +28,38 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   injuries: Injury[];
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
-  vehicleEquipment?: (Equipment | VehicleEquipment)[];
+  disableLink?: boolean;
 }
 
-type FighterCardData = FighterProps & {
+type FighterCardData = Omit<FighterProps, 'vehicles'> & {
   label?: string;
   note?: string;
 };
 
 const calculateVehicleStats = (
-  baseStats: Vehicle, 
+  baseStats: Vehicle | undefined, 
   vehicleEquipment: Array<Equipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-  }>
+  }> = []
 ) => {
-  if (!baseStats) return {
-    movement: 0,
-    front: 0,
-    side: 0,
-    rear: 0,
-    hull_points: 0,
-    save: 0,
-  };
+  if (!baseStats) return null;
 
-  // Start with base stats
   const stats = {
-    movement: baseStats.movement || 0,
-    front: baseStats.front || 0,
-    side: baseStats.side || 0,
-    rear: baseStats.rear || 0,
-    hull_points: baseStats.hull_points || 0,
-    save: baseStats.save || 0,
+    movement: baseStats.movement ?? 0,
+    front: baseStats.front ?? 0,
+    side: baseStats.side ?? 0,
+    rear: baseStats.rear ?? 0,
+    hull_points: baseStats.hull_points ?? 0,
+    save: baseStats.save ?? 0,
   };
 
-  // Add bonuses from vehicle equipment
+  const processedProfiles = new Set<string>();
+
   vehicleEquipment?.forEach(equipment => {
     if (equipment.vehicle_equipment_profiles) {
       equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
+        if (profile.id && processedProfiles.has(profile.id)) return;
+
         const statUpdates = {
           movement: profile.movement,
           front: profile.front,
@@ -71,20 +69,18 @@ const calculateVehicleStats = (
           save: profile.save,
         };
 
-        // Update each stat if the profile has a value
         Object.entries(statUpdates).forEach(([key, value]) => {
           if (value !== null) {
             stats[key as keyof typeof stats] += value;
           }
         });
+
+        if (profile.id) {
+          processedProfiles.add(profile.id);
+        }
       });
     }
   });
-
-  // Add some debugging
-  console.log('Base vehicle stats:', baseStats);
-  console.log('Vehicle equipment:', vehicleEquipment);
-  console.log('Final vehicle stats:', stats);
 
   return stats;
 };
@@ -122,19 +118,25 @@ const FighterCard = memo(function FighterCard({
   injuries = [],
   note,
   vehicle,
-  vehicleEquipment = [],
+  disableLink = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
+  const isCrew = fighter_class === 'Crew';
 
-  const isInactive = killed || retired;
+  // Calculate vehicle stats using the equipment from the vehicle object
+  const vehicleStats = useMemo(() => {
+    console.log('Vehicle Data:', { isCrew, vehicle, equipment: vehicle?.equipment });
+    if (!isCrew || !vehicle) return null;
+    return calculateVehicleStats(vehicle, vehicle.equipment || []);
+  }, [isCrew, vehicle]);
 
-  const fighterData: FighterCardData = {
+  // Create fighter data for stat calculations
+  const fighterData = useMemo<FighterProps>(() => ({
     id,
     fighter_name: name,
     fighter_type: type,
     fighter_class,
-    label,
     credits,
     movement,
     weapon_skill,
@@ -156,64 +158,126 @@ const FighterCard = memo(function FighterCard({
     },
     weapons,
     wargear,
-    special_rules,
+    special_rules: special_rules || [],
     injuries: injuries || [],
-    note,
-  };
+  }), [
+    id, name, type, fighter_class, credits, movement, weapon_skill,
+    ballistic_skill, strength, toughness, wounds, initiative,
+    attacks, leadership, cool, willpower, intelligence, xp,
+    kills, advancements, weapons, wargear, special_rules, injuries
+  ]);
 
-  const adjustedStats = calculateAdjustedStats(fighterData);
+  const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
-  const isCrew = fighter_class === 'Crew';
-  
-  // Calculate vehicle stats with equipment bonuses
-  const vehicleStats = isCrew && vehicle ? calculateVehicleStats(vehicle, vehicle.equipment || []) : null;
+  // Update stats object for crew
+  const stats = useMemo((): StatsType => {
+    if (isCrew) {
+      return {
+        'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
+        'Front': vehicleStats ? vehicleStats.front : '*',
+        'Side': vehicleStats ? vehicleStats.side : '*',
+        'Rear': vehicleStats ? vehicleStats.rear : '*',
+        'HP': vehicleStats ? vehicleStats.hull_points : '*',
+        'Hnd': vehicle ? `${vehicle.handling}+` : '*',
+        'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+        'Ld': `${adjustedStats.leadership}+`,
+        'Cl': `${adjustedStats.cool}+`,
+        'Wil': `${adjustedStats.willpower}+`,
+        'Int': `${adjustedStats.intelligence}+`,
+        'XP': xp
+      };
+    } else {
+      return {
+        'M': `${adjustedStats.movement}"`,
+        'WS': `${adjustedStats.weapon_skill}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
+        'S': adjustedStats.strength,
+        'T': adjustedStats.toughness,
+        'W': adjustedStats.wounds,
+        'I': `${adjustedStats.initiative}+`,
+        'A': adjustedStats.attacks,
+        'Ld': `${adjustedStats.leadership}+`,
+        'Cl': `${adjustedStats.cool}+`,
+        'Wil': `${adjustedStats.willpower}+`,
+        'Int': `${adjustedStats.intelligence}+`,
+        'XP': xp
+      };
+    }
+  }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
 
-  const stats: Record<string, string | number> = isCrew ? {
-    'M': vehicleStats ? `${vehicleStats.movement}"` : '*',
-    'Front': vehicleStats ? vehicleStats.front : '*',
-    'Side': vehicleStats ? vehicleStats.side : '*', 
-    'Rear': vehicleStats ? vehicleStats.rear : '*',
-    'HP': vehicleStats ? vehicleStats.hull_points : '*',
-    'Hnd': vehicle ? `${vehicle.handling}+` : '*',
-    'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-    'Ld': `${adjustedStats.leadership}+`,
-    'Cl': `${adjustedStats.cool}+`,
-    'Wil': `${adjustedStats.willpower}+`,
-    'Int': `${adjustedStats.intelligence}+`,
-    'XP': xp
-  } : {
-    'M': `${adjustedStats.movement}"`,
-    'WS': `${adjustedStats.weapon_skill}+`,
-    'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-    'S': adjustedStats.strength,
-    'T': adjustedStats.toughness,
-    'W': adjustedStats.wounds,
-    'I': `${adjustedStats.initiative}+`,
-    'A': adjustedStats.attacks,
-    'Ld': `${adjustedStats.leadership}+`,
-    'Cl': `${adjustedStats.cool}+`,
-    'Wil': `${adjustedStats.willpower}+`,
-    'Int': `${adjustedStats.intelligence}+`,
-    'XP': xp
-  };
+  const isInactive = killed || retired;
 
   const formatUpgradeSlots = (vehicle: Vehicle) => {
     const slots = [];
+    
+    // Count upgrades by type
+    const countUpgradesByType = (type: string) => {
+      return vehicle.equipment?.reduce((count, equip) => {
+        const hasUpgradeType = equip.vehicle_equipment_profiles?.some(
+          profile => profile.upgrade_type === type
+        );
+        return hasUpgradeType ? count + 1 : count;
+      }, 0) || 0;
+    };
+
     if (vehicle.body_slots) {
-      const occupied = vehicle.body_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.body_slots} Body`);
+      const bodyUpgrades = countUpgradesByType('body');
+      slots.push(`${bodyUpgrades}/${vehicle.body_slots} Body`);
     }
+    
     if (vehicle.drive_slots) {
-      const occupied = vehicle.drive_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.drive_slots} Drive`);
+      const driveUpgrades = countUpgradesByType('drive');
+      slots.push(`${driveUpgrades}/${vehicle.drive_slots} Drive`);
     }
+    
     if (vehicle.engine_slots) {
-      const occupied = vehicle.engine_slots_occupied || 0;
-      slots.push(`${occupied}/${vehicle.engine_slots} Engine`);
+      const engineUpgrades = countUpgradesByType('engine');
+      slots.push(`${engineUpgrades}/${vehicle.engine_slots} Engine`);
     }
+    
     return slots.join(', ');
   };
+
+  // Update the getVehicleWeapons function
+  const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
+    if (!vehicle?.equipment) return [];
+    
+    return vehicle.equipment
+      .filter(item => item.equipment_type === 'weapon')
+      .map(weapon => ({
+        fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
+        weapon_id: weapon.equipment_id,
+        weapon_name: weapon.equipment_name,
+        weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+          ...profile,
+          // Keep numeric types
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          traits: profile.traits || '',
+          id: profile.id,
+          profile_name: profile.profile_name,
+          is_default_profile: profile.is_default_profile
+        })) || [],
+        cost: weapon.cost
+      })) as unknown as Weapon[]; // Use double type assertion to avoid type mismatch
+  };
+
+  // Update the vehicle upgrades filter to exclude weapons
+  const vehicleUpgrades = vehicle?.equipment?.filter(
+    (item): item is (Equipment & Partial<VehicleEquipment>) => 
+      item.equipment_type === 'vehicle_upgrade' || 
+      item.equipment_type === 'wargear'  // Remove 'weapon' from the filter
+  ) || [];
+
+  // Get vehicle weapons
+  const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
 
   useEffect(() => {
     const checkHeight = () => {
@@ -248,9 +312,8 @@ const FighterCard = memo(function FighterCard({
     };
   }, [special_rules]);
 
-  return (
-    <Link href={`/fighter/${id}`}>
-      <div 
+  const cardContent = (
+    <div 
         className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-4 border-black p-4 print:print-fighter-card"
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
@@ -305,9 +368,25 @@ const FighterCard = memo(function FighterCard({
         {!isInactive && (
           <>
             <StatsTable data={stats} isCrew={isCrew} />
-            {weapons && weapons.length > 0 && (
+            
+            {/* Show fighter weapons */}
+            {!isCrew && weapons && weapons.length > 0 && (
               <div className="mt-4">
                 <WeaponTable weapons={weapons} />
+              </div>
+            )}
+
+            {/* Show crew weapons */}
+            {isCrew && weapons && weapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={weapons} entity="crew" />
+              </div>
+            )}
+
+            {/* Add vehicle weapons section */}
+            {isCrew && vehicleWeapons.length > 0 && (
+              <div className="mt-4">
+                <WeaponTable weapons={vehicleWeapons} entity="vehicle" />
               </div>
             )}
             <div className={`grid gap-y-3 mt-4 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
@@ -346,10 +425,23 @@ const FighterCard = memo(function FighterCard({
                   </div>
                 </>
               )}
+              {isCrew && vehicleUpgrades.length > 0 && (
+                <>
+                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Upgrades</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {vehicleUpgrades
+                      .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                      .map(upgrade => upgrade.equipment_name)
+                      .join(', ')}
+                  </div>
+                </>
+              )}
               {isCrew && vehicle && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                  <div className="min-w-[0px] text-sm break-words">{vehicle.vehicle_name} - {vehicle.vehicle_type}</div>
+                  <div className="min-w-[0px] text-sm break-words">
+                    {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
+                  </div>
                   
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Slots</div>
                   <div className="min-w-[0px] text-sm break-words">
@@ -358,7 +450,7 @@ const FighterCard = memo(function FighterCard({
 
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {vehicle.special_rules.join(', ')}
+                    {Array.isArray(vehicle?.special_rules) ? vehicle.special_rules.join(', ') : ''}
                   </div>
                 </>
               )}
@@ -386,8 +478,13 @@ const FighterCard = memo(function FighterCard({
               )}
             </div>
           </>
-        )}
-      </div>
+      )}
+    </div>
+  );
+  //this link check is needed to prevent the card from being clickable when it's being dragged. Unless there is some other way to do this?
+  return disableLink ? cardContent : (
+    <Link href={`/fighter/${id}`}>
+      {cardContent}
     </Link>
   );
 });

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { Database } from "@/types/supabase"
@@ -99,10 +99,14 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
 
       setIsLoading(true)
       try {
-        // First get the gangs
+        // Combine the queries into a single join operation
         const { data: gangsData, error: gangsError } = await supabase
           .from('gangs')
-          .select('*')
+          .select(`
+            *,
+            gang_types(gang_type),
+            profiles(username)
+          `)
           .ilike('name', `%${query}%`)
           .limit(5)
 
@@ -142,7 +146,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
         )
 
         // Transform the data to include gang_type and username
-        const transformedData = gangsData.map(gang => ({
+        const transformedResults = gangsData.map(gang => ({
           ...gang,
           gang_type: gangTypeMap[gang.gang_type_id],
           user: {
@@ -151,7 +155,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
         }))
 
         // Filter out gangs that are already in the campaign
-        const filteredResults = transformedData.filter(
+        const filteredResults = transformedResults.filter(
           gang => !campaignGangs.some(cGang => cGang.id === gang.id)
         )
         setSearchResults(filteredResults)

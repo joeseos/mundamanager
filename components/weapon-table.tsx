@@ -3,9 +3,10 @@ import { Weapon, WeaponProfile } from '@/types/weapon';
 
 interface WeaponTableProps {
   weapons: Weapon[];
+  entity?: 'crew' | 'vehicle';
 }
 
-const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
+const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
   if (!weapons || weapons.length === 0) {
     return <p>No weapons available.</p>;
   }
@@ -16,19 +17,22 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
       if (value === null || value === undefined) return '-';
       return value.toString();
     },
-    formatAccuracy: (value: number | null): string => {
-      if (value === null || value === 0) return '-';
+    formatAccuracy: (value: number | null | undefined): string => {
+      if (value === null || value === undefined) return '-';
       return value.toString();
     },
-    formatAp: (value: number): string => {
-      return value === 0 ? '-' : value.toString();
+    formatAp: (value: number | null | undefined): string => {
+      if (value === null || value === undefined || value === 0) return '-';
+      return value.toString();
     },
-    formatAmmo: (value: number): string => {
-      return value === 0 ? '-' : value.toString();
+    formatAmmo: (value: number | null | undefined): string => {
+      if (value === null || value === undefined || value === 0) return '-';
+      return value.toString();
     }
   }), []);
 
-  const formatStrength = (strength: string) => {
+  const formatStrength = (strength: string | null | undefined) => {
+    if (strength === null || strength === undefined) return '-';
     return strength.toString();
   };
 
@@ -69,7 +73,9 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons }) => {
         </colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1 align-bottom" rowSpan={2}>Weapon</th>
+            <th className="text-left p-1 align-bottom" rowSpan={2}>
+              {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
+            </th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Range</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>

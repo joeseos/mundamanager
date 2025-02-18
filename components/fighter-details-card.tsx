@@ -81,6 +81,7 @@ interface FighterDetailsCardProps {
     }>;
   }>;
   vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
+  gangId: string;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -164,6 +165,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   injuries,
   vehicles,
   vehicleEquipment = [],
+  gangId
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({

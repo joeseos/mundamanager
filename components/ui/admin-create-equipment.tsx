@@ -36,6 +36,7 @@ interface VehicleProfile {
   rear: string;
   hull_points: string;
   save: string;
+  upgrade_type?: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -71,7 +72,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     side: '',
     rear: '',
     hull_points: '',
-    save: ''
+    save: '',
+    upgrade_type: ''
   }]);
   
   const { toast } = useToast();
@@ -189,7 +191,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         side: profile.side || null,
         rear: profile.rear || null,
         hull_points: profile.hull_points || null,
-        save: profile.save || null
+        save: profile.save || null,
+        upgrade_type: profile.upgrade_type || null
       })) : undefined;
 
       const response = await fetch('/api/admin/equipment', {
@@ -241,7 +244,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Add Equipment</h3>
@@ -265,7 +268,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 type="text"
                 value={equipmentName}
                 onChange={(e) => setEquipmentName(e.target.value)}
-                placeholder="e.g. Bolt Pistol, Combat Knife, etc."
+                placeholder="E.g. Bolt pistol, Combat knife"
                 className="w-full"
               />
             </div>
@@ -278,7 +281,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 type="text"
                 value={tradingPostCategory}
                 onChange={(e) => setTradingPostCategory(e.target.value)}
-                placeholder="Enter trading post category"
+                placeholder="E.g. Core Trading Post"
                 className="w-full"
               />
             </div>
@@ -291,7 +294,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 type="text"
                 value={availability}
                 onChange={(e) => setAvailability(e.target.value)}
-                placeholder="Enter availability"
+                placeholder="E.g. E, C, R9, I13"
                 className="w-full"
               />
             </div>
@@ -304,7 +307,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 type="number"
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
-                placeholder="Enter cost in credits"
+                placeholder="E.g. 130"
                 className="w-full"
                 min="0"
               />
@@ -657,6 +660,22 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
                           placeholder="Enter save value"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Upgrade Type
+                        </label>
+                        <select
+                          value={vehicleProfiles[0].upgrade_type || ''}
+                          onChange={(e) => handleVehicleProfileChange(0, 'upgrade_type', e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Select upgrade type</option>
+                          <option value="body">Body</option>
+                          <option value="drive">Drive</option>
+                          <option value="engine">Engine</option>
+                        </select>
                       </div>
                     </div>
                   </div>

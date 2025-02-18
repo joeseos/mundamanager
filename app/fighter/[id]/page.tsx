@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
 import { WeaponList } from "@/components/weapon-list";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
@@ -71,6 +71,16 @@ interface Injury {
   characteristic_1?: number;
   code_2?: string;
   characteristic_2?: number;
+}
+
+interface Campaign {
+  campaign_id: string;
+  campaign_name: string;
+  role: string | null;
+  status: string | null;
+  has_meat: boolean;
+  has_exploration_points: boolean;
+  has_scavenging_rolls: boolean;
 }
 
 interface Fighter {
@@ -175,11 +185,14 @@ interface Fighter {
       weapon_profiles?: WeaponProfile[];
     }>;
   }>;
+  campaigns?: Campaign[];
 }
 
 interface Gang {
   id: string;
   credits: number;
+  positioning?: Record<number, string>;
+  gang_type_id: string;
 }
 
 interface Advancement {
@@ -236,6 +249,15 @@ interface EditState {
   xpAmount: string;
   xpError: string;
 }
+
+const VEHICLE_EQUIPMENT_CATEGORIES = [
+  "Ammo",
+  "Basic Weapons", 
+  "Special Weapons",
+  "Heavy Weapons",
+  "Vehicle Upgrades",
+  "Vehicle Wargear"
+];
 
 const calculateInjuryModifications = (injuries: Array<{
   code_1?: string;
@@ -299,6 +321,32 @@ const transformFighterData = (fighter: Fighter | null) => {
     skills: transformedSkills,
     advancements: fighter.advancements || [],
     note: fighter.note || ''
+  };
+};
+
+// Regular function outside component
+const transformFighterChangesData = (fighter: Fighter | null) => {
+  if (!fighter) return { advancement: [], characteristics: [], skills: {} };
+  
+  // Transform the skills object to include is_advance
+  const transformedSkills = Object.entries(fighter.skills || {}).reduce((acc, [key, value]) => {
+    acc[key] = {
+      ...value,
+      is_advance: true  // Add the missing is_advance property
+    };
+    return acc;
+  }, {} as Record<string, {
+    id: string;
+    xp_cost: number;
+    credits_increase: number;
+    acquired_at: string;
+    is_advance: boolean;
+  }>);
+  
+  return {
+    advancement: fighter.fighter_changes?.advancement || [],
+    characteristics: fighter.characteristics || [],
+    skills: transformedSkills
   };
 };
 
@@ -488,7 +536,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         vehicleEquipment: transformedVehicleEquipment,
         gang: {
           id: result.gang.id,
-          credits: result.gang.credits
+          credits: result.gang.credits,
+          gang_type_id: result.gang.gang_type_id
         }
       }));
 
@@ -522,7 +571,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
-      const response = await fetch(
+      // First delete the fighter and their equipment
+      const deleteResponse = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/delete_fighter_and_equipment',
         {
           method: 'POST',
@@ -550,8 +600,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.json();
         throw new Error(errorData.message || 'Failed to delete fighter');
       }
 
@@ -1276,6 +1326,22 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Keep the meat-checking functionality
+  const isMeatEnabled = useCallback(() => {
+    return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
+  }, [fighterData.fighter?.campaigns]);
+
+  // Memoize the transform function inside the component
+  const transformFighterChanges = useCallback((fighter: Fighter | null) => {
+    return transformFighterChangesData(fighter);
+  }, []);
+
+  // Memoize the transformed data
+  const memoizedFighterChanges = useMemo(() => 
+    transformFighterChanges(fighterData.fighter),
+    [fighterData.fighter, transformFighterChanges]
+  );
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1344,6 +1410,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             kills={fighterData.fighter?.kills || 0}
             injuries={fighterData.fighter?.injuries || []}
             vehicles={fighterData.fighter?.vehicles}
+            gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
           />
           
@@ -1394,7 +1461,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
-            fighterChanges={transformFighterData(fighterData.fighter)}
+            fighterChanges={memoizedFighterChanges}
             fighterId={fighterData.fighter?.id || ''}
             onAdvancementDeleted={fetchFighterData}
           />
@@ -1437,35 +1504,37 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="default"
-                className="flex-1 min-w-[200px] bg-primary text-primary-foreground hover:bg-primary/90"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => handleModalToggle('kill', true)}
               >
                 {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.retired ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('retire', true)}
               >
                 {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('enslave', true)}
               >
                 {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
               </Button>
-              <Button
-                variant={fighterData.fighter?.starved ? 'success' : 'default'}
-                className="flex-1 min-w-[200px]"
-                onClick={() => handleModalToggle('starve', true)}
-              >
-                {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
-              </Button>
+              {isMeatEnabled() && (
+                <Button
+                  variant={fighterData.fighter?.starved ? 'success' : 'default'}
+                  className="flex-1"
+                  onClick={() => handleModalToggle('starve', true)}
+                >
+                  {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
+                </Button>
+              )}
               <Button 
                 variant="destructive"
-                className="flex-1 min-w-[200px]"
+                className="flex-1"
                 onClick={() => handleModalToggle('delete', true)}
               >
                 Delete Fighter
@@ -1747,6 +1816,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
               }
               isVehicleEquipment={true}
+              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
             />
           )}
           

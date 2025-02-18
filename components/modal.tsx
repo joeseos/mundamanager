@@ -48,7 +48,7 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           <div className="flex items-center gap-3">

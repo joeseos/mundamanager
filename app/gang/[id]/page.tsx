@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { redirect } from "next/navigation";
-import Gang from "@/components/gang";
 import { createClient } from "@/utils/supabase/client";
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
@@ -55,6 +54,15 @@ async function processGangData(gangData: any) {
     // Filter out null equipment entries and process equipment
     const validEquipment = (fighter.equipment?.filter((item: Equipment | null) => item !== null) || []) as Equipment[];
     
+    // Ensure vehicle data is properly structured
+    const vehicle = fighter.vehicles?.[0] ? {
+      ...fighter.vehicles[0],
+      equipment: fighter.vehicles[0].equipment?.map((item: any) => ({
+        ...item,
+        vehicle_equipment_profiles: item.vehicle_equipment_profiles || []
+      })) || []
+    } : undefined;
+
     return {
       id: fighter.id,
       fighter_name: fighter.fighter_name,
@@ -106,6 +114,7 @@ async function processGangData(gangData: any) {
       enslaved: fighter.enslaved || false,
       starved: fighter.starved || false,
       free_skill: fighter.free_skill || false,
+      vehicle,
     };
   });
 
@@ -132,7 +141,7 @@ async function processGangData(gangData: any) {
   const fighterTypes = await response.json();
 
   // Map the fighter types to match the expected interface and sort by cost
-const processedFighterTypes = (
+  const processedFighterTypes = (
     fighterTypes
       .map((type: FighterTypeResponse) => ({
         id: type.id,
@@ -151,13 +160,102 @@ const processedFighterTypes = (
     }
     return (a.fighter_type || "").localeCompare(b.fighter_type || ""); // Secondary sorting: By fighter_type
   });
+  
+  // init or fix positioning for all fighters
+  let positioning = gangData.positioning || {};
 
+  // If no positions exist, create initial positions sorted by fighter name
+  if (Object.keys(positioning).length === 0) {
+    const sortedFighters = [...processedFighters].sort((a, b) => 
+      a.fighter_name.localeCompare(b.fighter_name)
+    );
+    
+    positioning = sortedFighters.reduce((acc, fighter, index) => ({
+      ...acc,
+      [index]: fighter.id
+    }), {});
+  } else {
+    // First, filter out any positions referencing non-existent fighters
+    const validFighterIds = new Set(processedFighters.map((f: FighterProps) => f.id));
+    const validPositions: Record<string, string> = {};
+    
+    Object.entries(positioning as Record<string, string>).forEach(([pos, fighterId]) => {
+      if (validFighterIds.has(fighterId)) {
+        validPositions[pos] = fighterId;
+      }
+    });
+
+    // Handle existing positions - fix any gaps
+    const currentPositions = Object.keys(validPositions).map(pos => Number(pos)).sort((a, b) => a - b);
+    let expectedPosition = 0;
+    const positionMapping: Record<number, number> = {};
+
+    currentPositions.forEach(position => {
+      positionMapping[position] = expectedPosition;
+      expectedPosition++;
+    });
+
+    // Create new positioning object with corrected positions
+    const newPositioning: Record<number, string> = {};
+    for (const [pos, fighterId] of Object.entries(validPositions)) {
+      newPositioning[positionMapping[Number(pos)] ?? expectedPosition++] = fighterId;
+    }
+    positioning = newPositioning;
+
+    // make sure each fighter has a position
+    processedFighters.forEach((fighter: FighterProps) => {
+      if (!Object.values(positioning).includes(fighter.id)) {
+        positioning[expectedPosition++] = fighter.id;
+      }
+    });
+  }
+
+  // Check if positions have changed from what's in the database
+  const positionsHaveChanged = !gangData.positioning || 
+    Object.entries(positioning).some(
+      ([id, pos]) => gangData.positioning[id] !== pos
+    );
+
+  // Update database if positions have changed
+  if (positionsHaveChanged) {
+    const { error } = await supabase
+      .from('gangs')
+      .update({ positioning })
+      .eq('id', gangData.id);
+
+    if (error) {
+      console.error('Error updating positions:', error);
+    }
+  }
+
+  // Get campaign settings from the campaigns array
+  const campaign = gangData.campaigns?.[0];
+  
   return {
     ...gangData,
     alignment: gangData.alignment,
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes, // Use processed fighter types
+    fighterTypes: processedFighterTypes,
+    campaigns: gangData.campaigns?.map((campaign: any) => ({
+      campaign_id: campaign.campaign_id,
+      campaign_name: campaign.campaign_name,
+      role: campaign.role,
+      status: campaign.status,
+      has_meat: campaign.has_meat ?? false,
+      has_exploration_points: campaign.has_exploration_points ?? false
+    })),
+    stash: (gangData.stash || []).map((item: any) => ({
+      id: item.id,
+      equipment_name: item.equipment_name,
+      vehicle_name: item.vehicle_name,
+      cost: item.cost,
+      type: item.type || 'equipment',
+      equipment_type: item.equipment_type,
+      equipment_category: item.equipment_category,
+      vehicle_id: item.vehicle_id
+    })),
     vehicles: gangData.vehicles || [],
+    positioning
   };
 }
 
@@ -182,11 +280,13 @@ interface GangDataState {
     stash: StashItem[];
     vehicles: VehicleProps[];
     note?: string;
+    positioning: Record<number, string>;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
   onVehicleUpdate: (newVehicles: VehicleProps[]) => void;
   onFighterUpdate: (updatedFighter: FighterProps) => void;
+
 }
 
 export default function GangPage({ params }: { params: { id: string } }) {
@@ -216,12 +316,21 @@ export default function GangPage({ params }: { params: { id: string } }) {
         }
 
         const [data] = await response.json();
+        console.log('API Response:', data?.campaigns?.[0]); // Log the campaign data
+
         if (!data) {
           return redirect("/");
         }
 
         const processedData = await processGangData(data);
+        console.log('Processed Data:', {
+          has_meat: processedData.campaign_has_meat,
+          has_exploration: processedData.campaign_has_exploration_points,
+          has_scavenging: processedData.campaign_has_scavenging_rolls
+        });
         
+
+        console.log('processedData', processedData.positioning );
         if (isSubscribed) {
           setGangData({
             processedData,
@@ -313,7 +422,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           processedData={gangData.processedData} 
           gangData={{
             ...gangData,
-            onVehicleAdd: handleVehicleAdd // Pass the handler down
+            onVehicleAdd: handleVehicleAdd
           }} 
         />
         <GangInventory
@@ -321,11 +430,26 @@ export default function GangPage({ params }: { params: { id: string } }) {
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={gangData.onStashUpdate}
+          onFighterUpdate={(updatedFighter) => {
+            setGangData(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                processedData: {
+                  ...prev.processedData,
+                  fighters: prev.processedData.fighters.map(f => 
+                    f.id === updatedFighter.id ? updatedFighter : f
+                  )
+                }
+              };
+            });
+          }}
+          vehicles={gangData.processedData.vehicles || []}
         />
-        <GangVehicles 
-          vehicles={gangData.processedData.vehicles || []} 
-          fighters={gangData.processedData.fighters}
-          gangId={gangData.processedData.id}
+        <GangVehicles
+          vehicles={gangData.processedData.vehicles || []}
+          fighters={gangData.processedData.fighters || []}
+          gangId={params.id}
           onVehicleUpdate={gangData.onVehicleUpdate}
           onFighterUpdate={gangData.onFighterUpdate}
         />
