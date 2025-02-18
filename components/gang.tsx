@@ -129,6 +129,10 @@ export default function Gang({
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
+  const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
+  const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
+  const [gangAdditionCost, setGangAdditionCost] = useState('');
+  const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -529,6 +533,34 @@ export default function Gang({
     fetchVehicleTypes();
   }, [id]);
 
+  useEffect(() => {
+    const fetchGangAdditionTypes = async () => {
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({
+              "p_gang_type_id": "c3b4d7e8-149a-4cad-85fd-c06f0aa771eb"
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch gang addition types');
+        const data = await response.json();
+        setGangAdditionTypes(data);
+      } catch (error) {
+        console.error('Error fetching gang addition types:', error);
+      }
+    };
+
+    fetchGangAdditionTypes();
+  }, []);
+
   const handleAddVehicle = async () => {
     if (!selectedVehicleTypeId) {
       setVehicleError('Please select a vehicle type');
@@ -637,6 +669,20 @@ export default function Gang({
         description: "Failed to update fighter positions",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleGangAdditionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const typeId = e.target.value;
+    setSelectedGangAdditionTypeId(typeId);
+    setSelectedFighterTypeId(typeId);
+    if (typeId) {
+      const selectedType = gangAdditionTypes.find(t => t.id === typeId);
+      setGangAdditionCost(selectedType?.total_cost.toString() || '');
+      setFighterCost(selectedType?.total_cost.toString() || '');
+    } else {
+      setGangAdditionCost('');
+      setFighterCost('');
     }
   };
 
@@ -760,16 +806,22 @@ export default function Gang({
           </div>
           <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
             <Button
+              onClick={() => setShowAddFighterModal(true)}
+              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+            >
+              Add Fighter
+            </Button>
+            <Button
               onClick={() => setShowAddVehicleModal(true)}
               className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
             >
               Add Vehicle
             </Button>
             <Button
-              onClick={() => setShowAddFighterModal(true)}
-              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+              onClick={() => setShowGangAdditionsModal(true)}
+              className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
             >
-              Add Fighter
+              Gang Additions
             </Button>
           </div>
         </div>
@@ -878,6 +930,76 @@ export default function Gang({
             onConfirm={handleAddVehicle}
             confirmText="Add Vehicle"
             confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
+          />
+        )}
+
+        {showGangAdditionsModal && (
+          <Modal
+            title="Gang Additions"
+            content={
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Fighter Name
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Fighter name"
+                    value={fighterName}
+                    onChange={(e) => setFighterName(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Fighter Type
+                  </label>
+                  <select
+                    value={selectedGangAdditionTypeId}
+                    onChange={handleGangAdditionTypeChange}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select fighter type</option>
+                    {gangAdditionTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.fighter_type} ({type.fighter_class}) - {type.total_cost} credits
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cost (credits)
+                  </label>
+                  <Input
+                    type="number"
+                    value={fighterCost}
+                    onChange={(e) => setFighterCost(e.target.value)}
+                    className="w-full"
+                    min={0}
+                  />
+                  {selectedGangAdditionTypeId && (
+                    <p className="text-sm text-gray-500">
+                      Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
+                    </p>
+                  )}
+                </div>
+
+                {fetchError && <p className="text-red-500">{fetchError}</p>}
+              </div>
+            }
+            onClose={() => {
+              setShowGangAdditionsModal(false);
+              setFighterName('');
+              setSelectedGangAdditionTypeId('');
+              setFighterCost('');
+              setFetchError(null);
+            }}
+            onConfirm={handleAddFighter}
+            confirmText="Add Fighter"
+            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost}
           />
         )}
       </div>
