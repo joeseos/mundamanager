@@ -430,6 +430,20 @@ export default function GangPage({ params }: { params: { id: string } }) {
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={gangData.onStashUpdate}
+          onFighterUpdate={(updatedFighter) => {
+            setGangData(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                processedData: {
+                  ...prev.processedData,
+                  fighters: prev.processedData.fighters.map(f => 
+                    f.id === updatedFighter.id ? updatedFighter : f
+                  )
+                }
+              };
+            });
+          }}
           vehicles={gangData.processedData.vehicles || []}
         />
         <GangVehicles

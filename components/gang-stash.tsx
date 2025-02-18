@@ -14,6 +14,7 @@ interface GangInventoryProps {
   fighters: FighterProps[];
   title?: string;
   onStashUpdate?: (newStash: StashItem[]) => void;
+  onFighterUpdate?: (updatedFighter: FighterProps) => void;
   vehicles?: VehicleProps[];
 }
 
@@ -22,6 +23,7 @@ export default function GangInventory({
   fighters: initialFighters,
   title = 'Gang Stash',
   onStashUpdate,
+  onFighterUpdate,
   vehicles = []
 }: GangInventoryProps) {
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
@@ -80,13 +82,21 @@ export default function GangInventory({
     fighters.find(f => f.id === id);
 
   const handleMoveToFighter = async () => {
-    if (!selectedItem || !selectedFighter || !session) return;
+    if (selectedItem === null || !selectedFighter || !session) return;
 
     setIsLoading(true);
     try {
       const stashItem = stash[selectedItem];
       const isVehicleTarget = selectedFighter.startsWith('vehicle-');
       const targetId = isVehicleTarget ? selectedFighter.replace('vehicle-', '') : selectedFighter;
+
+      const requestBody = {
+        p_stash_id: stashItem.id,
+        ...(isVehicleTarget 
+          ? { p_vehicle_id: targetId }
+          : { p_fighter_id: targetId }
+        )
+      };
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_from_stash`,
@@ -97,24 +107,65 @@ export default function GangInventory({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            p_stash_id: stashItem.id,
-            ...(isVehicleTarget 
-              ? { p_vehicle_id: targetId }
-              : { p_fighter_id: targetId }
-            )
-          })
+          body: JSON.stringify(requestBody)
         }
       );
 
-      if (!response.ok) throw new Error('Failed to move item from stash');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to move item from stash: ${errorText}`);
+      }
 
-      // Update local state
+      // Update local stash state
       const newStash = stash.filter((_, index) => index !== selectedItem);
       setStash(newStash);
+      
+      // Update fighter/vehicle state optimistically
+      const targetFighter = fighters.find(f => f.id === targetId);
+      if (targetFighter && !isVehicleTarget) {
+        const updatedFighter: FighterProps = {
+          ...targetFighter,
+          credits: targetFighter.credits + (stashItem.cost || 0),
+          weapons: stashItem.equipment_type === 'weapon' 
+            ? [
+                ...(targetFighter.weapons || []),
+                {
+                  weapon_name: stashItem.equipment_name || '',
+                  weapon_id: stashItem.id,
+                  cost: stashItem.cost || 0,
+                  fighter_weapon_id: stashItem.id,
+                  weapon_profiles: [] // Initialize with empty profiles
+                }
+              ]
+            : targetFighter.weapons || [],
+          wargear: stashItem.equipment_type === 'wargear'
+            ? [
+                ...(targetFighter.wargear || []),
+                {
+                  wargear_name: stashItem.equipment_name || '',
+                  wargear_id: stashItem.id,
+                  cost: stashItem.cost || 0,
+                  fighter_weapon_id: stashItem.id
+                }
+              ]
+            : targetFighter.wargear || []
+        };
+
+        setFighters(prev => 
+          prev.map(f => f.id === targetId ? updatedFighter : f)
+        );
+
+        // Call the parent update function if provided
+        if (onFighterUpdate) {
+          onFighterUpdate(updatedFighter);
+        }
+      }
+
+      // Reset selection states
       setSelectedItem(null);
       setSelectedFighter('');
       
+      // Update parent component state
       if (onStashUpdate) {
         onStashUpdate(newStash);
       }
@@ -286,7 +337,14 @@ export default function GangInventory({
                 </select>
 
                 <Button
-                  onClick={handleMoveToFighter}
+                  onClick={() => {
+                    console.log('Move button clicked', {
+                      selectedItem,
+                      selectedFighter,
+                      isLoading
+                    });
+                    handleMoveToFighter();
+                  }}
                   disabled={
                     selectedItem === null || 
                     !selectedFighter || 
