@@ -26,6 +26,7 @@ interface WeaponProfile {
   traits: string;
   is_default_profile: boolean;
   weapon_group_id?: string | null;
+  sort_order: number;
 }
 
 interface VehicleProfile {
@@ -61,7 +62,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     damage: '',
     ammo: '',
     traits: '',
-    is_default_profile: true
+    is_default_profile: true,
+    sort_order: 1
   }]);
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
   const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
@@ -141,7 +143,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         ammo: '',
         traits: '',
         is_default_profile: false,
-        weapon_group_id: null
+        weapon_group_id: null,
+        sort_order: weaponProfiles.length + 1
       }
     ]);
   };
@@ -418,7 +421,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                 <div className="space-y-4 max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 p-4">
                   {weaponProfiles.map((profile, index) => (
-                    <div key={index} className="border p-4 rounded-lg space-y-4 bg-white">
+                    <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
                       <div className="flex justify-between items-center">
                         <h5 className="font-medium">Profile {index + 1}</h5>
                         {index > 0 && (
@@ -568,6 +571,23 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <p className="text-sm text-gray-500 mt-1">
                             Select a weapon to share profiles with, or leave empty to use this weapon.
                           </p>
+                        </div>
+
+                        <div className="col-span-1 w-24">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Sort Order
+                          </label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={profile.sort_order || ''}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              handleProfileChange(index, 'sort_order', parseInt(value) || 0);
+                            }}
+                            placeholder="#"
+                          />
                         </div>
                       </div>
                     </div>
