@@ -1,3 +1,5 @@
+CREATE OR REPLACE FUNCTION delete_fighter_and_equipment(fighter_id UUID, operations JSONB)
+RETURNS TEXT AS $$
 DECLARE
   op JSONB;
   result TEXT := '';
@@ -52,7 +54,7 @@ BEGIN
         RAISE;
       END;
     END LOOP;
-    
+
     -- Update the gang's rating
     UPDATE gangs
     SET rating = GREATEST(0, rating - fighter_credits)
@@ -70,3 +72,7 @@ BEGIN
     RETURN 'Transaction failed: ' || result || SQLERRM;
   END;
 END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION delete_fighter_and_equipment(UUID, JSONB) TO authenticated;

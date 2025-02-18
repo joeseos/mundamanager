@@ -1,4 +1,18 @@
+-- First drop both versions of the function
+DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID);
+DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER);
+DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[]);
 
+CREATE OR REPLACE FUNCTION add_fighter_to_gang(
+  p_fighter_name TEXT,
+  p_fighter_type_id UUID,
+  p_gang_id UUID,
+  p_cost INTEGER = NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $function$
 DECLARE
   v_fighter_id UUID;
   v_fighter_cost INTEGER;
@@ -16,7 +30,7 @@ DECLARE
 BEGIN
   -- Get fighter type details and gang credits in a single query
   WITH fighter_and_gang AS (
-    SELECT
+    SELECT 
       ft.fighter_type,
       fc.class_name as fighter_class,
       fc.id as fighter_class_id,
@@ -29,14 +43,14 @@ BEGIN
     WHERE ft.id = p_fighter_type_id
     AND g.id = p_gang_id
   )
-  SELECT
+  SELECT 
     fighter_type,
     fighter_class,
     fighter_class_id,
     free_skill,
     fighter_cost,
     gang_credits
-  INTO
+  INTO 
     v_fighter_type,
     v_fighter_class,
     v_fighter_class_id,
@@ -53,8 +67,8 @@ BEGIN
   BEGIN
     -- Insert the fighter
     INSERT INTO fighters (
-      fighter_name,
-      gang_id,
+      fighter_name, 
+      gang_id, 
       fighter_type_id,
       fighter_class_id,
       fighter_type,
@@ -77,7 +91,7 @@ BEGIN
       kills,
       special_rules
     )
-    SELECT
+    SELECT 
       p_fighter_name,
       p_gang_id,
       p_fighter_type_id,
@@ -111,8 +125,8 @@ BEGIN
     -- Get and insert equipment in a single step, now including purchase_cost
     WITH equipment_insert AS (
       INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
-      SELECT
-        v_fighter_id,
+      SELECT 
+        v_fighter_id, 
         fd.equipment_id,
         e.cost as original_cost,  -- Store the original equipment cost
         0 as purchase_cost        -- Default equipment is free
@@ -123,7 +137,7 @@ BEGIN
       RETURNING id as fighter_equipment_id, equipment_id, original_cost, purchase_cost
     ),
     equipment_details AS (
-      SELECT
+      SELECT 
         ei.fighter_equipment_id,
         e.id as equipment_id,
         e.equipment_name,
@@ -154,7 +168,7 @@ BEGIN
       FROM equipment_insert ei
       JOIN equipment e ON e.id = ei.equipment_id
     )
-    SELECT
+    SELECT 
       jsonb_agg(
         jsonb_build_object(
           'fighter_equipment_id', fighter_equipment_id,
@@ -166,7 +180,7 @@ BEGIN
         )
       ),
       SUM(purchase_cost)  -- Sum the stored purchase_cost
-    INTO
+    INTO 
       v_equipment_info,
       v_total_equipment_cost
     FROM equipment_details;
@@ -174,7 +188,7 @@ BEGIN
     -- Insert default skills and get skill info
     WITH skill_insert AS (
       INSERT INTO fighter_skills (fighter_id, skill_id)
-      SELECT
+      SELECT 
         v_fighter_id,
         fd.skill_id
       FROM fighter_defaults fd
@@ -183,13 +197,13 @@ BEGIN
       RETURNING skill_id
     ),
     skill_details AS (
-      SELECT
+      SELECT 
         s.id as skill_id,
         s.name as skill_name
       FROM skill_insert si
       JOIN skills s ON s.id = si.skill_id
     )
-    SELECT
+    SELECT 
       jsonb_agg(
         jsonb_build_object(
           'skill_id', skill_id,
@@ -208,7 +222,7 @@ BEGIN
     END IF;
 
     UPDATE gangs
-    SET
+    SET 
       credits = credits - v_total_cost,
       last_updated = NOW()
     WHERE id = p_gang_id;
@@ -249,3 +263,4 @@ EXCEPTION
     GET STACKED DIAGNOSTICS v_error = MESSAGE_TEXT;
     RETURN jsonb_build_object('error', v_error);
 END;
+$function$;

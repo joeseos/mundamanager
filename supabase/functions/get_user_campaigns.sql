@@ -1,10 +1,21 @@
+DROP FUNCTION IF EXISTS get_user_campaigns(UUID);
 
+CREATE OR REPLACE FUNCTION get_user_campaigns(user_id UUID)
+RETURNS TABLE (
+    id UUID,
+    campaign_name TEXT,
+    campaign_type TEXT,
+    campaign_type_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE,
+    role TEXT,
+    status TEXT
+) AS $$
 BEGIN
     -- Log the input for debugging
     RAISE NOTICE 'Getting campaigns for user: %', user_id;
 
     RETURN QUERY
-    SELECT
+    SELECT 
         c.id,
         c.campaign_name,
         ct.campaign_type_name as campaign_type,
@@ -22,3 +33,12 @@ BEGIN
         RAISE NOTICE 'No campaigns found for user: %', user_id;
     END IF;
 END;
+$$ 
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- Revoke and grant permissions
+REVOKE ALL ON FUNCTION public.get_user_campaigns(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_user_campaigns(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_campaigns(UUID) TO service_role;

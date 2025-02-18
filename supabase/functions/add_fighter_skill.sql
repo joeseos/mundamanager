@@ -1,4 +1,13 @@
+DROP FUNCTION IF EXISTS public.add_fighter_skill;
 
+CREATE OR REPLACE FUNCTION public.add_fighter_skill(
+    credits_increase INTEGER,
+    fighter_id UUID,
+    is_advance BOOLEAN,
+    skill_id UUID,
+    xp_cost INTEGER
+)
+RETURNS JSONB AS $$
 DECLARE
     fighter_exists BOOLEAN;
     has_enough_xp BOOLEAN;
@@ -19,7 +28,7 @@ BEGIN
 
     -- Check if fighter has enough XP
     SELECT (xp >= xp_cost) INTO has_enough_xp
-    FROM fighters
+    FROM fighters 
     WHERE id = fighter_id;
 
     IF NOT has_enough_xp THEN
@@ -47,7 +56,7 @@ BEGIN
             xp_cost,
             is_advance
         )
-        RETURNING
+        RETURNING 
             fighter_skills.id,
             fighter_skills.fighter_id,
             fighter_skills.skill_id,
@@ -61,12 +70,12 @@ BEGIN
     -- Update fighter's XP and free_skill
     WITH updated AS (
         UPDATE fighters
-        SET
+        SET 
             xp = xp - xp_cost,
             free_skill = FALSE,
             updated_at = NOW()
         WHERE id = fighter_id
-        RETURNING
+        RETURNING 
             fighters.id,
             fighters.xp,
             fighters.free_skill
@@ -87,3 +96,4 @@ EXCEPTION WHEN OTHERS THEN
         'detail', SQLSTATE
     );
 END;
+$$ LANGUAGE plpgsql;

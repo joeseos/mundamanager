@@ -1,4 +1,12 @@
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS move_to_gang_stash(fighter_equipment_id UUID);
 
+-- Create new function with original parameter name
+CREATE OR REPLACE FUNCTION move_to_gang_stash(fighter_equipment_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
     v_equipment_id UUID;
     v_gang_id UUID;
@@ -7,11 +15,11 @@ DECLARE
 BEGIN
     -- Get the necessary information before deleting the fighter_equipment record
     -- Modified to check both fighter_id and vehicle_id relationships
-    SELECT
+    SELECT 
         fe.equipment_id,
         COALESCE(f.gang_id, v.gang_id) as gang_id,
         fe.purchase_cost
-    INTO
+    INTO 
         v_equipment_id,
         v_gang_id,
         v_cost
@@ -48,3 +56,9 @@ BEGIN
     -- Return the new stash item ID
     RETURN v_new_stash_id;
 END;
+$$;
+
+-- Revoke and grant permissions
+REVOKE ALL ON FUNCTION move_to_gang_stash(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID) TO service_role;

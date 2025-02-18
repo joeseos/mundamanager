@@ -1,4 +1,8 @@
-
+CREATE OR REPLACE FUNCTION public.feed_fighter(fighter_id uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   _gang_id uuid;
   _gang_meat int;
@@ -26,3 +30,4 @@ begin
     'message', 'Fighter has been fed'
   );
 end;
+$function$

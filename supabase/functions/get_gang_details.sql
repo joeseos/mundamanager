@@ -1,42 +1,68 @@
+DROP FUNCTION IF EXISTS public.get_gang_details(uuid);
 
+CREATE OR REPLACE FUNCTION public.get_gang_details(p_gang_id uuid)
+RETURNS TABLE(
+    id uuid, 
+    name text, 
+    gang_type text, 
+    gang_type_id uuid,
+    gang_type_image_url text, 
+    credits numeric, 
+    reputation numeric, 
+    meat numeric, 
+    exploration_points numeric, 
+    rating numeric, 
+    alignment alignment,
+    positioning jsonb, 
+    note text, 
+    stash json, 
+    created_at timestamp with time zone, 
+    last_updated timestamp with time zone, 
+    fighters json, 
+    campaigns json,
+    vehicles json
+)
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
 BEGIN
    RETURN QUERY
    WITH gang_fighters AS (
-       SELECT
-           f.id AS f_id,
-           f.gang_id,
-           f.fighter_name,
-           f.label,
-           ft.fighter_type,
-           f.fighter_class,
-           f.xp,
-           f.kills,
-           f.position,
-           f.movement,
-           f.weapon_skill,
-           f.ballistic_skill,
-           f.strength,
-           f.toughness,
-           f.wounds,
-           f.initiative,
-           f.attacks,
-           f.leadership,
-           f.cool,
-           f.willpower,
-           f.intelligence,
-           f.credits as base_credits,
-           f.cost_adjustment,
-           f.special_rules,
-           f.note,
-           f.killed,
-           f.starved,
-           f.retired,
-           f.enslaved,
-           f.free_skill
-       FROM fighters f
-       LEFT JOIN fighter_types ft ON ft.id = f.fighter_type_id
-       WHERE f.gang_id = p_gang_id
-   ),
+    SELECT
+        f.id AS f_id,
+        f.gang_id,
+        f.fighter_name,
+        f.label,
+        f.fighter_type,  -- Changed from ft.fighter_type to f.fighter_type
+        f.fighter_class,
+        f.xp,
+        f.kills,
+        f.position,
+        f.movement,
+        f.weapon_skill,
+        f.ballistic_skill,
+        f.strength,
+        f.toughness,
+        f.wounds,
+        f.initiative,
+        f.attacks,
+        f.leadership,
+        f.cool,
+        f.willpower,
+        f.intelligence,
+        f.credits as base_credits,
+        f.cost_adjustment,
+        f.special_rules,
+        f.note,
+        f.killed,
+        f.starved,
+        f.retired,
+        f.enslaved,
+        f.free_skill
+    FROM fighters f
+    WHERE f.gang_id = p_gang_id
+),
    fighter_injuries AS (
        SELECT 
            fi.fighter_id,
@@ -80,6 +106,7 @@ BEGIN
                            'equipment_id', e.id,
                            'equipment_name', e.equipment_name,
                            'equipment_type', e.equipment_type,
+                           'equipment_category', e.equipment_category,
                            'cost', fe.purchase_cost,
                            'weapon_profiles', (
                                SELECT COALESCE(json_agg(
@@ -126,6 +153,7 @@ BEGIN
                            'equipment_id', e.id,
                            'equipment_name', e.equipment_name,
                            'equipment_type', e.equipment_type,
+                           'equipment_category', e.equipment_category,
                            'cost', fe.purchase_cost
                        )
                    ELSE NULL
@@ -234,6 +262,7 @@ BEGIN
                            'equipment_id', e.id,
                            'equipment_name', e.equipment_name,
                            'equipment_type', e.equipment_type,
+                           'equipment_category', e.equipment_category,
                            'cost', ve.purchase_cost,
                            'weapon_profiles', (
                                SELECT COALESCE(json_agg(
@@ -293,12 +322,13 @@ BEGIN
                                WHERE vep.equipment_id = e.id
                            )
                        )
-                       WHEN e.equipment_type != 'weapon' THEN
+                   WHEN e.equipment_type != 'weapon' THEN
                        json_build_object(
                            'vehicle_weapon_id', ve.id,
                            'equipment_id', e.id,
                            'equipment_name', e.equipment_name,
                            'equipment_type', e.equipment_type,
+                           'equipment_category', e.equipment_category,
                            'cost', ve.purchase_cost,
                            'vehicle_equipment_profiles', (
                                SELECT COALESCE(json_agg(
@@ -332,8 +362,8 @@ BEGIN
                )
            ) AS equipment
        FROM fighter_equipment ve
-       LEFT JOIN equipment e ON e.id = ve.equipment_id
-       WHERE ve.vehicle_id IS NOT NULL
+LEFT JOIN equipment e ON e.id = ve.equipment_id
+WHERE ve.vehicle_id IS NOT NULL
        GROUP BY ve.vehicle_id
    ),
    gang_vehicles AS (
@@ -359,6 +389,7 @@ BEGIN
            v.vehicle_name,
            v.cost,
            v.vehicle_type_id,
+           v.vehicle_type,
            COALESCE(ve.equipment, '[]'::json) as equipment,
            COALESCE(ve.total_equipment_cost, 0) as total_equipment_cost
        FROM vehicles v
@@ -371,6 +402,7 @@ BEGIN
            gv.gang_id,
            gv.created_at,
            gv.vehicle_type_id,
+           gv.vehicle_type,
            gv.cost,
            vt.vehicle_type as vehicle_name,
            vt.movement,
@@ -423,7 +455,14 @@ BEGIN
            (COALESCE(f.base_credits, 0) + 
             COALESCE(g.total_equipment_cost, 0) + 
             COALESCE(a.total_advancement_credits, 0) +
-            COALESCE(f.cost_adjustment, 0)) as total_credits,
+            COALESCE(f.cost_adjustment, 0) +
+            COALESCE((
+                SELECT SUM(gv.cost) + SUM(COALESCE(ve.total_equipment_cost, 0))
+                FROM gang_vehicles gv
+                LEFT JOIN vehicle_equipment ve ON ve.vehicle_id = gv.id
+                WHERE gv.fighter_id = f.f_id
+                GROUP BY gv.fighter_id
+            ), 0)) as total_credits,
            COALESCE(g.equipment, '[]'::json) as equipment,
            a.advancements,
            COALESCE(i.injuries, '[]'::json) as injuries,
@@ -432,6 +471,9 @@ BEGIN
                    json_build_object(
                        'id', gv.id,
                        'created_at', gv.created_at,
+                       'vehicle_type_id', gv.vehicle_type_id,
+                       'vehicle_type', gv.vehicle_type,
+                       'cost', gv.cost,
                        'vehicle_name', gv.vehicle_name,
                        'movement', gv.movement,
                        'front', gv.front,
@@ -459,14 +501,10 @@ BEGIN
        LEFT JOIN fighter_advancements a ON a.fighter_id = f.f_id
        LEFT JOIN fighter_injuries i ON i.fighter_id = f.f_id
    ),
-   gang_totals AS (
-       SELECT 
-           SUM(total_credits) + COALESCE((
-               SELECT SUM(cost + total_equipment_cost)
-               FROM gang_owned_vehicles
-           ), 0) as total_gang_rating
-       FROM complete_fighters
-   ),
+gang_totals AS (
+    SELECT SUM(total_credits) as total_gang_rating
+    FROM complete_fighters
+),
    gang_stash AS (
        SELECT 
            gs.gang_id,
@@ -477,6 +515,7 @@ BEGIN
                    'equipment_id', gs.equipment_id,
                    'equipment_name', e.equipment_name,
                    'equipment_type', e.equipment_type,
+                   'equipment_category', e.equipment_category,
                    'cost', gs.cost,
                    'type', 'equipment'
                )
@@ -498,7 +537,10 @@ BEGIN
                    'status', cg.status,
                    'invited_at', cg.invited_at,
                    'joined_at', cg.joined_at,
-                   'invited_by', cg.invited_by
+                   'invited_by', cg.invited_by,
+                   'has_meat', c.has_meat,
+                   'has_exploration_points', c.has_exploration_points,
+                   'has_scavenging_rolls', c.has_scavenging_rolls
                )
            ) as campaigns
        FROM campaign_gangs cg
@@ -581,6 +623,7 @@ BEGIN
                    'id', v.id,
                    'created_at', v.created_at,
                    'vehicle_type_id', v.vehicle_type_id,
+                   'vehicle_type', v.vehicle_type,
                    'cost', v.cost,
                    'vehicle_name', v.vehicle_name,
                    'movement', v.movement,
@@ -609,3 +652,4 @@ BEGIN
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
    WHERE g.id = p_gang_id;
 END;
+$function$;

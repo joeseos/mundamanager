@@ -1,4 +1,11 @@
-
+CREATE OR REPLACE FUNCTION public.get_fighter_available_advancements(
+  fighter_id UUID
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_result jsonb;
   v_fighter_xp integer;
@@ -15,7 +22,7 @@ BEGIN
   -- Build the final result as JSON
   WITH current_values AS (
     -- Get the current values for each characteristic
-    SELECT
+    SELECT 
       fc.fighter_id,
       fc.characteristic_id,
       c.name as characteristic_name,
@@ -28,7 +35,7 @@ BEGIN
   ),
   fighter_type_info AS (
     -- Get fighter type information for base values
-    SELECT
+    SELECT 
       ft.*
     FROM fighters f
     JOIN fighter_types ft ON ft.id = f.fighter_type_id
@@ -36,20 +43,20 @@ BEGIN
   ),
   available_advancements AS (
     -- Get all possible characteristic improvements and determine availability
-    SELECT
+    SELECT 
       c.id,
       c.name as characteristic_name,
       c.code as characteristic_code,
       c.xp_cost as base_xp_cost,
       -- Updated XP cost calculation: base_xp_cost + (2 * times_increased)
-      CASE
+      CASE 
         WHEN COALESCE(cv.times_increased, 0) = 0 THEN c.xp_cost
         ELSE c.xp_cost + (2 * COALESCE(cv.times_increased, 0))
       END as xp_cost,
       c.credits_increase,
       COALESCE(cv.times_increased, 0) as times_increased,
       true as is_available,
-      CASE
+      CASE 
         WHEN COALESCE(cv.times_increased, 0) = 0 THEN v_fighter_xp >= c.xp_cost
         ELSE v_fighter_xp >= (c.xp_cost + (2 * COALESCE(cv.times_increased, 0)))
       END as has_enough_xp
@@ -89,3 +96,4 @@ BEGIN
 
   RETURN v_result;
 END;
+$$;

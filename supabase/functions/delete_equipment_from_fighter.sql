@@ -1,4 +1,12 @@
-
+CREATE OR REPLACE FUNCTION public.delete_equipment_from_fighter(
+  input_fighter_id uuid,
+  input_vehicle_id uuid,
+  input_equipment_id uuid,
+  input_fighter_equipment_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $function$
 DECLARE
   updated_fighter JSONB;
   updated_gang JSONB;
@@ -8,14 +16,14 @@ DECLARE
   result JSONB;
 BEGIN
   -- Validate that only one ID is provided
-  IF (input_fighter_id IS NOT NULL AND input_vehicle_id IS NOT NULL) OR
+  IF (input_fighter_id IS NOT NULL AND input_vehicle_id IS NOT NULL) OR 
      (input_fighter_id IS NULL AND input_vehicle_id IS NULL) THEN
     RAISE EXCEPTION 'Must provide either fighter_id OR vehicle_id, not both or neither';
   END IF;
 
   -- Get the equipment cost and fighter's gang_id using the specific fighter_equipment id
-  SELECT e.cost,
-         CASE
+  SELECT e.cost, 
+         CASE 
            WHEN fe.fighter_id IS NOT NULL THEN f.gang_id
            WHEN fe.vehicle_id IS NOT NULL THEN v_f.gang_id
          END as gang_id
@@ -49,7 +57,7 @@ BEGIN
   -- Update fighter's credits
   UPDATE fighters f
   SET credits = GREATEST(0, f.credits - equipment_cost)
-  WHERE f.id = CASE
+  WHERE f.id = CASE 
     WHEN input_fighter_id IS NOT NULL THEN input_fighter_id
     ELSE (SELECT fighter_id FROM vehicles WHERE id = input_vehicle_id)
   END
@@ -81,3 +89,4 @@ EXCEPTION WHEN OTHERS THEN
   -- In case of any error, return the error message
   RETURN jsonb_build_object('error', SQLERRM);
 END;
+$function$;

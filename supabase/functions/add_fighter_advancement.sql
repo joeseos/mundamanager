@@ -1,4 +1,10 @@
-
+CREATE OR REPLACE FUNCTION public.add_fighter_advancement(
+    characteristic_id UUID,
+    fighter_id UUID,
+    xp_cost INTEGER,
+    credits_increase INTEGER
+)
+RETURNS JSONB AS $$
 DECLARE
     fighter_exists BOOLEAN;
     has_enough_xp BOOLEAN;
@@ -21,7 +27,7 @@ BEGIN
 
     -- Check if fighter has enough XP
     SELECT (xp >= xp_cost) INTO has_enough_xp
-    FROM fighters
+    FROM fighters 
     WHERE id = fighter_id;
 
     IF NOT has_enough_xp THEN
@@ -55,7 +61,7 @@ BEGIN
             COALESCE(
                 (SELECT MAX(times_increased) + 1
                  FROM fighter_characteristics
-                 WHERE fighter_characteristics.fighter_id = add_fighter_advancement.fighter_id
+                 WHERE fighter_characteristics.fighter_id = add_fighter_advancement.fighter_id 
                  AND fighter_characteristics.characteristic_id = add_fighter_advancement.characteristic_id),
                 1
             ),
@@ -64,7 +70,7 @@ BEGIN
             v_code,
             v_characteristic_value
         )
-        RETURNING
+        RETURNING 
             fighter_characteristics.id,
             fighter_characteristics.fighter_id,
             fighter_characteristics.characteristic_id,
@@ -80,11 +86,11 @@ BEGIN
     -- Update fighter's XP and get updated data
     WITH updated AS (
         UPDATE fighters
-        SET
+        SET 
             xp = xp - xp_cost,
             updated_at = NOW()
         WHERE id = fighter_id
-        RETURNING
+        RETURNING 
             fighters.id,
             fighters.xp
     )
@@ -104,3 +110,4 @@ EXCEPTION WHEN OTHERS THEN
         'detail', SQLSTATE
     );
 END;
+$$ LANGUAGE plpgsql;

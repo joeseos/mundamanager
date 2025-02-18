@@ -1,10 +1,40 @@
+-- Drop all versions of the function
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
 
-begin
-    return query
-    select
+-- Then create our new function with optional parameter and is_gang_addition column
+CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL)
+RETURNS TABLE (
+    id uuid,
+    fighter_type text,
+    fighter_class text,
+    gang_type text,
+    cost numeric,
+    gang_type_id uuid,
+    special_rules text[],
+    movement numeric,
+    weapon_skill numeric,
+    ballistic_skill numeric,
+    strength numeric,
+    toughness numeric,
+    wounds numeric,
+    initiative numeric,
+    leadership numeric,
+    cool numeric,
+    willpower numeric,
+    intelligence numeric,
+    attacks numeric,
+    default_equipment jsonb,
+    total_cost numeric,
+    is_gang_addition boolean
+) LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
         ft.id,
         ft.fighter_type,
-        fc.class_name,  -- Fixed to use class_name instead of fighter_class
+        fc.class_name,
         ft.gang_type,
         ft.cost,
         ft.gang_type_id,
@@ -22,7 +52,7 @@ begin
         ft.intelligence,
         ft.attacks,
         (
-            select jsonb_agg(
+            SELECT jsonb_agg(
                 jsonb_build_object(
                     'id', e.id,
                     'equipment_name', e.equipment_name,
@@ -33,12 +63,14 @@ begin
                     'faction', e.faction
                 )
             )
-            from fighter_defaults fd
-            join equipment e on e.id = fd.equipment_id
-            where fd.fighter_type_id = ft.id
-        ) as default_equipment,
-        ft.cost as total_cost  -- Total cost is just the fighter's cost since default equipment is free
-    from fighter_types ft
-    join fighter_classes fc on fc.id = ft.fighter_class_id
-    where ft.gang_type_id = p_gang_type_id;
-end;
+            FROM fighter_defaults fd
+            JOIN equipment e ON e.id = fd.equipment_id
+            WHERE fd.fighter_type_id = ft.id
+        ) AS default_equipment,
+        ft.cost AS total_cost,  -- Total cost is just the fighter's cost since default equipment is free
+        ft.is_gang_addition
+    FROM fighter_types ft
+    JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
+    WHERE (p_gang_type_id IS NULL OR ft.gang_type_id = p_gang_type_id);
+END;
+$$;

@@ -1,4 +1,10 @@
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID);
 
+CREATE OR REPLACE FUNCTION add_fighter_injury(
+    input_fighter_id UUID,
+    input_injury_id UUID
+)
+RETURNS TABLE (result JSON) AS $$
 DECLARE
     new_injury_id UUID;
     new_fighter_skill_id UUID;
@@ -69,7 +75,7 @@ BEGIN
         'characteristic_1', fi.characteristic_1,
         'code_2', fi.code_2,
         'characteristic_2', fi.characteristic_2,
-        'related_skill', CASE
+        'related_skill', CASE 
             WHEN fi.fighter_skill_id IS NOT NULL THEN (
                 SELECT json_build_object(
                     'id', fs.id,
@@ -87,3 +93,13 @@ BEGIN
     FROM fighter_injuries fi
     WHERE fi.id = new_injury_id;
 END;
+$$ 
+LANGUAGE plpgsql
+SECURITY DEFINER
+VOLATILE
+SET search_path = public;
+
+-- Revoke and grant permissions
+REVOKE ALL ON FUNCTION add_fighter_injury(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID) TO service_role;

@@ -1,4 +1,20 @@
+-- Drop existing functions with their exact signatures
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
 
+
+-- Then create our new function with vehicle support
+CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
+  fighter_id UUID DEFAULT NULL,
+  equipment_id UUID DEFAULT NULL,
+  gang_id UUID DEFAULT NULL,
+  manual_cost INTEGER DEFAULT NULL,
+  vehicle_id UUID DEFAULT NULL
+)
+RETURNS JSONB 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   updated_fighter JSONB;
   updated_vehicle JSONB;
@@ -21,7 +37,7 @@ BEGIN
   IF equipment_id IS NULL THEN
     RAISE EXCEPTION 'equipment_id is required';
   END IF;
-
+  
   IF gang_id IS NULL THEN
     RAISE EXCEPTION 'gang_id is required';
   END IF;
@@ -32,19 +48,19 @@ BEGIN
   END IF;
 
   -- Set owner type for later use
-  v_owner_type := CASE
+  v_owner_type := CASE 
     WHEN fighter_id IS NOT NULL THEN 'fighter'
     ELSE 'vehicle'
   END;
 
   -- Security check: Verify user has access to the gang
   IF NOT EXISTS (
-    SELECT 1 FROM gangs g
-    WHERE g.id = gang_id
-    AND (g.user_id = auth.uid()
+    SELECT 1 FROM gangs g 
+    WHERE g.id = gang_id 
+    AND (g.user_id = auth.uid() 
       OR EXISTS (
-        SELECT 1 FROM profiles
-        WHERE profiles.id = auth.uid()
+        SELECT 1 FROM profiles 
+        WHERE profiles.id = auth.uid() 
         AND profiles.user_role = 'admin'
       )
     )
@@ -67,13 +83,13 @@ BEGIN
   -- Get the discount value if it exists
   SELECT discount::numeric INTO v_discount
   FROM equipment_discounts ed
-  WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
+  WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id 
   AND ed.gang_type_id = v_gang_type_id;
 
   -- Get the equipment base cost
-  SELECT
+  SELECT 
     e.cost::integer as base_cost,
-    CASE
+    CASE 
       WHEN v_discount IS NOT NULL THEN (e.cost::integer - v_discount::integer)
       ELSE e.cost::integer
     END as discounted_cost,
@@ -119,7 +135,7 @@ BEGIN
   END IF;
 
   -- Update gang's credits
-  UPDATE gangs
+  UPDATE gangs 
   SET credits = credits - final_purchase_cost
   WHERE id = buy_equipment_for_fighter.gang_id;
 
@@ -213,3 +229,7 @@ BEGIN
 
   RETURN result;
 END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID) TO authenticated;

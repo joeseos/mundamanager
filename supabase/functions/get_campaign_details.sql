@@ -1,11 +1,14 @@
+DROP FUNCTION IF EXISTS get_campaign_details;
 
+CREATE OR REPLACE FUNCTION get_campaign_details(campaign_id UUID)
+RETURNS SETOF json AS $$
 WITH members_for_campaign AS (
     SELECT *
-    FROM campaign_members
+    FROM campaign_members 
     WHERE campaign_id = $1
 ),
 campaign_gangs_filtered AS (
-    SELECT DISTINCT cg.*
+    SELECT DISTINCT cg.* 
     FROM campaign_gangs cg
     WHERE cg.campaign_id = $1
 ),
@@ -17,7 +20,7 @@ fighter_equipment_costs AS (
     GROUP BY f.id
 ),
 fighter_advancement_costs AS (
-    SELECT
+    SELECT 
         f.id as fighter_id,
         COALESCE(SUM(fc.credits_increase), 0) + COALESCE(SUM(fs.credits_increase), 0) as advancement_cost
     FROM fighters f
@@ -27,10 +30,10 @@ fighter_advancement_costs AS (
     GROUP BY f.id
 ),
 fighter_details AS (
-    SELECT
+    SELECT 
         g.id as gang_id,
         COALESCE(SUM(
-            f.credits +
+            f.credits + 
             fec.equipment_cost +
             fac.advancement_cost +
             COALESCE(f.cost_adjustment, 0)
@@ -102,11 +105,18 @@ SELECT json_build_object(
             'created_at', t.created_at,
             'territory_id', t.territory_id,
             'gang_id', t.gang_id,
-            'owner', t.owner,
             'territory_name', t.territory_name
         ))
-        FROM campaign_territories t
-        WHERE t.campaign_id = $1
+        FROM (
+            SELECT 
+                id,
+                created_at,
+                territory_id,
+                gang_id,
+                territory_name
+            FROM campaign_territories 
+            WHERE campaign_id = $1
+        ) t
     ), '[]'::json),
     'members', COALESCE((
         SELECT json_agg(json_build_object(
@@ -144,3 +154,4 @@ SELECT json_build_object(
 FROM campaigns c
 LEFT JOIN campaign_types ct ON c.campaign_type_id = ct.id
 WHERE c.id = $1;
+$$ LANGUAGE sql SECURITY DEFINER;

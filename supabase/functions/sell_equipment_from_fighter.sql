@@ -1,4 +1,8 @@
-
+CREATE OR REPLACE FUNCTION sell_equipment_from_fighter(
+  fighter_equipment_id UUID,
+  manual_cost INTEGER DEFAULT NULL
+)
+RETURNS JSONB AS $$
 DECLARE
   v_equipment_record record;
   v_result JSONB;
@@ -6,7 +10,7 @@ DECLARE
   v_gang_id UUID;
 BEGIN
   -- Get all the necessary information using the fighter_equipment_id
-  SELECT
+  SELECT 
     fe.id as fighter_equipment_id,
     fe.fighter_id,
     fe.vehicle_id,
@@ -61,3 +65,7 @@ BEGIN
       RAISE EXCEPTION 'Failed to sell equipment: %', SQLERRM;
   END;
 END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) TO authenticated;
