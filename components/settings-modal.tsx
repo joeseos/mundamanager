@@ -99,7 +99,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           </Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem asChild onClick={() => window.print()}>
+        <DropdownMenuItem asChild onClick={() => Promise.resolve().then(() => window.print())}>
           <div className="w-full cursor-pointer">
             <FiPrinter className="mr-2 h-4 w-4" />
             Print
