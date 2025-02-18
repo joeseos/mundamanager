@@ -86,8 +86,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
             <th className="text-center p-1 border-l border-black">S</th>
             <th className="text-center p-1">L</th>
             <th className="text-center p-1 border-l border-black">Str</th>
-            <th className="text-center p-1 border-l border-black">D</th>
             <th className="text-center p-1 border-l border-black">AP</th>
+            <th className="text-center p-1 border-l border-black">D</th>
             <th className="text-center p-1 border-l border-black">Am</th>
             <th className="text-left p-1 border-l border-black">Traits</th>
           </tr>
@@ -123,10 +123,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
                   {formatStrength(profile.strength)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatValue(profile.damage)}
+                  {formatters.formatAp(profile.ap)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatAp(profile.ap)}
+                  {formatters.formatValue(profile.damage)}
                 </td>
                 <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
                   {formatters.formatAmmo(profile.ammo)}
