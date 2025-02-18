@@ -21,7 +21,7 @@ export function DraggableFighters({
   
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 100,
+      delay: 1000,
       tolerance: 5,
     },
   });
@@ -69,11 +69,14 @@ export function DraggableFighters({
       console.error('Error handling drag end:', error);
     }
   };
+
+
   return (
     <DndContext 
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
+      
     >
       <SortableContext 
         items={fighters.map(f => f.id)}
