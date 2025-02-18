@@ -104,15 +104,20 @@ export const signInAction = async (formData: FormData) => {
   const password = formData.get("password") as string;
   const turnstileToken = formData.get("cf-turnstile-response") as string;
 
-  if (!turnstileToken) {
-    return redirect("/sign-in?error=" + encodeURIComponent("Please complete the Turnstile challenge"));
+  if (process.env.NODE_ENV === "development") {
+    console.log("Skipping Turnstile verification in development mode.");
   }
+  else {
+    if (!turnstileToken) {
+      return redirect("/sign-in?error=" + encodeURIComponent("Please complete the Turnstile challenge"));
+    }
 
-  // Verify Turnstile token
-  const turnstileVerification = await verifyTurnstileToken(turnstileToken);
-  if (!turnstileVerification.success) {
-    console.error('Turnstile verification failed:', turnstileVerification);
-    return redirect("/sign-in?error=" + encodeURIComponent("Security check failed. Please try again."));
+    // Verify Turnstile token
+    const turnstileVerification = await verifyTurnstileToken(turnstileToken);
+    if (!turnstileVerification.success) {
+      console.error('Turnstile verification failed:', turnstileVerification);
+      return redirect("/sign-in?error=" + encodeURIComponent("Security check failed. Please try again."));
+    }
   }
 
   const supabase = createClient();
@@ -130,9 +135,8 @@ export const signInAction = async (formData: FormData) => {
   const redirectPath = cookieStore.get('redirectPath');
   cookieStore.delete('redirectPath');
   
-  // Check if the redirectPath is valid, if not, redirect to the home page
-  const validPath = redirectPath?.value && !redirectPath.value.includes('/images/');
-  return redirect(validPath ? redirectPath.value : "/");
+  // Redirect to the home page in all circumstances
+  return redirect("/");
 };
 
 async function verifyTurnstileToken(token: string) {

@@ -95,13 +95,23 @@ interface FighterProps {
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
    TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
+   NODE_ENV=development
    ```
 
-3. **Installation**
+3. **Running the environment**
    ```bash
    npm install
    npm run dev
    ```
+
+4. **Mobile device testing**
+   On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
+   ```bash
+   npm run dev --host
+   ```
+   
+   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
+   http://192.168.1.5:3000
 
 ## Component Architecture
 
