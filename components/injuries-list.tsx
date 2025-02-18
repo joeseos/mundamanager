@@ -3,24 +3,34 @@ import { Button } from './ui/button';
 import { useToast } from './ui/use-toast';
 import Modal from './modal';
 
+interface InjuryType {
+  id: string;
+  injury_name: string;
+  code_1?: string;
+  characteristic_1?: number;
+  code_2?: string;
+  characteristic_2?: number;
+}
+
 interface InjuriesListProps {
   injuries: Array<{
     id: string;
     injury_name: string;
     acquired_at: string;
+    code_1?: string;
+    characteristic_1?: number;
+    code_2?: string;
+    characteristic_2?: number;
   }>;
+  availableInjuries: InjuryType[];
   onDeleteInjury: (injuryId: string) => Promise<void>;
   fighterId: string;
   onInjuryAdded: () => void;
 }
 
-interface InjuryType {
-  id: string;
-  injury_name: string;
-}
-
 export function InjuriesList({ 
   injuries = [],
+  availableInjuries = [],
   onDeleteInjury,
   fighterId,
   onInjuryAdded,
@@ -29,27 +39,7 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
-  const [availableInjuries, setAvailableInjuries] = useState<InjuryType[]>([]);
   const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchInjuries = async () => {
-      try {
-        const response = await fetch('/api/injuries');
-        if (!response.ok) throw new Error('Failed to fetch injuries');
-        const data = await response.json();
-        setAvailableInjuries(data);
-      } catch (error) {
-        console.error('Error fetching injuries:', error);
-        toast({
-          description: 'Failed to load injury types',
-          variant: "destructive"
-        });
-      }
-    };
-
-    fetchInjuries();
-  }, [toast]);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {

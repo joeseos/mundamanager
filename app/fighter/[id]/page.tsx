@@ -373,6 +373,41 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const [sellVehicleEquipmentData, setSellVehicleEquipmentData] = useState<Equipment | null>(null);
   const [sellCost, setSellCost] = useState<number>(0);
 
+  // Add new state for available injuries
+  const [availableInjuries, setAvailableInjuries] = useState<Array<{
+    id: string;
+    injury_name: string;
+    code_1?: string;
+    characteristic_1?: number;
+    code_2?: string;
+    characteristic_2?: number;
+  }>>([]);
+
+  // Add function to fetch available injuries
+  const fetchAvailableInjuries = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/injuries`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!response.ok) throw new Error('Failed to fetch injuries');
+      const data = await response.json();
+      setAvailableInjuries(data);
+    } catch (error) {
+      console.error('Error fetching injuries:', error);
+      toast({
+        description: 'Failed to load injury types',
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
+
   // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
     if (!params.id) {
@@ -480,7 +515,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchFighterData();
-  }, [fetchFighterData]);
+    fetchAvailableInjuries();
+  }, [fetchFighterData, fetchAvailableInjuries]);
 
   const handleDeleteFighter = useCallback(async () => {
     if (!fighterData.fighter || !fighterData.gang) return;
@@ -1365,6 +1401,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           <InjuriesList 
             injuries={fighterData.fighter?.injuries || []}
+            availableInjuries={availableInjuries}
             onDeleteInjury={handleDeleteInjury}
             fighterId={fighterData.fighter?.id || ''}
             onInjuryAdded={fetchFighterData}
