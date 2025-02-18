@@ -92,7 +92,7 @@ export function MyFighters({ fighters, positions, isLoading, error }: MyFighters
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
       {sortedFighters.map((fighter) => (
         <SortableFighter
           key={fighter.id}

@@ -641,8 +641,8 @@ export default function Gang({
   };
 
   return (
-    <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
-      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-4 print:border-black">
+    <div className="space-y-4 print:space-y-[5px]">
+      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
         {/* Left Section: Illustration */}
         <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
           {gang_type_image_url ? (

@@ -75,12 +75,14 @@
     .print-fighter-card {
       width: 630px;
       height: 435px;
-      break-inside: avoid;
+      break-inside: avoid !important;
+      display: inline-block; /* ios workaround for break-inside: avoid */
       background-image: none !important;
       box-shadow: none !important;
+      border-width: 3px !important; /* Firefox workaround when printing borders less than border-4 in tailwind */
+      margin-right: 6px !important;
     }
     .print-fighters {
-      max-width: 100%;
       zoom: 0.55;
     }
     .table-weapons th, .table-weapons td {
