@@ -1,4 +1,4 @@
--- First drop both versions of the function
+-- First drop all versions of the function
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID);
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER);
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[]);
@@ -7,7 +7,8 @@ CREATE OR REPLACE FUNCTION add_fighter_to_gang(
   p_fighter_name TEXT,
   p_fighter_type_id UUID,
   p_gang_id UUID,
-  p_cost INTEGER = NULL
+  p_cost INTEGER = NULL,
+  p_selected_equipment_ids UUID[] = NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -122,27 +123,54 @@ BEGIN
 
     v_fighter_id := v_inserted_fighter.id;
 
-    -- Get and insert equipment in a single step, now including purchase_cost
-    WITH equipment_insert AS (
+    -- Handle default equipment and selected equipment in a single step
+    WITH default_equipment_insert AS (
       INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
       SELECT 
         v_fighter_id, 
         fd.equipment_id,
-        e.cost as original_cost,  -- Store the original equipment cost
-        0 as purchase_cost        -- Default equipment is free
+        e.cost as original_cost,
+        0 as purchase_cost
       FROM fighter_defaults fd
-      JOIN equipment e ON e.id = fd.equipment_id  -- Join with equipment to get cost
+      JOIN equipment e ON e.id = fd.equipment_id
       WHERE fd.fighter_type_id = p_fighter_type_id
       AND fd.equipment_id IS NOT NULL
       RETURNING id as fighter_equipment_id, equipment_id, original_cost, purchase_cost
     ),
+    selected_equipment_insert AS (
+      INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
+      SELECT 
+        v_fighter_id,
+        e.id,
+        e.cost as original_cost,
+        COALESCE(
+          (
+            SELECT (opt->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
+            WHERE fes.fighter_type_id = p_fighter_type_id
+            AND opt->>'id' = e.id::text
+            LIMIT 1
+          ),
+          e.cost
+        ) as purchase_cost
+      FROM unnest(p_selected_equipment_ids) as equipment_id
+      JOIN equipment e ON e.id = equipment_id
+      RETURNING id as fighter_equipment_id, equipment_id, original_cost, purchase_cost
+    ),
+    all_equipment AS (
+      SELECT * FROM default_equipment_insert
+      UNION ALL
+      SELECT * FROM selected_equipment_insert
+      WHERE selected_equipment_insert.equipment_id IS NOT NULL
+    ),
     equipment_details AS (
       SELECT 
-        ei.fighter_equipment_id,
+        ae.fighter_equipment_id,
         e.id as equipment_id,
         e.equipment_name,
         e.equipment_type,
-        ei.purchase_cost,  -- Use the stored purchase_cost
+        ae.purchase_cost,
         COALESCE(
           (SELECT jsonb_agg(
             jsonb_build_object(
@@ -165,8 +193,8 @@ BEGIN
           FROM weapon_profiles wp
           WHERE wp.weapon_id = e.id
         ), '[]'::jsonb) as weapon_profiles
-      FROM equipment_insert ei
-      JOIN equipment e ON e.id = ei.equipment_id
+      FROM all_equipment ae
+      JOIN equipment e ON e.id = ae.equipment_id
     )
     SELECT 
       jsonb_agg(
@@ -175,11 +203,11 @@ BEGIN
           'equipment_id', equipment_id,
           'equipment_name', equipment_name,
           'equipment_type', equipment_type,
-          'cost', purchase_cost,  -- Return the purchase_cost in the response
+          'cost', purchase_cost,
           'weapon_profiles', weapon_profiles
         )
       ),
-      SUM(purchase_cost)  -- Sum the stored purchase_cost
+      SUM(purchase_cost)
     INTO 
       v_equipment_info,
       v_total_equipment_cost
@@ -213,8 +241,8 @@ BEGIN
     INTO v_skills_info
     FROM skill_details;
 
-    -- Calculate total cost (fighter cost only since default equipment is free)
-    v_total_cost := v_fighter_cost;
+    -- Calculate total cost (fighter cost plus selected equipment cost)
+    v_total_cost := v_fighter_cost + COALESCE(v_total_equipment_cost, 0);
 
     -- Check credits and update gang in one step
     IF v_gang_credits < v_total_cost THEN
