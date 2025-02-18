@@ -15,6 +15,7 @@ import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
+import { FighterType, EquipmentOption } from '@/types/fighter-type';
 
 interface VehicleType {
   id: string;
@@ -33,13 +34,6 @@ interface VehicleType {
   special_rules: string[];
 }
 
-interface EquipmentOption {
-  id: string;
-  cost: number;
-  max_quantity: number;
-  equipment_name: string;
-}
-
 interface WeaponsSelection {
   options: EquipmentOption[];
   select_type: 'single' | 'multiple';
@@ -47,18 +41,6 @@ interface WeaponsSelection {
 
 interface EquipmentSelection {
   weapons?: WeaponsSelection;
-}
-
-interface FighterType {
-  id: string;
-  fighter_type: string;
-  fighter_class: string;
-  gang_type: string;
-  cost: number;
-  gang_type_id: string;
-  special_rules: string[];
-  total_cost: number;
-  equipment_selection?: EquipmentSelection;
 }
 
 interface GangProps {
@@ -1028,7 +1010,7 @@ export default function Gang({
                         ?.equipment_selection
                         ?.weapons
                         ?.options
-                        ?.map((option: any) => (
+                        ?.map((option: EquipmentOption) => (
                           <option key={option.id} value={option.id}>
                             {option.equipment_name} - {option.cost} credits
                           </option>
