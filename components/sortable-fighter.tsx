@@ -29,7 +29,9 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
     transition,
     cursor: dndKitIsDragging ? 'grabbing' : 'grab',
     touchAction: 'manipulation',
-  };
+    WebkitTouchCallout: 'none',
+    WebkitUserSelect: 'none',
+  } as const;
 
   // Update isDragging when dndKitIsDragging changes
   useEffect(() => {
