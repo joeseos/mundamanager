@@ -71,11 +71,29 @@ BEGIN
                     'handling', v.handling,
                     'save', v.save,
                     'body_slots', v.body_slots,
-                    'body_slots_occupied', v.body_slots_occupied,
+                    'body_slots_occupied', (
+                        SELECT COUNT(*)
+                        FROM fighter_equipment fe2
+                        JOIN equipment e2 ON e2.id = fe2.equipment_id
+                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'body'
+                    ),
                     'drive_slots', v.drive_slots,
-                    'drive_slots_occupied', v.drive_slots_occupied,
+                    'drive_slots_occupied', (
+                        SELECT COUNT(*)
+                        FROM fighter_equipment fe2
+                        JOIN equipment e2 ON e2.id = fe2.equipment_id
+                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'drive'
+                    ),
                     'engine_slots', v.engine_slots,
-                    'engine_slots_occupied', v.engine_slots_occupied,
+                    'engine_slots_occupied', (
+                        SELECT COUNT(*)
+                        FROM fighter_equipment fe2
+                        JOIN equipment e2 ON e2.id = fe2.equipment_id
+                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'engine'
+                    ),
                     'special_rules', v.special_rules,
                     'vehicle_name', v.vehicle_name,
                     'vehicle_type', v.vehicle_type,
@@ -101,7 +119,8 @@ BEGIN
                                             'rear', vep.rear,
                                             'hull_points', vep.hull_points,
                                             'save', vep.save,
-                                            'profile_name', vep.profile_name
+                                            'profile_name', vep.profile_name,
+                                            'upgrade_type', vep.upgrade_type
                                         )
                                     ), '[]'::json)
                                     FROM vehicle_equipment_profiles vep
