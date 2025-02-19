@@ -2,12 +2,18 @@ export interface EquipmentOption {
   id: string;
   cost: number;
   max_quantity: number;
-  equipment_name: string;
+  equipment_name?: string;
+}
+
+export interface DefaultEquipment {
+  id: string;
+  quantity: number;
 }
 
 export interface WeaponsSelection {
-  options: EquipmentOption[];
-  select_type: 'single' | 'multiple';
+  default?: DefaultEquipment[];
+  options?: EquipmentOption[];
+  select_type: 'optional' | 'single' | 'multiple';
 }
 
 export interface EquipmentSelection {

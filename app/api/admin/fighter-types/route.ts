@@ -96,6 +96,18 @@ export async function GET(request: Request) {
         );
       }
 
+      // Fetch equipment selection
+      const { data: equipmentSelection, error: equipmentSelectionError } = await supabase
+        .from('fighter_equipment_selections')
+        .select('equipment_selection')
+        .eq('fighter_type_id', id)
+        .single();
+
+      if (equipmentSelectionError && equipmentSelectionError.code !== 'PGRST116') { // Ignore not found error
+        console.error('Error fetching equipment selection:', equipmentSelectionError);
+        throw equipmentSelectionError;
+      }
+
       // Fetch default equipment
       const { data: defaultEquipment, error: equipmentError } = await supabase
         .from('fighter_defaults')
@@ -139,7 +151,8 @@ export async function GET(request: Request) {
         equipment_discounts: fighterType.equipment_discounts?.map(d => ({
           equipment_id: d.equipment_id,
           discount: d.discount
-        })) || []
+        })) || [],
+        equipment_selection: equipmentSelection?.equipment_selection || null
       };
 
       return NextResponse.json(formattedFighterType);
@@ -192,7 +205,7 @@ export async function PUT(request: Request) {
     }
 
     const data = await request.json();
-    console.log('Received update data:', data); // Debug log
+    console.log('Received update data:', data);
 
     // Update fighter type
     const { error: updateError } = await supabase
@@ -328,6 +341,29 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Handle equipment selection
+    if (data.equipment_selection) {
+      // First delete any existing selection
+      const { error: deleteError } = await supabase
+        .from('fighter_equipment_selections')
+        .delete()
+        .eq('fighter_type_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert the new selection if it has content
+      if (data.equipment_selection.weapons) {
+        const { error: insertError } = await supabase
+          .from('fighter_equipment_selections')
+          .insert({
+            fighter_type_id: id,
+            equipment_selection: data.equipment_selection
+          });
+
+        if (insertError) throw insertError;
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in PUT fighter-type:', error);
@@ -459,6 +495,20 @@ export async function POST(request: Request) {
         .insert(equipmentList);
 
       if (equipmentListError) throw equipmentListError;
+    }
+
+    // Add this section to handle equipment selection
+    if (data.equipment_selection) {
+      if (data.equipment_selection.weapons) {
+        const { error: insertError } = await supabase
+          .from('fighter_equipment_selections')
+          .insert({
+            fighter_type_id: newFighterType.id,
+            equipment_selection: data.equipment_selection
+          });
+
+        if (insertError) throw insertError;
+      }
     }
 
     return NextResponse.json({ success: true });

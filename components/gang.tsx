@@ -135,7 +135,8 @@ export default function Gang({
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
   const [gangAdditionCost, setGangAdditionCost] = useState('');
   const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+  const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -221,10 +222,36 @@ export default function Gang({
     }
 
     try {
-      let isMounted = true;
-
-      // Create array of selected equipment IDs
-      const selectedEquipmentIds = selectedEquipmentId ? [selectedEquipmentId] : [];
+      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+      const weapons = selectedType?.equipment_selection?.weapons;
+      
+      let equipmentIds: string[] = [];
+      
+      if (weapons) {
+        if (weapons.default) {
+          // Add all default equipment first
+          weapons.default.forEach(item => {
+            // Add the item multiple times based on quantity
+            for (let i = 0; i < item.quantity; i++) {
+              equipmentIds.push(item.id);
+            }
+          });
+          
+          // If optional equipment is selected, replace ONE instance of the first default item
+          if (weapons.select_type === 'optional' && selectedEquipmentIds.length > 0) {
+            // Remove only one instance of the first default item
+            const firstDefaultId = weapons.default[0].id;
+            const indexToRemove = equipmentIds.indexOf(firstDefaultId);
+            if (indexToRemove !== -1) {
+              equipmentIds.splice(indexToRemove, 1);
+            }
+            // Add the optional equipment
+            equipmentIds.push(selectedEquipmentIds[0]);
+          }
+        } else if (weapons.select_type === 'single' || weapons.select_type === 'multiple') {
+          equipmentIds = selectedEquipmentIds;
+        }
+      }
 
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
@@ -239,7 +266,7 @@ export default function Gang({
             p_fighter_type_id: selectedFighterTypeId,
             p_fighter_name: fighterName,
             p_cost: parseInt(fighterCost),
-            p_selected_equipment_ids: selectedEquipmentIds
+            p_selected_equipment_ids: equipmentIds
           })
         }
       );
@@ -249,96 +276,82 @@ export default function Gang({
         if (errorData.message?.includes('Not enough credits')) {
           throw new Error('Not enough credits to add this fighter');
         }
+        throw new Error('Failed to add fighter');
       }
 
       const data = await response.json();
 
       if (!data?.fighter_id) {
-        throw new Error('Not enough credits to add this fighter');
+        throw new Error('Failed to add fighter');
       }
 
-      if (isMounted) {
-        const actualCost = parseInt(fighterCost);
-        const newGangCredits = credits - actualCost;
-        const newRating = rating + actualCost;
-        setCredits(newGangCredits);
-        setRating(newRating);
+      const actualCost = parseInt(fighterCost);
+      const newGangCredits = credits - actualCost;
+      const newRating = rating + actualCost;
+      setCredits(newGangCredits);
+      setRating(newRating);
 
-        const newFighter = {
-          id: data.fighter_id,
-          fighter_name: fighterName,
-          fighter_type_id: selectedFighterTypeId,
-          fighter_type: data.fighter_type,
-          fighter_class: data.fighter_class,
-          credits: actualCost,
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence,
-          xp: data.stats.xp,
-          kills: 0,
-          weapons: data.equipment
-            .filter((item: any) => item.equipment_type === 'weapon')
-            .map((item: any) => ({
-              weapon_name: item.equipment_name,
-              weapon_id: item.equipment_id,
-              cost: item.cost,
-              fighter_weapon_id: item.fighter_equipment_id,
-              weapon_profiles: item.weapon_profiles || []
-            })),
-          wargear: data.equipment
-            .filter((item: any) => item.equipment_type === 'wargear')
-            .map((item: any) => ({
-              wargear_name: item.equipment_name,
-              wargear_id: item.equipment_id,
-              cost: item.cost,
-              fighter_weapon_id: item.fighter_equipment_id
-            })),
-          injuries: [],
-          special_rules: data.special_rules || [],
-          advancements: {
-            characteristics: {},
-            skills: {}
-          },
-          free_skill: data.free_skill
-        };
+      const newFighter = {
+        id: data.fighter_id,
+        fighter_name: fighterName,
+        fighter_type_id: selectedFighterTypeId,
+        fighter_type: data.fighter_type,
+        fighter_class: data.fighter_class,
+        credits: actualCost,
+        movement: data.stats.movement,
+        weapon_skill: data.stats.weapon_skill,
+        ballistic_skill: data.stats.ballistic_skill,
+        strength: data.stats.strength,
+        toughness: data.stats.toughness,
+        wounds: data.stats.wounds,
+        initiative: data.stats.initiative,
+        attacks: data.stats.attacks,
+        leadership: data.stats.leadership,
+        cool: data.stats.cool,
+        willpower: data.stats.willpower,
+        intelligence: data.stats.intelligence,
+        xp: data.stats.xp,
+        kills: 0,
+        weapons: data.equipment
+          .filter((item: any) => item.equipment_type === 'weapon')
+          .map((item: any) => ({
+            weapon_name: item.equipment_name,
+            weapon_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id,
+            weapon_profiles: item.weapon_profiles || []
+          })),
+        wargear: data.equipment
+          .filter((item: any) => item.equipment_type === 'wargear')
+          .map((item: any) => ({
+            wargear_name: item.equipment_name,
+            wargear_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_equipment_id
+          })),
+        special_rules: data.special_rules || [],
+        advancements: {
+          characteristics: {},
+          skills: {}
+        },
+        injuries: [],
+        free_skill: data.free_skill || false,
+      } as FighterProps;
 
-        const newPositions = { ...positions };
-        const maxPosition = Math.max(...Object.keys(positions).map(Number), -1);
-        newPositions[maxPosition + 1] = data.fighter_id;
-        setPositions(newPositions);
+      setFighters(prev => [...prev, newFighter]);
+      setShowGangAdditionsModal(false);
+      setFighterName('');
+      setSelectedGangAdditionTypeId('');
+      setFighterCost('');
+      setSelectedEquipmentIds([]);
+      setFetchError(null);
 
-        await fetch(`/api/gangs/${id}/positioning`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ positions: newPositions }),
-        });
+      toast({
+        description: `${fighterName} added successfully`,
+        variant: "default"
+      });
 
-        setFighters(prev => [...prev, newFighter]);
-        setShowAddFighterModal(false);
-        setSelectedFighterTypeId('');
-        setFighterName('');
-        setFighterCost('');
-        setFetchError(null);
-
-        toast({
-          description: "Fighter added successfully",
-          variant: "default"
-        });
-
-        return true;
-      }
-      return false;
+      return true;
     } catch (error) {
       console.error('Error adding fighter:', error);
       setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
@@ -568,6 +581,57 @@ export default function Gang({
     fetchGangAdditionTypes();
   }, []);
 
+  useEffect(() => {
+    const fetchEquipmentNames = async () => {
+      if (!selectedGangAdditionTypeId) return;
+      
+      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+      const defaultEquipment = selectedType?.equipment_selection?.weapons?.default;
+      const optionalEquipment = selectedType?.equipment_selection?.weapons?.options;
+      
+      if (!defaultEquipment && !optionalEquipment) return;
+
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/equipment',
+          {
+            method: 'GET',
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch equipment');
+        
+        const equipmentData = await response.json();
+        const names: Record<string, string> = {};
+        
+        // Get names for default equipment
+        defaultEquipment?.forEach(item => {
+          const equipment = equipmentData.find((e: any) => e.id === item.id);
+          if (equipment) {
+            names[item.id] = equipment.equipment_name;
+          }
+        });
+
+        // Get names for optional equipment
+        optionalEquipment?.forEach(item => {
+          const equipment = equipmentData.find((e: any) => e.id === item.id);
+          if (equipment) {
+            names[item.id] = equipment.equipment_name;
+          }
+        });
+
+        setDefaultEquipmentNames(names);
+      } catch (error) {
+        console.error('Error fetching equipment names:', error);
+      }
+    };
+
+    fetchEquipmentNames();
+  }, [selectedGangAdditionTypeId, gangAdditionTypes]);
+
   const handleAddVehicle = async () => {
     if (!selectedVehicleTypeId) {
       setVehicleError('Please select a vehicle type');
@@ -691,6 +755,71 @@ export default function Gang({
       setGangAdditionCost('');
       setFighterCost('');
     }
+  };
+
+  const renderEquipmentSelection = () => {
+    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    if (!selectedType?.equipment_selection?.weapons) return null;
+
+    const { weapons } = selectedType.equipment_selection;
+    const isOptional = weapons.select_type === 'optional';
+    const isSingle = weapons.select_type === 'single';
+
+    return (
+      <div className="space-y-4">
+        {weapons.default && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Default Equipment
+            </label>
+            <div className="space-y-2">
+              {weapons.default.map((item, index) => (
+                <div key={`${item.id}-${index}`} className="flex items-center gap-2">
+                  <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                    {item.quantity}x {defaultEquipmentNames[item.id] || 'Loading...'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {weapons.options && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
+            </label>
+            <div className="space-y-2">
+              {weapons.options.map((option) => (
+                <div key={option.id} className="flex items-center gap-2">
+                  <input
+                    type={isSingle ? 'radio' : 'checkbox'}
+                    name="equipment-selection"
+                    id={option.id}
+                    checked={selectedEquipmentIds.includes(option.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        if (isSingle || isOptional) {
+                          setSelectedEquipmentIds([option.id]);
+                        } else {
+                          setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                        }
+                      } else {
+                        setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                      }
+                    }}
+                  />
+                  <label htmlFor={option.id} className="text-sm">
+                    {option.equipment_name || defaultEquipmentNames[option.id] || 'Loading...'}
+                    {option.cost > 0 ? ` - ${option.cost} credits` : ''}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -994,52 +1123,7 @@ export default function Gang({
                   )}
                 </div>
 
-                {selectedGangAdditionTypeId && gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.equipment_selection?.weapons && (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Equipment Selection
-                    </label>
-                    <select
-                      value={selectedEquipmentId}
-                      onChange={(e) => setSelectedEquipmentId(e.target.value)}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select equipment</option>
-                      {gangAdditionTypes
-                        .find(t => t.id === selectedGangAdditionTypeId)
-                        ?.equipment_selection
-                        ?.weapons
-                        ?.options
-                        ?.map((option: EquipmentOption) => (
-                          <option key={option.id} value={option.id}>
-                            {option.equipment_name} - {option.cost} credits
-                          </option>
-                        ))}
-                    </select>
-
-                    {selectedEquipmentId && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <div className="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                          {(() => {
-                            const selectedOption = gangAdditionTypes
-                              .find(t => t.id === selectedGangAdditionTypeId)
-                              ?.equipment_selection
-                              ?.weapons
-                              ?.options
-                              ?.find(option => option.id === selectedEquipmentId);
-                            return `${selectedOption?.equipment_name} - ${selectedOption?.cost} credits`;
-                          })()}
-                          <button
-                            onClick={() => setSelectedEquipmentId('')}
-                            className="text-gray-500 hover:text-gray-700"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {renderEquipmentSelection()}
 
                 {fetchError && <p className="text-red-500">{fetchError}</p>}
               </div>
@@ -1049,13 +1133,17 @@ export default function Gang({
               setFighterName('');
               setSelectedGangAdditionTypeId('');
               setFighterCost('');
-              setSelectedEquipmentId('');
+              setSelectedEquipmentIds([]);
               setFetchError(null);
             }}
             onConfirm={handleAddFighter}
             confirmText="Add Fighter"
             confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost || 
-              (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.equipment_selection?.weapons && !selectedEquipmentId)}
+              (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                ?.equipment_selection?.weapons?.select_type === 'single' && 
+                !selectedEquipmentIds.length && 
+                !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                  ?.equipment_selection?.weapons?.default)}
           />
         )}
       </div>
