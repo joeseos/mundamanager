@@ -176,6 +176,12 @@ interface Fighter {
     hull_points: number;
     handling: number;
     save: number;
+    body_slots: number;
+    body_slots_occupied: number;
+    drive_slots: number;
+    drive_slots_occupied: number;
+    engine_slots: number;
+    engine_slots_occupied: number;
     equipment?: Array<{
       id: string;
       equipment_name: string;
@@ -1362,6 +1368,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     </main>
   );
 
+  const vehicle = fighterData.fighter?.vehicles?.[0];
+
+  const getPillColor = (occupied, total) => {
+    if (occupied > total) return "bg-red-500";
+    if (occupied === total) return "bg-gray-500";
+    return "bg-green-500";
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1413,8 +1427,19 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
           />
-          
-          {fighterData.fighter?.fighter_class === 'Crew' && (
+
+          {vehicle && (
+            <div className="mt-6 w-full">
+               <div className="flex items-center gap-1">
+                 <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.body_slots_occupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {vehicle.body_slots_occupied}/{vehicle.body_slots}</span>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.drive_slots_occupied, vehicle.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {vehicle.drive_slots_occupied}/{vehicle.drive_slots}</span>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.engine_slots_occupied, vehicle.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {vehicle.engine_slots_occupied}/{vehicle.engine_slots}</span>
+               </div>
+             </div>
+          )}
+
+          {vehicle && (
             <div className="mt-6">
               <div className="flex flex-wrap justify-between items-center mb-2">
                 <h2 className="text-2xl font-bold">Vehicle Equipment</h2>
