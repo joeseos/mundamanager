@@ -2,7 +2,6 @@
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
 
-
 -- Then create our new function with vehicle support
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   fighter_id UUID DEFAULT NULL,
@@ -205,10 +204,25 @@ BEGIN
       'wargear_details', jsonb_build_object(
         'name', e.equipment_name,
         'cost', e.cost
-      )
+      ),
+      'vehicle_profile', CASE 
+        WHEN v_owner_type = 'vehicle' THEN
+          jsonb_build_object(
+            'front', vep.front,
+            'side', vep.side,
+            'rear', vep.rear,
+            'movement', vep.movement,
+            'hull_points', vep.hull_points,
+            'save', vep.save,
+            'profile_name', vep.profile_name,
+            'upgrade_type', vep.upgrade_type
+          )
+        ELSE NULL
+      END
     ) INTO new_equipment
     FROM fighter_equipment fe
     JOIN equipment e ON e.id = fe.equipment_id
+    LEFT JOIN vehicle_equipment_profiles vep ON vep.equipment_id = fe.equipment_id
     WHERE fe.id = v_new_equipment_id;
   END IF;
 
