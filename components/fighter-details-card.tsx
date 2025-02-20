@@ -71,13 +71,21 @@ interface FighterDetailsCardProps {
     save: number;
     vehicle_type?: string;
     vehicle_name?: string;
+    body_slots: number;
+    body_slots_occupied: number;
+    drive_slots: number;
+    drive_slots_occupied: number;
+    engine_slots: number;
+    engine_slots_occupied: number;
     equipment?: Array<{
       id: string;
+      equipment_id: string;
       equipment_name: string;
       equipment_type: string;
       purchase_cost: number;
       original_cost: number;
       weapon_profiles?: WeaponProfile[];
+      vehicle_equipment_profiles?: VehicleEquipmentProfile[];
     }>;
   }>;
   vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types

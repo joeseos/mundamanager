@@ -307,16 +307,22 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const newFighterCredits = fighterCredits + manualCost;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
-      const fighterEquipmentId = data.insertIntofighter_equipmentCollection?.records[0]?.id;
+      const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
 
-      if (!fighterEquipmentId) {
+      if (!equipmentRecord) {
         throw new Error('Failed to get equipment ID from response');
       }
 
       onEquipmentBought(newFighterCredits, newGangCredits, {
         ...item,
-        fighter_equipment_id: fighterEquipmentId,
-        cost: manualCost
+        fighter_equipment_id: equipmentRecord.id,
+        cost: manualCost,
+        vehicle_equipment_profiles: equipmentRecord.vehicle_profile ? [{
+          ...equipmentRecord.vehicle_profile,
+          id: equipmentRecord.id,
+          equipment_id: item.equipment_id,
+          created_at: new Date().toISOString()
+        }] : undefined
       });
 
       toast({
