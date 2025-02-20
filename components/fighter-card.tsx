@@ -387,14 +387,19 @@ const FighterCard = memo(function FighterCard({
               )}
 
               {/* Horizontal bar: only visible when both sections are present */}
-              {isCrew && vehicle && (
-                (special_rules?.length > 0 || wargear?.length > 0 || (advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
+              {isCrew && vehicle &&
+                (
+                  ((special_rules?.length ?? 0) > 0) ||
+                  ((wargear?.length ?? 0) > 0) ||
+                  (advancements?.skills && Object.keys(advancements.skills).length > 0) ||
+                  free_skill
+                ) && (
                   <>
                     <div className="min-w-[0px] font-bold text-sm pr-4 border-t border-gray-400"></div>
                     <div className="border-t border-gray-400" />
                   </>
                 )
-              )}
+              }
 
               {wargear && wargear.length > 0 && (
                 <>

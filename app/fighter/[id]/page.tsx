@@ -1370,7 +1370,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
-  const getPillColor = (occupied, total) => {
+  const getPillColor = (occupied: number, total: number) => {
     if (occupied > total) return "bg-red-500";
     if (occupied === total) return "bg-gray-500";
     return "bg-green-500";
