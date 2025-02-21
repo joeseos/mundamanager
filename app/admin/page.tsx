@@ -9,6 +9,7 @@ import { AdminCreateFighterTypeModal } from "@/components/ui/admin-create-fighte
 import { AdminEditFighterTypeModal } from "@/components/ui/admin-edit-fighter-type";
 import { AdminCreateEquipmentModal } from "@/components/ui/admin-create-equipment";
 import { AdminEditEquipmentModal } from "@/components/ui/admin-edit-equipment";
+import { AdminCreateSkillModal } from "@/components/ui/admin-create-skill";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
@@ -21,6 +22,7 @@ const regularInputClass = "mt-1 block w-full rounded-md border border-gray-300 p
 export default function AdminPage() {
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [showEditFighterType, setShowEditFighterType] = useState(false);
   const [showCreateEquipment, setShowCreateEquipment] = useState(false);
   const [showEditEquipment, setShowEditEquipment] = useState(false);
@@ -200,6 +202,12 @@ export default function AdminPage() {
         fetchGangTypes();
       },
       icon: Edit
+    },
+    {
+      title: "Add Skill",
+      description: "Add a new skill",
+      action: () => setShowCreateSkill(true),
+      icon: Sword
     }
   ];
 
@@ -237,6 +245,13 @@ export default function AdminPage() {
             <AdminCreateFighterTypeModal
               onClose={() => setIsModalOpen(false)}
               onSubmit={() => setIsModalOpen(false)}
+            />
+          )}
+
+          {showCreateSkill && (
+            <AdminCreateSkillModal
+              onClose={() => setShowCreateSkill(false)}
+              onSubmit={() => setShowCreateSkill(false)}
             />
           )}
 

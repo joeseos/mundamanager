@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 
 interface AdminCreateSkillModalProps {
@@ -11,13 +10,7 @@ interface AdminCreateSkillModalProps {
   onSubmit?: () => void;
 }
 
-interface Skill {
-  name: string;
-  credit_cost: number;
-  xp_cost: number;
-}
-
-export function AdminSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
+export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
   const [skillName, setSkillName] = useState('');
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, name: string}>>([]);
   const [skillType, setSkillType] = useState('');
@@ -85,9 +78,9 @@ export function AdminSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProp
       }
       onClose();
     } catch (error) {
-      console.error('Error creating equipment:', error);
+      console.error('Error creating skill:', error);
       toast({
-        description: 'Failed to create equipment',
+        description: 'Failed to create skill',
         variant: "destructive"
       });
     } finally {
@@ -118,20 +111,20 @@ export function AdminSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProp
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Name *
+                Skill Name *
               </label>
               <Input
                 type="text"
                 value={skillName}
                 onChange={(e) => setSkillName(e.target.value)}
-                placeholder="E.g. Bolt pistol, Combat knife"
+                placeholder="E.g. Restrain, Killing Blow"
                 className="w-full"
               />
             </div>
        
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Category *
+                Skill Type *
               </label>
               <select
                 value={skillType}
