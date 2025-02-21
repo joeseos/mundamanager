@@ -13,11 +13,24 @@ export async function GET(request: Request) {
     if (vehicle_id) {
       const { data: vehicleDetails, error } = await supabase
         .from('vehicle_types')
-        .select('*')
+        .select(`
+          *,
+          fighter_type_equipment!vehicle_type_id (
+            equipment_id
+          )
+        `)
         .eq('id', vehicle_id)
         .single();
 
       if (error) throw error;
+
+      // Transform equipment list data
+      if (vehicleDetails) {
+        vehicleDetails.equipment_list = vehicleDetails.fighter_type_equipment?.map(
+          (item: { equipment_id: string }) => item.equipment_id
+        ) || [];
+        delete vehicleDetails.fighter_type_equipment;
+      }
 
       // If we have a vehicle with a gang_type_id, fetch the gang type details
       if (vehicleDetails && vehicleDetails.gang_type_id) {
@@ -111,8 +124,12 @@ export async function PUT(request: Request) {
   try {
     const vehicleData = await request.json();
     const vehicle_id = vehicleData.id;
+    const equipment_list = vehicleData.equipment_list || [];
 
-    console.log('Received vehicle data:', vehicleData);
+    console.log('Received vehicle data:', {
+      ...vehicleData,
+      equipment_list
+    });
 
     if (!vehicle_id || typeof vehicle_id !== 'string') {
       console.log('Missing or invalid vehicle ID');
@@ -122,7 +139,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Format the data similar to POST but without the occupied slots
+    // Format the data
     const formattedData = {
       cost: parseInt(vehicleData.cost),
       movement: parseInt(vehicleData.movement),
@@ -140,42 +157,48 @@ export async function PUT(request: Request) {
       vehicle_type: vehicleData.vehicle_type
     };
 
-    console.log('Formatted data:', formattedData);
-    console.log('Updating vehicle with UUID:', vehicle_id);
+    // First update the vehicle type
+    const { data: updatedVehicle, error: updateError } = await supabase
+      .from('vehicle_types')
+      .update(formattedData)
+      .eq('id', vehicle_id)
+      .select()
+      .single();
 
-    try {
-      const { data, error } = await supabase
-        .from('vehicle_types')
-        .update(formattedData)
-        .eq('id', vehicle_id.toString()) // Ensure ID is a string
-        .select()
-        .single();
+    if (updateError) throw updateError;
 
-      if (error) {
-        console.error('Supabase update error:', error);
-        return NextResponse.json(
-          { error: error.message },
-          { status: 500 }
-        );
-      }
+    // Then handle equipment associations
+    // 1. Delete existing equipment associations for this vehicle
+    const { error: deleteError } = await supabase
+      .from('fighter_type_equipment')
+      .delete()
+      .eq('vehicle_type_id', vehicle_id);
 
-      if (!data) {
-        console.log('No data returned after update');
-        return NextResponse.json(
-          { error: 'Vehicle not found' },
-          { status: 404 }
-        );
-      }
+    if (deleteError) throw deleteError;
 
-      console.log('Update successful, returning data:', data);
-      return NextResponse.json(data);
-    } catch (supabaseError) {
-      console.error('Supabase operation error:', supabaseError);
-      throw supabaseError;
+    // 2. Insert new equipment associations if there are any
+    if (equipment_list.length > 0) {
+      const equipmentAssociations = equipment_list.map((equipment_id: string) => ({
+        equipment_id,
+        fighter_type_id: null,
+        vehicle_type_id: vehicle_id
+      }));
+
+      const { error: insertError } = await supabase
+        .from('fighter_type_equipment')
+        .insert(equipmentAssociations);
+
+      if (insertError) throw insertError;
     }
 
+    // Return the updated vehicle with its equipment list
+    return NextResponse.json({
+      ...updatedVehicle,
+      equipment_list
+    });
+
   } catch (error) {
-    console.error('Top level error in PUT:', error);
+    console.error('Error in PUT:', error);
     return NextResponse.json(
       { error: 'Failed to update vehicle type', details: error },
       { status: 500 }
