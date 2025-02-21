@@ -3,8 +3,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, Edit, Sword, Car } from "lucide-react";
-import { useState } from "react";
+import { Users, Edit, Sword, Car, X } from "lucide-react";
+import { useState, useEffect } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/ui/admin-create-fighter-type";
 import { AdminEditFighterTypeModal } from "@/components/ui/admin-edit-fighter-type";
 import { AdminCreateEquipmentModal } from "@/components/ui/admin-create-equipment";
@@ -29,6 +29,8 @@ export default function AdminPage() {
   const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
+  const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
+  const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -89,6 +91,21 @@ export default function AdminPage() {
     }
   };
 
+  const fetchEquipment = async () => {
+    try {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      const data = await response.json();
+      setEquipment(data);
+    } catch (error) {
+      console.error('Error fetching equipment:', error);
+      toast({
+        description: 'Failed to load equipment',
+        variant: "destructive"
+      });
+    }
+  };
+
   const fetchVehicleDetails = async (vehicleId: string) => {
     try {
       // First fetch gang types
@@ -104,6 +121,10 @@ export default function AdminPage() {
 
       if (!vehicleData) {
         throw new Error('No vehicle data received');
+      }
+
+      if (vehicleData.equipment_list) {
+        setEquipmentListSelections(vehicleData.equipment_list);
       }
 
       // Set the form data with the correct gang type ID
@@ -154,8 +175,13 @@ export default function AdminPage() {
       vehicle_type: '',
       gang_type_id: ''
     });
-    setSelectedVehicle(''); // Also reset the selected vehicle
+    setSelectedVehicle('');
+    setEquipmentListSelections([]);
   };
+
+  useEffect(() => {
+    fetchEquipment();
+  }, [toast]);
 
   const adminSections = [
     {
@@ -798,6 +824,58 @@ export default function AdminPage() {
                       />
                     </div>
 
+                    {/* Equipment List */}
+                    <div className="col-span-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Equipment List
+                      </label>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && !equipmentListSelections.includes(value)) {
+                            setEquipmentListSelections([...equipmentListSelections, value]);
+                          }
+                          e.target.value = "";
+                        }}
+                        className="w-full p-2 border rounded-md"
+                        disabled={!selectedVehicle}
+                      >
+                        <option value="">Available equipment</option>
+                        {equipment
+                          .filter(item => !equipmentListSelections.includes(item.id))
+                          .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.equipment_name}
+                            </option>
+                          ))}
+                      </select>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {equipmentListSelections.map((equipId) => {
+                          const item = equipment.find(e => e.id === equipId);
+                          if (!item) return null;
+                          
+                          return (
+                            <div 
+                              key={item.id}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                            >
+                              <span>{item.equipment_name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item.id))}
+                                className="hover:text-red-500 focus:outline-none"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* Special Rules */}
                     <div className="col-span-3">
                       <label className="block text-sm font-medium text-gray-700">
@@ -836,7 +914,8 @@ export default function AdminPage() {
                         .split(',')
                         .map(rule => rule.trim())
                         .filter(rule => rule.length > 0),
-                      id: selectedVehicle
+                      id: selectedVehicle,
+                      equipment_list: equipmentListSelections
                     }),
                   });
 
@@ -850,7 +929,7 @@ export default function AdminPage() {
                   });
 
                   resetVehicleForm();
-                  return true; // Close modal
+                  return true;
                 } catch (error) {
                   console.error('Error updating vehicle type:', error);
                   toast({
@@ -858,7 +937,7 @@ export default function AdminPage() {
                     description: "Failed to update vehicle type",
                     variant: "destructive",
                   });
-                  return false; // Keep modal open
+                  return false;
                 }
               }}
               confirmText="Update Vehicle Type"
