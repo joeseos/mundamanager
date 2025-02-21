@@ -12,7 +12,7 @@ interface AdminCreateSkillModalProps {
 
 export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
   const [skillName, setSkillName] = useState('');
-  const [skillTypeList, setSkillTypes] = useState<Array<{id: string, name: string}>>([]);
+  const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [credit_cost, setCreditCost] = useState('');
   const [xp_cost, setCost] = useState('');
@@ -109,20 +109,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
         <div className="px-[10px] py-4">
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Name *
-              </label>
-              <Input
-                type="text"
-                value={skillName}
-                onChange={(e) => setSkillName(e.target.value)}
-                placeholder="E.g. Restrain, Killing Blow"
-                className="w-full"
-              />
-            </div>
-       
-            <div className="col-span-1">
+             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Skill Type *
               </label>
@@ -134,10 +121,23 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 <option value="">Select skill type</option>
                 {skillTypeList.map((type) => (
                   <option key={type.id} value={type.id}>
-                    {type.name}
+                    {type.skill_type}
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Skill Name *
+              </label>
+              <Input
+                type="text"
+                value={skillName}
+                onChange={(e) => setSkillName(e.target.value)}
+                placeholder="E.g. Restrain, Killing Blow"
+                className="w-full"
+              />
             </div>
 
             <div>
