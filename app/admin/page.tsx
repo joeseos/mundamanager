@@ -242,8 +242,14 @@ export default function AdminPage() {
 
           {showEditFighterType && (
             <AdminEditFighterTypeModal
-              onClose={() => setShowEditFighterType(false)}
-              onSubmit={() => setShowEditFighterType(false)}
+              onClose={() => {
+                setShowEditFighterType(false);
+                console.log('Closing edit fighter type modal');
+              }}
+              onSubmit={() => {
+                setShowEditFighterType(false);
+                console.log('Submitting edit fighter type modal');
+              }}
             />
           )}
 

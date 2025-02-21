@@ -150,10 +150,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (!selectedFighterTypeId) return;
 
       try {
+        console.log('Fetching fighter type details for ID:', selectedFighterTypeId);
         const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`);
-        if (!response.ok) throw new Error('Failed to fetch fighter type details');
-        const data = await response.json();
+        
+        // Log the response status
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          throw new Error(`Failed to fetch fighter type details: ${response.status} ${errorText}`);
+        }
 
+        const data = await response.json();
+        console.log('Received fighter type data:', data);
+
+        if (!data) {
+          throw new Error('No data received from server');
+        }
+
+        // Set the form data
         setFighterType(data.fighter_type || '');
         setBaseCost(data.cost?.toString() || '0');
         setSelectedFighterClass(data.fighter_class || '');
@@ -180,27 +196,34 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         if (data.equipment_selection) {
           setEquipmentSelection({
             weapons: {
-              select_type: data.equipment_selection.weapons.select_type,
-              default: data.equipment_selection.weapons.default || [],
-              options: data.equipment_selection.weapons.options.map((option: any) => ({
+              select_type: data.equipment_selection.weapons?.select_type || 'optional',
+              default: data.equipment_selection.weapons?.default || [],
+              options: data.equipment_selection.weapons?.options?.map((option: any) => ({
                 id: option.id,
                 cost: option.cost,
                 max_quantity: option.max_quantity,
                 replaces: option.replaces,
                 max_replace: option.max_replace
-              }))
+              })) || []
             }
           });
         } else {
           // Reset to default state if no equipment selection
-          setEquipmentSelection({ weapons: { select_type: 'optional' } });
+          setEquipmentSelection({ 
+            weapons: { 
+              select_type: 'optional',
+              default: [],
+              options: []
+            } 
+          });
         }
 
       } catch (error) {
-        console.error('Error fetching fighter type details:', error);
+        console.error('Detailed error in fetchFighterTypeDetails:', error);
         toast({
-          description: 'Failed to load fighter type details',
-          variant: "destructive"
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
+          variant: "destructive",
         });
       }
     };
