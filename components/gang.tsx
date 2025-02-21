@@ -1039,8 +1039,9 @@ export default function Gang({
                     Cost (credits)
                   </label>
                   <Input
-                    type="number"
-                    inputMode="numeric"
+                    type="tel"
+                    inputMode="url"
+                    pattern="-?[0-9]+"
                     value={vehicleCost}
                     onChange={(e) => setVehicleCost(e.target.value)}
                     className="w-full"
