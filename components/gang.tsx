@@ -434,14 +434,16 @@ export default function Gang({
       <div className="space-y-2">
         <p className="text-sm font-medium">Credits</p>
         <Input
-          type="number"
+          type="tel"
+          inputMode="url"
+          pattern="-?[0-9]+"
           value={editedCredits}
           onChange={(e) => {
             const value = e.target.value;
             setEditedCredits(value);
           }}
           className="flex-1"
-          placeholder="Enter amount (negative to subtract)"
+          placeholder="Enter amount (use a negative value to subtract)"
         />
         <p className="text-sm text-gray-500">
           Current credits: {credits}
@@ -453,7 +455,9 @@ export default function Gang({
           Reputation
         </label>
         <Input
-          type="number"
+          type="tel"
+          inputMode="url"
+          pattern="-?[0-9]+"
           value={editedReputation}
           onChange={(e) => setEditedReputation(e.target.value)}
         />
@@ -463,7 +467,9 @@ export default function Gang({
           Meat
         </label>
         <Input
-          type="number"
+          type="tel"
+          inputMode="url"
+          pattern="-?[0-9]+"
           value={editedMeat}
           onChange={(e) => setEditedMeat(e.target.value)}
         />
@@ -473,7 +479,9 @@ export default function Gang({
           Exploration Points
         </label>
         <Input
-          type="number"
+          type="tel"
+          inputMode="url"
+          pattern="-?[0-9]+"
           value={editedExplorationPoints}
           onChange={(e) => setEditedExplorationPoints(e.target.value)}
         />
@@ -1039,9 +1047,7 @@ export default function Gang({
                     Cost (credits)
                   </label>
                   <Input
-                    type="tel"
-                    inputMode="url"
-                    pattern="-?[0-9]+"
+                    type="number"
                     value={vehicleCost}
                     onChange={(e) => setVehicleCost(e.target.value)}
                     className="w-full"
