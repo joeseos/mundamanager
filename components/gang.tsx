@@ -462,30 +462,34 @@ export default function Gang({
           onChange={(e) => setEditedReputation(e.target.value)}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Meat
-        </label>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={editedMeat}
-          onChange={(e) => setEditedMeat(e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Exploration Points
-        </label>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={editedExplorationPoints}
-          onChange={(e) => setEditedExplorationPoints(e.target.value)}
-        />
-      </div>
+      {campaigns?.[0]?.has_meat && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Meat
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedMeat}
+            onChange={(e) => setEditedMeat(e.target.value)}
+          />
+        </div>
+      )}
+      {campaigns?.[0]?.has_exploration_points && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Exploration Points
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedExplorationPoints}
+            onChange={(e) => setEditedExplorationPoints(e.target.value)}
+          />
+        </div>
+      )}
       <DeleteGangButton gangId={id} />
     </div>
   );
@@ -504,7 +508,7 @@ export default function Gang({
           className="w-full"
         />
       </div>
-      
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
           Fighter Type
@@ -592,11 +596,11 @@ export default function Gang({
   useEffect(() => {
     const fetchEquipmentNames = async () => {
       if (!selectedGangAdditionTypeId) return;
-      
+
       const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
       const defaultEquipment = selectedType?.equipment_selection?.weapons?.default;
       const optionalEquipment = selectedType?.equipment_selection?.weapons?.options;
-      
+
       if (!defaultEquipment && !optionalEquipment) return;
 
       try {
@@ -611,10 +615,10 @@ export default function Gang({
         );
 
         if (!response.ok) throw new Error('Failed to fetch equipment');
-        
+
         const equipmentData = await response.json();
         const names: Record<string, string> = {};
-        
+
         // Get names for default equipment
         defaultEquipment?.forEach(item => {
           const equipment = equipmentData.find((e: any) => e.id === item.id);
@@ -876,14 +880,14 @@ export default function Gang({
               </button>
             </div>
           </div>
-        
+
           <div className="text-gray-600 mb-4">
             <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-sm">
                 Type: <Badge variant="secondary">{gang_type}</Badge>
               </div>
               {campaigns?.[0] && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 text-sm">
                   Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
                     <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
                       {campaigns[0].campaign_name}
@@ -895,13 +899,6 @@ export default function Gang({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
-            <StatItem
-              label="Credits"
-              value={credits}
-              isEditing={isEditing}
-              editedValue={editedCredits}
-              onChange={setEditedCredits}
-            />
             <StatItem
               label="Alignment"
               value={alignment}
@@ -917,6 +914,27 @@ export default function Gang({
               isEditing={isEditing}
               editedValue={editedReputation}
               onChange={setEditedReputation}
+            />
+            <StatItem
+              label="Credits"
+              value={credits}
+              isEditing={isEditing}
+              editedValue={editedCredits}
+              onChange={setEditedCredits}
+            />
+            <StatItem
+              label="Rating"
+              value={rating}
+              isEditing={false}
+              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+              onChange={() => {}}
+            />
+            <StatItem
+              label="Wealth"
+              value={rating + credits}
+              isEditing={false}
+              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+              onChange={() => {}}
             />
             {campaigns?.[0]?.has_meat && (
               <StatItem
@@ -936,15 +954,8 @@ export default function Gang({
                 onChange={setEditedExplorationPoints}
               />
             )}
-            <StatItem
-              label="Rating"
-              value={rating}
-              isEditing={false}
-              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
-              onChange={() => {}}
-            />
           </div>
-          <div className="mt-3 flex flex-col sm:flex-row sm:justify-between text-sm text-gray-600 space-y-1 sm:space-y-0">
+          <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
             <span>Created: {formatDate(created_at)}</span>
             <span>Last Updated: {formatDate(lastUpdated)}</span>
           </div>
@@ -1093,7 +1104,7 @@ export default function Gang({
                     className="w-full"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
                     Fighter Type
@@ -1145,10 +1156,10 @@ export default function Gang({
             }}
             onConfirm={handleAddFighter}
             confirmText="Add Fighter"
-            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost || 
+            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost ||
               (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
-                ?.equipment_selection?.weapons?.select_type === 'single' && 
-                !selectedEquipmentIds.length && 
+                ?.equipment_selection?.weapons?.select_type === 'single' &&
+                !selectedEquipmentIds.length &&
                 !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
                   ?.equipment_selection?.weapons?.default)}
           />
@@ -1157,8 +1168,8 @@ export default function Gang({
 
       <div className="print:visible">
         {fighters.length > 0 ? (
-          <DraggableFighters 
-            fighters={fighters} 
+          <DraggableFighters
+            fighters={fighters}
             onPositionsUpdate={handlePositionsUpdate}
             onFightersReorder={setFighters}
             initialPositions={positions}
@@ -1181,12 +1192,12 @@ interface StatItemProps {
   options?: string[];
 }
 
-function StatItem({ 
-  label, 
-  value, 
-  isEditing, 
-  editedValue, 
-  onChange, 
+function StatItem({
+  label,
+  value,
+  isEditing,
+  editedValue,
+  onChange,
   type = 'number',
   options = []
 }: StatItemProps) {
@@ -1215,7 +1226,7 @@ function StatItem({
           />
         )
       ) : (
-        <p className="text-base sm:text-lg font-semibold">
+        <p className="text-base sm:text-base font-semibold">
           {value != null ? value : 0}
         </p>
       )}
