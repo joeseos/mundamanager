@@ -417,7 +417,7 @@ export default function MembersTable({
                           {(currentUserId === member.user_id || isAdmin) && (
                           <button //Admin View Campain Member Gang Button
                             onClick={() => {
-                              window.open("http://localhost:3000/gang/" + member.gangs[0].gang_id)
+                              window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
                               //this will need work becuase Im assuming we dont want a hyperlink in the code but rather a more elegant solution 
                             }}
                           >
