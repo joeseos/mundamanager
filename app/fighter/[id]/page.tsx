@@ -825,6 +825,88 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Define XP "events" for the checkbox list
+  const xpCases = [
+    {
+      id: 'seriousInjury',
+      label: 'Cause Serious Injury',
+      xp: 1
+    },
+    {
+      id: 'outOfAction',
+      label: 'Cause OOA',
+      xp: 2
+    },
+    {
+      id: 'leaderChampionBonus',
+      label: 'Leader/Champion',
+      xp: 1
+    },
+    {
+      id: 'vehicleWrecked',
+      label: 'Wreck Vehicle',
+      xp: 2
+    },
+    {
+      id: 'battleParticipation',
+      label: 'Battle Participation',
+      xp: 1
+    },
+    {
+      id: 'rally',
+      label: 'Successful Rally',
+      xp: 1
+    },
+    {
+      id: 'assistance',
+      label: 'Provide Assistance',
+      xp: 1
+    }
+  ];
+
+  // Track which of these XP events are checked
+  const [xpCheckboxes, setXpCheckboxes] = useState(
+    xpCases.reduce((acc, xpCase) => {
+      acc[xpCase.id] = false;
+      return acc;
+    }, {} as Record<string, boolean>)
+  );
+
+  // Handle toggling a checkbox
+  const handleXpCheckboxChange = (id: string) => {
+    setXpCheckboxes(prev => {
+      // Clone current state
+      const newState = { ...prev };
+
+      // Toggle the clicked checkbox
+      newState[id] = !prev[id];
+
+      // If they clicked seriousInjury, uncheck outOfAction
+      if (id === 'seriousInjury' && newState.seriousInjury) {
+        newState.outOfAction = false;
+      }
+      // If they clicked outOfAction, uncheck seriousInjury
+      if (id === 'outOfAction' && newState.outOfAction) {
+        newState.seriousInjury = false;
+      }
+
+      return newState;
+    });
+  };
+
+  // Compute total from checkboxes
+  const totalXpFromCheckboxes = xpCases.reduce((sum, xpCase) => {
+    if (xpCheckboxes[xpCase.id]) {
+      return sum + xpCase.xp;
+    }
+    return sum;
+  }, 0);
+
+  useEffect(() => {
+    // Convert to string since editState.xpAmount is a string
+    setEditState(prev => ({ ...prev, xpAmount: totalXpFromCheckboxes === 0 ? "" : String(totalXpFromCheckboxes) }));
+  }, [totalXpFromCheckboxes, setEditState]);
+
   const handleAdvancementAdded = async (remainingXp: number, creditsIncrease: number) => {
     await fetchFighterData();
   };
@@ -1703,23 +1785,78 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }
               content={
                 <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-1">
+                    Select any applicable checkboxes, or override the total in the bottom input.
+                  </div>
+                  {/* Checkbox list for XP */}
                   <div>
+                    {/* First 3 XP cases, rendered without separators */}
+                    {xpCases.slice(0, 3).map((xpCase) => (
+                      <div key={xpCase.id} className="flex items-center space-x-2 mb-2">
+                        <input
+                          type="checkbox"
+                          id={xpCase.id}
+                          checked={xpCheckboxes[xpCase.id]}
+                          onChange={() => handleXpCheckboxChange(xpCase.id)}
+                        />
+                        <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
+                      </div>
+                    ))}
+
+                    {/* Separator after the first three */}
+                    <hr className="my-2 border-gray-300" />
+
+                    {/* Remaining XP cases, each followed by a separator except the last */}
+                    {xpCases.slice(3).map((xpCase, idx, arr) => (
+                      <div key={xpCase.id}>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <input
+                            type="checkbox"
+                            id={xpCase.id}
+                            checked={xpCheckboxes[xpCase.id]}
+                            onChange={() => handleXpCheckboxChange(xpCase.id)}
+                          />
+                          <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
+                        </div>
+                        {/* Only show a separator if it’s not the last item in this slice */}
+                        {idx < arr.length - 1 && (
+                          <hr className="my-2 border-gray-300" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Numeric Input */}
+                  <div>
+                    <div className="text-sm text-gray-600 my-6 mb-1">
+                      Total XP from checkboxes: {totalXpFromCheckboxes}
+                    </div>
+
                     <Input
-                      type="number"
+                      type="tel"
+                      inputMode="url"
+                      pattern="-?[0-9]+"
                       value={editState.xpAmount}
-                      onChange={(e) => setEditState(prev => ({
-                        ...prev,
-                        xpAmount: e.target.value
-                      }))}
-                      placeholder="Enter XP amount"
+                      onChange={(e) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          xpAmount: e.target.value
+                        }))
+                      }
+                      placeholder="Override XP (use a negative value to subtract)"
                       className="w-full"
                     />
-                    {editState.xpError && <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>}
+                    {editState.xpError && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {editState.xpError}
+                      </p>
+                    )}
                   </div>
                 </div>
               }
               onClose={() => {
                 handleModalToggle('addXp', false);
+                // Clear numeric
                 setEditState(prev => ({
                   ...prev,
                   xpAmount: ''
@@ -1728,6 +1865,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   ...prev,
                   xpError: ''
                 }));
+                // Reset all checkboxes
+                setXpCheckboxes(
+                  xpCases.reduce((acc, xpCase) => {
+                    acc[xpCase.id] = false;
+                    return acc;
+                  }, {} as Record<string, boolean>)
+                );
               }}
               onConfirm={handleAddXp}
               confirmText="Add XP"
