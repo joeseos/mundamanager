@@ -198,13 +198,13 @@ export default function Campaign({
               )}
             </div>
             <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
-            <div className="flex gap-6 text-sm text-gray-500">
+            <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
               <div>
                 <span>Created: </span>
                 <span>{formatDate(created_at)}</span>
               </div>
               <div>
-                <span>Updated: </span>
+                <span>Last Updated: </span>
                 <span>{formatDate(updated_at)}</span>
               </div>
             </div>
@@ -244,13 +244,13 @@ export default function Campaign({
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
           <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
-          <div className="flex gap-6 text-sm text-gray-500">
+          <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
             <div>
               <span>Created: </span>
               <span>{formatDate(created_at)}</span>
             </div>
             <div>
-              <span>Updated: </span>
+              <span>Last Updated: </span>
               <span>{formatDate(updated_at)}</span>
             </div>
           </div>
