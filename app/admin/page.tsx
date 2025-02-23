@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, Edit, Sword, Car } from "lucide-react";
+import { Users, Edit, Sword, Car, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/ui/admin-create-fighter-type";
 import { AdminEditFighterTypeModal } from "@/components/ui/admin-edit-fighter-type";
@@ -207,7 +207,7 @@ export default function AdminPage() {
       title: "Add Skill",
       description: "Add a new skill",
       action: () => setShowCreateSkill(true),
-      icon: Sword
+      icon: BookOpen
     }
   ];
 
