@@ -1,12 +1,16 @@
-
+CREATE OR REPLACE FUNCTION public.get_user_gangs(user_id uuid)
+ RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, image_url text, credits numeric, reputation numeric, meat numeric, exploration_points numeric, rating numeric, created_at timestamp with time zone, last_updated timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 BEGIN
     IF user_id IS NULL THEN
         RAISE EXCEPTION 'user_id cannot be null';
     END IF;
-
     RETURN QUERY
     WITH fighter_costs AS (
-        SELECT
+        SELECT 
             f.gang_id,
             f.id AS fighter_id,
             (f.credits + COALESCE(f.cost_adjustment, 0)) AS base_cost,
@@ -21,18 +25,29 @@ BEGIN
                 FROM fighter_characteristics fc
                 WHERE fc.fighter_id = f.id),
                 0
-            ) AS advancement_cost
+            ) AS advancement_cost,
+            COALESCE(
+                (SELECT SUM(v.cost + COALESCE(
+                    (SELECT SUM(fe.purchase_cost)
+                    FROM fighter_equipment fe
+                    WHERE fe.vehicle_id = v.id),
+                    0
+                ))
+                FROM vehicles v
+                WHERE v.fighter_id = f.id),
+                0
+            ) AS vehicle_cost
         FROM fighters f
         WHERE f.gang_id IN (SELECT g.id FROM gangs g WHERE g.user_id = get_user_gangs.user_id)
     ),
     gang_ratings AS (
-        SELECT
+        SELECT 
             gang_id,
-            SUM(base_cost + equipment_cost + advancement_cost) AS total_rating
+            SUM(base_cost + equipment_cost + advancement_cost + vehicle_cost) AS total_rating
         FROM fighter_costs
         GROUP BY gang_id
     )
-    SELECT
+    SELECT 
         g.id,
         g.name,
         g.gang_type,
@@ -51,3 +66,4 @@ BEGIN
     WHERE g.user_id = get_user_gangs.user_id
     ORDER BY g.created_at DESC;
 END;
+$function$;
