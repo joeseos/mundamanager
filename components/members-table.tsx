@@ -414,7 +414,7 @@ export default function MembersTable({
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group">
-                          {(isAdmin) && (
+                          {(currentUserId === member.user_id || isAdmin) && (
                           <button //Admin View Campain Member Gang Button
                             onClick={() => {
                               window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
