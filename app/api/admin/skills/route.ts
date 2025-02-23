@@ -51,13 +51,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const skillData = await request.json();
-    
+
     const formattedData = {
       ...skillData,
       skill_name: skillData.name,
       skill_type_id: skillData.skill_type_id,
-      xp_cost: skillData.xp_cost,
-      credit_cost: skillData.credit_cost
+      xp_cost: parseInt(skillData.xp_cost),
+      credit_cost: parseInt(skillData.credit_cost)
     };
 
     const { data, error } = await supabase
