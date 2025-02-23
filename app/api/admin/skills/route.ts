@@ -51,8 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const skillData = await request.json();
-
-    // Convert string values to numbers for numeric fields
+    
     const formattedData = {
       ...skillData,
       skill_name: skillData.name,
