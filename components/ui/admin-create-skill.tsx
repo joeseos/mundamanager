@@ -14,8 +14,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillName, setSkillName] = useState('');
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
-  const [credit_cost, setCreditCost] = useState('');
-  const [xp_cost, setCost] = useState('');
+  const [skillTypeName, setSkillTypeName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const { toast } = useToast();
@@ -41,7 +40,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   }, [toast]);
 
   const handleSubmit = async () => {
-    if (!skillName || !skillType || !xp_cost || !credit_cost) {
+    if (!skillName || !skillType) {
       toast({
         description: "Please fill in all required fields",
         variant: "destructive"
@@ -59,8 +58,6 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         body: JSON.stringify({
           name: skillName,
           skill_type_id: skillType,
-          credit_cost: parseInt(credit_cost),
-          xp_cost: parseInt(xp_cost),
         }),
       });
  
@@ -81,6 +78,51 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       console.error('Error creating skill:', error);
       toast({
         description: 'Failed to create skill',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitType = async () => {
+    if (!skillTypeName) {
+      toast({
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/admin/skill-types', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: skillTypeName
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create skill type');
+      }
+
+      toast({
+        description: "Skill type created successfully",
+        variant: "default"
+      });
+
+      if (onSubmit) {
+        onSubmit();
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error creating skill type:', error);
+      toast({
+        description: 'Failed to create skill type',
         variant: "destructive"
       });
     } finally {
@@ -140,30 +182,17 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 col-span-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cost *
-                </label>
-                <Input
-                  type="number"
-                  value={xp_cost}
-                  onChange={(e) => setCost(e.target.value)}
-                  placeholder="Enter XP cost"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Credit Cost *
-                </label>
-                <Input
-                  type="number"
-                  value={credit_cost}
-                  onChange={(e) => setCreditCost(e.target.value)}
-                  placeholder="Enter credit cost"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Skill Type Name *
+              </label>
+              <Input
+                type="text"
+                value={skillTypeName}
+                onChange={(e) => setSkillTypeName(e.target.value)}
+                placeholder="E.g. Bravado, Finesse"
+                className="w-full"
+              />
             </div>
           </div>
         </div>
@@ -178,10 +207,17 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || !xp_cost || !credit_cost || isLoading}
+            disabled={!skillName || !skillType || isLoading}
             className="bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Skill'}
+          </Button>
+          <Button
+            onClick={handleSubmitType}
+            disabled={!skillTypeName || isLoading}
+            className="bg-black hover:bg-gray-800 text-white"
+          >
+            {isLoading ? 'Creating...' : 'Create Skill Type'}
           </Button>
         </div>
       </div>
