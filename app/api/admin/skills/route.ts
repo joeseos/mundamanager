@@ -40,4 +40,43 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
+
+export async function POST(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillData = await request.json();
+
+    // Convert string values to numbers for numeric fields
+    const formattedData = {
+      ...skillData,
+      skill_name: skillData.name,
+      skill_type_id: skillData.skill_type_id,
+      xp_cost: skillData.xp_cost,
+      credit_cost: skillData.credit_cost
+    };
+
+    const { data, error } = await supabase
+      .from('skills')
+      .insert([formattedData])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error creating skill:', error);
+    return NextResponse.json(
+      { error: 'Failed to create skill' },
+      { status: 500 }
+    );
+  }
+}
