@@ -75,7 +75,7 @@ export default function MembersTable({
   const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null)
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
   const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false)
-  
+
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -301,13 +301,12 @@ export default function MembersTable({
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
             disabled={gang.isInCampaign}
-            className={`w-full p-3 text-left border rounded-lg transition-colors ${
-              gang.isInCampaign 
-                ? 'bg-gray-50 cursor-not-allowed' 
-                : selectedGang?.id === gang.id 
-                  ? 'border-black bg-gray-50' 
+            className={`w-full p-3 text-left border rounded-lg transition-colors ${gang.isInCampaign
+                ? 'bg-gray-50 cursor-not-allowed'
+                : selectedGang?.id === gang.id
+                  ? 'border-black bg-gray-50'
                   : 'hover:border-gray-400'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -394,10 +393,10 @@ export default function MembersTable({
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
                       >
                         {formatRole(member.role)}
-                        <svg 
-                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
+                        <svg
+                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
+                          fill="none"
+                          viewBox="0 0 24 24"
                           stroke="currentColor"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -413,33 +412,36 @@ export default function MembersTable({
                 <td className="px-4 py-2">
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group">
-                          {(currentUserId === member.user_id || isAdmin) && (
-                          <button //Admin View Campain Member Gang Button
-                            onClick={() => {
-                              window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
-                              //this will need work becuase Im assuming we dont want a hyperlink in the code but rather a more elegant solution 
-                            }}
-                          >
-                            {member.gangs[0].gang_name}
-                          </button>
+                      {(currentUserId === member.user_id || isAdmin) && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group">
+                            <button //Admin View Campain Member Gang Button
+                              onClick={() => {
+                                window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
+                                //this will need work becuase Im assuming we dont want a hyperlink in the code but rather a more elegant solution 
+                              }}
+                            >
+                              {member.gangs[0].gang_name}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setGangToRemove({
+                                  memberId: member.user_id,
+                                  gangId: member.gangs[0].gang_id,
+                                  gangName: member.gangs[0].gang_name
+                                });
+                                setShowRemoveGangModal(true);
+                              }}
+                              className="ml-1.5 text-gray-400 hover:text-gray-600"
+                            >
+                              ×
+                            </button>
+                        </span>
                         )}
-                        {(currentUserId === member.user_id || isAdmin) && (
-                          <button
-                            onClick={() => {
-                              setGangToRemove({
-                                memberId: member.user_id,
-                                gangId: member.gangs[0].gang_id,
-                                gangName: member.gangs[0].gang_name
-                              });
-                              setShowRemoveGangModal(true);
-                            }}
-                            className="ml-1.5 text-gray-400 hover:text-gray-600"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
+                        {(currentUserId != member.user_id && !isAdmin) && ( //Allows non-admins to view gang names of other members
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {member.gangs[0].gang_name}
+                            </span>
+                          )}
                     </div>
                   ) : (
                     <div className="flex items-center">
@@ -502,10 +504,10 @@ export default function MembersTable({
                   className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
                 >
                   {formatRole(member.role)}
-                  <svg 
-                    className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
+                  <svg
+                    className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -517,7 +519,7 @@ export default function MembersTable({
                 </span>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Gang</span>
