@@ -34,6 +34,7 @@ interface FighterDetailsCardProps {
   id: string;
   name: string;
   type: string;
+  label?: string;
   credits: number;
   movement: number;
   weapon_skill: number;
@@ -145,6 +146,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
   name,
   type,
+  label,
   credits,
   movement,
   weapon_skill,
@@ -256,23 +258,61 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   return (
     <div className="relative">
-      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center mb-4">
-        <h1 className="text-2xl font-bold break-words flex-1 mb-2 sm:mb-0 flex items-center gap-2">
-          {name}
-          {killed && <IoSkull className="text-gray-400" />}
+      <div className="flex mb-6">
+        <div className="flex w-full">
+          <div
+            className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
+            style={{
+              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+              width: '100%',
+              height: '65px',
+              marginTop: '0px',
+              marginLeft: '-0.5em',
+              zIndex: 0,
+              backgroundPosition: 'center',
+              backgroundSize: '100% 100%'
+            }}>
+            <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+              {label && (
+                <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
+                  {label}
+                </div>
+              )}
+              <div className="flex flex-col items-baseline w-full">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                  {type}
+                  {fighter_class && ` (${fighter_class})`}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          {killed && <IoSkull className="text-gray-300" />}
           {retired && <MdChair className="text-gray-600" />}
           {enslaved && <GiCrossedChains className="text-sky-200" />}
           {starved && <TbMeatOff className="text-red-500" />}
-        </h1>
-        <div className="flex flex-wrap gap-2">
-          <Button 
+        </div>
+        <div className="bg-[#FFFFFF] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+          <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0)}</span>
+          <span className="leading-3 text-xs">Credits</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-between items-center mb-2">
+        <p className="text-lg text-gray-600">
+          Kills: {kills}
+        </p>
+        <div className="flex flex-wrap sm:justify-end justify-center gap-2">
+          <Button
             variant="secondary"
             className="bg-black text-white hover:bg-gray-800"
             onClick={() => onAddXp && onAddXp()}
           >
             Add XP
           </Button>
-          <Button 
+          <Button
             variant="secondary"
             className="bg-black text-white hover:bg-gray-800"
             onClick={onEdit}
@@ -281,17 +321,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </Button>
         </div>
       </div>
+
       <div className="space-y-2">
-        <p className="text-lg text-gray-600">
-          Type: {type}
-          {fighter_class && ` (${fighter_class})`}
-        </p>
-        <p className="text-lg text-gray-600">
-          Credits: {Math.round(credits ?? 0)}
-        </p>
-        <p className="text-lg text-gray-600">
-          Kills: {kills}
-        </p>
         {fighter_class === 'Crew' && (
           <p className="text-lg text-gray-600">
             {vehicles?.[0]

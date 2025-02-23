@@ -34,7 +34,7 @@ as $$
         e.equipment_type,
         e.created_at,
         case
-            when fte.fighter_type_id is not null then true
+            when fte.fighter_type_id is not null or fte.vehicle_type_id is not null then true
             else false
         end as fighter_type_equipment
     from equipment e
@@ -46,7 +46,8 @@ as $$
         )
     left join fighter_type_equipment fte on e.id = fte.equipment_id
         and (get_equipment_with_discounts.fighter_type_id is null 
-             or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id)
+             or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
+             or fte.vehicle_type_id is not null)
     where 
         coalesce(e.core_equipment, false) = false
         and

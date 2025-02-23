@@ -194,7 +194,7 @@ export default function GangVehicles({
         throw new Error('Failed to update vehicle name');
       }
 
-      // Update local state
+      // Update both the vehicles list and any fighter that has this vehicle
       if (onVehicleUpdate) {
         const updatedVehicles = allVehicles.map(v => 
           v.id === editingVehicle.id 
@@ -202,6 +202,21 @@ export default function GangVehicles({
             : v
         );
         onVehicleUpdate(updatedVehicles);
+      }
+
+      // Update fighter's vehicle if assigned
+      if (editingVehicle.assigned_to && onFighterUpdate) {
+        const fighter = fighters.find(f => f.fighter_name === editingVehicle.assigned_to);
+        if (fighter && fighter.vehicles?.[0]) {
+          const updatedFighter = {
+            ...fighter,
+            vehicles: [{
+              ...fighter.vehicles[0],
+              vehicle_name: editedVehicleName
+            }]
+          };
+          onFighterUpdate(updatedFighter);
+        }
       }
 
       toast({

@@ -423,8 +423,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   } | null>(null);
 
   // Add state for sell modal with cost state
-  const [sellVehicleEquipmentData, setSellVehicleEquipmentData] = useState<Equipment | null>(null);
-  const [sellCost, setSellCost] = useState<number>(0);
+  const [sellVehicleEquipmentData, setSellVehicleEquipmentData] = useState<{
+    id: string;
+    equipmentId: string;
+    name: string;
+    cost: number;
+  } | null>(null);
 
   // Add new state for available injuries
   const [availableInjuries, setAvailableInjuries] = useState<Array<{
@@ -825,6 +829,88 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Define XP "events" for the checkbox list
+  const xpCases = [
+    {
+      id: 'seriousInjury',
+      label: 'Cause Serious Injury',
+      xp: 1
+    },
+    {
+      id: 'outOfAction',
+      label: 'Cause OOA',
+      xp: 2
+    },
+    {
+      id: 'leaderChampionBonus',
+      label: 'Leader/Champion',
+      xp: 1
+    },
+    {
+      id: 'vehicleWrecked',
+      label: 'Wreck Vehicle',
+      xp: 2
+    },
+    {
+      id: 'battleParticipation',
+      label: 'Battle Participation',
+      xp: 1
+    },
+    {
+      id: 'rally',
+      label: 'Successful Rally',
+      xp: 1
+    },
+    {
+      id: 'assistance',
+      label: 'Provide Assistance',
+      xp: 1
+    }
+  ];
+
+  // Track which of these XP events are checked
+  const [xpCheckboxes, setXpCheckboxes] = useState(
+    xpCases.reduce((acc, xpCase) => {
+      acc[xpCase.id] = false;
+      return acc;
+    }, {} as Record<string, boolean>)
+  );
+
+  // Handle toggling a checkbox
+  const handleXpCheckboxChange = (id: string) => {
+    setXpCheckboxes(prev => {
+      // Clone current state
+      const newState = { ...prev };
+
+      // Toggle the clicked checkbox
+      newState[id] = !prev[id];
+
+      // If they clicked seriousInjury, uncheck outOfAction
+      if (id === 'seriousInjury' && newState.seriousInjury) {
+        newState.outOfAction = false;
+      }
+      // If they clicked outOfAction, uncheck seriousInjury
+      if (id === 'outOfAction' && newState.outOfAction) {
+        newState.seriousInjury = false;
+      }
+
+      return newState;
+    });
+  };
+
+  // Compute total from checkboxes
+  const totalXpFromCheckboxes = xpCases.reduce((sum, xpCase) => {
+    if (xpCheckboxes[xpCase.id]) {
+      return sum + xpCase.xp;
+    }
+    return sum;
+  }, 0);
+
+  useEffect(() => {
+    // Convert to string since editState.xpAmount is a string
+    setEditState(prev => ({ ...prev, xpAmount: totalXpFromCheckboxes === 0 ? "" : String(totalXpFromCheckboxes) }));
+  }, [totalXpFromCheckboxes, setEditState]);
+
   const handleAdvancementAdded = async (remainingXp: number, creditsIncrease: number) => {
     await fetchFighterData();
   };
@@ -1145,34 +1231,40 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     });
   };
 
-  // Update the handleVehicleEquipmentDelete function to log the IDs
+  // Add back the initial delete handler function
   const handleVehicleEquipmentDelete = async (fighterEquipmentId: string, equipmentId: string) => {
-    console.log('Delete request for:', { fighterEquipmentId, equipmentId });
-    
-    // Find the equipment to delete for the modal
-    const equipmentToDelete = fighterData.vehicleEquipment.find(
-      e => e.fighter_equipment_id === fighterEquipmentId
-    );
-    
-    if (!equipmentToDelete) {
-      console.log('Available equipment:', fighterData.vehicleEquipment);
+    try {
+      // Find the equipment to delete for the modal
+      const equipmentToDelete = fighterData.vehicleEquipment.find(
+        e => e.fighter_equipment_id === fighterEquipmentId
+      );
+      
+      if (!equipmentToDelete) {
+        toast({
+          title: "Error",
+          description: "Equipment not found",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show confirmation modal
+      setDeleteVehicleEquipmentData({
+        id: equipmentToDelete.fighter_equipment_id,
+        equipmentId: equipmentToDelete.equipment_id,
+        name: equipmentToDelete.equipment_name
+      });
+    } catch (error) {
+      console.error('Error preparing to delete equipment:', error);
       toast({
         title: "Error",
-        description: "Equipment not found",
+        description: "Failed to prepare equipment for deletion",
         variant: "destructive"
       });
-      return;
     }
-
-    // Show confirmation modal
-    setDeleteVehicleEquipmentData({
-      id: equipmentToDelete.fighter_equipment_id, // Use the correct ID field
-      equipmentId: equipmentToDelete.equipment_id,
-      name: equipmentToDelete.equipment_name
-    });
   };
 
-  // Update the handleConfirmVehicleEquipmentDelete function to log the data
+  // Rename the current delete handler to handleConfirmVehicleEquipmentDelete
   const handleConfirmVehicleEquipmentDelete = async () => {
     if (!deleteVehicleEquipmentData) return;
     
@@ -1183,7 +1275,44 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       );
 
       if (!equipmentToRemove) throw new Error('Equipment not found');
+      if (!fighterData.fighter?.vehicles?.[0]) throw new Error('No vehicle found');
 
+      const vehicle = fighterData.fighter.vehicles[0];
+      const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
+
+      // Calculate all state updates before making any changes
+      const slotUpdates = {
+        body_slots_occupied: profile?.upgrade_type === 'body' ? -1 : 0,
+        drive_slots_occupied: profile?.upgrade_type === 'drive' ? -1 : 0,
+        engine_slots_occupied: profile?.upgrade_type === 'engine' ? -1 : 0
+      };
+
+      const updatedVehicle = {
+        ...vehicle,
+        body_slots_occupied: Math.max(0, (vehicle.body_slots_occupied || 0) + slotUpdates.body_slots_occupied),
+        drive_slots_occupied: Math.max(0, (vehicle.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied),
+        engine_slots_occupied: Math.max(0, (vehicle.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied),
+        equipment: vehicle.equipment?.filter(e => e.equipment_id !== equipmentToRemove.equipment_id)
+      };
+
+      // Make a single optimistic update with all changes
+      setFighterData(prev => ({
+        ...prev,
+        fighter: {
+          ...prev.fighter!,
+          credits: prev.fighter!.credits - equipmentToRemove.cost,
+          vehicles: [updatedVehicle]
+        },
+        vehicleEquipment: prev.vehicleEquipment.filter(
+          item => item.fighter_equipment_id !== deleteVehicleEquipmentData.id
+        )
+      }));
+
+      // Close modal and show feedback
+      setDeleteVehicleEquipmentData(null);
+      toast({ description: `Successfully deleted ${equipmentToRemove.equipment_name}` });
+
+      // Make the API request
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_equipment?id=eq.${deleteVehicleEquipmentData.id}`,
         {
@@ -1197,41 +1326,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       if (!response.ok) throw new Error('Failed to delete equipment');
 
-      // Update local state including slot counts
-      setFighterData(prev => {
-        if (!prev.fighter?.vehicles?.[0]) return prev;
-        const vehicle = prev.fighter.vehicles[0];
-        const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
-
-        if (!profile) return prev;
-
-        // Calculate slot updates for removal
-        const slotUpdates = {
-          body_slots_occupied: profile.upgrade_type === 'body' ? -1 : 0,
-          drive_slots_occupied: profile.upgrade_type === 'drive' ? -1 : 0,
-          engine_slots_occupied: profile.upgrade_type === 'engine' ? -1 : 0
-        };
-
-        return {
-          ...prev,
-          fighter: {
-            ...prev.fighter,
-            vehicles: [{
-              ...vehicle,
-              body_slots_occupied: Math.max(0, (vehicle.body_slots_occupied || 0) + slotUpdates.body_slots_occupied),
-              drive_slots_occupied: Math.max(0, (vehicle.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied),
-              engine_slots_occupied: Math.max(0, (vehicle.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied),
-              equipment: vehicle.equipment?.filter(e => e.equipment_id !== equipmentToRemove.equipment_id)
-            }]
-          },
-          vehicleEquipment: prev.vehicleEquipment.filter(
-            equip => equip.fighter_equipment_id !== deleteVehicleEquipmentData.id
-          )
-        };
-      });
-
-      toast({ description: "Equipment deleted successfully" });
-      setDeleteVehicleEquipmentData(null);
     } catch (error) {
       console.error('Error deleting equipment:', error);
       toast({
@@ -1239,6 +1333,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         description: "Failed to delete equipment",
         variant: "destructive"
       });
+      // Revert all changes on error
+      await fetchFighterData();
     }
   };
 
@@ -1288,8 +1384,54 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       if (!equipmentToRemove) throw new Error('Equipment not found');
 
+      // Optimistically update the state
+      const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
+      const vehicle = fighterData.fighter?.vehicles?.[0];
+
+      // Calculate slot updates for removal
+      const slotUpdates = profile ? {
+        body_slots_occupied: profile.upgrade_type === 'body' ? -1 : 0,
+        drive_slots_occupied: profile.upgrade_type === 'drive' ? -1 : 0,
+        engine_slots_occupied: profile.upgrade_type === 'engine' ? -1 : 0
+      } : {
+        body_slots_occupied: 0,
+        drive_slots_occupied: 0,
+        engine_slots_occupied: 0
+      };
+
+      // Optimistically update the state
+      setFighterData(prev => {
+        if (!prev.fighter?.vehicles?.[0]) return prev;
+
+        return {
+          ...prev,
+          fighter: {
+            ...prev.fighter,
+            // Update fighter credits when stashing equipment
+            credits: prev.fighter.credits - stashVehicleEquipmentData.cost,
+            vehicles: [{
+              ...prev.fighter.vehicles[0],
+              body_slots_occupied: Math.max(0, (vehicle?.body_slots_occupied || 0) + slotUpdates.body_slots_occupied),
+              drive_slots_occupied: Math.max(0, (vehicle?.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied),
+              engine_slots_occupied: Math.max(0, (vehicle?.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied),
+              equipment: prev.fighter.vehicles[0].equipment?.filter(
+                e => e.equipment_id !== equipmentToRemove.equipment_id
+              )
+            }]
+          },
+          vehicleEquipment: prev.vehicleEquipment.filter(
+            equip => equip.fighter_equipment_id !== stashVehicleEquipmentData.id
+          )
+        };
+      });
+
+      // Close the modal immediately for better UX
+      setStashVehicleEquipmentData(null);
+      toast({ description: "Equipment moved to stash" });
+
+      // Make the actual API request
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/stash_equipment`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_to_gang_stash`,
         {
           method: 'POST',
           headers: {
@@ -1302,43 +1444,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         }
       );
 
-      if (!response.ok) throw new Error('Failed to stash equipment');
+      if (!response.ok) {
+        // If the request fails, revert the optimistic update
+        await fetchFighterData();
+        throw new Error('Failed to stash equipment');
+      }
 
-      // Update local state including slot counts
-      setFighterData(prev => {
-        if (!prev.fighter?.vehicles?.[0]) return prev;
-        const vehicle = prev.fighter.vehicles[0];
-        const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
-
-        if (!profile) return prev;
-
-        // Calculate slot updates for removal
-        const slotUpdates = {
-          body_slots_occupied: profile.upgrade_type === 'body' ? -1 : 0,
-          drive_slots_occupied: profile.upgrade_type === 'drive' ? -1 : 0,
-          engine_slots_occupied: profile.upgrade_type === 'engine' ? -1 : 0
-        };
-
-        return {
-          ...prev,
-          fighter: {
-            ...prev.fighter,
-            vehicles: [{
-              ...vehicle,
-              body_slots_occupied: Math.max(0, (vehicle.body_slots_occupied || 0) + slotUpdates.body_slots_occupied),
-              drive_slots_occupied: Math.max(0, (vehicle.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied),
-              engine_slots_occupied: Math.max(0, (vehicle.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied),
-              equipment: vehicle.equipment?.filter(e => e.equipment_id !== equipmentToRemove.equipment_id)
-            }]
-          },
-          vehicleEquipment: prev.vehicleEquipment.filter(
-            equip => equip.fighter_equipment_id !== stashVehicleEquipmentData.id
-          )
-        };
-      });
-
-      toast({ description: "Equipment moved to stash" });
-      setStashVehicleEquipmentData(null);
     } catch (error) {
       console.error('Error stashing equipment:', error);
       toast({
@@ -1346,56 +1457,79 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         description: "Failed to stash equipment",
         variant: "destructive"
       });
+      
+      // Revert optimistic update on error
+      await fetchFighterData();
     }
   };
 
-  // Add the sell handler
+  // Update the sell handler to show modal first
   const handleVehicleEquipmentSell = async (fighterEquipmentId: string) => {
+    try {
+      // Find the equipment to sell
+      const equipmentToSell = fighterData.vehicleEquipment.find(
+        e => e.fighter_equipment_id === fighterEquipmentId
+      );
+      
+      if (!equipmentToSell) {
+        toast({
+          title: "Error",
+          description: "Equipment not found",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show confirmation modal
+      setSellVehicleEquipmentData({
+        id: equipmentToSell.fighter_equipment_id,
+        equipmentId: equipmentToSell.equipment_id,
+        name: equipmentToSell.equipment_name,
+        cost: equipmentToSell.cost || 0
+      });
+    } catch (error) {
+      console.error('Error preparing to sell equipment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare equipment for sale",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add the confirm sell handler
+  const handleConfirmVehicleEquipmentSell = async () => {
+    if (!sellVehicleEquipmentData) return;
+    
     try {
       // Find the equipment to remove and its profiles
       const equipmentToRemove = fighterData.vehicleEquipment.find(
-        e => e.fighter_equipment_id === fighterEquipmentId
+        e => e.fighter_equipment_id === sellVehicleEquipmentData.id
       );
 
       if (!equipmentToRemove) throw new Error('Equipment not found');
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/sell_equipment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            fighter_equipment_id: fighterEquipmentId
-          })
-        }
-      );
+      // Optimistically update the UI
+      const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
+      const vehicle = fighterData.fighter?.vehicles?.[0];
 
-      if (!response.ok) throw new Error('Failed to sell equipment');
+      // Calculate slot updates for removal
+      const slotUpdates = {
+        body_slots_occupied: profile?.upgrade_type === 'body' ? -1 : 0,
+        drive_slots_occupied: profile?.upgrade_type === 'drive' ? -1 : 0,
+        engine_slots_occupied: profile?.upgrade_type === 'engine' ? -1 : 0
+      };
 
-      const data = await response.json();
-
-      // Update local state including slot counts
       setFighterData(prev => {
         if (!prev.fighter?.vehicles?.[0]) return prev;
         const vehicle = prev.fighter.vehicles[0];
-        const profile = equipmentToRemove.vehicle_equipment_profiles?.[0];
-
-        if (!profile) return prev;
-
-        // Calculate slot updates for removal
-        const slotUpdates = {
-          body_slots_occupied: profile.upgrade_type === 'body' ? -1 : 0,
-          drive_slots_occupied: profile.upgrade_type === 'drive' ? -1 : 0,
-          engine_slots_occupied: profile.upgrade_type === 'engine' ? -1 : 0
-        };
 
         return {
           ...prev,
           fighter: {
             ...prev.fighter,
+            // Update fighter credits
+            credits: prev.fighter.credits - sellVehicleEquipmentData.cost,
             vehicles: [{
               ...vehicle,
               body_slots_occupied: Math.max(0, (vehicle.body_slots_occupied || 0) + slotUpdates.body_slots_occupied),
@@ -1404,17 +1538,45 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               equipment: vehicle.equipment?.filter(e => e.equipment_id !== equipmentToRemove.equipment_id)
             }]
           },
+          // Update gang credits optimistically
           gang: prev.gang ? {
             ...prev.gang,
-            credits: data.equipment_sold.sell_value
+            credits: prev.gang.credits + sellVehicleEquipmentData.cost
           } : null,
           vehicleEquipment: prev.vehicleEquipment.filter(
-            item => item.fighter_equipment_id !== fighterEquipmentId
+            item => item.fighter_equipment_id !== sellVehicleEquipmentData.id
           )
         };
       });
 
-      toast({ description: "Equipment sold successfully" });
+      // Close modal and show feedback
+      setSellVehicleEquipmentData(null);
+      toast({ 
+        description: `Successfully sold ${equipmentToRemove.equipment_name} for ${sellVehicleEquipmentData.cost} credits` 
+      });
+
+      // Make the actual API request
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/sell_equipment_from_fighter`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            fighter_equipment_id: sellVehicleEquipmentData.id,
+            manual_cost: sellVehicleEquipmentData.cost
+          })
+        }
+      );
+
+      if (!response.ok) {
+        // If the request fails, revert all changes
+        await fetchFighterData();
+        throw new Error('Failed to sell equipment');
+      }
+
     } catch (error) {
       console.error('Error selling equipment:', error);
       toast({
@@ -1422,6 +1584,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         description: "Failed to sell equipment",
         variant: "destructive"
       });
+      // Revert all changes on error
+      await fetchFighterData();
     }
   };
 
@@ -1472,8 +1636,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="mb-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
+          <div className="mb-4">
             <select
               value={params.id}
               onChange={handleFighterChange}
@@ -1658,7 +1822,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           {uiState.modals.delete && (
             <Modal
               title="Confirm Deletion"
-              content={`Are you sure you want to delete ${fighterData.fighter?.fighter_name}? This action cannot be undone.`}
               onClose={() => handleModalToggle('delete', false)}
               onConfirm={handleDeleteFighter}
             />
@@ -1703,23 +1866,78 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }
               content={
                 <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-1">
+                    Select any applicable checkboxes, or override the total in the bottom input.
+                  </div>
+                  {/* Checkbox list for XP */}
                   <div>
+                    {/* First 3 XP cases, rendered without separators */}
+                    {xpCases.slice(0, 3).map((xpCase) => (
+                      <div key={xpCase.id} className="flex items-center space-x-2 mb-2">
+                        <input
+                          type="checkbox"
+                          id={xpCase.id}
+                          checked={xpCheckboxes[xpCase.id]}
+                          onChange={() => handleXpCheckboxChange(xpCase.id)}
+                        />
+                        <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
+                      </div>
+                    ))}
+
+                    {/* Separator after the first three */}
+                    <hr className="my-2 border-gray-300" />
+
+                    {/* Remaining XP cases, each followed by a separator except the last */}
+                    {xpCases.slice(3).map((xpCase, idx, arr) => (
+                      <div key={xpCase.id}>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <input
+                            type="checkbox"
+                            id={xpCase.id}
+                            checked={xpCheckboxes[xpCase.id]}
+                            onChange={() => handleXpCheckboxChange(xpCase.id)}
+                          />
+                          <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
+                        </div>
+                        {/* Only show a separator if it’s not the last item in this slice */}
+                        {idx < arr.length - 1 && (
+                          <hr className="my-2 border-gray-300" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Numeric Input */}
+                  <div>
+                    <div className="text-sm text-gray-600 my-6 mb-1">
+                      Total XP from checkboxes: {totalXpFromCheckboxes}
+                    </div>
+
                     <Input
-                      type="number"
+                      type="tel"
+                      inputMode="url"
+                      pattern="-?[0-9]+"
                       value={editState.xpAmount}
-                      onChange={(e) => setEditState(prev => ({
-                        ...prev,
-                        xpAmount: e.target.value
-                      }))}
-                      placeholder="Enter XP amount"
+                      onChange={(e) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          xpAmount: e.target.value
+                        }))
+                      }
+                      placeholder="Override XP (use a negative value to subtract)"
                       className="w-full"
                     />
-                    {editState.xpError && <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>}
+                    {editState.xpError && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {editState.xpError}
+                      </p>
+                    )}
                   </div>
                 </div>
               }
               onClose={() => {
                 handleModalToggle('addXp', false);
+                // Clear numeric
                 setEditState(prev => ({
                   ...prev,
                   xpAmount: ''
@@ -1728,6 +1946,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   ...prev,
                   xpError: ''
                 }));
+                // Reset all checkboxes
+                setXpCheckboxes(
+                  xpCases.reduce((acc, xpCase) => {
+                    acc[xpCase.id] = false;
+                    return acc;
+                  }, {} as Record<string, boolean>)
+                );
               }}
               onConfirm={handleAddXp}
               confirmText="Add XP"
@@ -1809,8 +2034,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Cost Adjustment</p>
                       <Input
-                        type="text"
-                        inputMode="numeric"
+                        type="tel"
+                        inputMode="url"
                         pattern="-?[0-9]*"
                         value={editState.costAdjustment}
                         onKeyDown={(e) => {
@@ -1882,18 +2107,19 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   handleNameUpdate(editState.name);
                   setFighterData(prev => ({
                     ...prev,
-                    fighter: prev.fighter ? { 
-                      ...prev.fighter, 
-                      kills: editState.kills,
-                      fighter_name: editState.name,
-                      label: editState.label,
-                      cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
-                        ? 0 
-                        : Number(editState.costAdjustment),
-                      credits: prev.fighter.base_credits + (editState.costAdjustment === '' || editState.costAdjustment === '-' 
-                        ? 0 
-                        : Number(editState.costAdjustment))
-                    } : null
+                    fighter: prev.fighter ? 
+                      { 
+                        ...prev.fighter, 
+                        kills: editState.kills,
+                        fighter_name: editState.name,
+                        label: editState.label,
+                        cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                          ? 0 
+                          : Number(editState.costAdjustment),
+                        credits: prev.fighter.base_credits + (editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                          ? 0 
+                          : Number(editState.costAdjustment))
+                      } : null
                   }));
                   
                   toast({
@@ -1951,6 +2177,31 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             >
               <p>Are you sure you want to stash {stashVehicleEquipmentData.name}? This action cannot be undone.</p>
             </Modal>
+          )}
+          
+          {sellVehicleEquipmentData && (
+            <Modal
+              title="Confirm Sale"
+              content={
+                <div className="space-y-4">
+                  <p>Are you sure you want to sell {sellVehicleEquipmentData.name}?</p>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Sale price</label>
+                    <Input
+                      type="number"
+                      value={sellVehicleEquipmentData.cost}
+                      onChange={(e) => setSellVehicleEquipmentData(prev => prev ? {
+                        ...prev,
+                        cost: parseInt(e.target.value) || 0
+                      } : null)}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              }
+              onClose={() => setSellVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentSell}
+            />
           )}
         </div>
       </div>
