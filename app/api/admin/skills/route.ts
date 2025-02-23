@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
+interface Skill {
+  id: string;
+  name: string;
+  skill_type_id: string;
+}
+
 export async function GET(request: Request) {
   const supabase = createClient();
   const { searchParams } = new URL(request.url);
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    const transformedData = data.map(skill => ({
+    const transformedData = data.map((skill: Skill) => ({
       id: skill.id,
       skill_name: skill.name,
       skill_type_id: skill.skill_type_id
@@ -53,8 +59,7 @@ export async function POST(request: Request) {
     const skillData = await request.json();
 
     const formattedData = {
-      ...skillData,
-      skill_name: skillData.name,
+      name: skillData.name,
       skill_type_id: skillData.skill_type_id,
       xp_cost: parseInt(skillData.xp_cost),
       credit_cost: parseInt(skillData.credit_cost)

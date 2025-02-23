@@ -57,7 +57,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          skill_name: skillName,
+          name: skillName,
           skill_type_id: skillType,
           credit_cost: parseInt(credit_cost),
           xp_cost: parseInt(xp_cost),
@@ -93,7 +93,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Add Skill</h3>
@@ -108,8 +108,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         </div>
 
         <div className="px-[10px] py-4">
-          <div className="grid grid-cols-3 gap-4">
-             <div className="col-span-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Skill Type *
               </label>
@@ -140,28 +140,30 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cost *
-              </label>
-              <Input
-                type="number"
-                value={xp_cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="Enter XP cost"
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4 col-span-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cost *
+                </label>
+                <Input
+                  type="number"
+                  value={xp_cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  placeholder="Enter XP cost"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Credit Cost *
-              </label>
-              <Input
-                type="number"
-                value={credit_cost}
-                onChange={(e) => setCreditCost(e.target.value)}
-                placeholder="Enter credit cost"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Credit Cost *
+                </label>
+                <Input
+                  type="number"
+                  value={credit_cost}
+                  onChange={(e) => setCreditCost(e.target.value)}
+                  placeholder="Enter credit cost"
+                />
+              </div>
             </div>
           </div>
         </div>
