@@ -1636,8 +1636,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="mb-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
+          <div className="mb-4">
             <select
               value={params.id}
               onChange={handleFighterChange}
@@ -2034,8 +2034,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Cost Adjustment</p>
                       <Input
-                        type="text"
-                        inputMode="numeric"
+                        type="tel"
+                        inputMode="url"
                         pattern="-?[0-9]*"
                         value={editState.costAdjustment}
                         onKeyDown={(e) => {
