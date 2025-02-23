@@ -414,7 +414,7 @@ export default function MembersTable({
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group">
-                          {(currentUserId === member.user_id || isAdmin) && (
+                          {(isAdmin) && (
                           <button //Admin View Campain Member Gang Button
                             onClick={() => {
                               window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
@@ -566,6 +566,21 @@ export default function MembersTable({
                   {member.gangs[0]?.rating || "-"}
                 </span>
               </div>
+
+              {isAdmin && (
+                <div className="flex justify-end mt-3">
+                  <Button
+                    //variant="destructive"
+                    size="sm"
+                    className="text-xs px-1.5 h-6"
+                    onClick={() => {
+                      window.open("http:///www.mundamanager.com/gang/" + member.gangs[0].gang_id)
+                    }}
+                  >
+                    View Gang
+                  </Button>
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="flex justify-end mt-3">
