@@ -1,6 +1,3 @@
-DROP FUNCTION IF EXISTS public.move_from_stash(uuid, uuid);
-DROP FUNCTION IF EXISTS public.move_from_stash(uuid, uuid, uuid);
-
 CREATE OR REPLACE FUNCTION public.move_from_stash(
    p_stash_id uuid,
    p_fighter_id uuid DEFAULT NULL,
@@ -16,6 +13,9 @@ DECLARE
    v_equipment_id UUID;
    v_cost NUMERIC;
    v_debug_count INTEGER;
+   v_weapon_profiles json;
+   v_vehicle_profiles json;
+   v_result jsonb;
 BEGIN
    IF p_fighter_id IS NULL AND p_vehicle_id IS NULL THEN
        RETURN json_build_object(
@@ -112,7 +112,8 @@ BEGIN
        );
    END;
 
-   RETURN json_build_object(
+   -- Build the base result object
+   v_result := jsonb_build_object(
        'success', true,
        'message', CASE 
            WHEN p_fighter_id IS NOT NULL THEN 'Equipment moved from stash to fighter'
@@ -124,6 +125,27 @@ BEGIN
        'equipment_id', v_equipment_id,
        'cost', v_cost
    );
+
+   -- Check for weapon profiles
+   SELECT COALESCE(json_agg(wp), '[]'::json)
+   INTO v_weapon_profiles
+   FROM weapon_profiles wp
+   WHERE wp.weapon_id = v_equipment_id;
+
+   -- Check for vehicle equipment profiles
+   SELECT COALESCE(json_agg(vep), '[]'::json)
+   INTO v_vehicle_profiles
+   FROM vehicle_equipment_profiles vep
+   WHERE vep.equipment_id = v_equipment_id;
+
+   -- Add the relevant profile to the result if it exists
+   IF v_weapon_profiles::jsonb != '[]'::jsonb THEN
+       v_result := v_result || jsonb_build_object('weapon_profiles', v_weapon_profiles);
+   ELSIF v_vehicle_profiles::jsonb != '[]'::jsonb THEN
+       v_result := v_result || jsonb_build_object('vehicle_equipment_profiles', v_vehicle_profiles);
+   END IF;
+
+   RETURN v_result;
 EXCEPTION WHEN OTHERS THEN
    RETURN json_build_object(
        'success', false,
