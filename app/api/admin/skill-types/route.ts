@@ -31,4 +31,38 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}
+
+export async function POST(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillTypeData = await request.json();
+
+    const formattedData = {
+      name: skillTypeData.name
+    };
+
+    const { data, error } = await supabase
+      .from('skill_types')
+      .insert([formattedData])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error creating skill type:', error);
+    return NextResponse.json(
+      { error: 'Failed to create skill type' },
+      { status: 500 }
+    );
+  }
+}

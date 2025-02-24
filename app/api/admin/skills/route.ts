@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
+interface Skill {
+  id: string;
+  name: string;
+  skill_type_id: string;
+}
+
 export async function GET(request: Request) {
   const supabase = createClient();
   const { searchParams } = new URL(request.url);
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    const transformedData = data.map(skill => ({
+    const transformedData = data.map((skill: Skill) => ({
       id: skill.id,
       skill_name: skill.name,
       skill_type_id: skill.skill_type_id
@@ -40,4 +46,41 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
+
+export async function POST(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillData = await request.json();
+
+    const formattedData = {
+      name: skillData.name,
+      skill_type_id: skillData.skill_type_id,
+      xp_cost: parseInt(skillData.xp_cost),
+      credit_cost: parseInt(skillData.credit_cost)
+    };
+
+    const { data, error } = await supabase
+      .from('skills')
+      .insert([formattedData])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error creating skill:', error);
+    return NextResponse.json(
+      { error: 'Failed to create skill' },
+      { status: 500 }
+    );
+  }
+}
