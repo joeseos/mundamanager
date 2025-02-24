@@ -31,11 +31,11 @@ export default async function AboutPage() {
     },
     {
       q: "How can I provide feedback or request features?",
-      a: <>We'd love to hear from you! For support, feedback, or feature requests, please contact us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a> or join our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a>.</>
+      a: <>Join our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
     },
     {
       q: "Can I report a bug or technical issue?",
-      a: <>Yes, please reach out to us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a> or on our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. We'll do our best to address it as soon as possible.</>
+      a: <>Yes, please reach out to us on our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. We'll do our best to address it as soon as possible.</>
     },
     {
       q: "How is my data stored?",
@@ -93,11 +93,7 @@ export default async function AboutPage() {
             <section>
               <h2 className="text-xl font-semibold mb-2">Contact</h2>
               <p className="text-gray-700">
-                For support or feedback, please contact us at{' '}
-                <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">
-                  {emailAddress}
-                </a>{' '}
-                or join our{' '}
+                For support or feedback, please join our{' '}
                 <a 
                   href="https://discord.gg/FrqEWShQd7" 
                   className="text-blue-600 hover:underline"
