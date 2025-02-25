@@ -25,9 +25,9 @@ export async function GET() {
 
     return NextResponse.json(transformedData);
   } catch (error) {
-    console.error('Error fetching skill types:', error);
+    console.error('Error fetching skill sets:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch skill types' },
+      { error: 'Failed to fetch skill sets' },
       { status: 500 }
     );
   }
@@ -59,9 +59,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error creating skill type:', error);
+    console.error('Error creating skill set:', error);
     return NextResponse.json(
-      { error: 'Failed to create skill type' },
+      { error: 'Failed to create skill set' },
       { status: 500 }
     );
   }

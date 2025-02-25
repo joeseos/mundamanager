@@ -235,7 +235,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           setSelectedAdvancement(formattedAdvancement);
 
         } else {
-          // Handle skills - only fetch if we have selected a skill type
+          // Handle skills - only fetch if we have selected a skill set
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_available_skills`,
             {
@@ -258,10 +258,10 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           console.log('Raw skills data:', data);
           setSkillsData(data);
           
-          // Find the selected skill type name
+          // Find the selected skill set name
           const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
           if (!selectedSkillType) {
-            console.error('Selected skill type not found:', selectedCategory);
+            console.error('Selected skill set not found:', selectedCategory);
             return;
           }
 
@@ -476,10 +476,10 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
         <div className="p-4 overflow-y-auto flex-grow">
           <div className="mb-4">
             <p className="text-sm text-gray-600 mb-2">
-              Cost and Value will be automatically determined based on type and current # of advances.
+              Cost and value are automatically calculated based on the type and number of advancements.
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              Ganger types and custom types flagged as Gangers will have limited selection.
+              Gangers and custom fighters designated as Gangers have access to a restricted selection.
             </p>
           </div>
 
@@ -512,7 +512,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   }}
                 >
                   <option key="default" value="">
-                    Select {advancementType === 'characteristic' ? 'Characteristic' : 'Skill Type'}
+                    Select {advancementType === 'characteristic' ? 'Characteristic' : 'Skill Set'}
                   </option>
                   {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((category) => (
                     <option key={category.id} value={category.id}>
@@ -655,7 +655,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                 editableXpCost <= 0 // Add validation for positive XP cost
               }
             >
-              Buy Advance
+              Buy Advancement
             </Button>
           </div>
         </div>

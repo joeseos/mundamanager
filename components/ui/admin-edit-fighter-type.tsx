@@ -278,13 +278,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     const fetchSkillTypes = async () => {
       try {
         const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill types');
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
         const data = await response.json();
         setSkillTypes(data);
       } catch (error) {
-        console.error('Error fetching skill types:', error);
+        console.error('Error fetching skill sets:', error);
         toast({
-          description: 'Failed to load skill types',
+          description: 'Failed to load skill sets',
           variant: "destructive"
         });
       }
@@ -776,7 +776,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   onChange={(e) => setSelectedSkillType(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select skill type</option>
+                  <option value="">Select skill set</option>
                   {skillTypes.map((type) => (
                     <option key={type.id} value={type.id}>
                       {type.skill_type}
