@@ -251,7 +251,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Add Equipment</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required</p>
+            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
           </div>
           <button
             onClick={onClose}

@@ -23,14 +23,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     const fetchSkillTypes = async () => {
       try {
         const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill types');
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
         const data = await response.json();
-        console.log('Fetched skill types:', data);
+        console.log('Fetched skill sets:', data);
         setSkillTypes(data);
       } catch (error) {
-        console.error('Error fetching skill types:', error);
+        console.error('Error fetching skill sets:', error);
         toast({
-          description: 'Failed to load skill types',
+          description: 'Failed to load skill sets',
           variant: "destructive"
         });
       }
@@ -60,7 +60,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           skill_type_id: skillType,
         }),
       });
- 
+
       if (!response.ok) {
         throw new Error('Failed to create skill');
       }
@@ -69,7 +69,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         description: "Skill created successfully",
         variant: "default"
       });
-      
+
       if (onSubmit) {
         onSubmit();
       }
@@ -107,11 +107,11 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create skill type');
+        throw new Error('Failed to create skill set');
       }
 
       toast({
-        description: "Skill type created successfully",
+        description: "Skill set created successfully",
         variant: "default"
       });
 
@@ -120,9 +120,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
       onClose();
     } catch (error) {
-      console.error('Error creating skill type:', error);
+      console.error('Error creating skill set:', error);
       toast({
-        description: 'Failed to create skill type',
+        description: 'Failed to create skill set',
         variant: "destructive"
       });
     } finally {
@@ -130,8 +130,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     }
   };
 
+  // Determine if the skill creation button should be disabled
+  const isSkillCreateDisabled = isLoading || !skillName || !skillType || skillTypeName !== '';
+
+  // Determine if the skill set creation button should be disabled
+  const isSkillTypeCreateDisabled = isLoading || !skillTypeName || skillType !== '';
+
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -139,7 +145,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">Add Skill</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required</p>
+            <p className="text-sm text-gray-500">Fields marked with * are required. However, some fields are mutually exclusive.</p>
           </div>
           <button
             onClick={onClose}
@@ -150,23 +156,27 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         </div>
 
         <div className="px-[10px] py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Type *
+                Skill Set *
               </label>
               <select
                 value={skillType}
                 onChange={(e) => setSkillType(e.target.value)}
                 className="w-full p-2 border rounded-md"
+                disabled={skillTypeName !== ''}
               >
-                <option value="">Select skill type</option>
+                <option value="">Select skill set</option>
                 {skillTypeList.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.skill_type}
                   </option>
                 ))}
               </select>
+              {skillTypeName !== '' && (
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
+              )}
             </div>
 
             <div>
@@ -179,12 +189,13 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 onChange={(e) => setSkillName(e.target.value)}
                 placeholder="E.g. Restrain, Killing Blow"
                 className="w-full"
+                disabled={skillTypeName !== ''}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Type Name *
+                Skill Set Name *
               </label>
               <Input
                 type="text"
@@ -192,35 +203,40 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 onChange={(e) => setSkillTypeName(e.target.value)}
                 placeholder="E.g. Bravado, Finesse"
                 className="w-full"
+                disabled={skillType !== ''}
               />
+              {skillType !== '' && (
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+        <div className="border-t px-[10px] py-2 flex flex-wrap justify-end gap-2">
           <Button
             variant="outline"
             onClick={onClose}
             disabled={isLoading}
+            className="flex-1"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || isLoading}
-            className="bg-black hover:bg-gray-800 text-white"
+            disabled={isSkillCreateDisabled || isLoading}
+            className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Skill'}
           </Button>
           <Button
             onClick={handleSubmitType}
-            disabled={!skillTypeName || isLoading}
-            className="bg-black hover:bg-gray-800 text-white"
+            disabled={isSkillTypeCreateDisabled || isLoading}
+            className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Creating...' : 'Create Skill Type'}
+            {isLoading ? 'Creating...' : 'Create Skill Set'}
           </Button>
         </div>
       </div>
     </div>
   );
-} 
+}
