@@ -224,7 +224,7 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-2xl font-bold">Create a New Gang</h2>
-            <p className="text-sm text-gray-500">Fields marked with * are required</p>
+            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
           </div>
           <button 
             onClick={onClose}

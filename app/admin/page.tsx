@@ -231,7 +231,7 @@ export default function AdminPage() {
     },
     {
       title: "Add Skill",
-      description: "Add a new skill",
+      description: "Add a new skill or skill set",
       action: () => setShowCreateSkill(true),
       icon: BookOpen
     }
