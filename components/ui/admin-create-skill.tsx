@@ -130,12 +130,6 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     }
   };
 
-  // Determine if the skill creation button should be disabled
-  const isSkillCreateDisabled = isLoading || !skillName || !skillType || skillTypeName !== '';
-
-  // Determine if the skill set creation button should be disabled
-  const isSkillTypeCreateDisabled = isLoading || !skillTypeName || skillType !== '';
-
   return (
     <div
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
@@ -223,14 +217,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSkillCreateDisabled || isLoading}
+            disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Skill'}
           </Button>
           <Button
             onClick={handleSubmitType}
-            disabled={isSkillTypeCreateDisabled || isLoading}
+            disabled={!skillTypeName || skillType !== '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Skill Set'}
