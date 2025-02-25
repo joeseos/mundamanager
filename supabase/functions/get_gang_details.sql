@@ -504,6 +504,7 @@ WHERE ve.vehicle_id IS NOT NULL
 gang_totals AS (
     SELECT SUM(total_credits) as total_gang_rating
     FROM complete_fighters
+    WHERE killed = FALSE AND retired = FALSE -- Exclude fighters that are either killed OR retired
 ),
    gang_stash AS (
        SELECT 
