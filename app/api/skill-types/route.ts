@@ -15,7 +15,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error in GET /api/skill-types:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch skill types' },
+      { error: 'Failed to fetch skill sets' },
       { status: 500 }
     );
   }

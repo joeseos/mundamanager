@@ -33,7 +33,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Fetch categories (skill types)
+  // Fetch categories (skill sets)
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -47,14 +47,14 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
         );
 
         if (!response.ok) {
-          throw new Error('Failed to fetch skill types');
+          throw new Error('Failed to fetch skill sets');
         }
         const data = await response.json();
         setCategories(data);
       } catch (error) {
-        console.error('Error fetching skill types:', error);
+        console.error('Error fetching skill sets:', error);
         toast({
-          description: 'Failed to load skill types',
+          description: 'Failed to load skill sets',
           variant: "destructive"
         });
       }
@@ -157,13 +157,13 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
   const modalContent = (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Skill Type</label>
+        <label className="text-sm font-medium">Skill Set</label>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
           className="w-full p-2 border rounded"
         >
-          <option key="placeholder-type" value="">Select a skill type</option>
+          <option key="placeholder-type" value="">Select a skill set</option>
           {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
