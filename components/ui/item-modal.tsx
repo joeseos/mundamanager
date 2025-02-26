@@ -20,6 +20,8 @@ interface ItemModalProps {
   fighterTypeId: string;
   fighterCredits: number;
   vehicleId?: string;
+  vehicleType?: string;
+  vehicleTypeId?: string;
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
@@ -117,6 +119,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterTypeId,
   fighterCredits,
   vehicleId,
+  vehicleType,
+  vehicleTypeId,
   isVehicleEquipment,
   allowedCategories,
   onEquipmentBought
@@ -181,20 +185,61 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    if (!gangTypeId || !fighterTypeId) {
-      console.error('Missing required IDs:', { gangTypeId, fighterTypeId });
-      setError('Missing required data');
+    // Get the vehicle type ID from the database based on vehicle type
+    if (isVehicleEquipment && !vehicleTypeId) {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id,vehicle_type&vehicle_type=eq.${encodeURIComponent(vehicleType || '')}`,
+          {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch vehicle type');
+        const data = await response.json();
+        if (data && data[0]) {
+          vehicleTypeId = data[0].id;
+        }
+      } catch (error) {
+        console.error('Error fetching vehicle type:', error);
+      }
+    }
+
+    const typeIdToUse = isVehicleEquipment ? vehicleTypeId : fighterTypeId;
+
+    if (!gangTypeId || !typeIdToUse) {
+      console.error('Missing required IDs:', { 
+        gangTypeId, 
+        typeIdToUse, 
+        isVehicleEquipment, 
+        vehicleTypeId, 
+        fighterTypeId,
+        vehicleId
+      });
+      
+      // More specific error message
+      const errorMessage = isVehicleEquipment && !vehicleTypeId 
+        ? 'Vehicle type ID is missing' 
+        : !fighterTypeId 
+        ? 'Fighter type ID is missing' 
+        : 'Missing required data';
+      
+      setError(errorMessage);
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
       return;
     }
 
-    console.log('Request parameters:', {
-      gang_type_id: gangTypeId,
-      fighter_type_id: fighterTypeId,
-      equipment_category: categoryQuery
-    });
-
     try {
+      console.log('Making request with params:', {
+        gang_type_id: gangTypeId,
+        fighter_type_id: typeIdToUse,
+        equipment_category: categoryQuery,
+        isVehicleEquipment
+      });
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
         {
@@ -206,7 +251,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           },
           body: JSON.stringify({
             gang_type_id: gangTypeId,
-            fighter_type_id: fighterTypeId,
+            fighter_type_id: typeIdToUse,
             equipment_category: categoryQuery
           }),
         }
