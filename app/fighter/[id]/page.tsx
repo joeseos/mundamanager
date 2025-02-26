@@ -170,6 +170,8 @@ interface Fighter {
   fighter_class: string;
   vehicles?: Array<{
     id: string;
+    vehicle_type_id: string;
+    vehicle_type: string;  // Add this line
     movement: number;
     front: number;
     side: number;
@@ -177,7 +179,6 @@ interface Fighter {
     hull_points: number;
     handling: number;
     save: number;
-    vehicle_type?: string;
     vehicle_name?: string;
     body_slots: number;
     body_slots_occupied: number;
@@ -560,6 +561,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         isLoading: false,
         error: null
       }));
+
+      console.log('Loaded fighter data:', {
+        vehicleData: result.fighter?.vehicles?.[0],
+        vehicleTypeId: result.fighter?.vehicles?.[0]?.vehicle_type_id
+      });
 
     } catch (err) {
       console.error('Error fetching fighter details:', err);
@@ -1899,7 +1905,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                           />
                           <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
                         </div>
-                        {/* Only show a separator if it’s not the last item in this slice */}
+                        {/* Only show a separator if it's not the last item in this slice */}
                         {idx < arr.length - 1 && (
                           <hr className="my-2 border-gray-300" />
                         )}
@@ -2149,7 +2155,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               gangTypeId={fighterData.fighter?.gang_type_id || ''}
               fighterId={fighterData.fighter?.id || ''}
               vehicleId={fighterData.fighter?.vehicles?.[0]?.id}
-              fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+              vehicleType={fighterData.fighter?.vehicles?.[0]?.vehicle_type}
+              vehicleTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id}
+              fighterTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id || ''}
               fighterCredits={fighterData.fighter?.credits || 0}
               onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
