@@ -10,13 +10,8 @@ export const signUpAction = async (formData: FormData) => {
   const origin = headers().get("origin");
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
   const username = formData.get("username") as string;
   const supabase = createClient();
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
-  }
 
   try {
     // Check if username already exists
