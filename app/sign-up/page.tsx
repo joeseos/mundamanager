@@ -12,6 +12,7 @@ export default function Page({ searchParams }: { searchParams: Message }) {
   const [passwordError, setPasswordError] = useState<string>("");
   const [usernameError, setUsernameError] = useState<string>("");
   const [emailError, setEmailError] = useState<string>("");
+  const [emailConfirmError, setEmailConfirmError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState({
@@ -57,6 +58,14 @@ export default function Page({ searchParams }: { searchParams: Message }) {
     const formData = new FormData(e.currentTarget);
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
+    const email = formData.get('email') as string;
+    const confirmEmail = formData.get('confirmEmail') as string;
+
+    if (email !== confirmEmail) {
+      setEmailConfirmError("Emails do not match");
+      setIsSubmitting(false);
+      return;
+    }
 
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
@@ -80,6 +89,7 @@ export default function Page({ searchParams }: { searchParams: Message }) {
     setPasswordError("");
     setUsernameError("");
     setEmailError("");
+    setEmailConfirmError("");
 
     try {
       const result = await signUpAction(formData);
@@ -129,6 +139,7 @@ export default function Page({ searchParams }: { searchParams: Message }) {
                 className="text-black mt-1"
                 minLength={3}
                 maxLength={20}
+                autoComplete="username"
               />
               {usernameError && (
                 <p className="text-red-400 text-sm mt-1">{usernameError}</p>
@@ -144,9 +155,26 @@ export default function Page({ searchParams }: { searchParams: Message }) {
                 placeholder="you@example.com" 
                 required 
                 className="text-black mt-1" 
+                autoComplete="email"
               />
               {emailError && (
                 <p className="text-red-400 text-sm mt-1">{emailError}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="confirmEmail" className="text-white">Confirm Email</Label>
+              <Input 
+                id="confirmEmail"
+                name="confirmEmail" 
+                type="email"
+                placeholder="you@example.com" 
+                required 
+                className="text-black mt-1" 
+                autoComplete="email"
+              />
+              {emailConfirmError && (
+                <p className="text-red-400 text-sm mt-1">{emailConfirmError}</p>
               )}
             </div>
             
@@ -161,6 +189,7 @@ export default function Page({ searchParams }: { searchParams: Message }) {
                 required
                 className="text-black mt-1"
                 onChange={(e) => checkPasswordRequirements(e.target.value)}
+                autoComplete="new-password"
               />
               {passwordError && (
                 <p className="text-red-400 text-sm mt-1">{passwordError}</p>
@@ -184,22 +213,9 @@ export default function Page({ searchParams }: { searchParams: Message }) {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="confirmPassword" className="text-white">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                name="confirmPassword"
-                placeholder="••••••••"
-                minLength={6}
-                required
-                className="text-black mt-1"
-              />
-            </div>
-
             <button 
               type="submit" 
-              className="bg-white text-black px-4 py-2 rounded hover:bg-gray-200 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Signing up...' : 'Sign up'}
