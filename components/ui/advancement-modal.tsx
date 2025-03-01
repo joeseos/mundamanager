@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "./button";
 import { useToast } from "./use-toast";
+import { skillSetRank } from "@/utils/skillSetRank";
 
 interface AdvancementModalProps {
   fighterId: string;
@@ -512,13 +513,23 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   }}
                 >
                   <option key="default" value="">
-                    Select {advancementType === 'characteristic' ? 'Characteristic' : 'Skill Set'}
+                    Select {advancementType === "characteristic" ? "Characteristic" : "Skill Set"}
                   </option>
-                  {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
+                  {[...categories]
+                    .sort((a, b) => {
+                      if (advancementType === "characteristic") {
+                        return a.name.localeCompare(b.name);
+                      } else {
+                        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+                        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+                        return rankA - rankB;
+                      }
+                    })
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
                 </select>
               </div>
             )}
