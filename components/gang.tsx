@@ -120,6 +120,8 @@ export default function Gang({
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [alignment, setAlignment] = useState(initialAlignment);
+  const [editedAlliance, setAlliance] = useState('');
+  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
@@ -148,6 +150,26 @@ export default function Gang({
     const d = new Date(date);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
+
+  useEffect(() => {
+    const fetchAlliances = async () => {
+      try {
+        const response = await fetch('/api/alliances');
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        const data = await response.json();
+        console.log('Fetched skill sets:', data);
+        setAllianceList(data);
+      } catch (error) {
+        console.error('Error fetching alliances:', error);
+        toast({
+          description: 'Failed to load alliances',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchAlliances();
+  }, [toast]);
 
   const handleSave = async () => {
     try {
@@ -461,6 +483,21 @@ export default function Gang({
           value={editedReputation}
           onChange={(e) => setEditedReputation(e.target.value)}
         />
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Alliance</p>
+        <select
+                value={editedAlliance}
+                onChange={(e) => setAlignment(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select alliance</option>
+                {allianceList.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.alliance_name}
+                  </option>
+                ))}
+        </select>
       </div>
       {campaigns?.[0]?.has_meat && (
         <div>
