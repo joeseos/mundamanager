@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
+import { skillSetRank } from "@/utils/skillSetRank";
 
 interface SkillModalProps {
   fighterId: string;
@@ -164,7 +165,13 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
           className="w-full p-2 border rounded"
         >
           <option key="placeholder-type" value="">Select a skill set</option>
-          {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((category) => (
+          {[...categories]
+            .sort((a, b) => {
+                const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+                const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+                return rankA - rankB;
+              })
+            .map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
             </option>
