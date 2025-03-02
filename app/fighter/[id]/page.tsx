@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
-import ItemModal from "@/components/ui/item-modal";
+import ItemModal from "@/components/equipment";
 import { AdvancementsList } from "@/components/advancements-list";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import dynamic from 'next/dynamic';
