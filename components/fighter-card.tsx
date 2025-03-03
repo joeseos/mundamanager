@@ -461,8 +461,8 @@ const FighterCard = memo(function FighterCard({
                   <div className="min-w-[0px] text-sm break-words">
                     {injuries
                       .slice() // Create a shallow copy to avoid mutating the original array
-                      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Sort by created_at
-                      .map(injury => injury.injury_name)
+                      .sort((a, b) => new Date(a.acquired_at).getTime() - new Date(b.acquired_at).getTime()) // Sort by created_at
+                      .map((injury) => injury.injury_name)
                       .join(', ')}
                   </div>
                 </>
