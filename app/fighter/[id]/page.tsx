@@ -261,6 +261,7 @@ const VEHICLE_EQUIPMENT_CATEGORIES = [
   "Basic Weapons", 
   "Special Weapons",
   "Heavy Weapons",
+  "Cargo Loads",
   "Vehicle Upgrades",
   "Vehicle Wargear"
 ];
