@@ -768,6 +768,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   }, []);
 
   const handleAddXp = async () => {
+    // First validate that the input contains only numbers
+    if (!/^-?\d+$/.test(editState.xpAmount)) {
+      setEditState(prev => ({
+        ...prev,
+        xpError: 'Please enter a valid integer'
+      }));
+      return false;
+    }
+    
     const amount = parseInt(editState.xpAmount);
     
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
@@ -825,6 +834,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
       return false;
     }
+  };
+
+  // Add a function to check if the input is valid
+  const isValidXpInput = (value: string) => {
+    // Allow empty string, minus sign, or only digits
+    return value === '' || value === '-' || /^-?\d+$/.test(value);
   };
 
   // Define XP "events" for the checkbox list
@@ -1916,12 +1931,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       inputMode="url"
                       pattern="-?[0-9]+"
                       value={editState.xpAmount}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value;
                         setEditState((prev) => ({
                           ...prev,
-                          xpAmount: e.target.value
-                        }))
-                      }
+                          xpAmount: value,
+                          // Clear any existing error when the user is typing
+                          xpError: ''
+                        }));
+                      }}
                       placeholder="Override XP (use a negative value to subtract)"
                       className="w-full"
                     />
@@ -1954,7 +1972,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }}
               onConfirm={handleAddXp}
               confirmText="Add XP"
-              confirmDisabled={!editState.xpAmount}
+              confirmDisabled={!editState.xpAmount || !isValidXpInput(editState.xpAmount)}
             />
           )}
           
