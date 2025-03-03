@@ -8,6 +8,7 @@ import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
+import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -33,21 +34,12 @@ export default function GangInventory({
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const { toast } = useToast();
-
-  const VEHICLE_EXCLUSIVE_CATEGORIES = ['Vehicle Upgrades', 'Vehicle Wargear'];
-  const VEHICLE_COMPATIBLE_CATEGORIES = [
-    ...VEHICLE_EXCLUSIVE_CATEGORIES, 
-    'Basic Weapons', 
-    'Special Weapons', 
-    'Heavy Weapons',
-    'Ammo'
-  ];
   
   const isVehicleExclusive = (item: StashItem) => 
-    VEHICLE_EXCLUSIVE_CATEGORIES.includes(item.equipment_category || '');
+    vehicleExclusiveCategories.includes(item.equipment_category || '');
     
   const isVehicleCompatible = (item: StashItem) => 
-    VEHICLE_COMPATIBLE_CATEGORIES.includes(item.equipment_category || '');
+    vehicleCompatibleCategories.includes(item.equipment_category || '');
 
   useEffect(() => {
     const getSession = async () => {

@@ -19,6 +19,7 @@ import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -255,16 +256,6 @@ interface EditState {
   xpAmount: string;
   xpError: string;
 }
-
-const VEHICLE_EQUIPMENT_CATEGORIES = [
-  "Ammo",
-  "Basic Weapons", 
-  "Special Weapons",
-  "Heavy Weapons",
-  "Cargo Loads",
-  "Vehicle Upgrades",
-  "Vehicle Wargear"
-];
 
 const calculateInjuryModifications = (injuries: Array<{
   code_1?: string;
@@ -2164,7 +2155,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
               }
               isVehicleEquipment={true}
-              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+              allowedCategories={vehicleCompatibleCategories}
             />
           )}
           
