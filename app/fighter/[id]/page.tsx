@@ -255,6 +255,7 @@ interface EditState {
   costAdjustment: string;
   xpAmount: string;
   xpError: string;
+  isGangAddition: boolean;
 }
 
 const calculateInjuryModifications = (injuries: Array<{
@@ -394,7 +395,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     kills: 0,
     costAdjustment: '0',
     xpAmount: '',
-    xpError: ''
+    xpError: '',
+    isGangAddition: false
   });
 
   const router = useRouter();
@@ -1209,13 +1211,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   const handleEditClick = () => {
-    setEditState(prev => ({
-      ...prev,
+    setEditState({
       name: fighterData.fighter?.fighter_name || '',
       label: fighterData.fighter?.label || '',
       kills: fighterData.fighter?.kills || 0,
-      costAdjustment: String(fighterData.fighter?.cost_adjustment || 0)
-    }));
+      costAdjustment: String(fighterData.fighter?.cost_adjustment || 0),
+      xpAmount: '',
+      xpError: '',
+      isGangAddition: false
+    });
     setUiState(prev => ({
       ...prev,
       modals: {
@@ -2091,17 +2095,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               }
-              onClose={() => {
-                handleModalToggle('editFighter', false);
-                setEditState(prev => ({
-                  ...prev,
-                  name: '',
-                  label: '',
-                  kills: 0,
-                  costAdjustment: '0'
-                }));
-              }}
-              onConfirm={async () => {
+              onClose={async () => {
                 try {
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
@@ -2143,6 +2137,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     variant: "default"
                   });
                   handleModalToggle('editFighter', false);
+                  setEditState(prev => ({
+                    ...prev,
+                    name: '',
+                    label: '',
+                    kills: 0,
+                    costAdjustment: '0'
+                  }));
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
@@ -2153,72 +2154,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   return false;
                 }
               }}
-            />
-          )}
-          
-          {uiState.modals.addVehicleEquipment && (
-            <ItemModal
-              title="Vehicle Equipment"
-              onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              gangCredits={fighterData.gang?.credits || 0}
-              gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.fighter?.gang_type_id || ''}
-              fighterId={fighterData.fighter?.id || ''}
-              vehicleId={fighterData.fighter?.vehicles?.[0]?.id}
-              vehicleType={fighterData.fighter?.vehicles?.[0]?.vehicle_type}
-              vehicleTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id}
-              fighterTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id || ''}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
-              }
-              isVehicleEquipment={true}
-              allowedCategories={vehicleCompatibleCategories}
-            />
-          )}
-          
-          {deleteVehicleEquipmentData && (
-            <Modal
-              title="Confirm Deletion"
-              onClose={() => setDeleteVehicleEquipmentData(null)}
-              onConfirm={handleConfirmVehicleEquipmentDelete}
-            >
-              <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}? This action cannot be undone.</p>
-            </Modal>
-          )}
-          
-          {stashVehicleEquipmentData && (
-            <Modal
-              title="Confirm Stash"
-              onClose={() => setStashVehicleEquipmentData(null)}
-              onConfirm={handleConfirmVehicleEquipmentStash}
-            >
-              <p>Are you sure you want to stash {stashVehicleEquipmentData.name}? This action cannot be undone.</p>
-            </Modal>
-          )}
-          
-          {sellVehicleEquipmentData && (
-            <Modal
-              title="Confirm Sale"
-              content={
-                <div className="space-y-4">
-                  <p>Are you sure you want to sell {sellVehicleEquipmentData.name}?</p>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Sale price</label>
-                    <Input
-                      type="number"
-                      value={sellVehicleEquipmentData.cost}
-                      onChange={(e) => setSellVehicleEquipmentData(prev => prev ? {
-                        ...prev,
-                        cost: parseInt(e.target.value) || 0
-                      } : null)}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              }
-              onClose={() => setSellVehicleEquipmentData(null)}
-              onConfirm={handleConfirmVehicleEquipmentSell}
             />
           )}
         </div>
