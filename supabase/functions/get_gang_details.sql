@@ -13,6 +13,8 @@ RETURNS TABLE(
     exploration_points numeric, 
     rating numeric, 
     alignment alignment,
+    alliance_id uuid,
+    alliance text,
     positioning jsonb, 
     note text, 
     stash json, 
@@ -561,6 +563,8 @@ gang_totals AS (
        g.exploration_points,
        (SELECT total_gang_rating FROM gang_totals) as rating,
        g.alignment,
+       g.alliance_id,
+       (SELECT alliance_name FROM alliances al WHERE al.alliance_id = g.alliance_id) as alliance_name
        g.positioning,
        g.note,
        COALESCE((
