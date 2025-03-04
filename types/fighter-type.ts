@@ -42,6 +42,7 @@ export interface FighterType {
   willpower: number;
   intelligence: number;
   attacks: number;
+  limitation?: number;
   default_equipment: any[];
   is_gang_addition: boolean;
   equipment_selection?: EquipmentSelection;
