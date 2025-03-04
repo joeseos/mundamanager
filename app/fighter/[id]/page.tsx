@@ -255,7 +255,6 @@ interface EditState {
   costAdjustment: string;
   xpAmount: string;
   xpError: string;
-  isGangAddition: boolean;
 }
 
 const calculateInjuryModifications = (injuries: Array<{
@@ -395,8 +394,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     kills: 0,
     costAdjustment: '0',
     xpAmount: '',
-    xpError: '',
-    isGangAddition: false
+    xpError: ''
   });
 
   const router = useRouter();
@@ -1217,8 +1215,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       kills: fighterData.fighter?.kills || 0,
       costAdjustment: String(fighterData.fighter?.cost_adjustment || 0),
       xpAmount: '',
-      xpError: '',
-      isGangAddition: false
+      xpError: ''
     });
     setUiState(prev => ({
       ...prev,
