@@ -68,8 +68,8 @@ export default function GangTerritories({ gangId }: { gangId: string }) {
             </div>
           ))
         ) : (
-          <div className="px-6 py-3 text-gray-500 text-center">
-            No territories controlled
+          <div className="text-gray-500 italic text-center">
+            No territories controlled.
           </div>
         )}
       </div>

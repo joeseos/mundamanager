@@ -1207,7 +1207,7 @@ export default function Gang({
             initialPositions={positions}
           />
         ) : (
-          <div className="text-white italic">No fighters available.</div>
+          <div className="text-white italic text-center">No fighters available.</div>
         )}
       </div>
     </div>
