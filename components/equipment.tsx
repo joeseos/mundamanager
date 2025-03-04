@@ -180,52 +180,50 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
   }, [session]);
 
+  useEffect(() => {
+    // Consolidate vehicle type ID fetch into a single effect that runs when needed
+    const fetchVehicleTypeId = async () => {
+      if (isVehicleEquipment && !vehicleTypeId && session && vehicleType) {
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
+            {
+              headers: {
+                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+                'Authorization': `Bearer ${session.access_token}`
+              }
+            }
+          );
+
+          if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
+          const data = await response.json();
+          if (data && data.length > 0) {
+            vehicleTypeId = data[0].id;
+          }
+        } catch (error) {
+          console.error('Error fetching vehicle type ID:', error);
+          setError('Could not determine vehicle type. Please try again later.');
+        }
+      }
+    };
+
+    fetchVehicleTypeId();
+  }, [isVehicleEquipment, vehicleTypeId, session, vehicleType]);
+
   const fetchCategoryEquipment = async (categoryName: string, categoryQuery: string) => {
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    // Get the vehicle type ID from the database based on vehicle type
-    if (isVehicleEquipment && !vehicleTypeId) {
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id,vehicle_type&vehicle_type=eq.${encodeURIComponent(vehicleType || '')}`,
-          {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch vehicle type');
-        const data = await response.json();
-        if (data && data[0]) {
-          vehicleTypeId = data[0].id;
-        }
-      } catch (error) {
-        console.error('Error fetching vehicle type:', error);
-      }
-    }
-
+    // Use the vehicleTypeId from the effect above, don't fetch it again here
     const typeIdToUse = isVehicleEquipment ? vehicleTypeId : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
-      console.error('Missing required IDs:', { 
-        gangTypeId, 
-        typeIdToUse, 
-        isVehicleEquipment, 
-        vehicleTypeId, 
-        fighterTypeId,
-        vehicleId
-      });
-      
-      // More specific error message
       const errorMessage = isVehicleEquipment && !vehicleTypeId 
-        ? 'Vehicle type ID is missing' 
+        ? 'Vehicle type information is missing' 
         : !fighterTypeId 
-        ? 'Fighter type ID is missing' 
-        : 'Missing required data';
+        ? 'Fighter type information is missing' 
+        : 'Required information is missing';
       
       setError(errorMessage);
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
@@ -233,12 +231,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
 
     try {
-      console.log('Making request with params:', {
+      // Simple, consistent request body
+      const requestBody = {
         gang_type_id: gangTypeId,
-        fighter_type_id: typeIdToUse,
         equipment_category: categoryQuery,
-        isVehicleEquipment
-      });
+        fighter_type_id: typeIdToUse
+      };
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -249,17 +247,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Authorization': `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({
-            gang_type_id: gangTypeId,
-            fighter_type_id: typeIdToUse,
-            equipment_category: categoryQuery
-          }),
+          body: JSON.stringify(requestBody)
         }
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error:', errorText);
         throw new Error(`Failed to fetch ${categoryName}`);
       }
 
@@ -336,7 +328,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
             gang_id: gangId,
             manual_cost: manualCost,
             ...(isVehicleEquipment 
-              ? { vehicle_id: vehicleId }
+              ? { 
+                  vehicle_id: vehicleId,
+                  vehicle_type_id: vehicleTypeId
+                }
               : { fighter_id: fighterId }
             )
           }),

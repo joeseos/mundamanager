@@ -19,7 +19,7 @@ import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
-import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
+import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -1788,6 +1788,25 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
               fighterCredits={fighterData.fighter?.credits || 0}
               onEquipmentBought={handleEquipmentBought}
+            />
+          )}
+          
+          {uiState.modals.addVehicleEquipment && fighterData.fighter?.vehicles?.[0] && (
+            <ItemModal
+              title="Vehicle Equipment"
+              onClose={() => handleModalToggle('addVehicleEquipment', false)}
+              gangCredits={fighterData.gang?.credits || 0}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.fighter?.gang_type_id || ''}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
+                handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)}
+              vehicleId={fighterData.fighter.vehicles[0].id}
+              vehicleType={fighterData.fighter.vehicles[0].vehicle_type}
+              isVehicleEquipment={true}
+              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
             />
           )}
           
