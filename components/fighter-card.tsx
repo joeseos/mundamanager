@@ -371,13 +371,17 @@ const FighterCard = memo(function FighterCard({
                     {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
                   </div>
 
-                  <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Equipment</div>
-                  <div className="min-w-[0px] text-sm break-words">
-                    {vehicleUpgrades
-                      .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
-                      .map(upgrade => upgrade.equipment_name)
-                      .join(', ')}
-                  </div>
+                  {vehicleUpgrades && vehicleUpgrades.length > 0 && (
+                    <>
+                      <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Equipment</div>
+                      <div className="min-w-[0px] text-sm break-words">
+                        {vehicleUpgrades
+                          .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                          .map(upgrade => upgrade.equipment_name)
+                          .join(', ')}
+                      </div>
+                    </>
+                  )}
 
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                   <div className="min-w-[0px] text-sm break-words">
