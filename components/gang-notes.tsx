@@ -75,7 +75,7 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
 
   return (
     <div className="container max-w-5xl w-full space-y-4">
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-md p-4">
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold mb-6">Gang Notes</h2>
@@ -127,7 +127,7 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
               placeholder="Add notes here..."
             />
           ) : (
-            <div className="whitespace-pre-wrap break-words">
+            <div className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}>
               {note || 'No notes added.'}
             </div>
           )}
