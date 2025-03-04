@@ -1144,11 +1144,14 @@ export default function Gang({
                     disabled={!selectedGangAdditionClass}
                   >
                     <option value="">Select Fighter Type</option>
-                    {filteredGangAdditionTypes.map(type => (
-                      <option key={type.id} value={type.id}>
-                        {type.fighter_type} ({type.total_cost} credits)
-                      </option>
-                    ))}
+                    {filteredGangAdditionTypes
+                      .slice() // Create a shallow copy to avoid mutating the original array
+                      .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Sort alphabetically by fighter_type
+                      .map(type => (
+                        <option key={type.id} value={type.id}>
+                          {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                        </option>
+                      ))}
                   </select>
                 </div>
 
