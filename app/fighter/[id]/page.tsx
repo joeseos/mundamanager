@@ -405,6 +405,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     id: string;
     equipmentId: string;
     name: string;
+    cost: number;
   } | null>(null);
 
   // Add state for stash modal
@@ -1249,11 +1250,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const handleVehicleEquipmentDelete = async (fighterEquipmentId: string, equipmentId: string) => {
     try {
       // Find the equipment to delete for the modal
-      const equipmentToDelete = fighterData.vehicleEquipment.find(
+      const equipmentToRemove = fighterData.vehicleEquipment.find(
         e => e.fighter_equipment_id === fighterEquipmentId
       );
       
-      if (!equipmentToDelete) {
+      if (!equipmentToRemove) {
         toast({
           title: "Error",
           description: "Equipment not found",
@@ -1262,11 +1263,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         return;
       }
 
-      // Show confirmation modal
+      // Show confirmation modal - THIS IS THE KEY PART
       setDeleteVehicleEquipmentData({
-        id: equipmentToDelete.fighter_equipment_id,
-        equipmentId: equipmentToDelete.equipment_id,
-        name: equipmentToDelete.equipment_name
+        id: equipmentToRemove.fighter_equipment_id,
+        equipmentId: equipmentToRemove.equipment_id,
+        name: equipmentToRemove.equipment_name,
+        cost: equipmentToRemove.cost || 0
       });
     } catch (error) {
       console.error('Error preparing to delete equipment:', error);
@@ -2170,6 +2172,46 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   return false;
                 }
               }}
+            />
+          )}
+
+          {deleteVehicleEquipmentData && (
+            <Modal
+              title="Confirm Delete"
+              content={
+                <div>
+                  <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}?</p>
+                  <p>This action cannot be undone.</p>
+                </div>
+              }
+              onClose={() => setDeleteVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentDelete}
+            />
+          )}
+
+          {sellVehicleEquipmentData && (
+            <Modal
+              title="Confirm Sell"
+              content={
+                <div>
+                  <p>Are you sure you want to sell {sellVehicleEquipmentData.name} for {sellVehicleEquipmentData.cost} credits?</p>
+                </div>
+              }
+              onClose={() => setSellVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentSell}
+            />
+          )}
+
+          {stashVehicleEquipmentData && (
+            <Modal
+              title="Confirm Stash"
+              content={
+                <div>
+                  <p>Are you sure you want to move {stashVehicleEquipmentData.name} to the gang stash?</p>
+                </div>
+              }
+              onClose={() => setStashVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentStash}
             />
           )}
         </div>
