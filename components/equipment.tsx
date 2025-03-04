@@ -311,6 +311,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const handleBuyEquipment = async (item: Equipment, manualCost: number) => {
     if (!session) return;
     try {
+      const requestBody = {
+        equipment_id: item.equipment_id,
+        gang_id: gangId,
+        manual_cost: manualCost,
+        ...(isVehicleEquipment 
+          ? { vehicle_id: vehicleId } 
+          : { fighter_id: fighterId }
+        )
+      };
+      
+      console.log('Sending equipment purchase request:', requestBody);
+      
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/buy_equipment_for_fighter',
         {
@@ -320,24 +332,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Authorization': `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({
-            equipment_id: item.equipment_id,
-            gang_id: gangId,
-            manual_cost: manualCost,
-            ...(isVehicleEquipment 
-              ? { 
-                  vehicle_id: vehicleId,
-                  vehicle_type_id: localVehicleTypeId
-                }
-              : { fighter_id: fighterId }
-            )
-          }),
+          body: JSON.stringify(requestBody)
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to buy equipment: ${response.status} ${response.statusText}`);
+        console.error('Purchase failed with status:', response.status);
+        console.error('Error details:', errorText);
+        throw new Error(`Failed to buy equipment: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
