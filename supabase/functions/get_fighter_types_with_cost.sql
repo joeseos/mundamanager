@@ -25,10 +25,10 @@ RETURNS TABLE (
     willpower numeric,
     intelligence numeric,
     attacks numeric,
+    limitation numeric,
     default_equipment jsonb,
     equipment_selection jsonb,
-    total_cost numeric,
-    is_gang_addition boolean
+    total_cost numeric
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
@@ -52,6 +52,7 @@ BEGIN
         ft.willpower,
         ft.intelligence,
         ft.attacks,
+        ft.limitation,
         (
             SELECT jsonb_agg(
                 jsonb_build_object(
@@ -89,8 +90,7 @@ BEGIN
             WHERE fes.fighter_type_id = ft.id
             LIMIT 1
         ) AS equipment_selection,
-        ft.cost AS total_cost,
-        ft.is_gang_addition
+        ft.cost AS total_cost
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     WHERE (p_gang_type_id IS NULL OR ft.gang_type_id = p_gang_type_id);
