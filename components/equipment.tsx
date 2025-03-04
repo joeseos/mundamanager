@@ -135,6 +135,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showAllEquipment, setShowAllEquipment] = useState(false);
+  const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
 
   useEffect(() => {
     return () => {
@@ -181,9 +182,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [session]);
 
   useEffect(() => {
-    // Consolidate vehicle type ID fetch into a single effect that runs when needed
     const fetchVehicleTypeId = async () => {
-      if (isVehicleEquipment && !vehicleTypeId && session && vehicleType) {
+      if (isVehicleEquipment && !localVehicleTypeId && session && vehicleType) {
         try {
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
@@ -198,7 +198,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
           const data = await response.json();
           if (data && data.length > 0) {
-            vehicleTypeId = data[0].id;
+            setLocalVehicleTypeId(data[0].id);
           }
         } catch (error) {
           console.error('Error fetching vehicle type ID:', error);
@@ -208,18 +208,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
     };
 
     fetchVehicleTypeId();
-  }, [isVehicleEquipment, vehicleTypeId, session, vehicleType]);
+  }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
 
   const fetchCategoryEquipment = async (categoryName: string, categoryQuery: string) => {
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    // Use the vehicleTypeId from the effect above, don't fetch it again here
-    const typeIdToUse = isVehicleEquipment ? vehicleTypeId : fighterTypeId;
+    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
-      const errorMessage = isVehicleEquipment && !vehicleTypeId 
+      const errorMessage = isVehicleEquipment && !localVehicleTypeId 
         ? 'Vehicle type information is missing' 
         : !fighterTypeId 
         ? 'Fighter type information is missing' 
@@ -231,7 +230,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
 
     try {
-      // Simple, consistent request body
       const requestBody = {
         gang_type_id: gangTypeId,
         equipment_category: categoryQuery,
@@ -295,7 +293,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const newExpandedCategory = expandedCategory === category.category_name ? null : category.category_name;
     setExpandedCategory(newExpandedCategory);
 
-    // Only fetch if expanding and data hasn't been loaded yet
     if (newExpandedCategory && !equipment[category.category_name]) {
       await fetchCategoryEquipment(category.category_name, category.category_name);
     }
@@ -330,7 +327,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             ...(isVehicleEquipment 
               ? { 
                   vehicle_id: vehicleId,
-                  vehicle_type_id: vehicleTypeId
+                  vehicle_type_id: localVehicleTypeId
                 }
               : { fighter_id: fighterId }
             )
