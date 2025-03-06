@@ -66,6 +66,7 @@ export async function PATCH(
     credits, 
     operation, 
     alignment,
+    alliance_id,
     reputation,
     meat,
     exploration_points,
@@ -128,6 +129,11 @@ export async function PATCH(
         );
       }
       updates.alignment = alignment;
+    }
+
+    // Add alliance_id if provided
+    if (alliance_id !== undefined) {
+      updates.alliance_id = alliance_id;
     }
 
     // Add reputation if provided

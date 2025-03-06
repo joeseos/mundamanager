@@ -55,6 +55,8 @@ interface GangProps {
   exploration_points: number | null;
   rating: number | null;
   alignment: string;
+  alliance_id: string;
+  alliance_name: string;
   created_at: string | Date | null;
   last_updated: string | Date | null;
   user_id: string;
@@ -88,7 +90,9 @@ export default function Gang({
   exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
-  created_at, 
+  alliance_id: initialAllianceId,
+  alliance_name: initialAllianceName,
+  created_at,
   last_updated: initialLastUpdated,
   user_id,
   initialFighters = [],
@@ -120,6 +124,8 @@ export default function Gang({
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [alignment, setAlignment] = useState(initialAlignment);
+  const [editedAlliance, setAlliance] = useState(initialAllianceId);
+  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
@@ -150,6 +156,26 @@ export default function Gang({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
 
+  useEffect(() => {
+    const fetchAlliances = async () => {
+      try {
+        const response = await fetch('/api/alliances');
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        const data = await response.json();
+        console.log('Fetched skill sets:', data);
+        setAllianceList(data);
+      } catch (error) {
+        console.error('Error fetching alliances:', error);
+        toast({
+          description: 'Failed to load alliances',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchAlliances();
+  }, [toast]);
+
   const handleSave = async () => {
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
@@ -165,11 +191,14 @@ export default function Gang({
           credits: Math.abs(creditsDifference),
           operation: operation,
           alignment: editedAlignment,
+          alliance_id: editedAlliance,
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints)
         }),
       });
+
+      console.log(`Gang Update: ${response.body}`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -180,6 +209,7 @@ export default function Gang({
       setName(updatedGang.name);
       setCredits(updatedGang.credits);
       setAlignment(updatedGang.alignment);
+      setAlliance(updatedGang.alliance_id);
       setReputation(updatedGang.reputation);
       setMeat(updatedGang.meat);
       setExplorationPoints(updatedGang.exploration_points);
@@ -471,6 +501,21 @@ export default function Gang({
           value={editedReputation}
           onChange={(e) => setEditedReputation(e.target.value)}
         />
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Alliance</p>
+        <select
+                value={editedAlliance || ''}
+                onChange={(e) => setAlliance(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select alliance</option>
+                {allianceList.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.alliance_name}
+                  </option>
+                ))}
+        </select>
       </div>
       {campaigns?.[0]?.has_meat && (
         <div>

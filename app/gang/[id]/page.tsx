@@ -234,6 +234,7 @@ async function processGangData(gangData: any) {
   return {
     ...gangData,
     alignment: gangData.alignment,
+    alliance_name: gangData.alliance_name || "",
     fighters: processedFighters,
     fighterTypes: processedFighterTypes,
     campaigns: gangData.campaigns?.map((campaign: any) => ({
@@ -276,6 +277,8 @@ interface GangDataState {
     exploration_points: number;
     rating: number;
     alignment: string;
+    alliance_id: string;
+    alliance_name: string;
     created_at: string;
     last_updated: string;
     user_id: string;
