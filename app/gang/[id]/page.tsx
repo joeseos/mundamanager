@@ -453,7 +453,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           onVehicleUpdate={handleVehicleUpdate}
           onFighterUpdate={handleFighterUpdate}
         />
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
           <h2 className="text-2xl font-bold mb-4">Territories</h2>
           <GangTerritories gangId={params.id} />
         </div>

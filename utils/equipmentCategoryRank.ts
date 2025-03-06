@@ -8,6 +8,7 @@ export const equipmentCategoryRank: { [key: string]: number } = {
   "close combat weapons": 7,
   "grenades": 8,
   "booby traps": 9,
+  //
   "armour": 10,
   "field armour": 11,
   "bionics": 12,
@@ -21,9 +22,13 @@ export const equipmentCategoryRank: { [key: string]: number } = {
   "status items: exotic beasts": 20,
   "status items: extravagant goods": 21,
   "status items: servo skulls": 22,
+  //
   "vehicles": 23,
-  "vehicle weapons": 24,
-  "vehicles upgrades": 25,
-  "vehicles wargear": 26,
+  "cargo loads": 24,
+  "vehicle upgrades": 25,
+  "vehicle wargear": 26,
+  //
   "special terrain": 27,
+  //
+  "archaeo-cyberteknika": 28,
 };

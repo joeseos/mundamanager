@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, Sensor } from '@dnd-kit/core';
+import React, { useState, useMemo } from 'react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -19,21 +19,31 @@ export function DraggableFighters({
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
   
+  // Optimize the sensor configuration
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 1000,
+      delay: 500, // Reduced from 1000ms for better performance
       tolerance: 5,
     },
   });
+  
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: {
-      delay: 150,
+      delay: 100, // Reduced from 150ms for better performance
       tolerance: 5,
     },
   });
+  
+  // Determine if we're on a mobile device
+  const isMobile = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  }, []);
+
+  // Use the appropriate sensor based on device type
   const sensors = useSensors(
     typeof window === "undefined" ? pointerSensor :
-    /Mobi|Android|iPhone/i.test(navigator.userAgent) ? touchSensor : pointerSensor,
+    isMobile ? touchSensor : pointerSensor,
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -70,16 +80,19 @@ export function DraggableFighters({
     }
   };
 
+  // Memoize the fighter IDs array to prevent unnecessary re-renders
+  const fighterIds = useMemo(() => {
+    return fighters.map(f => f.id);
+  }, [fighters]);
 
   return (
     <DndContext 
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      
     >
       <SortableContext 
-        items={fighters.map(f => f.id)}
+        items={fighterIds}
         strategy={verticalListSortingStrategy}
       >
         <MyFighters 

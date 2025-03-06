@@ -143,6 +143,7 @@ export default function Gang({
   const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
+  const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -244,6 +245,15 @@ export default function Gang({
       setFighterCost('');
     }
   };
+
+  const handleGangAdditionClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedGangAdditionClass(e.target.value);
+    setSelectedGangAdditionTypeId(''); // Reset Gang Addition type when class changes
+  };
+
+  const filteredGangAdditionTypes = selectedGangAdditionClass
+    ? gangAdditionTypes.filter(type => type.fighter_class === selectedGangAdditionClass)
+    : gangAdditionTypes;
 
   const handleAddFighter = async () => {
     if (!selectedFighterTypeId || !fighterName || !fighterCost) {
@@ -1152,19 +1162,41 @@ export default function Gang({
 
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
+                    Fighter Class
+                  </label>
+                  <select
+                    value={selectedGangAdditionClass}
+                    onChange={handleGangAdditionClassChange}
+                    className="w-full p-2 border rounded"
+                  >
+                  <option value="">Select Fighter Class</option>
+                  {Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class))).map(classType => (
+                    <option key={classType} value={classType}>
+                      {classType}
+                    </option>
+                  ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
                     Fighter Type
                   </label>
                   <select
                     value={selectedGangAdditionTypeId}
                     onChange={handleGangAdditionTypeChange}
                     className="w-full p-2 border rounded"
+                    disabled={!selectedGangAdditionClass}
                   >
-                    <option value="">Select fighter type</option>
-                    {gangAdditionTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.fighter_type} ({type.fighter_class}) - {type.total_cost} credits
-                      </option>
-                    ))}
+                    <option value="">Select Fighter Type</option>
+                    {filteredGangAdditionTypes
+                      .slice() // Create a shallow copy to avoid mutating the original array
+                      .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Sort alphabetically by fighter_type
+                      .map(type => (
+                        <option key={type.id} value={type.id}>
+                          {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -1220,7 +1252,7 @@ export default function Gang({
             initialPositions={positions}
           />
         ) : (
-          <div className="text-white italic">No fighters available.</div>
+          <div className="text-white italic text-center">No fighters available.</div>
         )}
       </div>
     </div>

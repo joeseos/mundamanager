@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
-import ItemModal from "@/components/ui/item-modal";
+import ItemModal from "@/components/equipment";
 import { AdvancementsList } from "@/components/advancements-list";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import dynamic from 'next/dynamic';
@@ -19,6 +19,7 @@ import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -256,15 +257,6 @@ interface EditState {
   xpError: string;
 }
 
-const VEHICLE_EQUIPMENT_CATEGORIES = [
-  "Ammo",
-  "Basic Weapons", 
-  "Special Weapons",
-  "Heavy Weapons",
-  "Vehicle Upgrades",
-  "Vehicle Wargear"
-];
-
 const calculateInjuryModifications = (injuries: Array<{
   code_1?: string;
   characteristic_1?: number;
@@ -413,6 +405,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     id: string;
     equipmentId: string;
     name: string;
+    cost: number;
   } | null>(null);
 
   // Add state for stash modal
@@ -776,6 +769,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   }, []);
 
   const handleAddXp = async () => {
+    // First validate that the input contains only numbers
+    if (!/^-?\d+$/.test(editState.xpAmount)) {
+      setEditState(prev => ({
+        ...prev,
+        xpError: 'Please enter a valid integer'
+      }));
+      return false;
+    }
+    
     const amount = parseInt(editState.xpAmount);
     
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
@@ -833,6 +835,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
       return false;
     }
+  };
+
+  // Add a function to check if the input is valid
+  const isValidXpInput = (value: string) => {
+    // Allow empty string, minus sign, or only digits
+    return value === '' || value === '-' || /^-?\d+$/.test(value);
   };
 
   // Define XP "events" for the checkbox list
@@ -1202,13 +1210,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   const handleEditClick = () => {
-    setEditState(prev => ({
-      ...prev,
+    setEditState({
       name: fighterData.fighter?.fighter_name || '',
       label: fighterData.fighter?.label || '',
       kills: fighterData.fighter?.kills || 0,
-      costAdjustment: String(fighterData.fighter?.cost_adjustment || 0)
-    }));
+      costAdjustment: String(fighterData.fighter?.cost_adjustment || 0),
+      xpAmount: '',
+      xpError: ''
+    });
     setUiState(prev => ({
       ...prev,
       modals: {
@@ -1241,11 +1250,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const handleVehicleEquipmentDelete = async (fighterEquipmentId: string, equipmentId: string) => {
     try {
       // Find the equipment to delete for the modal
-      const equipmentToDelete = fighterData.vehicleEquipment.find(
+      const equipmentToRemove = fighterData.vehicleEquipment.find(
         e => e.fighter_equipment_id === fighterEquipmentId
       );
       
-      if (!equipmentToDelete) {
+      if (!equipmentToRemove) {
         toast({
           title: "Error",
           description: "Equipment not found",
@@ -1254,11 +1263,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         return;
       }
 
-      // Show confirmation modal
+      // Show confirmation modal - THIS IS THE KEY PART
       setDeleteVehicleEquipmentData({
-        id: equipmentToDelete.fighter_equipment_id,
-        equipmentId: equipmentToDelete.equipment_id,
-        name: equipmentToDelete.equipment_name
+        id: equipmentToRemove.fighter_equipment_id,
+        equipmentId: equipmentToRemove.equipment_id,
+        name: equipmentToRemove.equipment_name,
+        cost: equipmentToRemove.cost || 0
       });
     } catch (error) {
       console.error('Error preparing to delete equipment:', error);
@@ -1783,6 +1793,25 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             />
           )}
           
+          {uiState.modals.addVehicleEquipment && fighterData.fighter?.vehicles?.[0] && (
+            <ItemModal
+              title="Vehicle Equipment"
+              onClose={() => handleModalToggle('addVehicleEquipment', false)}
+              gangCredits={fighterData.gang?.credits || 0}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.fighter?.gang_type_id || ''}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
+                handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)}
+              vehicleId={fighterData.fighter.vehicles[0].id}
+              vehicleType={fighterData.fighter.vehicles[0].vehicle_type}
+              isVehicleEquipment={true}
+              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+            />
+          )}
+          
           <div className="mt-6">
             <div className="flex flex-wrap gap-2">
               <Button
@@ -1924,12 +1953,15 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       inputMode="url"
                       pattern="-?[0-9]+"
                       value={editState.xpAmount}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value;
                         setEditState((prev) => ({
                           ...prev,
-                          xpAmount: e.target.value
-                        }))
-                      }
+                          xpAmount: value,
+                          // Clear any existing error when the user is typing
+                          xpError: ''
+                        }));
+                      }}
                       placeholder="Override XP (use a negative value to subtract)"
                       className="w-full"
                     />
@@ -1962,7 +1994,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }}
               onConfirm={handleAddXp}
               confirmText="Add XP"
-              confirmDisabled={!editState.xpAmount}
+              confirmDisabled={!editState.xpAmount || !isValidXpInput(editState.xpAmount)}
             />
           )}
           
@@ -2081,17 +2113,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               }
-              onClose={() => {
-                handleModalToggle('editFighter', false);
-                setEditState(prev => ({
-                  ...prev,
-                  name: '',
-                  label: '',
-                  kills: 0,
-                  costAdjustment: '0'
-                }));
-              }}
-              onConfirm={async () => {
+              onClose={async () => {
                 try {
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
@@ -2133,6 +2155,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     variant: "default"
                   });
                   handleModalToggle('editFighter', false);
+                  setEditState(prev => ({
+                    ...prev,
+                    name: '',
+                    label: '',
+                    kills: 0,
+                    costAdjustment: '0'
+                  }));
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
@@ -2145,70 +2174,44 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }}
             />
           )}
-          
-          {uiState.modals.addVehicleEquipment && (
-            <ItemModal
-              title="Vehicle Equipment"
-              onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              gangCredits={fighterData.gang?.credits || 0}
-              gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.fighter?.gang_type_id || ''}
-              fighterId={fighterData.fighter?.id || ''}
-              vehicleId={fighterData.fighter?.vehicles?.[0]?.id}
-              vehicleType={fighterData.fighter?.vehicles?.[0]?.vehicle_type}
-              vehicleTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id}
-              fighterTypeId={fighterData.fighter?.vehicles?.[0]?.vehicle_type_id || ''}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)
-              }
-              isVehicleEquipment={true}
-              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-            />
-          )}
-          
+
           {deleteVehicleEquipmentData && (
             <Modal
-              title="Confirm Deletion"
+              title="Confirm Delete"
+              content={
+                <div>
+                  <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}?</p>
+                  <p>This action cannot be undone.</p>
+                </div>
+              }
               onClose={() => setDeleteVehicleEquipmentData(null)}
               onConfirm={handleConfirmVehicleEquipmentDelete}
-            >
-              <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}? This action cannot be undone.</p>
-            </Modal>
+            />
           )}
-          
-          {stashVehicleEquipmentData && (
-            <Modal
-              title="Confirm Stash"
-              onClose={() => setStashVehicleEquipmentData(null)}
-              onConfirm={handleConfirmVehicleEquipmentStash}
-            >
-              <p>Are you sure you want to stash {stashVehicleEquipmentData.name}? This action cannot be undone.</p>
-            </Modal>
-          )}
-          
+
           {sellVehicleEquipmentData && (
             <Modal
-              title="Confirm Sale"
+              title="Confirm Sell"
               content={
-                <div className="space-y-4">
-                  <p>Are you sure you want to sell {sellVehicleEquipmentData.name}?</p>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Sale price</label>
-                    <Input
-                      type="number"
-                      value={sellVehicleEquipmentData.cost}
-                      onChange={(e) => setSellVehicleEquipmentData(prev => prev ? {
-                        ...prev,
-                        cost: parseInt(e.target.value) || 0
-                      } : null)}
-                      className="w-full"
-                    />
-                  </div>
+                <div>
+                  <p>Are you sure you want to sell {sellVehicleEquipmentData.name} for {sellVehicleEquipmentData.cost} credits?</p>
                 </div>
               }
               onClose={() => setSellVehicleEquipmentData(null)}
               onConfirm={handleConfirmVehicleEquipmentSell}
+            />
+          )}
+
+          {stashVehicleEquipmentData && (
+            <Modal
+              title="Confirm Stash"
+              content={
+                <div>
+                  <p>Are you sure you want to move {stashVehicleEquipmentData.name} to the gang stash?</p>
+                </div>
+              }
+              onClose={() => setStashVehicleEquipmentData(null)}
+              onConfirm={handleConfirmVehicleEquipmentStash}
             />
           )}
         </div>

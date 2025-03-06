@@ -301,11 +301,11 @@ export default function GangVehicles({
 
   return (
     <div className="container max-w-5xl w-full space-y-4">
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-md p-4">
         <h2 className="text-2xl font-bold mb-6">{title}</h2>
         
         {allVehicles.length === 0 ? (
-          <p className="text-gray-500 italic">No vehicles available.</p>
+          <p className="text-gray-500 italic text-center">No vehicles available.</p>
         ) : (
           <>
             <div className="mb-4">
@@ -313,26 +313,30 @@ export default function GangVehicles({
                 <div className="w-4 mr-5" />
                 <div className="flex w-64">Name</div>
                 <div className="w-64">Type</div>
-                <div className="w-64">Assigned To</div>
+                <div className="w-64">Crew</div>
                 <div className="flex-1" />
                 <div className="w-48 text-right">Actions</div>
-                <div className="w-20 text-right">Value</div>
+                <div className="w-20 text-right mr-2">Value</div>
               </div>
               
               <div className="space-y-2 px-0">
                 {allVehicles.map((vehicle, index) => (
-                  <div key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`} className="flex items-center p-2 bg-gray-50 rounded-md">
+                  <label
+                    key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`}
+                    className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer"
+                    onClick={() => setSelectedVehicle(index)}
+                  >
                     <input
                       type="radio"
                       name="vehicle-item"
                       checked={selectedVehicle === index}
                       onChange={() => setSelectedVehicle(index)}
-                      className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
+                      className="h-3 w-3 max-w-3 min-w-3 border-gray-300 text-black focus:ring-black mr-3"
                     />
                     <span className="flex w-64 overflow-hidden text-ellipsis">
                       {vehicle.vehicle_name || vehicle.vehicle_type}
                     </span>
-                    <span className="w-64 overflow-hidden text-ellipsis">
+                    <span className="w-64 overflow-hidden text-ellipsis text-nowrap">
                       {vehicle.vehicle_type}
                     </span>
                     <span className="w-64 overflow-hidden text-ellipsis text-gray-600">
@@ -360,7 +364,7 @@ export default function GangVehicles({
                       </Button>
                     </div>
                     <span className="w-20 text-right">{vehicle.cost}</span>
-                  </div>
+                  </label>
                 ))}
               </div>
             </div>

@@ -8,6 +8,7 @@ import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
+import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -33,21 +34,12 @@ export default function GangInventory({
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const { toast } = useToast();
-
-  const VEHICLE_EXCLUSIVE_CATEGORIES = ['Vehicle Upgrades', 'Vehicle Wargear'];
-  const VEHICLE_COMPATIBLE_CATEGORIES = [
-    ...VEHICLE_EXCLUSIVE_CATEGORIES, 
-    'Basic Weapons', 
-    'Special Weapons', 
-    'Heavy Weapons',
-    'Ammo'
-  ];
   
   const isVehicleExclusive = (item: StashItem) => 
-    VEHICLE_EXCLUSIVE_CATEGORIES.includes(item.equipment_category || '');
+    vehicleExclusiveCategories.includes(item.equipment_category || '');
     
   const isVehicleCompatible = (item: StashItem) => 
-    VEHICLE_COMPATIBLE_CATEGORIES.includes(item.equipment_category || '');
+    vehicleCompatibleCategories.includes(item.equipment_category || '');
 
   useEffect(() => {
     const getSession = async () => {
@@ -231,32 +223,32 @@ export default function GangInventory({
 
   return (
     <div className="container max-w-5xl w-full space-y-4">
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-md p-4">
         <h2 className="text-2xl font-bold mb-6">{title}</h2>
         
         {stash.length === 0 ? (
-          <p className="text-gray-500 italic">No items in stash.</p>
+          <p className="text-gray-500 italic text-center">No items in stash.</p>
         ) : (
           <>
             <div className="mb-4">
-              <div className="flex items-center text-sm font-medium text-gray-700 px-4 py-2">
-                <div className="w-4 mr-3" />
+              <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
+                <div className="w-4 mr-5" />
                 <div className="flex-grow">Name</div>
                 <div className="w-32 text-right">Category</div>
-                <div className="w-20 text-right">Value</div>
+                <div className="w-20 text-right mr-2">Value</div>
               </div>
-              <div className="space-y-2 px-4">
+              <div className="space-y-2 px-0">
                 {stash.map((item, index) => (
                   <label
                     key={index}
-                    className="flex items-center p-2 bg-gray-50 rounded-md"
+                    className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer"
                   >
                     <input
                       type="radio"
                       name="stash-item"
                       checked={selectedItem === index}
                       onChange={() => setSelectedItem(index)}
-                      className="h-4 w-4 border-gray-300 text-black focus:ring-black mr-3"
+                      className="h-3 w-3 max-w-3 min-w-3 border-gray-300 text-black focus:ring-black mr-3"
                     />
                     <span className="flex-grow">{getItemName(item)}</span>
                     <span className="w-32 text-right text-sm text-gray-600 whitespace-nowrap">
@@ -271,7 +263,7 @@ export default function GangInventory({
               </div>
             </div>
 
-            <div className="px-4">
+            <div className="px-0">
               <div className="border-t pt-4">
                 <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Select Fighter or Vehicle
