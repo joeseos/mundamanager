@@ -55,6 +55,8 @@ interface GangProps {
   exploration_points: number | null;
   rating: number | null;
   alignment: string;
+  alliance_id: string;
+  alliance_name: string;
   created_at: string | Date | null;
   last_updated: string | Date | null;
   user_id: string;
@@ -88,7 +90,9 @@ export default function Gang({
   exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
-  created_at, 
+  alliance_id: initialAllianceId,
+  alliance_name: initialAllianceName,
+  created_at,
   last_updated: initialLastUpdated,
   user_id,
   initialFighters = [],
@@ -186,11 +190,14 @@ export default function Gang({
           credits: Math.abs(creditsDifference),
           operation: operation,
           alignment: editedAlignment,
+          alliance_id: editedAlliance,
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints)
         }),
       });
+
+      console.log(`Gang Update: ${response.body}`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -201,6 +208,7 @@ export default function Gang({
       setName(updatedGang.name);
       setCredits(updatedGang.credits);
       setAlignment(updatedGang.alignment);
+      setAlliance(updatedGang.alliance_id);
       setReputation(updatedGang.reputation);
       setMeat(updatedGang.meat);
       setExplorationPoints(updatedGang.exploration_points);
@@ -488,7 +496,7 @@ export default function Gang({
         <p className="text-sm font-medium">Alliance</p>
         <select
                 value={editedAlliance}
-                onChange={(e) => setAlignment(e.target.value)}
+                onChange={(e) => setAlliance(e.target.value)}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select alliance</option>

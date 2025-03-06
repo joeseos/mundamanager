@@ -276,6 +276,7 @@ interface GangDataState {
     exploration_points: number;
     rating: number;
     alignment: string;
+    alliance_id: string;
     created_at: string;
     last_updated: string;
     user_id: string;

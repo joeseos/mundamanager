@@ -66,6 +66,7 @@ export async function PATCH(
     credits, 
     operation, 
     alignment,
+    alliance_id,
     reputation,
     meat,
     exploration_points,
