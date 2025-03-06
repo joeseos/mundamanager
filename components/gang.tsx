@@ -124,7 +124,7 @@ export default function Gang({
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [alignment, setAlignment] = useState(initialAlignment);
-  const [editedAlliance, setAlliance] = useState('');
+  const [editedAlliance, setAlliance] = useState(initialAllianceId);
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -505,7 +505,7 @@ export default function Gang({
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-                value={editedAlliance}
+                value={editedAlliance || ''}
                 onChange={(e) => setAlliance(e.target.value)}
                 className="w-full p-2 border rounded-md"
               >
