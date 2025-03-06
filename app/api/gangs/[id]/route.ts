@@ -131,6 +131,11 @@ export async function PATCH(
       updates.alignment = alignment;
     }
 
+    // Add alliance_id if provided
+    if (alliance_id !== undefined) {
+      updates.alliance_id = alliance_id;
+    }
+
     // Add reputation if provided
     if (reputation !== undefined) {
       updates.reputation = reputation;
