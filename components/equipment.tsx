@@ -136,6 +136,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [showAllEquipment, setShowAllEquipment] = useState(false);
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [cachedFighterCategories, setCachedFighterCategories] = useState<string[]>([]);
+  const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
+  const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
+    fighter: {},
+    all: {}
+  });
+  const DEBUG = false;
 
   useEffect(() => {
     return () => {
@@ -210,19 +218,119 @@ const ItemModal: React.FC<ItemModalProps> = ({
     fetchVehicleTypeId();
   }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
 
+  const fetchAllCategories = async () => {
+    if (!session) return;
+    setError(null);
+
+    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
+
+    if (!gangTypeId || !typeIdToUse) {
+      const errorMessage = isVehicleEquipment && !typeIdToUse
+        ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
+        : !fighterTypeId 
+        ? 'Fighter type information is missing' 
+        : 'Required information is missing';
+      
+      console.log('Missing type info debug:', { 
+        isVehicleEquipment, 
+        vehicleTypeId, 
+        localVehicleTypeId, 
+        fighterTypeId,
+        gangTypeId
+      });
+      
+      setError(errorMessage);
+      return;
+    }
+
+    if (showAllEquipment && cachedAllCategories.length > 0) {
+      setAvailableCategories(cachedAllCategories);
+      return;
+    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+      setAvailableCategories(cachedFighterCategories);
+      return;
+    }
+
+    try {
+      const requestBody: Record<string, any> = {
+        gang_type_id: gangTypeId,
+        fighter_type_id: typeIdToUse,
+      };
+
+      if (!showAllEquipment) {
+        requestBody.fighter_type_equipment = true;
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch fighter equipment');
+      }
+
+      const data: RawEquipmentData[] = await response.json();
+
+      if (DEBUG) {
+        console.log('Fighter equipment data:', data);
+      }
+
+      const uniqueCategories = Array.from(new Set(data.map(item => item.equipment_category)));
+      
+      if (showAllEquipment) {
+        setCachedAllCategories(uniqueCategories);
+      } else {
+        setCachedFighterCategories(uniqueCategories);
+      }
+      
+      setAvailableCategories(uniqueCategories);
+    } catch (err) {
+      console.error('Error fetching all equipment categories:', err);
+      setError('Failed to load equipment categories');
+    }
+  };
+
   const fetchCategoryEquipment = async (categoryName: string, categoryQuery: string) => {
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId : fighterTypeId;
+    const cacheKey = showAllEquipment ? 'all' : 'fighter';
+    
+    if (cachedEquipment[cacheKey][categoryName]) {
+      setEquipment(prev => ({
+        ...prev,
+        [categoryName]: cachedEquipment[cacheKey][categoryName]
+      }));
+      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
+      return;
+    }
+
+    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
-      const errorMessage = isVehicleEquipment && !localVehicleTypeId 
-        ? 'Vehicle type information is missing' 
+      const errorMessage = isVehicleEquipment && !typeIdToUse
+        ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
         : !fighterTypeId 
         ? 'Fighter type information is missing' 
         : 'Required information is missing';
+      
+      console.log('Missing type info debug:', { 
+        isVehicleEquipment, 
+        vehicleTypeId, 
+        localVehicleTypeId, 
+        fighterTypeId,
+        gangTypeId
+      });
       
       setError(errorMessage);
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
@@ -230,11 +338,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
 
     try {
-      const requestBody = {
+      const requestBody: Record<string, any> = {
         gang_type_id: gangTypeId,
         equipment_category: categoryQuery,
         fighter_type_id: typeIdToUse
       };
+
+      if (!showAllEquipment) {
+        requestBody.fighter_type_equipment = true;
+      }
+
+      Object.keys(requestBody).forEach(key => 
+        requestBody[key] === undefined && delete requestBody[key]
+      );
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -255,11 +371,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data: RawEquipmentData[] = await response.json();
 
-      const filteredData = data.filter(item =>
-        showAllEquipment || item.fighter_type_equipment
-      );
+      if (!showAllEquipment && categoryQuery === '*') {
+        const categories = Array.from(new Set(data.map(item => item.equipment_category)));
+        setAvailableCategories(categories);
+      }
 
-      const formattedData = filteredData
+      if (DEBUG) {
+        console.log('Fighter equipment data:', data);
+      }
+
+      const formattedData = data
         .map((item: RawEquipmentData) => ({
           ...item,
           equipment_id: item.id,
@@ -280,6 +401,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setEquipment(prev => ({
         ...prev,
         [categoryName]: formattedData
+      }));
+
+      setCachedEquipment(prev => ({
+        ...prev,
+        [cacheKey]: {
+          ...prev[cacheKey],
+          [categoryName]: formattedData
+        }
       }));
     } catch (err) {
       console.error('Error fetching equipment:', err);
@@ -383,6 +512,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   useEffect(() => {
+    if (session && !showAllEquipment) {
+      fetchAllCategories();
+    }
+  }, [session, showAllEquipment]);
+
+  useEffect(() => {
+    if (showAllEquipment && cachedAllCategories.length > 0) {
+      setAvailableCategories(cachedAllCategories);
+    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+      setAvailableCategories(cachedFighterCategories);
+    } else {
+      fetchAllCategories();
+    }
+    
     if (expandedCategory) {
       fetchCategoryEquipment(expandedCategory, expandedCategory);
     }
@@ -439,7 +582,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
             {error && <p className="text-red-500 p-4">{error}</p>}
 
             {categories
-              .filter(category => !isVehicleEquipment || !allowedCategories || allowedCategories.includes(category.category_name))
+              .filter(category => {
+                const isVehicleAllowed = isVehicleEquipment && allowedCategories 
+                  ? allowedCategories.includes(category.category_name)
+                  : !isVehicleEquipment;
+                  
+                const isAvailable = showAllEquipment || 
+                  availableCategories.includes(category.category_name);
+                  
+                return isVehicleAllowed && isAvailable;
+              })
               .sort((a, b) => {
                 const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
                 const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;

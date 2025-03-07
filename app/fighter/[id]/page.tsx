@@ -1621,6 +1621,55 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     [fighterData.fighter, transformFighterChanges]
   );
 
+  // Add a useEffect to fetch and store the vehicle type ID when needed
+  const [vehicleTypeIdMap, setVehicleTypeIdMap] = useState<Record<string, string>>({});
+
+  // Add this useEffect to fetch vehicle type IDs when needed
+  useEffect(() => {
+    const fetchVehicleTypeId = async (vehicleType: string) => {
+      if (!vehicleType || vehicleTypeIdMap[vehicleType]) return;
+      
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) return;
+        
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
+          {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          console.log(`Found ID ${data[0].id} for vehicle type: ${vehicleType}`);
+          setVehicleTypeIdMap(prev => ({
+            ...prev,
+            [vehicleType]: data[0].id
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching vehicle type ID:', error);
+      }
+    };
+
+    // Fix the null/undefined checks
+    if (fighterData.fighter && fighterData.fighter.vehicles && fighterData.fighter.vehicles.length > 0) {
+      fighterData.fighter.vehicles.forEach(vehicle => {
+        if (vehicle.vehicle_type) {
+          fetchVehicleTypeId(vehicle.vehicle_type);
+        }
+      });
+    }
+  }, [fighterData.fighter, vehicleTypeIdMap]);
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1807,6 +1856,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)}
               vehicleId={fighterData.fighter.vehicles[0].id}
               vehicleType={fighterData.fighter.vehicles[0].vehicle_type}
+              vehicleTypeId={
+                fighterData.fighter.vehicles[0].vehicle_type_id || 
+                vehicleTypeIdMap[fighterData.fighter.vehicles[0].vehicle_type] || 
+                undefined
+              }
               isVehicleEquipment={true}
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
             />
