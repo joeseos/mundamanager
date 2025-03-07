@@ -137,6 +137,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [showAllEquipment, setShowAllEquipment] = useState(false);
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [cachedFighterCategories, setCachedFighterCategories] = useState<string[]>([]);
+  const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
+  const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
+    fighter: {},
+    all: {}
+  });
   const DEBUG = false;
 
   useEffect(() => {
@@ -237,12 +243,23 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return;
     }
 
+    if (showAllEquipment && cachedAllCategories.length > 0) {
+      setAvailableCategories(cachedAllCategories);
+      return;
+    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+      setAvailableCategories(cachedFighterCategories);
+      return;
+    }
+
     try {
       const requestBody: Record<string, any> = {
         gang_type_id: gangTypeId,
         fighter_type_id: typeIdToUse,
-        fighter_type_equipment: true
       };
+
+      if (!showAllEquipment) {
+        requestBody.fighter_type_equipment = true;
+      }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -267,8 +284,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
         console.log('Fighter equipment data:', data);
       }
 
-      // Get unique categories
       const uniqueCategories = Array.from(new Set(data.map(item => item.equipment_category)));
+      
+      if (showAllEquipment) {
+        setCachedAllCategories(uniqueCategories);
+      } else {
+        setCachedFighterCategories(uniqueCategories);
+      }
       
       setAvailableCategories(uniqueCategories);
     } catch (err) {
@@ -281,6 +303,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session) return;
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
+
+    const cacheKey = showAllEquipment ? 'all' : 'fighter';
+    
+    if (cachedEquipment[cacheKey][categoryName]) {
+      setEquipment(prev => ({
+        ...prev,
+        [categoryName]: cachedEquipment[cacheKey][categoryName]
+      }));
+      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
+      return;
+    }
 
     const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
 
@@ -368,6 +401,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setEquipment(prev => ({
         ...prev,
         [categoryName]: formattedData
+      }));
+
+      setCachedEquipment(prev => ({
+        ...prev,
+        [cacheKey]: {
+          ...prev[cacheKey],
+          [categoryName]: formattedData
+        }
       }));
     } catch (err) {
       console.error('Error fetching equipment:', err);
@@ -477,10 +518,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [session, showAllEquipment]);
 
   useEffect(() => {
-    setEquipment({});
-    
-    if (showAllEquipment) {
-      setAvailableCategories([]);
+    if (showAllEquipment && cachedAllCategories.length > 0) {
+      setAvailableCategories(cachedAllCategories);
+    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+      setAvailableCategories(cachedFighterCategories);
     } else {
       fetchAllCategories();
     }
