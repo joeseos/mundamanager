@@ -7,6 +7,7 @@ import { useGangs } from '@/contexts/GangsContext'
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { useToast } from "@/components/ui/use-toast"
+import { gangListRank } from "@/utils/gangListRank";
 
 type GangType = {
   gang_type_id: string;
@@ -257,10 +258,35 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
               className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select gang type</option>
-              {gangTypes.map((type) => (
-                <option key={type.gang_type_id} value={type.gang_type_id}>
-                  {type.gang_type}
-                </option>
+            {Object.entries(
+              gangTypes
+                .sort((a, b) => {
+                  const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
+                  const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
+                  return rankA - rankB;
+                })
+                .reduce((groups, type) => {
+                  const rank = gangListRank[type.gang_type.toLowerCase()];
+                  let category = "Misc."; // Default category if no clear separator
+
+                  if (rank <= 9) category = "House Gangs";
+                  else if (rank <= 19) category = "Enforcers";
+                  else if (rank <= 29) category = "Cults";
+                  else if (rank <= 39) category = "Others & Outsiders";
+                  else if (rank <= 49) category = "Underhive Outcasts";
+
+                  if (!groups[category]) groups[category] = [];
+                  groups[category].push(type);
+                  return groups;
+                }, {} as Record<string, GangType[]>)
+              ).map(([category, types]) => (
+                <optgroup key={category} label={category}>
+                  {types.map((type) => (
+                    <option key={type.gang_type_id} value={type.gang_type_id}>
+                      {type.gang_type}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
