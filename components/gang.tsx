@@ -632,7 +632,7 @@ export default function Gang({
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             },
             body: JSON.stringify({
-              "p_gang_type_id": "c3b4d7e8-149a-4cad-85fd-c06f0aa771eb"
+              "p_is_gang_addition": true
             })
           }
         );
