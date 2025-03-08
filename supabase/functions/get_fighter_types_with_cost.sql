@@ -1,10 +1,13 @@
--- Drop all versions of the function
-DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
+-- Drop previous versions
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
 
--- Then create our new function with optional parameter and equipment_selection column
-CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL)
+-- Create new function with optional parameters
+CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
+    p_gang_type_id uuid DEFAULT NULL,
+    p_is_gang_addition boolean DEFAULT NULL
+)
 RETURNS TABLE (
     id uuid,
     fighter_type text,
@@ -26,13 +29,15 @@ RETURNS TABLE (
     intelligence numeric,
     attacks numeric,
     limitation numeric,
+    alignment alignment,
+    is_gang_addition boolean,
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         ft.id,
         ft.fighter_type,
         fc.class_name,
@@ -53,6 +58,8 @@ BEGIN
         ft.intelligence,
         ft.attacks,
         ft.limitation,
+        ft.alignment,
+        ft.is_gang_addition,
         (
             SELECT jsonb_agg(
                 jsonb_build_object(
@@ -93,6 +100,8 @@ BEGIN
         ft.cost AS total_cost
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    WHERE (p_gang_type_id IS NULL OR ft.gang_type_id = p_gang_type_id);
+    WHERE
+        (p_gang_type_id IS NULL OR ft.gang_type_id = p_gang_type_id)
+        AND (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
 END;
 $$;
