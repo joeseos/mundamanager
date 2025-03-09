@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { skillSetRank } from "@/utils/skillSetRank";
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -159,13 +160,40 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 value={skillType}
                 onChange={(e) => setSkillType(e.target.value)}
                 className="w-full p-2 border rounded-md"
-                disabled={skillTypeName !== ''}
+                disabled={skillTypeName !== ""}
               >
-                <option value="">Select skill set</option>
-                {skillTypeList.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.skill_type}
-                  </option>
+                <option value="">Select a skill set</option>
+
+                {Object.entries(
+                  skillTypeList
+                    .sort((a, b) => {
+                      const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+                      const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+                      return rankA - rankB;
+                    })
+                    .reduce((groups, type) => {
+                      const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+                      let groupLabel = "Misc."; // Default category for unlisted skill types
+
+                      if (rank <= 19) groupLabel = "Universal Skills";
+                      else if (rank <= 39) groupLabel = "Gang-specific Skills";
+                      else if (rank <= 59) groupLabel = "Wyrd Powers";
+                      else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+                      else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+                      else if (rank <= 89) groupLabel = "Legendary Names";
+
+                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                      groups[groupLabel].push(type);
+                      return groups;
+                    }, {} as Record<string, typeof skillTypeList>)
+                ).map(([groupLabel, skillList]) => (
+                  <optgroup key={groupLabel} label={groupLabel}>
+                    {skillList.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.skill_type}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               {skillTypeName !== '' && (
