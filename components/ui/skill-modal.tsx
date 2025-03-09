@@ -165,16 +165,37 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
           className="w-full p-2 border rounded"
         >
           <option key="placeholder-type" value="">Select a skill set</option>
-          {[...categories]
-            .sort((a, b) => {
+
+          {Object.entries(
+            categories
+              .sort((a, b) => {
                 const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
                 const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
                 return rankA - rankB;
               })
-            .map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
+              .reduce((groups, category) => {
+                const rank = skillSetRank[category.name.toLowerCase()];
+                let groupLabel = "Misc."; // Default category if no clear separator
+
+                if (rank <= 19) groupLabel = "Universal Skills";
+                else if (rank <= 39) groupLabel = "Gang-specific Skills";
+                else if (rank <= 59) groupLabel = "Wyrd Powers";
+                else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+                else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+                else if (rank <= 89) groupLabel = "Legendary Names";
+
+                if (!groups[groupLabel]) groups[groupLabel] = [];
+                groups[groupLabel].push(category);
+                return groups;
+              }, {} as Record<string, typeof categories>)
+          ).map(([groupLabel, categoryList]) => (
+            <optgroup key={groupLabel} label={groupLabel}>
+              {categoryList.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>

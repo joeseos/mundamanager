@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { X, Plus, Minus } from "lucide-react";
 import { FighterType } from "@/types/fighter";
 import { GangType, Equipment } from "@/types/gang";
+import { skillSetRank } from "@/utils/skillSetRank";
 
 interface AdminEditFighterTypeModalProps {
   onClose: () => void;
@@ -776,11 +777,38 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   onChange={(e) => setSelectedSkillType(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select skill set</option>
-                  {skillTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.skill_type}
-                    </option>
+                  <option value="">Select a skill set</option>
+
+                  {Object.entries(
+                    skillTypes
+                      .sort((a, b) => {
+                        const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+                        const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+                        return rankA - rankB;
+                      })
+                      .reduce((groups, type) => {
+                        const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+                        let groupLabel = "Misc."; // Default category for unlisted skills
+
+                        if (rank <= 19) groupLabel = "Universal Skills";
+                        else if (rank <= 39) groupLabel = "Gang-specific Skills";
+                        else if (rank <= 59) groupLabel = "Wyrd Powers";
+                        else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+                        else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+                        else if (rank <= 89) groupLabel = "Legendary Names";
+
+                        if (!groups[groupLabel]) groups[groupLabel] = [];
+                        groups[groupLabel].push(type);
+                        return groups;
+                      }, {} as Record<string, typeof skillTypes>)
+                  ).map(([groupLabel, skillList]) => (
+                    <optgroup key={groupLabel} label={groupLabel}>
+                      {skillList.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.skill_type}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
 
@@ -796,7 +824,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   className="w-full p-2 border rounded-md"
                   disabled={!selectedSkillType || !selectedFighterTypeId}
                 >
-                  <option value="">Select skill to add</option>
+                  <option value="">Select a skill to add</option>
                   {skills
                     .filter(skill => !selectedSkills.includes(skill.id))
                     .map((skill) => (

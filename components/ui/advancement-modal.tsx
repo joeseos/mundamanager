@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "./button";
 import { useToast } from "./use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
+import { characteristicRank } from "@/utils/characteristicRank";
 
 interface AdvancementModalProps {
   fighterId: string;
@@ -513,23 +514,72 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   }}
                 >
                   <option key="default" value="">
-                    Select {advancementType === "characteristic" ? "Characteristic" : "Skill Set"}
+                    Select {advancementType === "characteristic" ? "a Characteristic" : "a Skill Set"}
                   </option>
-                  {[...categories]
-                    .sort((a, b) => {
-                      if (advancementType === "characteristic") {
-                        return a.name.localeCompare(b.name);
-                      } else {
-                        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-                        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-                        return rankA - rankB;
-                      }
-                    })
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
+
+                  {advancementType === "characteristic" ? (
+                    // If selecting a Characteristic, sort dynamically by characteristicRank and group into categories
+                    Object.entries(
+                      categories
+                        .sort((a, b) => {
+                          const rankA = characteristicRank[a.name.toLowerCase()] ?? Infinity;
+                          const rankB = characteristicRank[b.name.toLowerCase()] ?? Infinity;
+                          return rankA - rankB;
+                        })
+                        .reduce((groups, category) => {
+                          const rank = characteristicRank[category.name.toLowerCase()] ?? Infinity;
+                          let groupLabel = "Misc."; // Default category for unlisted characteristics
+
+                          if (rank <= 8) groupLabel = "Main Characteristics";
+                          else if (rank <= 12) groupLabel = "Psychology Characteristics";
+
+                          if (!groups[groupLabel]) groups[groupLabel] = [];
+                          groups[groupLabel].push(category);
+                          return groups;
+                        }, {} as Record<string, typeof categories>)
+                    ).map(([groupLabel, categoryList]) => (
+                      <optgroup key={groupLabel} label={groupLabel}>
+                        {categoryList.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  ) : (
+                    // If selecting a Skill Set, sort and group dynamically
+                    Object.entries(
+                      categories
+                        .sort((a, b) => {
+                          const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+                          const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+                          return rankA - rankB;
+                        })
+                        .reduce((groups, category) => {
+                          const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
+                          let groupLabel = "Misc."; // Default category for unlisted skills
+
+                          if (rank <= 19) groupLabel = "Universal Skills";
+                          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+                          else if (rank <= 59) groupLabel = "Wyrd Powers";
+                          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+                          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+                          else if (rank <= 89) groupLabel = "Legendary Names";
+
+                          if (!groups[groupLabel]) groups[groupLabel] = [];
+                          groups[groupLabel].push(category);
+                          return groups;
+                        }, {} as Record<string, typeof categories>)
+                    ).map(([groupLabel, categoryList]) => (
+                      <optgroup key={groupLabel} label={groupLabel}>
+                        {categoryList.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  )}
                 </select>
               </div>
             )}
