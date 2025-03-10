@@ -1,10 +1,11 @@
-import {createClient} from "@/utils/supabase/server";
-import {NextResponse} from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   const supabase = createClient();
 
   try {
+    // Just check if user is authenticated, no admin check
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -25,4 +26,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+} 

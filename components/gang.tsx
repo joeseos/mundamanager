@@ -126,6 +126,7 @@ export default function Gang({
   const [alignment, setAlignment] = useState(initialAlignment);
   const [editedAlliance, setAlliance] = useState(initialAllianceId);
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
+  const [allianceListLoaded, setAllianceListLoaded] = useState(false);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
@@ -156,25 +157,23 @@ export default function Gang({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
 
-  useEffect(() => {
-    const fetchAlliances = async () => {
-      try {
-        const response = await fetch('/api/alliances');
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const data = await response.json();
-        console.log('Fetched skill sets:', data);
-        setAllianceList(data);
-      } catch (error) {
-        console.error('Error fetching alliances:', error);
-        toast({
-          description: 'Failed to load alliances',
-          variant: "destructive"
-        });
-      }
-    };
-
-    fetchAlliances();
-  }, [toast]);
+  const fetchAlliances = async () => {
+    if (allianceListLoaded) return;
+    
+    try {
+      const response = await fetch('/api/alliances');
+      if (!response.ok) throw new Error('Failed to fetch alliances');
+      const data = await response.json();
+      setAllianceList(data);
+      setAllianceListLoaded(true);
+    } catch (error) {
+      console.error('Error fetching alliances:', error);
+      toast({
+        description: 'Failed to load alliances',
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -435,13 +434,15 @@ export default function Gang({
     }
   };
 
-  const handleEditModalOpen = () => {
+  const handleEditModalOpen = async () => {
     setEditedName(name);
     setEditedCredits('');
     setEditedAlignment(alignment);
     setEditedReputation(reputation?.toString() || '0');
     setEditedMeat(meat?.toString() || '0');
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
+    
+    // Don't fetch alliances here, just open the modal
     setShowEditModal(true);
   };
 
@@ -505,16 +506,28 @@ export default function Gang({
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-                value={editedAlliance || ''}
-                onChange={(e) => setAlliance(e.target.value)}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select alliance</option>
-                {allianceList.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.alliance_name}
-                  </option>
-                ))}
+          value={editedAlliance || ''}
+          onChange={(e) => setAlliance(e.target.value)}
+          onFocus={fetchAlliances}
+          className="w-full p-2 border rounded-md"
+        >
+          {allianceListLoaded ? (
+            <>
+              <option value="">Select alliance</option>
+              {allianceList.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.alliance_name}
+                </option>
+              ))}
+            </>
+          ) : (
+            <>
+              <option value={initialAllianceId || ''}>
+                {initialAllianceName || 'Select alliance'}
+              </option>
+              <option value="" disabled>Loading alliances...</option>
+            </>
+          )}
         </select>
       </div>
       {campaigns?.[0]?.has_meat && (
