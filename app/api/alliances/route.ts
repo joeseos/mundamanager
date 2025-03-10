@@ -1,13 +1,12 @@
 import {createClient} from "@/utils/supabase/server";
 import {NextResponse} from "next/server";
-import {checkAdmin} from "@/utils/auth";
 
 export async function GET() {
   const supabase = createClient();
 
   try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -18,18 +17,11 @@ export async function GET() {
 
     if (error) throw error;
 
-    const transformedData = data.map(type => ({
-      id: type.id,
-      alliance_name: type.alliance_name,
-      alliance_type: type.alliance_type,
-      strong_alliance: type.strong_alliance
-    }));
-
-    return NextResponse.json(transformedData);
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching skill sets:', error);
+    console.error('Error fetching alliances:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch skill sets' },
+      { error: 'Failed to fetch alliances' },
       { status: 500 }
     );
   }
