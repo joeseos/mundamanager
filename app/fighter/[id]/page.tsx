@@ -2167,7 +2167,17 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               }
-              onClose={async () => {
+              onClose={() => {
+                handleModalToggle('editFighter', false);
+                setEditState(prev => ({
+                  ...prev,
+                  name: '',
+                  label: '',
+                  kills: 0,
+                  costAdjustment: '0'
+                }));
+              }}
+              onConfirm={async () => {
                 try {
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
