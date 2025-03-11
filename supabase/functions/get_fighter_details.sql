@@ -118,6 +118,7 @@ BEGIN
                                             'side', vep.side,
                                             'rear', vep.rear,
                                             'hull_points', vep.hull_points,
+                                            'handling', vep.handling,
                                             'save', vep.save,
                                             'profile_name', vep.profile_name,
                                             'upgrade_type', vep.upgrade_type
@@ -315,4 +316,4 @@ SET search_path = public;
 
 REVOKE ALL ON FUNCTION get_fighter_details(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_fighter_details(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_fighter_details(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION get_fighter_details(UUID) TO service_role
