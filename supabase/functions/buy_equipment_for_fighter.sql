@@ -2,7 +2,7 @@
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
 
--- Then create our new function with vehicle support
+-- Then create our new function with vehicle support and user_id
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   fighter_id UUID DEFAULT NULL,
   equipment_id UUID DEFAULT NULL,
@@ -31,7 +31,11 @@ DECLARE
   result JSONB;
   final_purchase_cost INTEGER;
   v_owner_type TEXT;
+  v_user_id UUID;
 BEGIN
+  -- Get the authenticated user's ID
+  v_user_id := auth.uid();
+
   -- Validate required parameters
   IF equipment_id IS NULL THEN
     RAISE EXCEPTION 'equipment_id is required';
@@ -56,10 +60,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM gangs g 
     WHERE g.id = gang_id 
-    AND (g.user_id = auth.uid() 
+    AND (g.user_id = v_user_id 
       OR EXISTS (
         SELECT 1 FROM profiles 
-        WHERE profiles.id = auth.uid() 
+        WHERE profiles.id = v_user_id 
         AND profiles.user_role = 'admin'
       )
     )
@@ -146,7 +150,7 @@ BEGIN
   FROM gangs g
   WHERE g.id = buy_equipment_for_fighter.gang_id;
 
-  -- Add equipment to inventory with cost information
+  -- Add equipment to inventory with cost information and user_id
   INSERT INTO fighter_equipment (
     id,
     fighter_id,
@@ -155,7 +159,8 @@ BEGIN
     original_cost,
     purchase_cost,
     created_at,
-    updated_at
+    updated_at,
+    user_id
   )
   VALUES (
     gen_random_uuid(),
@@ -165,7 +170,8 @@ BEGIN
     base_cost,
     final_purchase_cost,
     now(),
-    now()
+    now(),
+    v_user_id
   )
   RETURNING id INTO v_new_equipment_id;
 
@@ -178,6 +184,7 @@ BEGIN
       'equipment_id', fe.equipment_id,
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
+      'user_id', fe.user_id,
       'default_profile', jsonb_build_object(
         'profile_name', default_profile.profile_name,
         'range_short', default_profile.range_short,
@@ -201,6 +208,7 @@ BEGIN
       'equipment_id', fe.equipment_id,
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
+      'user_id', fe.user_id,
       'wargear_details', jsonb_build_object(
         'name', e.equipment_name,
         'cost', e.cost
