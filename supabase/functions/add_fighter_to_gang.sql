@@ -2,13 +2,15 @@
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID);
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER);
 DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[]);
+DROP FUNCTION IF EXISTS add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID);
 
 CREATE OR REPLACE FUNCTION add_fighter_to_gang(
   p_fighter_name TEXT,
   p_fighter_type_id UUID,
   p_gang_id UUID,
   p_cost INTEGER = NULL,
-  p_selected_equipment_ids UUID[] = NULL
+  p_selected_equipment_ids UUID[] = NULL,
+  p_user_id UUID = NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -90,7 +92,8 @@ BEGIN
       intelligence,
       xp,
       kills,
-      special_rules
+      special_rules,
+      user_id
     )
     SELECT 
       p_fighter_name,
@@ -115,7 +118,8 @@ BEGIN
       ft.intelligence,
       0,
       0,
-      ft.special_rules
+      ft.special_rules,
+      p_user_id
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     WHERE ft.id = p_fighter_type_id
