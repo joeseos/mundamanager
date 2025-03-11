@@ -16,6 +16,7 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
+import { createClient } from '@/utils/supabase/client';
 
 interface VehicleType {
   id: string;
@@ -261,6 +262,15 @@ export default function Gang({
     }
 
     try {
+      // Get the current authenticated user's ID
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setFetchError('You must be logged in to add a fighter');
+        return false;
+      }
+      
       const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
       const weapons = selectedType?.equipment_selection?.weapons;
       
@@ -305,7 +315,8 @@ export default function Gang({
             p_fighter_type_id: selectedFighterTypeId,
             p_fighter_name: fighterName,
             p_cost: parseInt(fighterCost),
-            p_selected_equipment_ids: equipmentIds
+            p_selected_equipment_ids: equipmentIds,
+            p_user_id: user.id  // Use the current user's ID from auth
           })
         }
       );

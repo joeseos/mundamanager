@@ -358,11 +358,13 @@ export default function GangPage({ params }: { params: { id: string } }) {
   // Memoize the processed data for the GangPageContent
   const gangPageContentProps = useMemo(() => {
     if (!gangData) return null;
+    
     return {
       processedData: gangData.processedData,
       gangData: {
         ...gangData,
-        onVehicleAdd: handleVehicleAdd
+        onVehicleAdd: handleVehicleAdd,
+        user_id: gangData.processedData.user_id
       }
     };
   }, [gangData, handleVehicleAdd]);
@@ -398,10 +400,9 @@ export default function GangPage({ params }: { params: { id: string } }) {
         }
 
         const processedData = await processGangData(data);
-        // console.log('Processed Data:', {...});
+        // Make sure user_id is included in processedData
+        processedData.user_id = data.user_id;
         
-
-        // console.log('processedData', processedData.positioning);
         if (isSubscribed) {
           setGangData({
             processedData,
