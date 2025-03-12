@@ -61,6 +61,7 @@ export interface VehicleEquipmentProfile {
   rear: number | null;
   hull_points: number | null;
   save: number | null;
+  handling: number | null;
   profile_name: string;
   upgrade_type: 'body' | 'drive' | 'engine';
 }
