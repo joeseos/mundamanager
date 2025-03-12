@@ -50,6 +50,7 @@ const calculateVehicleStats = (
     side: baseStats.side ?? 0,
     rear: baseStats.rear ?? 0,
     hull_points: baseStats.hull_points ?? 0,
+    handling: baseStats.handling ?? 0,
     save: baseStats.save ?? 0,
   };
 
@@ -66,6 +67,7 @@ const calculateVehicleStats = (
           side: profile.side,
           rear: profile.rear,
           hull_points: profile.hull_points,
+          handling: profile.handling,
           save: profile.save,
         };
 
@@ -222,7 +224,7 @@ const FighterCard = memo(function FighterCard({
         'Side': vehicleStats ? vehicleStats.side : '*',
         'Rear': vehicleStats ? vehicleStats.rear : '*',
         'HP': vehicleStats ? vehicleStats.hull_points : '*',
-        'Hnd': vehicle ? `${vehicle.handling}+` : '*',
+        'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
         'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
         'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
         'Ld': `${adjustedStats.leadership}+`,

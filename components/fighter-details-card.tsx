@@ -22,6 +22,7 @@ interface VehicleEquipmentProfile {
   hull_points: number | null;
   save: number | null;
   profile_name: string;
+  handling: number | null;
 }
 
 // Vehicle equipment interface that extends Equipment
@@ -101,6 +102,7 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     side: 0,
     rear: 0,
     hull_points: 0,
+    handling: 0,
     save: 0,
   };
 
@@ -111,6 +113,7 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     side: baseStats.side || 0,
     rear: baseStats.rear || 0,
     hull_points: baseStats.hull_points || 0,
+    handling: baseStats.handling || 0,
     save: baseStats.save || 0,
   };
 
@@ -125,6 +128,7 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
             side: profile.side,
             rear: profile.rear,
             hull_points: profile.hull_points,
+            handling: profile.handling,
             save: profile.save,
           };
 
@@ -231,7 +235,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Side': vehicleStats?.side,
       'Rear': vehicleStats?.rear,
       'HP': vehicleStats?.hull_points,
-      'Hnd': vehicles?.[0]?.handling ? `${vehicles[0].handling}+` : '*',
+      'Hnd': vehicleStats?.handling ? `${vehicleStats.handling}+` : '*',
       'Sv': `${vehicleStats?.save}+`,
       'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
       'Ld': `${adjustedStats.leadership}+`,
