@@ -41,6 +41,7 @@ interface VehicleProfile {
   hull_points: string;
   save: string;
   upgrade_type?: string;
+  handling?: string;
 }
 
 interface GangDiscount {
@@ -273,6 +274,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               hull_points: number | null;
               save: number | null;
               upgrade_type?: string;
+              handling?: number | null;
             }) => ({
               profile_name: profile.profile_name || '',
               movement: profile.movement?.toString() || '',
@@ -281,7 +283,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               rear: profile.rear?.toString() || '',
               hull_points: profile.hull_points?.toString() || '',
               save: profile.save?.toString() || '',
-              upgrade_type: profile.upgrade_type || ''
+              upgrade_type: profile.upgrade_type || '',
+              handling: profile.handling?.toString() || ''
             }));
             setVehicleProfiles(formattedProfiles);
           } else {
@@ -294,7 +297,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               rear: '',
               hull_points: '',
               save: '',
-              upgrade_type: ''
+              upgrade_type: '',
+              handling: ''
             }]);
           }
         }
@@ -447,6 +451,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         rear: '',
         hull_points: '',
         save: '',
+        handling: '',
         upgrade_type: ''
       }
     ]);
@@ -501,7 +506,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             rear: profile.rear || null,
             hull_points: profile.hull_points || null,
             save: profile.save || null,
-            upgrade_type: profile.upgrade_type || null
+            upgrade_type: profile.upgrade_type || null,
+            handling: profile.handling || null
           })) : undefined,
           fighter_types: selectedFighterTypes,
           gang_discounts: gangDiscounts.map(d => ({
@@ -1267,6 +1273,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             value={profile.save}
                             onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
                             placeholder="Enter save value"
+                            disabled={!selectedEquipmentId}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Handling
+                          </label>
+                          <Input
+                            value={profile.handling}
+                            onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
+                            placeholder="Enter handling modifier"
                             disabled={!selectedEquipmentId}
                           />
                         </div>

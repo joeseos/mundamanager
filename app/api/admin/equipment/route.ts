@@ -27,6 +27,7 @@ interface VehicleProfile {
   hull_points: string | null;
   save: string | null;
   upgrade_type: string | null;
+  handling?: string | null;
 }
 
 interface FighterTypeEquipment {
@@ -116,7 +117,8 @@ export async function GET(request: Request) {
           rear,
           hull_points,
           save,
-          upgrade_type
+          upgrade_type,
+          handling
         `)
         .eq('equipment_id', id);
 
@@ -252,6 +254,7 @@ export async function POST(request: Request) {
           rear: vehicle_profiles[0].rear || null,
           hull_points: vehicle_profiles[0].hull_points || null,
           save: vehicle_profiles[0].save || null,
+          handling: vehicle_profiles[0].handling || null,
           upgrade_type: vehicle_profiles[0].upgrade_type || null
         });
 
@@ -384,6 +387,7 @@ export async function PUT(request: Request) {
               rear: profile.rear,
               hull_points: profile.hull_points,
               save: profile.save,
+              handling: profile.handling,
               upgrade_type: profile.upgrade_type
             }))
           );
