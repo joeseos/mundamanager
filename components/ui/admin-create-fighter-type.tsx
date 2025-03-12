@@ -76,6 +76,10 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [selectedDiscountEquipment, setSelectedDiscountEquipment] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
+  const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
+  const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
+  const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, Equipment[]>>({});
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [equipmentSelection, setEquipmentSelection] = useState<{
     weapons?: {
       default?: Array<{ id: string; quantity: number }>;
@@ -85,6 +89,47 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   }>({ weapons: { select_type: 'optional' } });
 
   const { toast } = useToast();
+
+  const fetchEquipmentByCategory = async () => {
+    try {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      
+      const data = await response.json();
+      
+      // Log first item for debugging
+      if (data.length > 0) {
+        console.log('Example equipment item:', data[0]);
+      }
+      
+      // Group equipment by category
+      const grouped: Record<string, Equipment[]> = {};
+      
+      data.forEach((item: any) => {
+        // Use category or equipment type as the grouping key, with fallback to 'Uncategorized'
+        const category = item.equipment_category || item.equipment_type || 'Uncategorized';
+        
+        if (!grouped[category]) {
+          grouped[category] = [];
+        }
+        
+        grouped[category].push(item);
+      });
+      
+      // Sort equipment within each category
+      Object.keys(grouped).forEach(category => {
+        grouped[category].sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+      });
+      
+      setEquipmentByCategory(grouped);
+    } catch (error) {
+      console.error('Error fetching equipment categories:', error);
+      toast({
+        description: 'Failed to load equipment categories',
+        variant: "destructive"
+      });
+    }
+  };
 
   const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
 
@@ -245,6 +290,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
+        trading_post_equipment: tradingPostEquipment,
         equipment_selection: equipmentSelection.weapons ? {
           weapons: {
             select_type: equipmentSelection.weapons.select_type,
@@ -912,6 +958,185 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           Save Discount
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trading Post
+              </label>
+              <Button
+                onClick={() => {
+                  setShowTradingPostDialog(true);
+                  fetchEquipmentByCategory();
+                }}
+                variant="outline"
+                size="sm"
+                className="mb-2"
+                disabled={!selectedGangType}
+              >
+                Open Trading Post Menu
+              </Button>
+              {!selectedGangType && (
+                <p className="text-sm text-gray-500 mb-2">
+                  Select a gang type to configure trading post options
+                </p>
+              )}
+
+              {showTradingPostDialog && (
+                <div 
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowTradingPostDialog(false);
+                    }
+                  }}
+                >
+                  <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
+                    <h3 className="text-xl font-bold mb-4">Trading Post Options</h3>
+                    <p className="text-sm text-gray-500 mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
+                    
+                    <div className="border rounded-lg overflow-hidden">
+                      {/* Table header */}
+                      <div className="bg-gray-50 border-b px-4 py-2 font-medium">
+                        Equipment
+                      </div>
+                      
+                      {/* Equipment categories and list */}
+                      <div className="max-h-[50vh] overflow-y-auto">
+                        {Object.keys(equipmentByCategory).length === 0 ? (
+                          <div className="p-4 text-center text-gray-500">Loading equipment categories...</div>
+                        ) : (
+                          Object.entries(equipmentByCategory)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([category, items]) => {
+                              // Check if all items in category are selected
+                              const allSelected = items.every(item => 
+                                tradingPostEquipment.includes(item.id)
+                              );
+                              
+                              // Check if some items in category are selected
+                              const someSelected = items.some(item => 
+                                tradingPostEquipment.includes(item.id)
+                              );
+
+                              return (
+                                <div key={category} className="border-b last:border-b-0">
+                                  {/* Category header with checkbox */}
+                                  <div 
+                                    className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => setExpandedCategory(
+                                      expandedCategory === category ? null : category
+                                    )}
+                                  >
+                                    <div className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        id={`category-${category}`}
+                                        checked={allSelected}
+                                        className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const itemIds = items.map(item => item.id);
+                                          
+                                          if (e.target.checked) {
+                                            // Add all items in category
+                                            setTradingPostEquipment(prev => 
+                                              Array.from(new Set([...prev, ...itemIds]))
+                                            );
+                                          } else {
+                                            // Remove all items in category
+                                            setTradingPostEquipment(prev => 
+                                              prev.filter(id => !itemIds.includes(id))
+                                            );
+                                          }
+                                        }}
+                                      />
+                                      <label 
+                                        htmlFor={`category-${category}`} 
+                                        className="ml-2 text-sm font-medium"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {category} ({items.length})
+                                      </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                      {someSelected && !allSelected && (
+                                        <span className="text-xs mr-2 text-gray-500">
+                                          {items.filter(item => tradingPostEquipment.includes(item.id)).length} selected
+                                        </span>
+                                      )}
+                                      <svg 
+                                        className={`h-5 w-5 transition-transform ${expandedCategory === category ? 'rotate-90' : ''}`} 
+                                        fill="none" 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor"
+                                      >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Expanded equipment list */}
+                                  {expandedCategory === category && (
+                                    <div>
+                                      {items.map(item => (
+                                        <div 
+                                          key={item.id} 
+                                          className="border-t px-4 py-2 flex items-center"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            id={`trading-post-${item.id}`}
+                                            className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                            checked={tradingPostEquipment.includes(item.id)}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setTradingPostEquipment([...tradingPostEquipment, item.id]);
+                                              } else {
+                                                setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
+                                              }
+                                            }}
+                                          />
+                                          <label htmlFor={`trading-post-${item.id}`} className="ml-2 block text-sm">
+                                            {item.equipment_name}
+                                          </label>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowTradingPostDialog(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowTradingPostDialog(false);
+                          // Trading post options are already saved in state
+                          toast({
+                            description: "Trading Post options saved. Remember to create the fighter type to apply changes.",
+                            variant: "default"
+                          });
+                        }}
+                        className="bg-black hover:bg-gray-800 text-white"
+                      >
+                        Save Options
+                      </Button>
                     </div>
                   </div>
                 </div>
