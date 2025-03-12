@@ -38,6 +38,7 @@ interface VehicleProfile {
   hull_points: string;
   save: string;
   upgrade_type?: string;
+  handling?: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -195,6 +196,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         rear: profile.rear || null,
         hull_points: profile.hull_points || null,
         save: profile.save || null,
+        handling: profile.handling || null,
         upgrade_type: profile.upgrade_type || null
       })) : undefined;
 
@@ -679,6 +681,17 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           value={vehicleProfiles[0].save}
                           onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
                           placeholder="Enter save value"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Handling
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].handling}
+                          onChange={(e) => handleVehicleProfileChange(0, 'handling', e.target.value)}
+                          placeholder="Enter handling modifier"
                         />
                       </div>
 
