@@ -125,10 +125,13 @@ export default function Gang({
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [alignment, setAlignment] = useState(initialAlignment);
-  const [editedAlliance, setAlliance] = useState(initialAllianceId);
+  const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
+  const [editedAllianceId, setEditedAllianceId] = useState(initialAllianceId);
+  const [editedAllianceName, setEditedAllianceName] = useState(initialAllianceName);
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
-  const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
+  const [allianceId, setAllianceId] = useState(initialAllianceId);
+  const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [fighterCost, setFighterCost] = useState('');
@@ -191,7 +194,7 @@ export default function Gang({
           credits: Math.abs(creditsDifference),
           operation: operation,
           alignment: editedAlignment,
-          alliance_id: editedAlliance,
+          alliance_id: editedAllianceId === '' ? null : editedAllianceId,
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints)
@@ -209,7 +212,8 @@ export default function Gang({
       setName(updatedGang.name);
       setCredits(updatedGang.credits);
       setAlignment(updatedGang.alignment);
-      setAlliance(updatedGang.alliance_id);
+      setAllianceId(updatedGang.alliance_id);
+      setAllianceName(updatedGang.alliance_name);
       setReputation(updatedGang.reputation);
       setMeat(updatedGang.meat);
       setExplorationPoints(updatedGang.exploration_points);
@@ -517,26 +521,27 @@ export default function Gang({
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-          value={editedAlliance || ''}
-          onChange={(e) => setAlliance(e.target.value)}
+          value={editedAllianceId || ''}
+          onChange={(e) => setEditedAllianceId(e.target.value)}
           onFocus={fetchAlliances}
           className="w-full p-2 border rounded-md"
         >
+          {/* Default "None" option */}
+          <option value="">None</option>
+
+          {/* Display alliances after they are loaded */}
           {allianceListLoaded ? (
-            <>
-              <option value="">Select alliance</option>
-              {allianceList.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.alliance_name}
-                </option>
-              ))}
-            </>
+            allianceList.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.alliance_name}
+              </option>
+            ))
           ) : (
             <>
-              <option value={initialAllianceId || ''}>
-                {initialAllianceName || 'Select alliance'}
-              </option>
-              <option value="" disabled>Loading alliances...</option>
+              {initialAllianceId && (
+                <option value={initialAllianceId}>{initialAllianceName}</option>
+              )}
+              <option value="" disabled>Loading Alliances...</option>
             </>
           )}
         </select>
@@ -1015,6 +1020,15 @@ export default function Gang({
               editedValue={typeof rating === 'number' ? rating.toString() : '0'}
               onChange={() => {}}
             />
+            {allianceName && (
+              <StatItem
+                label="Alliance"
+                value={allianceName}
+                isEditing={isEditing}
+                editedValue={editedAllianceName}
+                onChange={setEditedAllianceName}
+              />
+            )}
             {campaigns?.[0]?.has_meat && (
               <StatItem
                 label="Meat"
