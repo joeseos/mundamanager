@@ -213,7 +213,7 @@ export default function Gang({
       setCredits(updatedGang.credits);
       setAlignment(updatedGang.alignment);
       setAllianceId(updatedGang.alliance_id);
-      setAllianceName(updatedGang.alliance_name);
+      setAllianceName(allianceList.find(a => a.id === updatedGang.alliance_id)?.alliance_name || ""); // Optimistically update the Alliance Name
       setReputation(updatedGang.reputation);
       setMeat(updatedGang.meat);
       setExplorationPoints(updatedGang.exploration_points);
