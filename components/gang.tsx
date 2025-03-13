@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
 import { createClient } from '@/utils/supabase/client';
+import { allianceRank } from "@/utils/allianceRank";
 
 interface VehicleType {
   id: string;
@@ -521,7 +522,7 @@ export default function Gang({
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-          value={editedAllianceId || ''}
+          value={editedAllianceId || ""}
           onChange={(e) => setEditedAllianceId(e.target.value)}
           onFocus={fetchAlliances}
           className="w-full p-2 border rounded-md"
@@ -531,16 +532,37 @@ export default function Gang({
 
           {/* Display alliances after they are loaded */}
           {allianceListLoaded ? (
-            allianceList.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.alliance_name}
-              </option>
+            Object.entries(
+              allianceList
+                .sort((a, b) => {
+                  const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
+                  const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
+                  return rankA - rankB;
+                })
+                .reduce((groups, type) => {
+                  const rank = allianceRank[type.alliance_name.toLowerCase()] ?? Infinity;
+                  let groupLabel = "Other Alliances"; // Default category for unlisted alliances
+
+                  if (rank <= 9) groupLabel = "Criminal Organisations";
+                  else if (rank <= 19) groupLabel = "Merchant Guilds";
+                  else if (rank <= 29) groupLabel = "Noble Houses";
+
+                  if (!groups[groupLabel]) groups[groupLabel] = [];
+                  groups[groupLabel].push(type);
+                  return groups;
+                }, {} as Record<string, typeof allianceList>)
+            ).map(([groupLabel, allianceList]) => (
+              <optgroup key={groupLabel} label={groupLabel}>
+                {allianceList.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.alliance_name}
+                  </option>
+                ))}
+              </optgroup>
             ))
           ) : (
             <>
-              {initialAllianceId && (
-                <option value={initialAllianceId}>{initialAllianceName}</option>
-              )}
+              {initialAllianceId && <option value={initialAllianceId}>{initialAllianceName}</option>}
               <option value="" disabled>Loading Alliances...</option>
             </>
           )}
