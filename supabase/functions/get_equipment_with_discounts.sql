@@ -1,7 +1,14 @@
+-- Drop all versions of the old function (with different parameter combinations)
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
+
+-- Create the new function with all parameters
 create or replace function get_equipment_with_discounts(
     "gang_type_id" uuid default null,
     "equipment_category" text default null,
-    "fighter_type_id" uuid default null
+    "fighter_type_id" uuid default null,
+    "fighter_type_equipment" boolean default null,
+    "equipment_tradingpost" boolean default null
 )
 returns table (
     id uuid,
@@ -13,7 +20,8 @@ returns table (
     equipment_category text,
     equipment_type text,
     created_at timestamptz,
-    fighter_type_equipment boolean
+    fighter_type_equipment boolean,
+    equipment_tradingpost boolean
 )
 language sql
 security definer
@@ -36,7 +44,17 @@ as $$
         case
             when fte.fighter_type_id is not null or fte.vehicle_type_id is not null then true
             else false
-        end as fighter_type_equipment
+        end as fighter_type_equipment,
+        case
+            when exists (
+                select 1
+                from fighter_equipment_tradingpost fet,
+                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
+                and equip_id = e.id::text
+            ) then true
+            else false
+        end as equipment_tradingpost
     from equipment e
     left join equipment_discounts ed on e.id = ed.equipment_id 
         and (
@@ -47,7 +65,7 @@ as $$
     left join fighter_type_equipment fte on e.id = fte.equipment_id
         and (get_equipment_with_discounts.fighter_type_id is null 
              or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-             or fte.vehicle_type_id is not null)
+             or fte.vehicle_type_id = get_equipment_with_discounts.fighter_type_id)
     where 
         coalesce(e.core_equipment, false) = false
         and
@@ -64,5 +82,31 @@ as $$
             get_equipment_with_discounts.fighter_type_id is null
             or ed.fighter_type_id = get_equipment_with_discounts.fighter_type_id
             or ed.fighter_type_id is null
+        )
+        and
+        (
+            get_equipment_with_discounts.fighter_type_equipment is null
+            or (
+                case
+                    when fte.fighter_type_id is not null or fte.vehicle_type_id is not null then true
+                    else false
+                end
+            ) = get_equipment_with_discounts.fighter_type_equipment
+        )
+        and
+        (
+            get_equipment_with_discounts.equipment_tradingpost is null
+            or (
+                case
+                    when exists (
+                        select 1
+                        from fighter_equipment_tradingpost fet,
+                             jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                        where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
+                        and equip_id = e.id::text
+                    ) then true
+                    else false
+                end
+            ) = get_equipment_with_discounts.equipment_tradingpost
         );
 $$;
