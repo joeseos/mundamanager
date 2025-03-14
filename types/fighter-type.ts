@@ -43,6 +43,7 @@ export interface FighterType {
   intelligence: number;
   attacks: number;
   limitation?: number;
+  alignment?: string;
   default_equipment: any[];
   is_gang_addition: boolean;
   equipment_selection?: EquipmentSelection;
