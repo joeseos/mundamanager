@@ -98,6 +98,7 @@ export default async function GangPage() {
       return redirect("/");
     }
 
+    // First get the gang data with fighters
     const { data: gangsData, error: gangsError } = await supabase
       .from("gangs_with_fighters")
       .select("*")
@@ -116,7 +117,48 @@ export default async function GangPage() {
       return <div>No gang found.</div>;
     }
 
+    // Now fetch the positioning data directly from the gangs table
+    // This ensures we get the most up-to-date positioning
+    const { data: gangPositioning, error: positioningError } = await supabase
+      .from("gangs")
+      .select("positioning")
+      .eq("id", gangsData.id)
+      .single();
+    
+    if (positioningError) {
+      console.error("Error fetching positioning:", positioningError);
+    }
+
     const processedData = await processGangData(gangsData);
+
+    // Use the positioning data fetched directly from the gangs table
+    // Convert to a consistent format - numeric keys with string values
+    let positioning: Record<number, string> = {};
+    
+    if (gangPositioning?.positioning && typeof gangPositioning.positioning === 'object') {
+      // Convert all keys to numbers to ensure consistent handling
+      Object.entries(gangPositioning.positioning as Record<string, string>).forEach(([pos, id]) => {
+        positioning[parseInt(pos)] = id;
+      });
+    }
+    
+    // If positioning is empty or not an object, initialize with default positions based on fighters
+    if (Object.keys(positioning).length === 0) {
+      positioning = processedData.fighters.reduce((acc: Record<number, string>, fighter: FighterProps, index: number) => ({
+        ...acc,
+        [index]: fighter.id
+      }), {});
+      
+      // Also update it in the database for future use
+      console.log("Updating database with initial positioning:", positioning);
+      await supabase
+        .from('gangs')
+        .update({ positioning })
+        .eq('id', gangsData.id);
+    }
+
+    // Add logging to help debug
+    console.log("Loaded positioning data:", positioning);
 
     return (
       <div className="container mx-auto py-10">
@@ -124,6 +166,7 @@ export default async function GangPage() {
           {...processedData} 
           initialFighters={processedData.fighters}
           fighterTypes={processedData.fighterTypes || []}
+          positioning={positioning}
         />
       </div>
     );
