@@ -838,6 +838,8 @@ export default function Gang({
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
     try {
+      console.log('Sending updated positions to API:', newPositions);
+      
       const response = await fetch(`/api/gangs/${id}/positioning`, {
         method: 'PUT',
         headers: {
@@ -850,7 +852,25 @@ export default function Gang({
         throw new Error('Failed to update positions');
       }
 
+      const updatedData = await response.json();
+      console.log('API response:', updatedData);
+      
+      // Update the positions state
       setPositions(newPositions);
+      
+      // Also ensure our fighters array is ordered according to the positions
+      if (fighters.length > 0) {
+        const orderedFighters = Object.values(newPositions).map(
+          fighterId => fighters.find(f => f.id === fighterId)
+        ).filter(Boolean) as FighterProps[];
+        
+        // Update any fighters not included in positions
+        const unpositionedFighters = fighters.filter(
+          f => !Object.values(newPositions).includes(f.id)
+        );
+        
+        setFighters([...orderedFighters, ...unpositionedFighters]);
+      }
     } catch (error) {
       console.error('Error updating positions:', error);
       toast({
@@ -859,6 +879,11 @@ export default function Gang({
         variant: "destructive"
       });
     }
+  };
+
+  // Add function to handle fighters reordering
+  const handleFightersReorder = (newFighters: FighterProps[]) => {
+    setFighters(newFighters);
   };
 
   const handleGangAdditionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -1308,7 +1333,7 @@ export default function Gang({
           <DraggableFighters
             fighters={fighters}
             onPositionsUpdate={handlePositionsUpdate}
-            onFightersReorder={setFighters}
+            onFightersReorder={handleFightersReorder}
             initialPositions={positions}
           />
         ) : (

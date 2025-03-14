@@ -47,24 +47,71 @@ export function DraggableFighters({
     }
 
     try {
-      const oldIndex = fighters.findIndex((f) => f.id === active.id);
-      const newIndex = fighters.findIndex((f) => f.id === over.id);
+      // First get the visually sorted fighters based on current positions
+      const getSortedFighterIds = () => {
+        // Extract position entries and sort them by position number
+        const positionEntries = Object.entries(currentPositions)
+          .map(([pos, id]) => ({ pos: parseInt(pos), id }))
+          .sort((a, b) => a.pos - b.pos);
+        
+        // Get the IDs in position order
+        return positionEntries.map(entry => entry.id);
+      };
+      
+      const sortedIds = getSortedFighterIds();
+      
+      // Find indices in the sorted array (this matches the visual order)
+      const oldIndex = sortedIds.indexOf(active.id);
+      const newIndex = sortedIds.indexOf(over.id);
       
       if (oldIndex === -1 || newIndex === -1) {
+        console.error('Could not find fighter indices in sorted IDs', { 
+          active: active.id, 
+          over: over.id,
+          sortedIds
+        });
         return;
       }
-
-      const newFighters = arrayMove(fighters, oldIndex, newIndex);
       
-      // Create position object with position numbers as keys and fighter IDs as values
-      const newPositions = newFighters.reduce((acc, fighter, index) => ({
+      // Get fighter name for logging
+      const draggedFighter = fighters.find(f => f.id === active.id);
+      if (!draggedFighter) {
+        console.error('Could not find dragged fighter', { id: active.id });
+        return;
+      }
+      
+      console.log('Drag operation:', { 
+        fighter: draggedFighter.fighter_name, 
+        from: oldIndex, 
+        to: newIndex,
+        activeId: active.id,
+        overId: over.id
+      });
+      
+      // Create new sorted IDs with the dragged item moved
+      const newSortedIds = [...sortedIds];
+      newSortedIds.splice(oldIndex, 1); // Remove from old position
+      newSortedIds.splice(newIndex, 0, active.id); // Insert at new position
+      
+      // Create new positions object based on the new order
+      const newPositions = newSortedIds.reduce((acc, id, index) => ({
         ...acc,
-        [index]: fighter.id
+        [index]: id
       }), {});
-
+      
+      console.log('New positions:', newPositions);
+      
+      // Create new fighters array in the new order
+      const newFighters = newSortedIds
+        .map(id => fighters.find(f => f.id === id))
+        .filter(Boolean) as FighterProps[];
+      
+      // First update local state
       setCurrentPositions(newPositions);
-      onPositionsUpdate?.(newPositions);
+      
+      // Then call the parent callbacks
       onFightersReorder?.(newFighters);
+      onPositionsUpdate?.(newPositions);
     } catch (error) {
       console.error('Error handling drag end:', error);
     }

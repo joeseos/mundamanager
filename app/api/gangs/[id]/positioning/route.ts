@@ -1,39 +1,73 @@
 import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
   
   try {
-    const { positions }: { positions: Record<number, string> } = await request.json();
+    // Get the current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    // Validate that positions is properly formatted
-    if (!positions || typeof positions !== 'object') {
-      throw new Error('Invalid positions format');
+    if (authError || !user) {
+      console.error("Auth error:", authError);
+      return NextResponse.json(
+        { error: 'Authentication failed' },
+        { status: 401 }
+      );
     }
-
-    // Ensure all keys are numbers and all values are strings
-    Object.entries(positions).forEach(([pos, id]) => {
-      if (isNaN(Number(pos)) || typeof id !== 'string') {
-        throw new Error('Invalid position data types');
-      }
-    });
-
-    const { error } = await supabase
+    
+    console.log("Authenticated as user ID:", user.id);
+    
+    // First - check if the gang exists and who owns it
+    const { data: gang, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id, id')
+      .eq('id', params.id)
+      .single();
+    
+    if (gangError) {
+      console.error("Gang fetch error:", gangError);
+      return NextResponse.json(
+        { error: 'Gang not found' },
+        { status: 404 }
+      );
+    }
+    
+    console.log("Gang owner ID:", gang.user_id);
+    console.log("Is owner match:", user.id === gang.user_id);
+    
+    // Parse the request body
+    const { positions } = await request.json();
+    
+    // Log the update attempt
+    console.log("Attempting update on gang:", params.id);
+    console.log("With positions data:", positions);
+    
+    // Try the update
+    const { error: updateError } = await supabase
       .from('gangs')
       .update({ positioning: positions })
       .eq('id', params.id);
-
-    if (error) throw error;
-
+    
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return NextResponse.json(
+        { error: 'Update failed', details: updateError.message },
+        { status: 403 }
+      );
+    }
+    
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Exception:", error);
     return NextResponse.json(
-      { error: 'Failed to update positions' },
+      { error: 'Failed to update positions', details: String(error) },
       { status: 500 }
     );
   }
-} 
+}

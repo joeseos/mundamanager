@@ -67,10 +67,20 @@ export function MyFighters({ fighters, positions, isLoading, error }: MyFighters
   }), []);
 
   const sortedFighters = useMemo(() => {
+    // Create a position-based ordering using the positions object directly
+    const positionMap: Record<string, number> = {};
+    
+    // First, create a mapping of fighter IDs to their positions
+    Object.entries(positions).forEach(([position, fighterId]) => {
+      positionMap[fighterId] = parseInt(position);
+    });
+    
+    // Then sort the fighters based on their positions
     return [...fighters].sort((a, b) => {
-      const posA = Object.entries(positions).find(([_, id]) => id === a.id)?.[0];
-      const posB = Object.entries(positions).find(([_, id]) => id === b.id)?.[0];
-      return Number(posA) - Number(posB);
+      // If fighter has a position, use it; otherwise put it at the end
+      const posA = positionMap[a.id] !== undefined ? positionMap[a.id] : Number.MAX_SAFE_INTEGER;
+      const posB = positionMap[b.id] !== undefined ? positionMap[b.id] : Number.MAX_SAFE_INTEGER;
+      return posA - posB;
     });
   }, [fighters, positions]);
 
