@@ -18,6 +18,7 @@ import { DraggableFighters } from './draggable-fighters';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
 import { createClient } from '@/utils/supabase/client';
 import { allianceRank } from "@/utils/allianceRank";
+import { gangAdditionRank } from "@/utils/gangAdditionRank";
 
 interface VehicleType {
   id: string;
@@ -1254,12 +1255,36 @@ export default function Gang({
                     onChange={handleGangAdditionClassChange}
                     className="w-full p-2 border rounded"
                   >
-                  <option value="">Select Fighter Class</option>
-                  {Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class))).map(classType => (
-                    <option key={classType} value={classType}>
-                      {classType}
-                    </option>
-                  ))}
+                    <option value="">Select Fighter Class</option>
+
+                    {Object.entries(
+                      Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
+                        .sort((a, b) => {
+                          const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
+                          const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
+                          return rankA - rankB;
+                        })
+                        .reduce((groups, classType) => {
+                          const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
+                          let groupLabel = "Misc."; // Default category for unlisted fighter classes
+
+                          if (rank <= 2) groupLabel = "Hangers-on & Brutes";
+                          else if (rank <= 10) groupLabel = "Vehicle Crews";
+                          else if (rank <= 23) groupLabel = "Hired Guns";
+
+                          if (!groups[groupLabel]) groups[groupLabel] = [];
+                          groups[groupLabel].push(classType);
+                          return groups;
+                        }, {} as Record<string, string[]>)
+                    ).map(([groupLabel, classList]) => (
+                      <optgroup key={groupLabel} label={groupLabel}>
+                        {classList.map(classType => (
+                          <option key={classType} value={classType}>
+                            {classType}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
 
@@ -1274,13 +1299,37 @@ export default function Gang({
                     disabled={!selectedGangAdditionClass}
                   >
                     <option value="">Select Fighter Type</option>
-                    {filteredGangAdditionTypes
-                      .slice() // Create a shallow copy to avoid mutating the original array
-                      .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Sort alphabetically by fighter_type
-                      .map(type => (
-                        <option key={type.id} value={type.id}>
-                          {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
-                        </option>
+
+                    {Object.entries(
+                      filteredGangAdditionTypes
+                        .slice() // Create a shallow copy to avoid mutating the original array
+                        .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
+                        .reduce((groups, type) => {
+                          const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
+
+                          if (!groups[groupLabel]) groups[groupLabel] = [];
+                          groups[groupLabel].push(type);
+                          return groups;
+                        }, {} as Record<string, typeof filteredGangAdditionTypes>)
+                    )
+                      // Sort optgroup labels by predefined priority
+                      .sort(([groupA], [groupB]) => {
+                        const alignmentOrder: Record<string, number> = {
+                          "law abiding": 1,
+                          "outlaw": 2,
+                          "unaligned": 3,
+                        };
+
+                        return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
+                      })
+                      .map(([groupLabel, fighterList]) => (
+                        <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
+                          {fighterList.map(type => (
+                            <option key={type.id} value={type.id}>
+                              {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                   </select>
                 </div>
