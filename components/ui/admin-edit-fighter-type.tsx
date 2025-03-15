@@ -8,6 +8,7 @@ import { X, Plus, Minus } from "lucide-react";
 import { FighterType } from "@/types/fighter";
 import { GangType, Equipment } from "@/types/gang";
 import { skillSetRank } from "@/utils/skillSetRank";
+import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
 interface AdminEditFighterTypeModalProps {
   onClose: () => void;
@@ -964,7 +965,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment List
+                Fighter's Equipment List
               </label>
               <select
                 value=""
@@ -983,32 +984,58 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.equipment_name}
+                      {item.equipment_name} ({item.equipment_category})
                     </option>
                   ))}
               </select>
 
-              <div className="mt-2 flex flex-wrap gap-2">
-                {equipmentListSelections.map((equipId) => {
-                  const item = equipment.find(e => e.id === equipId);
-                  if (!item) return null;
-                  
-                  return (
-                    <div 
-                      key={item.id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                    >
-                      <span>{item.equipment_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item.id))}
-                        className="hover:text-red-500 focus:outline-none"
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {Object.entries(
+                  equipmentListSelections
+                    .map(equipId => equipment.find(e => e.id === equipId))
+                    .filter(item => item !== undefined) // Remove null values
+                    .sort((a, b) => {
+                      const rankA = equipmentCategoryRank[a!.equipment_category.toLowerCase()] ?? Infinity;
+                      const rankB = equipmentCategoryRank[b!.equipment_category.toLowerCase()] ?? Infinity;
+
+                      // First, sort by equipment category rank
+                      if (rankA !== rankB) return rankA - rankB;
+
+                      // If same category, sort alphabetically by equipment name
+                      return a!.equipment_name.localeCompare(b!.equipment_name);
+                    })
+                    .reduce((groups, item) => {
+                      if (!item || !item.equipment_category) return groups; // Ensure item is defined and has a category
+
+                      const category = item.equipment_category;
+                      if (!groups[category]) groups[category] = []; // Initialize category group if not present
+                      groups[category].push(item);
+
+                      return groups;
+                    }, {} as Record<string, Equipment[]>)
+                ).map(([category, items]) => (
+                  <div key={category} className="flex flex-col gap-1 p-1">
+                    {/* Category Title */}
+                    <div className="text-sm font-bold text-gray-700">{category}</div>
+
+                    {/* Items under this category */}
+                    {items.map(item => (
+                      <div
+                        key={item!.id}
+                        className="flex justify-between items-center gap-2 rounded text-sm bg-gray-100"
                       >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
+                        <span>{item!.equipment_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
 
