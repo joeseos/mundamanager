@@ -2,6 +2,7 @@ export interface GangType {
   gang_type_id: string;
   gang_type: string;
   alignment: string;
+  note?: string;
 }
 
 export interface Equipment {

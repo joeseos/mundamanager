@@ -74,6 +74,7 @@ interface GangProps {
     has_meat: boolean;
     has_exploration_points: boolean;
   }[];
+  note?: string;
   stash: StashItem[];
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
@@ -102,6 +103,7 @@ export default function Gang({
   fighterTypes,
   additionalButtons,
   campaigns,
+  note,
   stash,
   onStashUpdate,
   onFighterDeleted,
@@ -968,415 +970,457 @@ export default function Gang({
 
   return (
     <div className="space-y-4 print:space-y-[5px]">
-      <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
-        {/* Left Section: Illustration */}
-        <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
-          {gang_type_image_url ? (
+      <div className="print:flex space-y-4 print:space-y-0">
+        <div className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
+          {/* Left Section: Illustration */}
+          <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
+            {gang_type_image_url ? (
+              <Image
+                src={gang_type_image_url}
+                alt={name}
+                width={180}
+                height={180}
+                className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
+                priority={false}
+                quality={100}
+                onError={handleImageError}
+              />
+            ) : (
+              <div className="absolute w-[180px] h-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
+                {name.charAt(0)}
+              </div>
+            )}
             <Image
-              src={gang_type_image_url}
-              alt={name}
-              width={180}
-              height={180}
-              className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
-              priority={false}
+              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
+              alt="Cogwheel"
+              width={250}
+              height={250}
+              className="absolute z-20 w-[250px] h-auto"
+              priority
               quality={100}
-              onError={handleImageError}
             />
-          ) : (
-            <div className="absolute w-[180px] h-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
-              {name.charAt(0)}
-            </div>
-          )}
-          <Image
-            src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
-            alt="Cogwheel"
-            width={250}
-            height={250}
-            className="absolute z-20 w-[250px] h-auto"
-            priority
-            quality={100}
-          />
-        </div>
-
-        {/* Right Section: Content */}
-        <div className="flex-grow w-full">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="text-2xl font-bold">{name}</h2>
-            <div>
-              {additionalButtons}
-              <button
-                onClick={handleEditModalOpen}
-                className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
-              >
-                Edit
-              </button>
-            </div>
           </div>
 
-          <div className="text-gray-600 mb-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-1 text-sm">
-                Type: <Badge variant="secondary">{gang_type}</Badge>
+          {/* Right Section: Content */}
+          <div className="flex-grow w-full">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold">{name}</h2>
+              <div>
+                {additionalButtons}
+                <button
+                  onClick={handleEditModalOpen}
+                  className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
+                >
+                  Edit
+                </button>
               </div>
-              {campaigns?.[0] && (
+            </div>
+
+            <div className="text-gray-600 mb-4">
+              <div className="flex flex-wrap gap-4">
                 <div className="flex items-center gap-1 text-sm">
-                  Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                    <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
-                      {campaigns[0].campaign_name}
-                    </Link>
-                  </Badge>
+                  Type: <Badge variant="secondary">{gang_type}</Badge>
                 </div>
+                {campaigns?.[0] && (
+                  <div className="flex items-center gap-1 text-sm">
+                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                      <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
+                        {campaigns[0].campaign_name}
+                      </Link>
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
+              <StatItem
+                label="Alignment"
+                value={alignment}
+                isEditing={isEditing}
+                editedValue={editedAlignment}
+                onChange={setEditedAlignment}
+                type="select"
+                options={['Law Abiding', 'Outlaw']}
+              />
+              <StatItem
+                label="Reputation"
+                value={reputation}
+                isEditing={isEditing}
+                editedValue={editedReputation}
+                onChange={setEditedReputation}
+              />
+              <StatItem
+                label="Credits"
+                value={credits}
+                isEditing={isEditing}
+                editedValue={editedCredits}
+                onChange={setEditedCredits}
+              />
+              <StatItem
+                label="Rating"
+                value={rating}
+                isEditing={false}
+                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                onChange={() => {}}
+              />
+              <StatItem
+                label="Wealth"
+                value={rating + credits}
+                isEditing={false}
+                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                onChange={() => {}}
+              />
+              {allianceName && (
+                <StatItem
+                  label="Alliance"
+                  value={allianceName}
+                  isEditing={isEditing}
+                  editedValue={editedAllianceName}
+                  onChange={setEditedAllianceName}
+                />
+              )}
+              {campaigns?.[0]?.has_meat && (
+                <StatItem
+                  label="Meat"
+                  value={meat}
+                  isEditing={isEditing}
+                  editedValue={editedMeat}
+                  onChange={setEditedMeat}
+                />
+              )}
+              {campaigns?.[0]?.has_exploration_points && (
+                <StatItem
+                  label="Exploration Points"
+                  value={explorationPoints}
+                  isEditing={isEditing}
+                  editedValue={editedExplorationPoints}
+                  onChange={setEditedExplorationPoints}
+                />
               )}
             </div>
+            <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
+              <span>Created: {formatDate(created_at)}</span>
+              <span>Last Updated: {formatDate(lastUpdated)}</span>
+            </div>
+            <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
+              <Button
+                onClick={() => setShowAddFighterModal(true)}
+                className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
+              >
+                Add Fighter
+              </Button>
+              <Button
+                onClick={() => setShowAddVehicleModal(true)}
+                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+              >
+                Add Vehicle
+              </Button>
+              <Button
+                onClick={() => setShowGangAdditionsModal(true)}
+                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+              >
+                Gang Additions
+              </Button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
-            <StatItem
-              label="Alignment"
-              value={alignment}
-              isEditing={isEditing}
-              editedValue={editedAlignment}
-              onChange={setEditedAlignment}
-              type="select"
-              options={['Law Abiding', 'Outlaw']}
+          {showEditModal && (
+            <Modal
+              title="Edit Gang"
+              content={editModalContent}
+              onClose={() => {
+                setShowEditModal(false);
+                setEditedCredits('');
+              }}
+              onConfirm={handleSave}
+              confirmText="Save Changes"
             />
-            <StatItem
-              label="Reputation"
-              value={reputation}
-              isEditing={isEditing}
-              editedValue={editedReputation}
-              onChange={setEditedReputation}
+          )}
+
+          {showAddFighterModal && (
+            <Modal
+              title="Add New Fighter"
+              content={addFighterModalContent}
+              onClose={() => {
+                setShowAddFighterModal(false);
+                setFighterName('');
+                setSelectedFighterTypeId('');
+                setFighterCost('');
+                setFetchError(null);
+              }}
+              onConfirm={handleAddFighter}
+              confirmText="Add Fighter"
+              confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
             />
-            <StatItem
-              label="Credits"
-              value={credits}
-              isEditing={isEditing}
-              editedValue={editedCredits}
-              onChange={setEditedCredits}
+          )}
+
+          {showAddVehicleModal && (
+            <Modal
+              title="Add Vehicle"
+              content={
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Vehicle Name
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Enter vehicle name"
+                      value={vehicleName}
+                      onChange={(e) => setVehicleName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Vehicle Type
+                    </label>
+                    <select
+                      value={selectedVehicleTypeId}
+                      onChange={(e) => {
+                        setSelectedVehicleTypeId(e.target.value);
+                        const vehicle = vehicleTypes.find(v => v.id === e.target.value);
+                        if (vehicle) {
+                          setVehicleCost(vehicle.cost.toString());
+                        }
+                      }}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select vehicle type</option>
+                      {vehicleTypes.map((type: VehicleType) => (
+                        <option key={type.id} value={type.id}>
+                          {type.vehicle_type} - {type.cost} credits
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cost (credits)
+                    </label>
+                    <Input
+                      type="number"
+                      value={vehicleCost}
+                      onChange={(e) => setVehicleCost(e.target.value)}
+                      className="w-full"
+                      min={0}
+                    />
+                    {selectedVehicleTypeId && (
+                      <p className="text-sm text-gray-500">
+                        Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
+                      </p>
+                    )}
+                  </div>
+
+                  {vehicleError && <p className="text-red-500">{vehicleError}</p>}
+                </div>
+              }
+              onClose={() => {
+                setShowAddVehicleModal(false);
+                setSelectedVehicleTypeId('');
+                setVehicleCost('');
+                setVehicleName('');
+                setVehicleError(null);
+              }}
+              onConfirm={handleAddVehicle}
+              confirmText="Add Vehicle"
+              confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
             />
-            <StatItem
-              label="Rating"
-              value={rating}
-              isEditing={false}
-              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
-              onChange={() => {}}
-            />
-            <StatItem
-              label="Wealth"
-              value={rating + credits}
-              isEditing={false}
-              editedValue={typeof rating === 'number' ? rating.toString() : '0'}
-              onChange={() => {}}
-            />
-            {allianceName && (
-              <StatItem
-                label="Alliance"
-                value={allianceName}
-                isEditing={isEditing}
-                editedValue={editedAllianceName}
-                onChange={setEditedAllianceName}
-              />
-            )}
-            {campaigns?.[0]?.has_meat && (
-              <StatItem
-                label="Meat"
-                value={meat}
-                isEditing={isEditing}
-                editedValue={editedMeat}
-                onChange={setEditedMeat}
-              />
-            )}
-            {campaigns?.[0]?.has_exploration_points && (
-              <StatItem
-                label="Exploration Points"
-                value={explorationPoints}
-                isEditing={isEditing}
-                editedValue={editedExplorationPoints}
-                onChange={setEditedExplorationPoints}
-              />
-            )}
-          </div>
-          <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
-            <span>Created: {formatDate(created_at)}</span>
-            <span>Last Updated: {formatDate(lastUpdated)}</span>
-          </div>
-          <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
-            <Button
-              onClick={() => setShowAddFighterModal(true)}
-              className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
-            >
-              Add Fighter
-            </Button>
-            <Button
-              onClick={() => setShowAddVehicleModal(true)}
-              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
-            >
-              Add Vehicle
-            </Button>
-            <Button
-              onClick={() => setShowGangAdditionsModal(true)}
-              className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
-            >
-              Gang Additions
-            </Button>
-          </div>
-        </div>
+          )}
 
-        {showEditModal && (
-          <Modal
-            title="Edit Gang"
-            content={editModalContent}
-            onClose={() => {
-              setShowEditModal(false);
-              setEditedCredits('');
-            }}
-            onConfirm={handleSave}
-            confirmText="Save Changes"
-          />
-        )}
+          {showGangAdditionsModal && (
+            <Modal
+              title="Gang Additions"
+              content={
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Name
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Fighter name"
+                      value={fighterName}
+                      onChange={(e) => setFighterName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
 
-        {showAddFighterModal && (
-          <Modal
-            title="Add New Fighter"
-            content={addFighterModalContent}
-            onClose={() => {
-              setShowAddFighterModal(false);
-              setFighterName('');
-              setSelectedFighterTypeId('');
-              setFighterCost('');
-              setFetchError(null);
-            }}
-            onConfirm={handleAddFighter}
-            confirmText="Add Fighter"
-            confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
-          />
-        )}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Class
+                    </label>
+                    <select
+                      value={selectedGangAdditionClass}
+                      onChange={handleGangAdditionClassChange}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select Fighter Class</option>
 
-        {showAddVehicleModal && (
-          <Modal
-            title="Add Vehicle"
-            content={
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Vehicle Name
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Enter vehicle name"
-                    value={vehicleName}
-                    onChange={(e) => setVehicleName(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
+                      {Object.entries(
+                        Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
+                          .sort((a, b) => {
+                            const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
+                            const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
+                            return rankA - rankB;
+                          })
+                          .reduce((groups, classType) => {
+                            const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
+                            let groupLabel = "Misc."; // Default category for unlisted fighter classes
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Vehicle Type
-                  </label>
-                  <select
-                    value={selectedVehicleTypeId}
-                    onChange={(e) => {
-                      setSelectedVehicleTypeId(e.target.value);
-                      const vehicle = vehicleTypes.find(v => v.id === e.target.value);
-                      if (vehicle) {
-                        setVehicleCost(vehicle.cost.toString());
-                      }
-                    }}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select vehicle type</option>
-                    {vehicleTypes.map((type: VehicleType) => (
-                      <option key={type.id} value={type.id}>
-                        {type.vehicle_type} - {type.cost} credits
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                            if (rank <= 2) groupLabel = "Hangers-on & Brutes";
+                            else if (rank <= 10) groupLabel = "Vehicle Crews";
+                            else if (rank <= 23) groupLabel = "Hired Guns";
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Cost (credits)
-                  </label>
-                  <Input
-                    type="number"
-                    value={vehicleCost}
-                    onChange={(e) => setVehicleCost(e.target.value)}
-                    className="w-full"
-                    min={0}
-                  />
-                  {selectedVehicleTypeId && (
-                    <p className="text-sm text-gray-500">
-                      Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
-                    </p>
-                  )}
-                </div>
-
-                {vehicleError && <p className="text-red-500">{vehicleError}</p>}
-              </div>
-            }
-            onClose={() => {
-              setShowAddVehicleModal(false);
-              setSelectedVehicleTypeId('');
-              setVehicleCost('');
-              setVehicleName('');
-              setVehicleError(null);
-            }}
-            onConfirm={handleAddVehicle}
-            confirmText="Add Vehicle"
-            confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
-          />
-        )}
-
-        {showGangAdditionsModal && (
-          <Modal
-            title="Gang Additions"
-            content={
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Name
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Fighter name"
-                    value={fighterName}
-                    onChange={(e) => setFighterName(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Class
-                  </label>
-                  <select
-                    value={selectedGangAdditionClass}
-                    onChange={handleGangAdditionClassChange}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select Fighter Class</option>
-
-                    {Object.entries(
-                      Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
-                        .sort((a, b) => {
-                          const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
-                          const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
-                          return rankA - rankB;
-                        })
-                        .reduce((groups, classType) => {
-                          const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
-                          let groupLabel = "Misc."; // Default category for unlisted fighter classes
-
-                          if (rank <= 2) groupLabel = "Hangers-on & Brutes";
-                          else if (rank <= 10) groupLabel = "Vehicle Crews";
-                          else if (rank <= 23) groupLabel = "Hired Guns";
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(classType);
-                          return groups;
-                        }, {} as Record<string, string[]>)
-                    ).map(([groupLabel, classList]) => (
-                      <optgroup key={groupLabel} label={groupLabel}>
-                        {classList.map(classType => (
-                          <option key={classType} value={classType}>
-                            {classType}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fighter Type
-                  </label>
-                  <select
-                    value={selectedGangAdditionTypeId}
-                    onChange={handleGangAdditionTypeChange}
-                    className="w-full p-2 border rounded"
-                    disabled={!selectedGangAdditionClass}
-                  >
-                    <option value="">Select Fighter Type</option>
-
-                    {Object.entries(
-                      filteredGangAdditionTypes
-                        .slice() // Create a shallow copy to avoid mutating the original array
-                        .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
-                        .reduce((groups, type) => {
-                          const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(type);
-                          return groups;
-                        }, {} as Record<string, typeof filteredGangAdditionTypes>)
-                    )
-                      // Sort optgroup labels by predefined priority
-                      .sort(([groupA], [groupB]) => {
-                        const alignmentOrder: Record<string, number> = {
-                          "law abiding": 1,
-                          "outlaw": 2,
-                          "unaligned": 3,
-                        };
-
-                        return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
-                      })
-                      .map(([groupLabel, fighterList]) => (
-                        <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
-                          {fighterList.map(type => (
-                            <option key={type.id} value={type.id}>
-                              {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                            if (!groups[groupLabel]) groups[groupLabel] = [];
+                            groups[groupLabel].push(classType);
+                            return groups;
+                          }, {} as Record<string, string[]>)
+                      ).map(([groupLabel, classList]) => (
+                        <optgroup key={groupLabel} label={groupLabel}>
+                          {classList.map(classType => (
+                            <option key={classType} value={classType}>
+                              {classType}
                             </option>
                           ))}
                         </optgroup>
                       ))}
-                  </select>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Type
+                    </label>
+                    <select
+                      value={selectedGangAdditionTypeId}
+                      onChange={handleGangAdditionTypeChange}
+                      className="w-full p-2 border rounded"
+                      disabled={!selectedGangAdditionClass}
+                    >
+                      <option value="">Select Fighter Type</option>
+
+                      {Object.entries(
+                        filteredGangAdditionTypes
+                          .slice() // Create a shallow copy to avoid mutating the original array
+                          .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
+                          .reduce((groups, type) => {
+                            const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
+
+                            if (!groups[groupLabel]) groups[groupLabel] = [];
+                            groups[groupLabel].push(type);
+                            return groups;
+                          }, {} as Record<string, typeof filteredGangAdditionTypes>)
+                      )
+                        // Sort optgroup labels by predefined priority
+                        .sort(([groupA], [groupB]) => {
+                          const alignmentOrder: Record<string, number> = {
+                            "law abiding": 1,
+                            "outlaw": 2,
+                            "unaligned": 3,
+                          };
+
+                          return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
+                        })
+                        .map(([groupLabel, fighterList]) => (
+                          <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
+                            {fighterList.map(type => (
+                              <option key={type.id} value={type.id}>
+                                {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cost (credits)
+                    </label>
+                    <Input
+                      type="number"
+                      value={fighterCost}
+                      onChange={(e) => setFighterCost(e.target.value)}
+                      className="w-full"
+                      min={0}
+                    />
+                    {selectedGangAdditionTypeId && (
+                      <p className="text-sm text-gray-500">
+                        Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
+                      </p>
+                    )}
+                  </div>
+
+                  {renderEquipmentSelection()}
+
+                  {fetchError && <p className="text-red-500">{fetchError}</p>}
                 </div>
+              }
+              onClose={() => {
+                setShowGangAdditionsModal(false);
+                setFighterName('');
+                setSelectedGangAdditionTypeId('');
+                setFighterCost('');
+                setSelectedEquipmentIds([]);
+                setFetchError(null);
+              }}
+              onConfirm={handleAddFighter}
+              confirmText="Add Fighter"
+              confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost ||
+                (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                  ?.equipment_selection?.weapons?.select_type === 'single' &&
+                  !selectedEquipmentIds.length &&
+                  !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                    ?.equipment_selection?.weapons?.default)}
+            />
+          )}
+        </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Cost (credits)
-                  </label>
-                  <Input
-                    type="number"
-                    value={fighterCost}
-                    onChange={(e) => setFighterCost(e.target.value)}
-                    className="w-full"
-                    min={0}
-                  />
-                  {selectedGangAdditionTypeId && (
-                    <p className="text-sm text-gray-500">
-                      Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
-                    </p>
-                  )}
-                </div>
+        <div className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
+          <div className="flex-grow w-full">
+            <div className="flex justify-between items-start mb-1">
+              <h2 className="text-xl font-bold">Additional Details</h2>
+            </div>
 
-                {renderEquipmentSelection()}
-
-                {fetchError && <p className="text-red-500">{fetchError}</p>}
+            <div className="text-gray-600 mb-4">
+              <div className="flex flex-wrap gap-4">
+                {campaigns?.[0] && (
+                  <div className="flex gap-1 items-center text-sm">
+                    Territories: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                      Placeholder
+                    </Badge>
+                  </div>
+                )}
               </div>
-            }
-            onClose={() => {
-              setShowGangAdditionsModal(false);
-              setFighterName('');
-              setSelectedGangAdditionTypeId('');
-              setFighterCost('');
-              setSelectedEquipmentIds([]);
-              setFetchError(null);
-            }}
-            onConfirm={handleAddFighter}
-            confirmText="Add Fighter"
-            confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost ||
-              (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
-                ?.equipment_selection?.weapons?.select_type === 'single' &&
-                !selectedEquipmentIds.length &&
-                !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
-                  ?.equipment_selection?.weapons?.default)}
-          />
-        )}
+              {stash && stash.length > 0 && (
+                <div className="flex flex-wrap gap-1 items-center text-sm mt-2">
+                  <span>Stash:</span>
+                  {stash
+                    .slice() // Create a shallow copy to avoid mutating the original array
+                    .sort((a, b) => (a.equipment_name ?? "").localeCompare(b.equipment_name ?? "")) // Ensure values are always strings
+                    .map((item) => (
+                      <Badge key={item.id} variant="outline" className="cursor-pointer hover:bg-secondary">
+                        {item.equipment_name} ({item.cost} credits)
+                      </Badge>
+                  ))}
+                </div>
+              )}
+              {note && (
+                <div className="gap-1 text-sm mt-2">
+                  Notes:
+                  <div className="gap-1 text-sm">
+                    <span className="text-black whitespace-pre-wrap">{note}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-
       <div className="print:visible">
         {fighters.length > 0 ? (
           <DraggableFighters
