@@ -5,13 +5,13 @@ export const allianceRank: { [key: string]: number } = {
   "narco lords": 4,
   "psi-syndica": 5,
   "rogue factoria": 6,
-  "water guild": 7,
   //
   "corpse guild": 10,
   "guild of coin": 11,
   "iron guild": 12,
   "promethium guild": 13,
   "slave guild": 14,
+  "water guild": 15,
   //
   "house catallus": 20,
   "house greim": 21,
