@@ -126,6 +126,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   allowedCategories,
   onEquipmentBought
 }) => {
+  const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
+  
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
@@ -224,7 +226,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session) return;
     setError(null);
 
-    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
+    const typeIdToUse = isVehicleEquipment 
+      ? localVehicleTypeId || vehicleTypeId 
+      : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
@@ -267,8 +271,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       if (equipmentListType === 'fighters-tradingpost') {
-        requestBody.fighter_type_equipment_tp = true;
+        requestBody.equipment_tradingpost = true;
       }
+
+      console.log(`fetchAllCategories request for ${equipmentListType}:`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -288,6 +294,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
+
+      console.log(`fetchAllCategories response for ${equipmentListType}: ${data.length} items received`);
 
       if (DEBUG) {
         console.log('Fighter equipment data:', data);
@@ -315,9 +323,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'extended' : 'fighter';
+    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
 
-    if (cachedEquipment[cacheKey][categoryName]) {
+    if (equipmentListType === 'fighters-tradingpost' && !cachedEquipment.tradingpost) {
+      setCachedEquipment(prev => ({
+        ...prev,
+        tradingpost: {}
+      }));
+    }
+
+    if (cachedEquipment[cacheKey]?.[categoryName]) {
       setEquipment(prev => ({
         ...prev,
         [categoryName]: cachedEquipment[cacheKey][categoryName]
@@ -326,7 +341,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return;
     }
 
-    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
+    const typeIdToUse = isVehicleEquipment 
+      ? localVehicleTypeId || vehicleTypeId 
+      : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
@@ -357,11 +374,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       if (equipmentListType === 'fighters-list') {
         requestBody.fighter_type_equipment = true;
+      } else if (equipmentListType === 'fighters-tradingpost') {
+        requestBody.equipment_tradingpost = true;
       }
 
       Object.keys(requestBody).forEach(key =>
         requestBody[key] === undefined && delete requestBody[key]
       );
+
+      console.log(`fetchCategoryEquipment request for ${categoryName} (${equipmentListType}):`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -381,8 +402,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
+      
+      console.log(`fetchCategoryEquipment response for ${categoryName}: ${data.length} items received`);
 
-      if (!equipmentListType === 'unrestricted' && categoryQuery === '*') {
+      if (equipmentListType !== 'unrestricted' && categoryQuery === '*') {
         const categories = Array.from(new Set(data.map(item => item.equipment_category)));
         setAvailableCategories(categories);
       }
@@ -417,7 +440,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setCachedEquipment(prev => ({
         ...prev,
         [cacheKey]: {
-          ...prev[cacheKey],
+          ...prev[cacheKey] || {},
           [categoryName]: formattedData
         }
       }));
