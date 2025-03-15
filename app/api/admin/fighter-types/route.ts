@@ -143,6 +143,18 @@ export async function GET(request: Request) {
         throw equipmentListError;
       }
 
+      // Fetch trading post equipment
+      const { data: tradingPostData, error: tradingPostError } = await supabase
+        .from('fighter_equipment_tradingpost')
+        .select('equipment_tradingpost')
+        .eq('fighter_type_id', fighterType.id)
+        .single();
+
+      if (tradingPostError && tradingPostError.code !== 'PGRST116') { // Ignore not found error
+        console.error('Error fetching trading post equipment:', tradingPostError);
+        throw tradingPostError;
+      }
+
       const formattedFighterType = {
         ...fighterType,
         default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
@@ -152,7 +164,8 @@ export async function GET(request: Request) {
           equipment_id: d.equipment_id,
           discount: d.discount
         })) || [],
-        equipment_selection: equipmentSelection?.equipment_selection || null
+        equipment_selection: equipmentSelection?.equipment_selection || null,
+        trading_post_equipment: tradingPostData?.equipment_tradingpost || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -364,6 +377,30 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Handle trading post equipment
+    if (data.trading_post_equipment) {
+      // First delete any existing trading post equipment for this fighter
+      const { error: deleteError } = await supabase
+        .from('fighter_equipment_tradingpost')
+        .delete()
+        .eq('fighter_type_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert new trading post equipment if there are any selections
+      if (data.trading_post_equipment.length > 0) {
+        const { error: insertError } = await supabase
+          .from('fighter_equipment_tradingpost')
+          .insert({
+            fighter_type_id: id,
+            equipment_tradingpost: data.trading_post_equipment,
+            updated_at: new Date().toISOString()
+          });
+
+        if (insertError) throw insertError;
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in PUT fighter-type:', error);
@@ -509,6 +546,19 @@ export async function POST(request: Request) {
 
         if (insertError) throw insertError;
       }
+    }
+
+    // Handle trading post equipment
+    if (data.trading_post_equipment && data.trading_post_equipment.length > 0) {
+      const { error: tradingPostError } = await supabase
+        .from('fighter_equipment_tradingpost')
+        .insert({
+          fighter_type_id: newFighterType.id,
+          equipment_tradingpost: data.trading_post_equipment,
+          updated_at: new Date().toISOString()
+        });
+
+      if (tradingPostError) throw tradingPostError;
     }
 
     return NextResponse.json({ success: true });

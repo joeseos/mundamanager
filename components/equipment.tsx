@@ -39,6 +39,7 @@ interface RawEquipmentData {
   created_at: string;
   weapon_profiles?: WeaponProfile[];
   fighter_type_equipment: boolean;
+  fighter_type_equipment_tp: boolean;
   fighter_weapon_id?: string;
   fighter_equipment_id: string;
 }
@@ -125,6 +126,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   allowedCategories,
   onEquipmentBought
 }) => {
+  const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
+  
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
@@ -134,10 +137,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [showAllEquipment, setShowAllEquipment] = useState(false);
+  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">("fighters-list");
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [cachedFighterCategories, setCachedFighterCategories] = useState<string[]>([]);
+  const [cachedFighterTPCategories, setCachedFighterTPCategories] = useState<string[]>([]);
   const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
   const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
     fighter: {},
@@ -222,32 +226,37 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session) return;
     setError(null);
 
-    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
+    const typeIdToUse = isVehicleEquipment 
+      ? localVehicleTypeId || vehicleTypeId 
+      : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId 
-        ? 'Fighter type information is missing' 
+        : !fighterTypeId
+        ? 'Fighter type information is missing'
         : 'Required information is missing';
-      
-      console.log('Missing type info debug:', { 
-        isVehicleEquipment, 
-        vehicleTypeId, 
-        localVehicleTypeId, 
+
+      console.log('Missing type info debug:', {
+        isVehicleEquipment,
+        vehicleTypeId,
+        localVehicleTypeId,
         fighterTypeId,
         gangTypeId
       });
-      
+
       setError(errorMessage);
       return;
     }
 
-    if (showAllEquipment && cachedAllCategories.length > 0) {
+    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0) {
       setAvailableCategories(cachedAllCategories);
       return;
-    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0) {
       setAvailableCategories(cachedFighterCategories);
+      return;
+    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0) {
+      setAvailableCategories(cachedFighterTPCategories);
       return;
     }
 
@@ -257,9 +266,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
         fighter_type_id: typeIdToUse,
       };
 
-      if (!showAllEquipment) {
+      if (equipmentListType === 'fighters-list') {
         requestBody.fighter_type_equipment = true;
       }
+
+      if (equipmentListType === 'fighters-tradingpost') {
+        requestBody.equipment_tradingpost = true;
+      }
+
+      console.log(`fetchAllCategories request for ${equipmentListType}:`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -280,18 +295,22 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data: RawEquipmentData[] = await response.json();
 
+      console.log(`fetchAllCategories response for ${equipmentListType}: ${data.length} items received`);
+
       if (DEBUG) {
         console.log('Fighter equipment data:', data);
       }
 
       const uniqueCategories = Array.from(new Set(data.map(item => item.equipment_category)));
-      
-      if (showAllEquipment) {
+
+      if (equipmentListType === 'unrestricted') {
         setCachedAllCategories(uniqueCategories);
-      } else {
+      } else if (equipmentListType === 'fighters-list') {
         setCachedFighterCategories(uniqueCategories);
+      } else if (equipmentListType === 'fighters-tradingpost') {
+        setCachedFighterTPCategories(uniqueCategories);
       }
-      
+
       setAvailableCategories(uniqueCategories);
     } catch (err) {
       console.error('Error fetching all equipment categories:', err);
@@ -304,9 +323,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
     setError(null);
 
-    const cacheKey = showAllEquipment ? 'all' : 'fighter';
-    
-    if (cachedEquipment[cacheKey][categoryName]) {
+    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
+
+    if (equipmentListType === 'fighters-tradingpost' && !cachedEquipment.tradingpost) {
+      setCachedEquipment(prev => ({
+        ...prev,
+        tradingpost: {}
+      }));
+    }
+
+    if (cachedEquipment[cacheKey]?.[categoryName]) {
       setEquipment(prev => ({
         ...prev,
         [categoryName]: cachedEquipment[cacheKey][categoryName]
@@ -315,23 +341,25 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return;
     }
 
-    const typeIdToUse = isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId;
+    const typeIdToUse = isVehicleEquipment 
+      ? localVehicleTypeId || vehicleTypeId 
+      : fighterTypeId;
 
     if (!gangTypeId || !typeIdToUse) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId 
-        ? 'Fighter type information is missing' 
+        : !fighterTypeId
+        ? 'Fighter type information is missing'
         : 'Required information is missing';
-      
-      console.log('Missing type info debug:', { 
-        isVehicleEquipment, 
-        vehicleTypeId, 
-        localVehicleTypeId, 
+
+      console.log('Missing type info debug:', {
+        isVehicleEquipment,
+        vehicleTypeId,
+        localVehicleTypeId,
         fighterTypeId,
         gangTypeId
       });
-      
+
       setError(errorMessage);
       setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
       return;
@@ -344,13 +372,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
         fighter_type_id: typeIdToUse
       };
 
-      if (!showAllEquipment) {
+      if (equipmentListType === 'fighters-list') {
         requestBody.fighter_type_equipment = true;
+      } else if (equipmentListType === 'fighters-tradingpost') {
+        requestBody.equipment_tradingpost = true;
       }
 
-      Object.keys(requestBody).forEach(key => 
+      Object.keys(requestBody).forEach(key =>
         requestBody[key] === undefined && delete requestBody[key]
       );
+
+      console.log(`fetchCategoryEquipment request for ${categoryName} (${equipmentListType}):`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -370,8 +402,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
+      
+      console.log(`fetchCategoryEquipment response for ${categoryName}: ${data.length} items received`);
 
-      if (!showAllEquipment && categoryQuery === '*') {
+      if (equipmentListType !== 'unrestricted' && categoryQuery === '*') {
         const categories = Array.from(new Set(data.map(item => item.equipment_category)));
         setAvailableCategories(categories);
       }
@@ -406,7 +440,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setCachedEquipment(prev => ({
         ...prev,
         [cacheKey]: {
-          ...prev[cacheKey],
+          ...prev[cacheKey] || {},
           [categoryName]: formattedData
         }
       }));
@@ -444,14 +478,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
         equipment_id: item.equipment_id,
         gang_id: gangId,
         manual_cost: manualCost,
-        ...(isVehicleEquipment 
-          ? { vehicle_id: vehicleId } 
+        ...(isVehicleEquipment
+          ? { vehicle_id: vehicleId }
           : { fighter_id: fighterId }
         )
       };
-      
+
       console.log('Sending equipment purchase request:', requestBody);
-      
+
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/buy_equipment_for_fighter',
         {
@@ -512,24 +546,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   useEffect(() => {
-    if (session && !showAllEquipment) {
+    if (session && equipmentListType !== 'unrestricted') {
       fetchAllCategories();
     }
-  }, [session, showAllEquipment]);
+  }, [session, equipmentListType]);
 
   useEffect(() => {
-    if (showAllEquipment && cachedAllCategories.length > 0) {
+    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0) {
       setAvailableCategories(cachedAllCategories);
-    } else if (!showAllEquipment && cachedFighterCategories.length > 0) {
+    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0) {
       setAvailableCategories(cachedFighterCategories);
-    } else {
-      fetchAllCategories();
+    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0) {
+      setAvailableCategories(cachedFighterTPCategories);
     }
-    
+
     if (expandedCategory) {
       fetchCategoryEquipment(expandedCategory, expandedCategory);
     }
-  }, [showAllEquipment]);
+  }, [equipmentListType]);
 
   return (
     <div
@@ -550,30 +584,56 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pr-8">
             <h2 className="text-xl font-semibold">Equipment</h2>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={showAllEquipment}
-                  onCheckedChange={(checked: boolean) => {
-                    setShowAllEquipment(checked);
-                    setEquipment({});
-                  }}
-                  id="show-all-equipment"
-                />
-                <label
-                  htmlFor="show-all-equipment"
-                  className="text-sm text-gray-600 cursor-pointer whitespace-nowrap"
-                >
-                  Show All Equipment
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Gang Credits</span>
-                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                  {gangCredits}
-                </span>
-              </div>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-sm text-gray-600">Gang Credits</span>
+              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                {gangCredits}
+              </span>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-[32px]">
+              <input
+                type="radio"
+                name="equipment-list"
+                value="fighters-list"
+                checked={equipmentListType === "fighters-list"}
+                onChange={() => {
+                  setEquipmentListType("fighters-list");
+                  setEquipment({});
+                }}
+                className="mr-2"
+              />
+              Fighter's List
+            </label>
+            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <input
+                type="radio"
+                name="equipment-list"
+                value="fighters-tradingpost"
+                checked={equipmentListType === "fighters-tradingpost"}
+                onChange={() => {
+                  setEquipmentListType("fighters-tradingpost");
+                  setEquipment({});
+                }}
+                className="mr-2"
+              />
+              Trading Post
+            </label>
+            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <input
+                type="radio"
+                name="equipment-list"
+                value="unrestricted"
+                checked={equipmentListType === "unrestricted"}
+                onChange={() => {
+                  setEquipmentListType("unrestricted");
+                  setEquipment({});
+                }}
+                className="mr-2"
+              />
+              Unrestricted
+            </label>
           </div>
         </div>
 
@@ -583,13 +643,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
             {categories
               .filter(category => {
-                const isVehicleAllowed = isVehicleEquipment && allowedCategories 
+                const isVehicleAllowed = isVehicleEquipment && allowedCategories
                   ? allowedCategories.includes(category.category_name)
                   : !isVehicleEquipment;
-                  
-                const isAvailable = showAllEquipment || 
+
+                const isAvailable = equipmentListType === 'unrestricted' ||
                   availableCategories.includes(category.category_name);
-                  
+
                 return isVehicleAllowed && isAvailable;
               })
               .sort((a, b) => {
