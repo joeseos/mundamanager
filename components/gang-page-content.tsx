@@ -37,6 +37,7 @@ interface GangPageContentProps {
     }[];
     stash: StashItem[];
     positioning: Record<number, string>;
+    note?: string;
   };
   gangData: {
     stash: StashItem[];
@@ -59,6 +60,7 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
       <Gang
         {...processedData}
         rating={rating}
+        note={processedData.note}
         initialFighters={fighters}
         fighterTypes={processedData.fighterTypes}
         campaigns={processedData.campaigns}
