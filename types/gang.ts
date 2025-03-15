@@ -8,6 +8,7 @@ export interface GangType {
 export interface Equipment {
   id: string;
   equipment_name: string;
+  equipment_category: string;
 }
 
 export interface StashItem {
