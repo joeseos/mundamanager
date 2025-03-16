@@ -236,6 +236,7 @@ export async function PUT(request: Request) {
         toughness: data.toughness,
         wounds: data.wounds,
         initiative: data.initiative,
+        attacks: data.attacks,
         leadership: data.leadership,
         cool: data.cool,
         willpower: data.willpower,
