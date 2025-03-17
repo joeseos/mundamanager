@@ -134,27 +134,7 @@ export function InjuriesList({
                     <tr key={injury.id} className="border-t">
                       
                       <td className="px-1 py-1">
-                        <div className="relative group inline-block">
-                          <span className="cursor-help underline decoration-dotted">
-                            {injury.effect_name}
-                          </span>
-                          <div className="fixed group-hover:opacity-100 opacity-0 transition-opacity duration-200 pointer-events-none bg-black text-white text-sm rounded-lg py-2 px-3 -mt-2 z-50 shadow-lg min-w-[12rem]">
-                            {injury.type_specific_data && (
-                              <p className="mb-2 text-gray-300">{injury.type_specific_data}</p>
-                            )}
-                            <div className="space-y-1">
-                              {injury.fighter_effect_modifiers?.length > 0 ? (
-                                injury.fighter_effect_modifiers.map((mod) => (
-                                  <p key={mod.id}>
-                                    {mod.stat_name}: {mod.numeric_value > 0 ? '+' : ''}{mod.numeric_value}
-                                  </p>
-                                ))
-                              ) : (
-                                <p>No stat modifiers</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                        <span>{injury.effect_name}</span>
                       </td>
                       <td className="px-1 py-1">
                         <div className="flex justify-end">

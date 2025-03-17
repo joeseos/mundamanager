@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { FighterStatsTable } from './ui/fighter-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterEffects, FighterProps, FighterEffect, FighterEffectStatModifier, } from '@/types/fighter';
+import { FighterEffects, FighterProps, FighterEffect } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -29,6 +29,13 @@ interface VehicleEquipmentProfile {
 interface VehicleEquipment extends Equipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
+}
+
+interface FighterEffectStatModifier {
+  id: string;
+  fighter_effect_id: string;
+  stat_name: string;
+  numeric_value: number;
 }
 
 interface FighterDetailsCardProps {
