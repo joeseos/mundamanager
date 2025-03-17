@@ -10,6 +10,7 @@ import { AdminEditFighterTypeModal } from "@/components/ui/admin-edit-fighter-ty
 import { AdminCreateEquipmentModal } from "@/components/ui/admin-create-equipment";
 import { AdminEditEquipmentModal } from "@/components/ui/admin-edit-equipment";
 import { AdminCreateSkillModal } from "@/components/ui/admin-create-skill";
+import { AdminEditSkillModal } from "@/components/ui/admin-edit-skill";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
@@ -23,6 +24,7 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showCreateSkill, setShowCreateSkill] = useState(false);
+  const [showEditSkill, setShowEditSkill] = useState(false);
   const [showEditFighterType, setShowEditFighterType] = useState(false);
   const [showCreateEquipment, setShowCreateEquipment] = useState(false);
   const [showEditEquipment, setShowEditEquipment] = useState(false);
@@ -234,6 +236,12 @@ export default function AdminPage() {
       description: "Add a new skill or skill set",
       action: () => setShowCreateSkill(true),
       icon: BookOpen
+    },
+    {
+      title: "Edit Skill",
+      description:"Edit a skill or skill set",
+      action: () => setShowEditSkill(true),
+      icon: BookOpen
     }
   ];
 
@@ -278,6 +286,13 @@ export default function AdminPage() {
             <AdminCreateSkillModal
               onClose={() => setShowCreateSkill(false)}
               onSubmit={() => setShowCreateSkill(false)}
+            />
+          )}
+
+          {showEditSkill && (
+            <AdminEditSkillModal
+              onClose={() => setShowEditSkill(false)}
+              onSubmit={() => setShowEditSkill(false)}
             />
           )}
 
