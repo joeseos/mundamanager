@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from "@/utils/supabase/client";
+import { Skill } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
 import { WeaponList } from "@/components/weapon-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -18,7 +19,7 @@ import { InjuriesList } from "@/components/injuries-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
-import { FighterEffects, FighterEffect, FighterEffectStatModifier, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterEffects, FighterEffect, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 
 // Dynamically import heavy components
@@ -139,14 +140,7 @@ interface Fighter {
     characteristic_value: number;
     acquired_at: string;
   }>;
-  skills: {
-    [key: string]: {
-      id: string;
-      credits_increase: number;
-      xp_cost: number;
-      acquired_at: string;
-    }
-  };
+  skills: Array<Skill>;
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
@@ -244,96 +238,6 @@ interface EditState {
   xpError: string;
 }
 
-const calculateInjuryModifications = (injuries: Array<{
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
-}>) => {
-  const modifications: { [key: string]: number } = {
-    'M': 0,  // Movement
-    'WS': 0, // Weapon Skill
-    'BS': 0, // Ballistic Skill
-    'S': 0,  // Strength
-    'T': 0,  // Toughness
-    'W': 0,  // Wounds
-    'I': 0,  // Initiative
-    'A': 0,  // Attacks
-    'Ld': 0, // Leadership
-    'Cl': 0, // Cool
-    'Wil': 0, // Willpower
-    'Int': 0 // Intelligence
-  };
-
-  injuries.forEach(injury => {
-    if (injury.code_1 && injury.characteristic_1) {
-      modifications[injury.code_1] += injury.characteristic_1;
-    }
-    if (injury.code_2 && injury.characteristic_2) {
-      modifications[injury.code_2] += injury.characteristic_2;
-    }
-  });
-
-  return modifications;
-};
-
-const transformFighterData = (fighter: Fighter | null) => {
-  if (!fighter) {
-    return {
-      characteristics: [],
-      skills: {},
-      advancements: [],
-      note: ''
-    };
-  }
-
-  const transformedSkills = Object.entries(fighter.skills || {}).reduce((acc, [key, value]) => {
-    acc[key] = {
-      ...value,
-      is_advance: true
-    };
-    return acc;
-  }, {} as Record<string, { 
-    id: string; 
-    xp_cost: number; 
-    credits_increase: number; 
-    acquired_at: string;
-    is_advance: boolean;
-  }>);
-
-  return {
-    characteristics: fighter.characteristics || [],
-    skills: transformedSkills,
-    advancements: fighter.advancements || [],
-    note: fighter.note || ''
-  };
-};
-
-// Regular function outside component
-const transformFighterChangesData = (fighter: Fighter | null) => {
-  if (!fighter) return { advancement: [], characteristics: [], skills: {} };
-  
-  // Transform the skills object to include is_advance
-  const transformedSkills = Object.entries(fighter.skills || {}).reduce((acc, [key, value]) => {
-    acc[key] = {
-      ...value,
-      is_advance: true  // Add the missing is_advance property
-    };
-    return acc;
-  }, {} as Record<string, {
-    id: string;
-    xp_cost: number;
-    credits_increase: number;
-    acquired_at: string;
-    is_advance: boolean;
-  }>);
-  
-  return {
-    advancement: fighter.fighter_changes?.advancement || [],
-    characteristics: fighter.characteristics || [],
-    skills: transformedSkills
-  };
-};
 
 // First, let's define an interface for the characteristic structure
 interface FighterCharacteristic {
@@ -431,8 +335,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       );
       if (!response.ok) throw new Error('Failed to fetch injuries');
       const data: FighterEffect[] = await response.json();
-      console.log(data)
-      console.log("fetchAvailableInjuries")
   
       setAvailableInjuries(data);
     } catch (error) {
@@ -1597,16 +1499,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
   }, [fighterData.fighter?.campaigns]);
 
-  // Memoize the transform function inside the component
-  const transformFighterChanges = useCallback((fighter: Fighter | null) => {
-    return transformFighterChangesData(fighter);
-  }, []);
-
-  // Memoize the transformed data
-  const memoizedFighterChanges = useMemo(() => 
-    transformFighterChanges(fighterData.fighter),
-    [fighterData.fighter, transformFighterChanges]
-  );
 
   // Add a useEffect to fetch and store the vehicle type ID when needed
   const [vehicleTypeIdMap, setVehicleTypeIdMap] = useState<Record<string, string>>({});
@@ -1790,7 +1682,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           <AdvancementsList
             fighterXp={fighterData.fighter?.xp || 0}
-            fighterChanges={memoizedFighterChanges}
+            fighterChanges={fighterData.fighter}
             fighterId={fighterData.fighter?.id || ''}
             onAdvancementDeleted={fetchFighterData}
           />

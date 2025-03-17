@@ -55,6 +55,16 @@ export interface StatModifier {
   source_type: 'injury' | 'advancement';
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  xp_cost: number;
+  credits_increase: number;
+  acquired_at: string;
+  is_advance: boolean;
+  fighter_injury_id: string | null;
+}
+
 export interface FighterEffect {
   id: string;
   effect_name: string;
@@ -143,7 +153,7 @@ export interface FighterProps {
   gang_id?: string;
   advancements: {
     characteristics: Record<string, any>;
-    skills: Record<string, any>;
+    skills: Skill;
   };
   weapons: WeaponProps[];
   wargear: WargearItem[];

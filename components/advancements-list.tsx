@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/modal";
+import { Skill } from '@/types/fighter';
 
 interface StatChange {
   id: string;
@@ -31,15 +32,7 @@ interface FighterChanges {
     characteristic_value: number;
     acquired_at: string;
   }>;
-  skills?: {
-    [key: string]: {
-      id: string;
-      xp_cost: number;
-      credits_increase: number;
-      acquired_at: string;
-      is_advance: boolean;
-    }
-  };
+  skills?: Skill[];
 }
 
 interface AdvancementsListProps {
@@ -63,7 +56,7 @@ interface TransformedAdvancement {
 
 export const AdvancementsList = React.memo(function AdvancementsList({ 
   fighterXp,
-  fighterChanges = { advancement: [], characteristics: [], skills: {} },
+  fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
   onAdvancementDeleted
 }: AdvancementsListProps) {
