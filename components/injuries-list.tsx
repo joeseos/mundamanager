@@ -25,7 +25,6 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
-  const [injuryNotes, setInjuryNotes] = useState<string>('');
   const { toast } = useToast();
 
 
@@ -55,7 +54,6 @@ export function InjuriesList({
       });
 
       setSelectedInjuryId('');
-      setInjuryNotes('');
       onInjuryAdded();
       return true;
     } catch (error) {
@@ -204,26 +202,12 @@ export function InjuriesList({
                     </option>
                   ))}
                 </select>
-                
-                <div className="mt-4">
-                  <label htmlFor="injuryNotes" className="text-sm font-medium">
-                    Notes
-                  </label>
-                  <textarea
-                    id="injuryNotes"
-                    value={injuryNotes}
-                    onChange={(e) => setInjuryNotes(e.target.value)}
-                    placeholder="Add any additional notes about the injury..."
-                    className="w-full p-2 border rounded-md h-24 mt-1"
-                  />
-                </div>
               </div>
             </div>
           }
           onClose={() => {
             setIsAddModalOpen(false);
             setSelectedInjuryId('');
-            setInjuryNotes('');
           }}
           onConfirm={handleAddInjury}
           confirmText="Add Injury"
