@@ -211,8 +211,39 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     weapons: [],
     wargear: [],
     special_rules: [],
-    effects,
+    effects: {
+      injuries: effects?.injuries || [],
+      advancements: effects?.advancements || []
+    },
     fighter_class,
+    base_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    },
+    current_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    }
   }), [
     id, name, type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
@@ -220,9 +251,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     fighter_class
   ]);
 
-  // Calculate adjusted stats
-  const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
   const isCrew = fighter_class === 'Crew';
+  
+  // Calculate modified stats including effects (injuries/advancements)
+  const modifiedStats = useMemo(() => 
+    calculateAdjustedStats(fighterData),
+    [fighterData]
+  );
 
   // Calculate vehicle stats once
   const vehicleStats = useMemo(() => 
@@ -230,7 +265,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     [isCrew, vehicles, vehicleEquipment]
   );
 
-  // Update stats object to handle crew stats
+  // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
     ...(isCrew ? {
       'M': `${vehicleStats?.movement}"`,
@@ -240,28 +275,28 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'HP': vehicleStats?.hull_points,
       'Hnd': vehicleStats?.handling ? `${vehicleStats.handling}+` : '*',
       'Sv': `${vehicleStats?.save}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
+      'Ld': `${modifiedStats.leadership}+`,
+      'Cl': `${modifiedStats.cool}+`,
+      'Wil': `${modifiedStats.willpower}+`,
+      'Int': `${modifiedStats.intelligence}+`,
       'XP': xp ?? 0
     } : {
-      'M': `${adjustedStats.movement}"`,
-      'WS': `${adjustedStats.weapon_skill}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'S': adjustedStats.strength,
-      'T': adjustedStats.toughness,
-      'W': adjustedStats.wounds,
-      'I': `${adjustedStats.initiative}+`,
-      'A': adjustedStats.attacks,
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'M': `${modifiedStats.movement}"`,
+      'WS': `${modifiedStats.weapon_skill}+`,
+      'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
+      'S': modifiedStats.strength,
+      'T': modifiedStats.toughness,
+      'W': modifiedStats.wounds,
+      'I': `${modifiedStats.initiative}+`,
+      'A': modifiedStats.attacks,
+      'Ld': `${modifiedStats.leadership}+`,
+      'Cl': `${modifiedStats.cool}+`,
+      'Wil': `${modifiedStats.willpower}+`,
+      'Int': `${modifiedStats.intelligence}+`,
       'XP': xp ?? 0
     })
-  }), [isCrew, vehicleStats, vehicles, adjustedStats, xp]);
+  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp]);
 
   return (
     <div className="relative">

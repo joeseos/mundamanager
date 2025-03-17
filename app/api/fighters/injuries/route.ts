@@ -1,27 +1,23 @@
 import { createClient } from "@/utils/supabase/server";
-import { data } from "autoprefixer";
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const supabase = createClient();
-  console.log("hello")
   try {
-    console.log("route in injuries")
-
-    // First fetch the fighter effects
     const { data: effects, error: effectsError } = await supabase
-    .from('fighter_effect_types')
-    .select(`
-      *,
-      fighter_effect_categories!inner(*),
-      fighter_effect_type_modifiers (
+      .from('fighter_effect_types')
+      .select(`
+        *,
+        fighter_effect_categories!inner(*),
+        fighter_effect_type_modifiers (
           *
-      )
-   `)
-    .eq('fighter_effect_categories.category_name', 'injuries'); 
+        )
+      `)
+      .eq('fighter_effect_categories.category_name', 'injuries');
+
     if (effectsError) throw effectsError;
     return NextResponse.json(effects || []);
-    } catch (error) {
+  } catch (error) {
     console.error('Error fetching injuries:', error);
     return NextResponse.json(
       { error: 'Failed to fetch injuries' },
@@ -30,60 +26,31 @@ export async function GET(request: Request) {
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: Request) {
   const supabase = createClient();
   const url = new URL(request.url);
-  const injuryId = url.searchParams.get('effectId');
+  const effectId = url.searchParams.get('effectId');
+
+  if (!effectId) {
+    return NextResponse.json(
+      { error: 'Effect ID is required' },
+      { status: 400 }
+    );
+  }
 
   try {
-    if (injuryId) {
-      // Delete specific injury
-      const { error: deleteError } = await supabase
-        .from('fighter_effects')
-        .delete()
-        .eq('id', injuryId);
-
-      if (deleteError) throw deleteError;
-
-      return NextResponse.json({ message: 'Injury deleted successfully' });
-    }
-
-    // Start a Supabase transaction
-    const { data: fighter, error: fetchError } = await supabase
-      .from('fighters')
-      .select('*')
-      .eq('id', params.id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    if (!fighter) {
-      return NextResponse.json({ error: 'Fighter not found' }, { status: 404 });
-    }
-
     const { error: deleteError } = await supabase
-      .from('fighters')
+      .from('fighter_effects')
       .delete()
-      .eq('id', params.id);
+      .eq('id', effectId);
 
     if (deleteError) throw deleteError;
 
-    // Update gang credits
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({ credits: fighter.credits })
-      .eq('id', fighter.gang_id);
-
-    if (updateError) throw updateError;
-
-    return NextResponse.json({ message: 'Fighter deleted successfully' });
+    return NextResponse.json({ message: 'Injury deleted successfully' });
   } catch (error) {
-    console.error('Error in DELETE /api/fighters/[id]:', error);
+    console.error('Error deleting injury:', error);
     return NextResponse.json(
-      { error: 'Failed to process delete request' },
+      { error: 'Failed to delete injury' },
       { status: 500 }
     );
   }

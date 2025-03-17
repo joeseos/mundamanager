@@ -88,7 +88,35 @@ async function processGangData(gangData: any) {
         characteristics: fighter.advancements?.characteristics || {},
         skills: fighter.advancements?.skills || {}
       },
-      // injuries: fighter.injuries || [],
+      base_stats: {
+        movement: fighter.movement,
+        weapon_skill: fighter.weapon_skill,
+        ballistic_skill: fighter.ballistic_skill,
+        strength: fighter.strength,
+        toughness: fighter.toughness,
+        wounds: fighter.wounds,
+        initiative: fighter.initiative,
+        attacks: fighter.attacks,
+        leadership: fighter.leadership,
+        cool: fighter.cool,
+        willpower: fighter.willpower,
+        intelligence: fighter.intelligence
+      },
+      current_stats: {
+        movement: fighter.movement,
+        weapon_skill: fighter.weapon_skill,
+        ballistic_skill: fighter.ballistic_skill,
+        strength: fighter.strength,
+        toughness: fighter.toughness,
+        wounds: fighter.wounds,
+        initiative: fighter.initiative,
+        attacks: fighter.attacks,
+        leadership: fighter.leadership,
+        cool: fighter.cool,
+        willpower: fighter.willpower,
+        intelligence: fighter.intelligence
+      },
+      effects: fighter.effects || { injuries: [], advancements: [] },
       weapons: validEquipment
         .filter((item: Equipment) => item.equipment_type === 'weapon')
         .map((item: Equipment) => ({
@@ -338,7 +366,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
     const fetchGangData = async () => {
       try {
         const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_get_gang_details',
           {
             method: 'POST',
             headers: {

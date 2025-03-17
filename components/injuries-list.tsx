@@ -38,7 +38,7 @@ export function InjuriesList({
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_injury`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_effect`,
         {
           method: 'POST',
           headers: {
@@ -46,9 +46,9 @@ export function InjuriesList({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
           body: JSON.stringify({
-            fighter_id: fighterId,
-            effect_type_id: selectedInjuryId,
-            notes: injuryNotes
+            input_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
+            input_fighter_effect_type_id: selectedInjuryId,
+            input_fighter_id: fighterId,
           }),
         }
       );
@@ -79,20 +79,10 @@ export function InjuriesList({
   const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
     try {
       setIsDeleting(injuryId);
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/remove_fighter_injury`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            fighter_id: fighterId,
-            effect_type_id: selectedInjuryId,
-          }),
-        }
-      );
+      
+      const response = await fetch(`/api/fighters/injuries?effectId=${injuryId}`, {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
         throw new Error('Failed to delete injury');

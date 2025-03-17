@@ -48,28 +48,30 @@ export interface FighterEffectCategory {
   category_name: string
 }
 
-export interface FighterEffectStatModifier {
-  id: string; // UUID
-  fighter_effect_id: string; // FK to FighterEffect
-  stat_name: string; // e.g., "intelligence ", "willpower "
-  numeric_value: number; // Positive for bonus, negative for penalty
+export interface StatModifier {
+  stat_name: string;
+  numeric_value: number;
+  source_id: string;
+  source_type: 'injury' | 'advancement';
 }
 
-
 export interface FighterEffect {
-  id: string; // UUID
-  effect_name: string; // e.g., "head injury"
-  type_specific_data?: string; // Optional text notes
-  created_at: string; // Timestamp with timezone
-  updated_at: string | null; // Timestamp with timezone, can be null
-  fighter_effect_categories: FighterEffectCategory;
-  fighter_effect_modifiers: FighterEffectStatModifier[]; // Note the property name change
+  id: string;
+  effect_name: string;
+  effect_type: string;
+  created_at: string;
+  type_specific_data?: string;
+  fighter_effect_modifiers: Array<{
+    id: string;
+    fighter_effect_id: string;
+    stat_name: string;
+    numeric_value: number;
+  }>;
 }
 
 export interface FighterEffects {
   injuries: FighterEffect[];
 }
-
 
 export interface VehicleEquipmentProfile {
   id: string;
@@ -158,6 +160,38 @@ export interface FighterProps {
     advancements: Array<FighterEffect>;
   }
   vehicles?: Vehicle[];
+  
+  // Base stats (original values)
+  base_stats: {
+    movement: number;
+    weapon_skill: number;
+    ballistic_skill: number;
+    strength: number;
+    toughness: number;
+    wounds: number;
+    initiative: number;
+    attacks: number;
+    leadership: number;
+    cool: number;
+    willpower: number;
+    intelligence: number;
+  };
+  
+  // Current stats (after modifications)
+  current_stats: {
+    movement: number;
+    weapon_skill: number;
+    ballistic_skill: number;
+    strength: number;
+    toughness: number;
+    wounds: number;
+    initiative: number;
+    attacks: number;
+    leadership: number;
+    cool: number;
+    willpower: number;
+    intelligence: number;
+  };
 }
 
 export interface WeaponProfile {

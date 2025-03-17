@@ -180,7 +180,7 @@ const FighterCard = memo(function FighterCard({
     ) || [];
   }, [isCrew, vehicle]);
 
-  // Create fighter data for stat calculations
+  // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
     id,
     fighter_name: name,
@@ -208,7 +208,35 @@ const FighterCard = memo(function FighterCard({
     weapons,
     wargear,
     special_rules: special_rules || [],
-    effects
+    effects: effects || { injuries: [], advancements: [] },
+    base_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    },
+    current_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    }
   }), [
     id, name, type, fighter_class, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
@@ -216,9 +244,10 @@ const FighterCard = memo(function FighterCard({
     kills, advancements, weapons, wargear, special_rules, effects
   ]);
 
+  // Replace adjustedStats with modifiedStats
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
-  // Calculate stats based on fighter type
+  // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
     if (isCrew) {
       return {
@@ -253,7 +282,7 @@ const FighterCard = memo(function FighterCard({
       'Int': `${adjustedStats.intelligence}+`,
       'XP': xp
     };
-  }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
+  }, [isCrew, vehicleStats, adjustedStats, xp]);
 
   const isInactive = killed || retired;
 
