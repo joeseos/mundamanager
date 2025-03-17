@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { FighterStatsTable } from './ui/fighter-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterProps, Injury } from '@/types/fighter';
+import { FighterEffects, FighterProps, FighterEffect, FighterEffectStatModifier, } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -61,7 +61,10 @@ interface FighterDetailsCardProps {
   fighter_class?: string;
   onEdit: () => void;
   kills: number;
-  injuries?: Injury[];
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   vehicles?: Array<{
     id: string;
     movement: number;
@@ -176,7 +179,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   fighter_class,
   onEdit,
   kills,
-  injuries,
+  effects,
   vehicles,
   vehicleEquipment = [],
   gangId
@@ -208,12 +211,12 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     weapons: [],
     wargear: [],
     special_rules: [],
-    injuries: injuries || [],
+    effects,
     fighter_class,
   }), [
     id, name, type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
-    cool, willpower, intelligence, xp, kills, advancements, injuries,
+    cool, willpower, intelligence, xp, kills, advancements, effects,
     fighter_class
   ]);
 

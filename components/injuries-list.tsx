@@ -1,28 +1,12 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import { FighterEffect, } from '@/types/fighter';
+
 import { useToast } from './ui/use-toast';
 import Modal from './modal';
-
-interface InjuryType {
-  id: string;
-  injury_name: string;
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
-}
-
 interface InjuriesListProps {
-  injuries: Array<{
-    id: string;
-    injury_name: string;
-    acquired_at: string;
-    code_1?: string;
-    characteristic_1?: number;
-    code_2?: string;
-    characteristic_2?: number;
-  }>;
-  availableInjuries: InjuryType[];
+  injuries: Array<FighterEffect>;
+  availableInjuries: FighterEffect[];
   onDeleteInjury: (injuryId: string) => Promise<void>;
   fighterId: string;
   onInjuryAdded: () => void;
@@ -39,7 +23,9 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
+  const [injuryNotes, setInjuryNotes] = useState<string>('');
   const { toast } = useToast();
+
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -60,8 +46,9 @@ export function InjuriesList({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
           body: JSON.stringify({
-            input_fighter_id: fighterId,
-            input_injury_id: selectedInjuryId
+            fighter_id: fighterId,
+            effect_type_id: selectedInjuryId,
+            notes: injuryNotes
           }),
         }
       );
@@ -76,6 +63,7 @@ export function InjuriesList({
       });
 
       setSelectedInjuryId('');
+      setInjuryNotes('');
       onInjuryAdded();
       return true;
     } catch (error) {
@@ -92,14 +80,17 @@ export function InjuriesList({
     try {
       setIsDeleting(injuryId);
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_injuries?id=eq.${injuryId}`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/remove_fighter_injury`,
         {
-          method: 'DELETE',
+          method: 'POST',
           headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          }
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({
+            fighter_id: fighterId,
+            effect_type_id: selectedInjuryId,
+          }),
         }
       );
 
@@ -158,10 +149,33 @@ export function InjuriesList({
                 </tr>
               ) : (
                 injuries
-                  .sort((a, b) => new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime())
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   .map((injury) => (
                     <tr key={injury.id} className="border-t">
-                      <td className="px-1 py-1">{injury.injury_name}</td>
+                      
+                      <td className="px-1 py-1">
+                        <div className="relative group inline-block">
+                          <span className="cursor-help underline decoration-dotted">
+                            {injury.effect_name}
+                          </span>
+                          <div className="fixed group-hover:opacity-100 opacity-0 transition-opacity duration-200 pointer-events-none bg-black text-white text-sm rounded-lg py-2 px-3 -mt-2 z-50 shadow-lg min-w-[12rem]">
+                            {injury.type_specific_data && (
+                              <p className="mb-2 text-gray-300">{injury.type_specific_data}</p>
+                            )}
+                            <div className="space-y-1">
+                              {injury.fighter_effect_modifiers?.length > 0 ? (
+                                injury.fighter_effect_modifiers.map((mod) => (
+                                  <p key={mod.id}>
+                                    {mod.stat_name}: {mod.numeric_value > 0 ? '+' : ''}{mod.numeric_value}
+                                  </p>
+                                ))
+                              ) : (
+                                <p>No stat modifiers</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-1 py-1">
                         <div className="flex justify-end">
                           <Button
@@ -169,7 +183,7 @@ export function InjuriesList({
                             size="sm"
                             onClick={() => setDeleteModalData({
                               id: injury.id,
-                              name: injury.injury_name
+                              name: injury.effect_name
                             })}
                             disabled={isDeleting === injury.id}
                             className="text-xs px-1.5 h-6"
@@ -204,16 +218,30 @@ export function InjuriesList({
                   <option value="">Select an injury</option>
                   {availableInjuries.map((injury) => (
                     <option key={injury.id} value={injury.id}>
-                      {injury.injury_name}
+                      {injury.effect_name}
                     </option>
                   ))}
                 </select>
+                
+                <div className="mt-4">
+                  <label htmlFor="injuryNotes" className="text-sm font-medium">
+                    Notes
+                  </label>
+                  <textarea
+                    id="injuryNotes"
+                    value={injuryNotes}
+                    onChange={(e) => setInjuryNotes(e.target.value)}
+                    placeholder="Add any additional notes about the injury..."
+                    className="w-full p-2 border rounded-md h-24 mt-1"
+                  />
+                </div>
               </div>
             </div>
           }
           onClose={() => {
             setIsAddModalOpen(false);
             setSelectedInjuryId('');
+            setInjuryNotes('');
           }}
           onConfirm={handleAddInjury}
           confirmText="Add Injury"

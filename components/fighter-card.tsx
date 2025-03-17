@@ -3,7 +3,7 @@ import { StatsTable } from './ui/table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
@@ -25,7 +25,10 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   starved?: boolean;
   free_skill?: boolean;
   kills: number;  // Required property
-  injuries: Injury[];
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   note?: string;
   vehicle?: Vehicle;  // Add vehicle property
   disableLink?: boolean;
@@ -117,7 +120,7 @@ const FighterCard = memo(function FighterCard({
   starved,
   free_skill,
   kills = 0,  // Default value
-  injuries = [],
+  effects,
   note,
   vehicle,
   disableLink = false,
@@ -205,12 +208,12 @@ const FighterCard = memo(function FighterCard({
     weapons,
     wargear,
     special_rules: special_rules || [],
-    injuries: injuries || [],
+    effects
   }), [
     id, name, type, fighter_class, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
-    kills, advancements, weapons, wargear, special_rules, injuries
+    kills, advancements, weapons, wargear, special_rules, effects
   ]);
 
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
@@ -461,14 +464,14 @@ const FighterCard = memo(function FighterCard({
                 </>
               )}
 
-              {injuries && injuries.length > 0 && (
+              {effects && effects.injuries && effects.injuries.length > 0 && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {injuries
+                    {effects.injuries
                       .slice() // Create a shallow copy to avoid mutating the original array
-                      .sort((a, b) => new Date(a.acquired_at).getTime() - new Date(b.acquired_at).getTime()) // Sort by created_at
-                      .map((injury) => injury.injury_name)
+                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) // Sort by created_at
+                      .map((injury) => injury.effect_name)
                       .join(', ')}
                   </div>
                 </>

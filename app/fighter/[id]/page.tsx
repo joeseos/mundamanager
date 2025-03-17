@@ -18,7 +18,7 @@ import { InjuriesList } from "@/components/injuries-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
-import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterEffects, FighterEffect, FighterEffectStatModifier, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 
 // Dynamically import heavy components
@@ -65,16 +65,6 @@ interface CharacteristicData {
   acquired_at: string;
 }
 
-interface Injury {
-  id: string;
-  injury_name: string;
-  acquired_at: string;
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
-}
-
 interface Campaign {
   campaign_id: string;
   campaign_name: string;
@@ -84,6 +74,8 @@ interface Campaign {
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
 }
+
+
 
 interface Fighter {
   id: string;
@@ -155,15 +147,10 @@ interface Fighter {
       acquired_at: string;
     }
   };
-  injuries: Array<{
-    id: string;
-    injury_name: string;
-    acquired_at: string;
-    code_1?: string;
-    characteristic_1?: number;
-    code_2?: string;
-    characteristic_2?: number;
-  }>;
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   note?: string;
   kills: number;
   cost_adjustment: number;
@@ -360,6 +347,7 @@ interface FighterCharacteristic {
   times_increased: number;
 }
 
+
 export default function FighterPage({ params }: { params: { id: string } }) {
   // Replace multiple state declarations with consolidated state
   const [fighterData, setFighterData] = useState<FighterPageState>({
@@ -425,30 +413,27 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   } | null>(null);
 
   // Add new state for available injuries
-  const [availableInjuries, setAvailableInjuries] = useState<Array<{
-    id: string;
-    injury_name: string;
-    code_1?: string;
-    characteristic_1?: number;
-    code_2?: string;
-    characteristic_2?: number;
-  }>>([]);
+  const [availableInjuries, setAvailableInjuries] = useState<Array<FighterEffect>>([]);
 
   // Add function to fetch available injuries
   const fetchAvailableInjuries = useCallback(async () => {
+    
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/injuries`,
-        {
+       `/api/fighters//injuries`,
+         {
           method: 'GET',
           headers: {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             'Content-Type': 'application/json',
-          },
+          }
         }
       );
       if (!response.ok) throw new Error('Failed to fetch injuries');
-      const data = await response.json();
+      const data: FighterEffect[] = await response.json();
+      console.log(data)
+      console.log("fetchAvailableInjuries")
+  
       setAvailableInjuries(data);
     } catch (error) {
       console.error('Error fetching injuries:', error);
@@ -465,10 +450,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       console.error('No fighter ID provided');
       return;
     }
-
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_get_fighter_details`,
         {
           method: 'POST',
           headers: {
@@ -487,7 +471,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       const [{ result }] = await response.json();
-      
       // Transform regular equipment data
       const transformedEquipment = (result.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
@@ -499,7 +482,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         weapon_profiles: item.weapon_profiles,
         core_equipment: item.core_equipment
       }));
-
+      console.log(result.fighter.effects)
+      console.log(result.fighter.effects.injuries)
+      var testing: FighterEffect[] = result.fighter.effects.injuries
+      console.log(testing)
       // Transform vehicle equipment data from the nested structure
       const transformedVehicleEquipment = (result.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
@@ -533,7 +519,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             }), {}) || {},
             skills: result.fighter.skills || {}
           },
-          vehicles: result.fighter.vehicles
+          vehicles: result.fighter.vehicles,
+          injuries: result.fighter.effects.injuries
         },
         equipment: transformedEquipment,
         vehicleEquipment: transformedVehicleEquipment,
@@ -1744,7 +1731,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             enslaved={fighterData.fighter?.enslaved}
             starved={fighterData.fighter?.starved}
             kills={fighterData.fighter?.kills || 0}
-            injuries={fighterData.fighter?.injuries || []}
+            effects={fighterData.fighter.effects || []}
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
@@ -1809,7 +1796,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           />
           
           <InjuriesList 
-            injuries={fighterData.fighter?.injuries || []}
+            injuries={fighterData.fighter?.effects.injuries || []}
             availableInjuries={availableInjuries}
             onDeleteInjury={handleDeleteInjury}
             fighterId={fighterData.fighter?.id || ''}

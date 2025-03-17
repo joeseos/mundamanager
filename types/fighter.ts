@@ -41,15 +41,35 @@ export interface WeaponProps {
   weapon_profiles: any[];
 }
 
-export interface Injury {
+export interface FighterEffectCategory {
   id: string;
-  injury_name: string;
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
-  acquired_at: string;
+  created_at: string; // Timestamp with timezone
+  updated_at: string | null; // Timestamp with timezone, can be null
+  category_name: string
 }
+
+export interface FighterEffectStatModifier {
+  id: string; // UUID
+  fighter_effect_id: string; // FK to FighterEffect
+  stat_name: string; // e.g., "intelligence ", "willpower "
+  numeric_value: number; // Positive for bonus, negative for penalty
+}
+
+
+export interface FighterEffect {
+  id: string; // UUID
+  effect_name: string; // e.g., "head injury"
+  type_specific_data?: string; // Optional text notes
+  created_at: string; // Timestamp with timezone
+  updated_at: string | null; // Timestamp with timezone, can be null
+  fighter_effect_categories: FighterEffectCategory;
+  fighter_effect_modifiers: FighterEffectStatModifier[]; // Note the property name change
+}
+
+export interface FighterEffects {
+  injuries: FighterEffect[];
+}
+
 
 export interface VehicleEquipmentProfile {
   id: string;
@@ -133,7 +153,10 @@ export interface FighterProps {
   free_skill?: boolean;
   fighter_class?: string;
   note?: string;
-  injuries: Injury[];
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   vehicles?: Vehicle[];
 }
 
@@ -152,3 +175,4 @@ export interface WeaponProfile {
   weapon_group_id: string;
   is_default_profile: boolean;
 }
+

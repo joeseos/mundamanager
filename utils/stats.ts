@@ -1,4 +1,4 @@
-import { FighterProps, Injury } from '@/types/fighter';
+import { FighterProps, FighterEffects, FighterEffect, FighterEffectStatModifier } from '@/types/fighter';
 
 export function calculateAdjustedStats(fighter: FighterProps) {
   // Start with base stats
@@ -18,43 +18,27 @@ export function calculateAdjustedStats(fighter: FighterProps) {
   };
 
   // Apply injury modifications first
-  if (fighter.injuries && fighter.injuries.length > 0) {
-    fighter.injuries.forEach((injury: Injury) => {
-      // Handle first characteristic
-      if (injury.code_1 && injury.characteristic_1) {
-        switch (injury.code_1) {
-          case 'M': adjustedStats.movement += injury.characteristic_1; break;
-          case 'WS': adjustedStats.weapon_skill += injury.characteristic_1; break;
-          case 'BS': adjustedStats.ballistic_skill += injury.characteristic_1; break;
-          case 'S': adjustedStats.strength += injury.characteristic_1; break;
-          case 'T': adjustedStats.toughness += injury.characteristic_1; break;
-          case 'W': adjustedStats.wounds += injury.characteristic_1; break;
-          case 'I': adjustedStats.initiative += injury.characteristic_1; break;
-          case 'A': adjustedStats.attacks += injury.characteristic_1; break;
-          case 'Ld': adjustedStats.leadership += injury.characteristic_1; break;
-          case 'Cl': adjustedStats.cool += injury.characteristic_1; break;
-          case 'Wil': adjustedStats.willpower += injury.characteristic_1; break;
-          case 'Int': adjustedStats.intelligence += injury.characteristic_1; break;
+  if (fighter.effects && fighter.effects.injuries && fighter.effects.injuries.length > 0) {
+    fighter.effects.injuries.forEach((injury: FighterEffect) => {
+      // Process all stat modifiers for this injury
+      if (injury.fighter_effect_modifiers && injury.fighter_effect_modifiers.length > 0)
+      injury.fighter_effect_modifiers.forEach((modifier: FighterEffectStatModifier) => {
+        // Convert stat_name to the corresponding adjustedStats property
+        switch (modifier.stat_name) {
+          case 'Movement': adjustedStats.movement += modifier.numeric_value; break;
+          case 'Weapon Skill': adjustedStats.weapon_skill += modifier.numeric_value; break;
+          case 'Ballistic Skill': adjustedStats.ballistic_skill += modifier.numeric_value; break;
+          case 'Strength': adjustedStats.strength += modifier.numeric_value; break;
+          case 'Toughness': adjustedStats.toughness += modifier.numeric_value; break;
+          case 'Wounds': adjustedStats.wounds += modifier.numeric_value; break;
+          case 'Initiative': adjustedStats.initiative += modifier.numeric_value; break;
+          case 'Attacks': adjustedStats.attacks += modifier.numeric_value; break;
+          case 'Leadership': adjustedStats.leadership += modifier.numeric_value; break;
+          case 'Cool': adjustedStats.cool += modifier.numeric_value; break;
+          case 'Willpower': adjustedStats.willpower += modifier.numeric_value; break;
+          case 'Intelligence': adjustedStats.intelligence += modifier.numeric_value; break;
         }
-      }
-      
-      // Handle second characteristic
-      if (injury.code_2 && injury.characteristic_2) {
-        switch (injury.code_2) {
-          case 'M': adjustedStats.movement += injury.characteristic_2; break;
-          case 'WS': adjustedStats.weapon_skill += injury.characteristic_2; break;
-          case 'BS': adjustedStats.ballistic_skill += injury.characteristic_2; break;
-          case 'S': adjustedStats.strength += injury.characteristic_2; break;
-          case 'T': adjustedStats.toughness += injury.characteristic_2; break;
-          case 'W': adjustedStats.wounds += injury.characteristic_2; break;
-          case 'I': adjustedStats.initiative += injury.characteristic_2; break;
-          case 'A': adjustedStats.attacks += injury.characteristic_2; break;
-          case 'Ld': adjustedStats.leadership += injury.characteristic_2; break;
-          case 'Cl': adjustedStats.cool += injury.characteristic_2; break;
-          case 'Wil': adjustedStats.willpower += injury.characteristic_2; break;
-          case 'Int': adjustedStats.intelligence += injury.characteristic_2; break;
-        }
-      }
+      });
     });
   }
 

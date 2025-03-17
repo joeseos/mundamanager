@@ -13,7 +13,7 @@ export async function DELETE(
   const supabase = createClient();
   const url = new URL(request.url);
   const injuryId = url.searchParams.get('injuryId');
-
+  console.log("route in fighters")
   try {
     if (injuryId) {
       // Delete specific injury
