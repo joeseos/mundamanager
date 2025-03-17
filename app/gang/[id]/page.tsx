@@ -118,48 +118,8 @@ async function processGangData(gangData: any) {
     };
   });
 
-  // Fetch fighter types
-  const supabase = createClient();
-  const response = await fetch(
-    'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-      },
-      body: JSON.stringify({
-        "p_gang_type_id": gangData.gang_type_id
-      })
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch fighter types');
-  }
-
-  const fighterTypes = await response.json();
-
-  // Map the fighter types to match the expected interface and sort by cost
-  const processedFighterTypes = (
-    fighterTypes
-      .map((type: FighterTypeResponse) => ({
-        id: type.id,
-        fighter_type_id: type.id,
-        fighter_type: type.fighter_type,
-        fighter_class: type.fighter_class,
-        cost: type.cost,
-        total_cost: type.total_cost,
-      })) as FighterType[]
-  ).sort((a, b) => {
-    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-
-    if (rankA !== rankB) {
-      return rankA - rankB; // Ascending order by rank
-    }
-    return (a.fighter_type || "").localeCompare(b.fighter_type || ""); // Secondary sorting: By fighter_type
-  });
+  // Remove the fighter types fetch and just initialize as empty array
+  const processedFighterTypes: FighterType[] = [];
   
   // init or fix positioning for all fighters
   let positioning = gangData.positioning || {};
@@ -218,6 +178,7 @@ async function processGangData(gangData: any) {
 
   // Update database if positions have changed
   if (positionsHaveChanged) {
+    const supabase = createClient();
     const { error } = await supabase
       .from('gangs')
       .update({ positioning })
