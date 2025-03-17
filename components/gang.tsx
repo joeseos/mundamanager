@@ -19,6 +19,7 @@ import { FighterType, EquipmentOption } from '@/types/fighter-type';
 import { createClient } from '@/utils/supabase/client';
 import { allianceRank } from "@/utils/allianceRank";
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
+import { fighterClassRank } from "@/utils/fighterClassRank";
 
 interface VehicleType {
   id: string;
@@ -64,7 +65,7 @@ interface GangProps {
   last_updated: string | Date | null;
   user_id: string;
   initialFighters: FighterProps[];
-  fighterTypes: FighterType[];
+  initialFighterTypes: FighterType[];
   additionalButtons?: React.ReactNode;
   campaigns?: {
     campaign_id: string;
@@ -100,7 +101,7 @@ export default function Gang({
   last_updated: initialLastUpdated,
   user_id,
   initialFighters = [],
-  fighterTypes,
+  initialFighterTypes = [],
   additionalButtons,
   campaigns,
   note,
@@ -153,6 +154,7 @@ export default function Gang({
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
   const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
+  const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -923,6 +925,55 @@ export default function Gang({
     );
   };
 
+  const handleAddFighterClick = async () => {
+    if (fighterTypes.length === 0) {
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({
+              "p_gang_type_id": gang_type_id
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch fighter types');
+        
+        const data = await response.json();
+        const processedTypes = data
+          .map((type: any) => ({
+            id: type.id,
+            fighter_type_id: type.id,
+            fighter_type: type.fighter_type,
+            fighter_class: type.fighter_class,
+            cost: type.cost,
+            total_cost: type.total_cost,
+          }))
+          .sort((a: FighterType, b: FighterType) => {
+            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            if (rankA !== rankB) return rankA - rankB;
+            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+          });
+
+        setFighterTypes(processedTypes);
+      } catch (error) {
+        console.error('Error fetching fighter types:', error);
+        toast({
+          description: "Failed to load fighter types",
+          variant: "destructive"
+        });
+        return; // Don't open modal if fetch failed
+      }
+    }
+    setShowAddFighterModal(true);
+  };
+
   return (
     <div className="space-y-4 print:space-y-[5px]">
       <div className="print:flex space-y-4 print:space-y-0">
@@ -1060,7 +1111,7 @@ export default function Gang({
             </div>
             <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
               <Button
-                onClick={() => setShowAddFighterModal(true)}
+                onClick={handleAddFighterClick}
                 className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
               >
                 Add Fighter

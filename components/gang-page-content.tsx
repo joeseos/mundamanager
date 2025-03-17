@@ -43,6 +43,7 @@ interface GangPageContentProps {
     stash: StashItem[];
     onStashUpdate?: (newStash: StashItem[]) => void;
     onVehicleAdd?: (newVehicle: VehicleProps) => void;
+    user_id?: string;
   };
 }
 
@@ -58,16 +59,15 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
   return (
     <div className="container max-w-full w-full space-y-4 print:print-fighters">
       <Gang
-        {...processedData}
-        rating={rating}
-        note={processedData.note}
-        initialFighters={fighters}
-        fighterTypes={processedData.fighterTypes}
-        campaigns={processedData.campaigns}
-        stash={processedData.stash || []}
-        onStashUpdate={gangData.onStashUpdate}
-        onFighterDeleted={handleFighterDeleted}
-        onVehicleAdd={gangData.onVehicleAdd}
+        {...{
+          ...processedData,
+          initialFighterTypes: processedData.fighterTypes,
+          initialFighters: processedData.fighters,
+          stash: gangData.stash,
+          onStashUpdate: gangData.onStashUpdate,
+          onVehicleAdd: gangData.onVehicleAdd,
+          user_id: processedData.user_id
+        }}
       />
     </div>
   );
