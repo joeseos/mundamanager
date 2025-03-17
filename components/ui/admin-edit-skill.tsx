@@ -190,12 +190,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
                     const selectedSkillType = selectedOption.getAttribute("data-skill-type") || "";
                     setSkillType(e.target.value);
                     searchSkillType(e.target.value);
-                    console.log("skill set name: "+ selectedSkillType);
                     setSkillTypeName(selectedSkillType);
+                    setSkillName("");
                   }
                 }
                 className="w-full p-2 border rounded-md"
-                disabled={skillTypeName !== ""}
               >
                 <option value="">Select a skill set</option>
 
@@ -231,9 +230,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
                   </optgroup>
                 ))}
               </select>
-              {skillTypeName !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
-              )}
             </div>
 
             <div className="col-span-1">
@@ -254,9 +250,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
                       </option>
                     ))}
               </select>
-              {skillTypeName !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
-              )}
             </div>
 
             <div>
@@ -273,7 +266,13 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
               <Input
                 type="text"
                 value={skillName == '' ? skillTypeName : skillName}
-                onChange={(e) => console.log(e.target.value)}
+                onChange={(e) => {
+                  if (skillName == '') {
+                    setSkillTypeName(e.target.value);
+                  } else {
+                    setSkillName(e.target.value);
+                  }
+                }}
                 placeholder=""
                 className="w-full"
                 disabled={skillName == '' && skillType == ''}
@@ -293,31 +292,31 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
+            disabled={!skillName || !skillType || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Renaming...' : 'Rename Skill'}
+            {isLoading ? 'Loading...' : 'Rename Skill'}
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
+            disabled={!skillName || !skillType || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Deleting...' : 'Delete Skill'}
+            {isLoading ? 'Loading...' : 'Delete Skill'}
           </Button>
            <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
+            disabled={ !!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Renaming...' : 'Rename Skill Set'}
+            {isLoading ? 'Loading...' : 'Rename Skill Set'}
           </Button>
           <Button
             onClick={handleSubmitType}
-            disabled={!skillTypeName || skillType !== '' || isLoading}
+            disabled={!!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Deleting...' : 'Delete Skill Set'}
+            {isLoading ? 'Loading...' : 'Delete Skill Set'}
           </Button>
         </div>
       </div>
