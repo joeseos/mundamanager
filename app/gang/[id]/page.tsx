@@ -244,7 +244,8 @@ async function processGangData(gangData: any) {
       status: campaign.status,
       has_meat: campaign.has_meat ?? false,
       has_exploration_points: campaign.has_exploration_points ?? false,
-      has_scavenging_rolls: campaign.has_scavenging_rolls ?? false
+      has_scavenging_rolls: campaign.has_scavenging_rolls ?? false,
+      territories: campaign.territories || []
     })),
     campaign_has_meat: gangData.campaigns?.[0]?.has_meat ?? false,
     campaign_has_exploration_points: gangData.campaigns?.[0]?.has_exploration_points ?? false,
@@ -288,6 +289,7 @@ interface GangDataState {
     vehicles: VehicleProps[];
     note?: string;
     positioning: Record<number, string>;
+    campaigns: any[];
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
@@ -458,7 +460,10 @@ export default function GangPage({ params }: { params: { id: string } }) {
         />
         <div className="bg-white shadow-md rounded-lg p-4">
           <h2 className="text-2xl font-bold mb-4">Territories</h2>
-          <GangTerritories gangId={params.id} />
+          <GangTerritories 
+            gangId={params.id} 
+            campaigns={gangData.processedData.campaigns || []} 
+          />
         </div>
         <GangNotes 
           gangId={params.id}

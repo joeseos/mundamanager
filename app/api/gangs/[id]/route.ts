@@ -6,14 +6,6 @@ enum GangAlignment {
   OUTLAW = 'Outlaw'
 }
 
-// Simplified Territory interface to match what we're actually using
-interface Territory {
-  id: string;
-  territory_name: string;
-  campaign_id?: string;
-  campaign_name?: string;
-}
-
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -21,69 +13,28 @@ export async function GET(
   const supabase = createClient();
 
   try {
-    // Get gang data with campaigns
+    // Get gang data with all related information
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select(`
         *,
-        campaigns:campaign_gangs(campaign_id, campaign:campaigns(id, campaign_name))
+        campaigns:campaign_gangs(
+          campaign_id, 
+          campaign_name,
+          role,
+          status,
+          has_meat,
+          has_exploration_points,
+          has_scavenging_rolls
+        )
       `)
       .eq('id', params.id)
       .single();
 
     if (gangError) throw gangError;
 
-    // Extract campaign IDs from the gang data
-    const campaignIds = gangData?.campaigns?.map((c: any) => c.campaign_id) || [];
-    
-    // Fetch territories where this gang is the controller and in the campaigns this gang is part of
-    let territories: Territory[] = [];
-    
-    if (campaignIds.length > 0) {
-      const { data: territoryData, error: territoryError } = await supabase
-        .from('campaign_territories')
-        .select(`
-          id, 
-          territory_name,
-          campaign_id
-        `)
-        .in('campaign_id', campaignIds)
-        .eq('gang_id', params.id);
-
-      if (territoryError) throw territoryError;
-      
-      // Process territories with basic information (no need for join that was causing errors)
-      territories = territoryData || [];
-      
-      // If we need campaign names, we could do a separate query to get them
-      if (territories.length > 0 && campaignIds.length > 0) {
-        const { data: campaignData, error: campaignError } = await supabase
-          .from('campaigns')
-          .select('id, campaign_name')
-          .in('id', campaignIds);
-          
-        if (!campaignError && campaignData) {
-          // Create a map of campaign_id to campaign_name for efficient lookup
-          const campaignMap = campaignData.reduce((map: {[key: string]: string}, camp: any) => {
-            map[camp.id] = camp.campaign_name;
-            return map;
-          }, {});
-          
-          // Add campaign names to the territories
-          territories = territories.map(territory => ({
-            ...territory,
-            campaign_name: campaignMap[territory.campaign_id || ''] || 'Unknown Campaign'
-          }));
-        }
-      }
-    }
-    
-    // No need for fallback query since we're now using the correct table
-
-    return NextResponse.json({ 
-      territories,
-      gang: gangData 
-    });
+    // Return the gang data directly - territories are now included in the gang details response
+    return NextResponse.json({ gang: gangData });
 
   } catch (error) {
     console.error('Error fetching gang data:', error);
