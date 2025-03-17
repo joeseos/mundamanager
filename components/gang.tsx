@@ -658,8 +658,9 @@ export default function Gang({
     </div>
   );
 
-  useEffect(() => {
-    const fetchGangAdditionTypes = async () => {
+  const handleGangAdditionsModalOpen = async () => {
+    // Only fetch if we haven't already loaded the gang addition types
+    if (gangAdditionTypes.length === 0) {
       try {
         const response = await fetch(
           'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
@@ -680,62 +681,15 @@ export default function Gang({
         setGangAdditionTypes(data);
       } catch (error) {
         console.error('Error fetching gang addition types:', error);
-      }
-    };
-
-    fetchGangAdditionTypes();
-  }, []);
-
-  useEffect(() => {
-    const fetchEquipmentNames = async () => {
-      if (!selectedGangAdditionTypeId) return;
-
-      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-      const defaultEquipment = selectedType?.equipment_selection?.weapons?.default;
-      const optionalEquipment = selectedType?.equipment_selection?.weapons?.options;
-
-      if (!defaultEquipment && !optionalEquipment) return;
-
-      try {
-        const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/equipment',
-          {
-            method: 'GET',
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch equipment');
-
-        const equipmentData = await response.json();
-        const names: Record<string, string> = {};
-
-        // Get names for default equipment
-        defaultEquipment?.forEach(item => {
-          const equipment = equipmentData.find((e: any) => e.id === item.id);
-          if (equipment) {
-            names[item.id] = equipment.equipment_name;
-          }
+        toast({
+          description: "Failed to load gang additions",
+          variant: "destructive"
         });
-
-        // Get names for optional equipment
-        optionalEquipment?.forEach(item => {
-          const equipment = equipmentData.find((e: any) => e.id === item.id);
-          if (equipment) {
-            names[item.id] = equipment.equipment_name;
-          }
-        });
-
-        setDefaultEquipmentNames(names);
-      } catch (error) {
-        console.error('Error fetching equipment names:', error);
+        return; // Don't open modal if fetch failed
       }
-    };
-
-    fetchEquipmentNames();
-  }, [selectedGangAdditionTypeId, gangAdditionTypes]);
+    }
+    setShowGangAdditionsModal(true);
+  };
 
   const handleAddVehicleModalOpen = async () => {
     // Only fetch if we haven't already loaded the vehicle types
@@ -1118,7 +1072,7 @@ export default function Gang({
                 Add Vehicle
               </Button>
               <Button
-                onClick={() => setShowGangAdditionsModal(true)}
+                onClick={handleGangAdditionsModalOpen}
                 className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
               >
                 Gang Additions
