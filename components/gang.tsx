@@ -659,22 +659,6 @@ export default function Gang({
   );
 
   useEffect(() => {
-    const fetchVehicleTypes = async () => {
-      try {
-        const response = await fetch(`/api/gangs/${id}/vehicles`);
-        if (!response.ok) throw new Error('Failed to fetch vehicle types');
-        const data = await response.json();
-        setVehicleTypes(data);
-      } catch (error) {
-        console.error('Error fetching vehicle types:', error);
-        setVehicleError('Failed to load vehicle types');
-      }
-    };
-
-    fetchVehicleTypes();
-  }, [id]);
-
-  useEffect(() => {
     const fetchGangAdditionTypes = async () => {
       try {
         const response = await fetch(
@@ -752,6 +736,23 @@ export default function Gang({
 
     fetchEquipmentNames();
   }, [selectedGangAdditionTypeId, gangAdditionTypes]);
+
+  const handleAddVehicleModalOpen = async () => {
+    // Only fetch if we haven't already loaded the vehicle types
+    if (vehicleTypes.length === 0) {
+      try {
+        const response = await fetch(`/api/gangs/${id}/vehicles`);
+        if (!response.ok) throw new Error('Failed to fetch vehicle types');
+        const data = await response.json();
+        setVehicleTypes(data);
+      } catch (error) {
+        console.error('Error fetching vehicle types:', error);
+        setVehicleError('Failed to load vehicle types');
+        return; // Don't open modal if fetch failed
+      }
+    }
+    setShowAddVehicleModal(true);
+  };
 
   const handleAddVehicle = async () => {
     if (!selectedVehicleTypeId) {
@@ -1111,7 +1112,7 @@ export default function Gang({
                 Add Fighter
               </Button>
               <Button
-                onClick={() => setShowAddVehicleModal(true)}
+                onClick={handleAddVehicleModalOpen}
                 className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
               >
                 Add Vehicle
