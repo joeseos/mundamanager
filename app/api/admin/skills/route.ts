@@ -84,3 +84,70 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function PATCH(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillData = await request.json();
+
+    const formattedData = {
+      name: skillData.name,
+      id: skillData.id,
+    };
+
+    const { data, error } = await supabase
+      .from('skills')
+      .update([formattedData])
+      .eq('id', formattedData.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error updating skill:', error);
+    return NextResponse.json(
+        {error: 'Failed to update skill'},
+        {status: 500}
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillData = await request.json();
+
+    const formattedData = {
+      id: skillData.id,
+    };
+
+    const { error } = await supabase
+      .from('skills')
+      .delete()
+      .eq('id', formattedData.id)
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    return NextResponse.json(
+        {error: 'Failed to delete skill'},
+        {status: 500}
+    );
+  }
+}

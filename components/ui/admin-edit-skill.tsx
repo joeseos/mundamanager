@@ -13,6 +13,7 @@ interface AdminEditSkillModalProps {
 
 export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
   const [skillName, setSkillName] = useState('');
+  const [skillId, setSkillId] = useState('');
   const [skillNameList, setSkillList] = useState<Array<{id: string, name: string}>>([]);
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
@@ -65,96 +66,156 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     }
   };
 
-  const handleSubmit = async () => {
-    if (!skillName || !skillType) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
+  const handleSubmitType = async (operation: OperationType) => {
+   // For POST and UPDATE operations, validate required fields.
+  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillType)) {
+    toast({
+      description: "Please fill in all required fields",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    let url = '/api/admin/skill-types';
+    let method: string;
+    let body: string | undefined;
+
+    switch (operation) {
+      case OperationType.POST:
+        method = 'POST';
+        body = JSON.stringify({
+          skill_type_name: skillTypeName,
+        });
+        break;
+      case OperationType.UPDATE:
+        method = 'PATCH';
+        body = JSON.stringify({
+          name: skillTypeName,
+          id: skillType,
+        });
+        break;
+      case OperationType.DELETE:
+        method = 'DELETE';
+        body = JSON.stringify({
+          id: skillType,
+        });
+        break;
+      default:
+        throw new Error('Invalid operation');
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/skills', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    }
+
+    toast({
+      description: `Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
+      variant: "default"
+    });
+
+    if (onSubmit) {
+      onSubmit();
+    }
+    onClose();
+  } catch (error) {
+    console.error(`Error executing ${operation} operation:`, error);
+    toast({
+      description: `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`,
+      variant: "destructive"
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  enum OperationType {
+  POST = 'POST',
+  UPDATE = 'UPDATE',
+  DELETE = 'DELETE'
+}
+
+const handleSubmitSkill = async (operation: OperationType) => {
+  // For POST and UPDATE operations, validate required fields.
+  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillName || !skillType)) {
+    toast({
+      description: "Please fill in all required fields",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    let url = '/api/admin/skills';
+    let method: string;
+    let body: string | undefined;
+
+    switch (operation) {
+      case OperationType.POST:
+        method = 'POST';
+        body = JSON.stringify({
           name: skillName,
           skill_type_id: skillType,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create skill');
-      }
-
-      toast({
-        description: "Skill created successfully",
-        variant: "default"
-      });
-
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-    } catch (error) {
-      console.error('Error creating skill:', error);
-      toast({
-        description: 'Failed to create skill',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmitType = async () => {
-    if (!skillTypeName) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
+        });
+        break;
+      case OperationType.UPDATE:
+        method = 'PATCH';
+        body = JSON.stringify({
+          name: skillName,
+          id: skillId,
+        });
+        break;
+      case OperationType.DELETE:
+        method = 'DELETE';
+        body = JSON.stringify({
+          id: skillId,
+        });
+        break;
+      default:
+        throw new Error('Invalid operation');
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/skill-types', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: skillTypeName
-        }),
-      });
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body,
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to create skill set');
-      }
-
-      toast({
-        description: "Skill set created successfully",
-        variant: "default"
-      });
-
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-    } catch (error) {
-      console.error('Error creating skill set:', error);
-      toast({
-        description: 'Failed to create skill set',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
-  };
+
+    toast({
+      description: `Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
+      variant: "default"
+    });
+
+    if (onSubmit) {
+      onSubmit();
+    }
+    onClose();
+  } catch (error) {
+    console.error(`Error executing ${operation} operation:`, error);
+    toast({
+      description: `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`,
+      variant: "destructive"
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div
@@ -189,9 +250,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
                     const selectedOption = e.target.options[selectedIndex];
                     const selectedSkillType = selectedOption.getAttribute("data-skill-type") || "";
                     setSkillType(e.target.value);
-                    searchSkillType(e.target.value);
-                    setSkillTypeName(selectedSkillType);
                     setSkillName("");
+                    if (e.target.value !== "") {
+                      searchSkillType(e.target.value);
+                    }
+                    setSkillTypeName(selectedSkillType);
                   }
                 }
                 className="w-full p-2 border rounded-md"
@@ -238,14 +301,18 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
               </label>
               <select
                 value={skillName}
-                onChange={(e) => setSkillName(e.target.value)}
+                onChange={(e) => {
+                  setSkillName(e.target.value);
+                  setSkillId(e.target.options[e.target.selectedIndex].getAttribute("data-skill-id") || "");
+                  }
+                }
 
                 className="w-full p-2 border rounded-md"
                 disabled={skillType == ""}
               >
                 <option value="">Select a skill</option>
                   {skillNameList.map((type) => (
-                      <option key={type.id} value={type.name}>
+                      <option key={type.id} value={type.name} data-skill-id={type.id}>
                         {type.name}
                       </option>
                     ))}
@@ -291,32 +358,32 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={ () => handleSubmitSkill(OperationType.UPDATE) }
             disabled={!skillName || !skillType || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Loading...' : 'Rename Skill'}
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => handleSubmitSkill(OperationType.DELETE) }
             disabled={!skillName || !skillType || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Loading...' : 'Delete Skill'}
           </Button>
            <Button
-            onClick={handleSubmit}
+            onClick={() => handleSubmitType(OperationType.UPDATE) }
             disabled={ !!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Loading...' : 'Rename Skill Set'}
+            {isLoading ? 'Loading...' : 'Rename Skill Type'}
           </Button>
           <Button
-            onClick={handleSubmitType}
+            onClick={() => handleSubmitType(OperationType.DELETE) }
             disabled={!!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Loading...' : 'Delete Skill Set'}
+            {isLoading ? 'Loading...' : 'Delete Skill Type'}
           </Button>
         </div>
       </div>
