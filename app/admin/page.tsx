@@ -241,7 +241,7 @@ export default function AdminPage() {
       title: "Edit Skill",
       description:"Edit a skill or skill set",
       action: () => setShowEditSkill(true),
-      icon: BookOpen
+      icon: Edit
     }
   ];
 
