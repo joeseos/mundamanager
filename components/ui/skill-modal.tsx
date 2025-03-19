@@ -158,7 +158,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
   const modalContent = (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Skill Set</label>
+        <label className="text-sm font-medium">Skill Type</label>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
