@@ -136,7 +136,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 });
     }
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('skills')
       .delete()
       .eq('id', body.id);

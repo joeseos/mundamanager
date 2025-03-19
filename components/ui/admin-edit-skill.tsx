@@ -240,7 +240,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
           <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Set *
+                Skill Type *
               </label>
               <select
                 value={skillType}

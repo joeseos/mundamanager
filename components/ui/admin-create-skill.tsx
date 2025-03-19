@@ -24,14 +24,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     const fetchSkillTypes = async () => {
       try {
         const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        if (!response.ok) throw new Error('Failed to fetch Skill Types');
         const data = await response.json();
-        console.log('Fetched skill sets:', data);
+        console.log('Fetched Skill Types:', data);
         setSkillTypes(data);
       } catch (error) {
-        console.error('Error fetching skill sets:', error);
+        console.error('Error fetching Skill Types:', error);
         toast({
-          description: 'Failed to load skill sets',
+          description: 'Failed to load Skill Types',
           variant: "destructive"
         });
       }
@@ -108,11 +108,11 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create skill set');
+        throw new Error('Failed to create Skill Type');
       }
 
       toast({
-        description: "Skill set created successfully",
+        description: "Skill Type created successfully",
         variant: "default"
       });
 
@@ -121,9 +121,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
       onClose();
     } catch (error) {
-      console.error('Error creating skill set:', error);
+      console.error('Error creating Skill Type:', error);
       toast({
-        description: 'Failed to create skill set',
+        description: 'Failed to create Skill Type',
         variant: "destructive"
       });
     } finally {
@@ -154,7 +154,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Set *
+                Skill Type *
               </label>
               <select
                 value={skillType}
@@ -162,7 +162,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 className="w-full p-2 border rounded-md"
                 disabled={skillTypeName !== ""}
               >
-                <option value="">Select a skill set</option>
+                <option value="">Select a skill type</option>
 
                 {Object.entries(
                   skillTypeList
@@ -197,7 +197,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 ))}
               </select>
               {skillTypeName !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Type Name field to select a Skill Type.</p>
               )}
             </div>
 
@@ -217,7 +217,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Set Name *
+                Skill Type Name *
               </label>
               <Input
                 type="text"
@@ -228,7 +228,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 disabled={skillType !== ''}
               />
               {skillType !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Type selection to enter a Skill Type Name.</p>
               )}
             </div>
           </div>
@@ -255,7 +255,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
             disabled={!skillTypeName || skillType !== '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Creating...' : 'Create Skill Set'}
+            {isLoading ? 'Creating...' : 'Create Skill Type'}
           </Button>
         </div>
       </div>

@@ -111,20 +111,21 @@ export async function DELETE(request: Request) {
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const skillTypeData = await request.json();
+    const body = await request.json();
 
-    const formattedData = {
-      id: skillTypeData.id,
-    };
+    if (!body.id) {
+      return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from('skill_types')
       .delete()
-      .eq('id', formattedData.id)
+      .eq('id', body.id)
 
     if (error) {
       throw error;
     }
+    return NextResponse.json({ success: true, message: 'Skill Type deleted successfully' });
   } catch (error) {
     console.error('Error deleting skill:', error);
     return NextResponse.json(
