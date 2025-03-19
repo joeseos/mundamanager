@@ -123,31 +123,34 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const supabase = createClient();
-
+  
   try {
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const skillData = await request.json();
-
-    const formattedData = {
-      id: skillData.id,
-    };
-
-    const { error } = await supabase
+    
+    const body = await request.json();
+    
+    if (!body.id) {
+      return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 });
+    }
+    
+    const { data, error } = await supabase
       .from('skills')
       .delete()
-      .eq('id', formattedData.id)
-
+      .eq('id', body.id);
+    
     if (error) {
       throw error;
     }
+    
+    return NextResponse.json({ success: true, message: 'Skill deleted successfully' });
   } catch (error) {
     console.error('Error deleting skill:', error);
     return NextResponse.json(
-        {error: 'Failed to delete skill'},
-        {status: 500}
+      { error: 'Failed to delete skill' }, 
+      { status: 500 }
     );
   }
 }
