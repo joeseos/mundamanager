@@ -479,7 +479,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
