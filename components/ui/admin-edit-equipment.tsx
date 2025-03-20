@@ -478,27 +478,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         throw new Error('Invalid category selected');
       }
 
-      const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          equipment_name: equipmentName,
-          trading_post_category: tradingPostCategory,
-          availability,
-          cost: parseInt(cost),
-          faction,
-          variants,
-          equipment_category: selectedCategory.category_name,
-          equipment_category_id: equipmentCategory,
-          equipment_type: equipmentType,
-          core_equipment: coreEquipment,
-          weapon_profiles: equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
+      const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
+      const hasEditedGangDiscounts = gangDiscounts.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
+
+      const requestBody = {
+        equipment_name: equipmentName,
+        trading_post_category: tradingPostCategory,
+        availability,
+        cost: parseInt(cost),
+        faction,
+        variants,
+        equipment_category: selectedCategory.category_name,
+        equipment_category_id: equipmentCategory,
+        equipment_type: equipmentType,
+        core_equipment: coreEquipment,
+        ...(equipmentType === 'weapon' ? { 
+          weapon_profiles: weaponProfiles.map(profile => ({
             ...profile,
             weapon_group_id: profile.weapon_group_id || selectedEquipmentId
-          })) : undefined,
-          vehicle_profiles: equipmentType === 'vehicle_upgrade' ? vehicleProfiles.map(profile => ({
+          }))
+        } : {}),
+        ...(equipmentType === 'vehicle_upgrade' ? { 
+          vehicle_profiles: vehicleProfiles.map(profile => ({
             profile_name: profile.profile_name,
             movement: profile.movement || null,
             front: profile.front || null,
@@ -508,13 +509,21 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             save: profile.save || null,
             upgrade_type: profile.upgrade_type || null,
             handling: profile.handling || null
-          })) : undefined,
-          fighter_types: selectedFighterTypes,
-          gang_discounts: gangDiscounts.map(d => ({
-            gang_type_id: d.gang_type_id,
-            discount: d.discount
           }))
-        }),
+        } : {}),
+        ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
+        ...(hasEditedGangDiscounts ? { gang_discounts: gangDiscounts.map(d => ({
+          gang_type_id: d.gang_type_id,
+          discount: d.discount
+        })) } : {})
+      };
+
+      const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
