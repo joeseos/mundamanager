@@ -538,11 +538,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
           <h2 className="text-2xl font-bold mb-4">Campaign Territories</h2>
           <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="w-1/2 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-                  <th className="w-1/2 px-4 py-2 text-left font-medium pl-24 whitespace-nowrap">Controlled by</th>
+                  <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                  <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
                   {isAdmin && (
                     <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
                   )}
@@ -560,10 +560,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                     .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
                     .map((territory) => (
                     <tr key={territory.id} className="border-b last:border-0">
-                      <td className="w-1/2 px-4 py-2 min-w-[200px]">
+                      <td className="w-2/5 px-4 py-2">
                         <span className="font-medium">{territory.territory_name}</span>
                       </td>
-                      <td className="w-1/2 px-4 py-2 pl-24 min-w-[200px]">
+                      <td className="w-3/5 px-4 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           {territory.owning_gangs?.map(gang => (
                             <div 
