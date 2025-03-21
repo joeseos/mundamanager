@@ -47,4 +47,9 @@ export interface FighterType {
   default_equipment: any[];
   is_gang_addition: boolean;
   equipment_selection?: EquipmentSelection;
+  sub_type?: {
+    id: string;
+    sub_type_name: string;
+  };
+  fighter_sub_type_id?: string;
 } 

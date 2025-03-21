@@ -163,6 +163,8 @@ export default function Gang({
   const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
   const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
+  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -256,11 +258,56 @@ export default function Gang({
   const handleFighterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const typeId = e.target.value;
     setSelectedFighterTypeId(typeId);
+    setSelectedSubTypeId(''); // Reset sub-type selection
+    
     if (typeId) {
+      // Get all fighters with this fighter_type name to check for sub-types
       const selectedType = fighterTypes.find(t => t.id === typeId);
-      setFighterCost(selectedType?.total_cost.toString() || '');
+      const fighterTypeGroup = fighterTypes.filter(t => 
+        t.fighter_type === selectedType?.fighter_type
+      );
+      
+      // If we have multiple entries with the same fighter_type, they have sub-types
+      if (fighterTypeGroup.length > 1) {
+        const subTypes = fighterTypeGroup.map(ft => ({
+          id: ft.id,
+          sub_type_name: ft.sub_type?.sub_type_name || 'Default',
+          cost: ft.total_cost
+        }));
+        
+        setAvailableSubTypes(subTypes);
+        
+        // Set cost to the lowest cost option initially
+        const lowestCostType = fighterTypeGroup.reduce(
+          (lowest, current) => 
+            current.total_cost < lowest.total_cost ? current : lowest, 
+          fighterTypeGroup[0]
+        );
+        
+        setFighterCost(lowestCostType.total_cost.toString() || '');
+      } else {
+        // No sub-types, just set the cost directly
+        setFighterCost(selectedType?.total_cost.toString() || '');
+        setAvailableSubTypes([]);
+      }
     } else {
       setFighterCost('');
+      setAvailableSubTypes([]);
+    }
+  };
+
+  const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const subTypeId = e.target.value;
+    setSelectedSubTypeId(subTypeId);
+    
+    if (subTypeId) {
+      // Set the fighter type ID to match the sub-type's ID
+      setSelectedFighterTypeId(subTypeId);
+      
+      const selectedType = fighterTypes.find(t => t.id === subTypeId);
+      if (selectedType) {
+        setFighterCost(selectedType.total_cost.toString() || '');
+      }
     }
   };
 
@@ -638,13 +685,58 @@ export default function Gang({
           className="w-full p-2 border rounded"
         >
           <option value="">Select fighter type</option>
-          {fighterTypes.map((type) => (
-            <option key={type.id} value={type.id}>
-              {type.fighter_type} ({type.fighter_class}) - {type.total_cost} credits
-            </option>
-          ))}
+          {/* Modified dropdown options to properly handle sub-types */}
+          {Array.from(new Set(fighterTypes.map(type => type.fighter_type))).map(uniqueType => {
+            // Find either the selected sub-type or the lowest cost type
+            const selectedSubType = selectedSubTypeId ? 
+              fighterTypes.find(t => t.id === selectedSubTypeId && t.fighter_type === uniqueType) : null;
+            
+            // If a sub-type is selected and it's for this fighter type, show that
+            if (selectedSubType) {
+              return (
+                <option key={selectedSubType.id} value={selectedSubType.id}>
+                  {uniqueType} ({selectedSubType.fighter_class}) - {selectedSubType.total_cost} credits
+                </option>
+              );
+            }
+            
+            // Otherwise show the lowest cost option for this fighter type
+            const lowestCostFighter = fighterTypes
+              .filter(ft => ft.fighter_type === uniqueType)
+              .reduce((lowest, current) => 
+                current.total_cost < lowest.total_cost ? current : lowest, 
+                fighterTypes.find(ft => ft.fighter_type === uniqueType)!
+              );
+            
+            return (
+              <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
+                {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
+              </option>
+            );
+          })}
         </select>
       </div>
+
+      {/* Conditionally show sub-type dropdown if there are available sub-types */}
+      {availableSubTypes.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Fighter Sub-Type
+          </label>
+          <select
+            value={selectedSubTypeId}
+            onChange={handleSubTypeChange}
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select fighter sub-type</option>
+            {availableSubTypes.map((subType) => (
+              <option key={subType.id} value={subType.id}>
+                {subType.sub_type_name} - {fighterTypes.find(ft => ft.id === subType.id)?.total_cost} credits
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
@@ -937,7 +1029,7 @@ export default function Gang({
     if (fighterTypes.length === 0) {
       try {
         const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
           {
             method: 'POST',
             headers: {
@@ -959,6 +1051,8 @@ export default function Gang({
             fighter_type_id: type.id,
             fighter_type: type.fighter_type,
             fighter_class: type.fighter_class,
+            sub_type: type.sub_type,
+            fighter_sub_type_id: type.fighter_sub_type_id,
             cost: type.cost,
             total_cost: type.total_cost,
           }))
@@ -1158,14 +1252,18 @@ export default function Gang({
               content={addFighterModalContent}
               onClose={() => {
                 setShowAddFighterModal(false);
+                // Reset all form fields
                 setFighterName('');
                 setSelectedFighterTypeId('');
+                setSelectedSubTypeId(''); // Reset sub-type selection
+                setAvailableSubTypes([]); // Clear available sub-types
                 setFighterCost('');
                 setFetchError(null);
               }}
               onConfirm={handleAddFighter}
               confirmText="Add Fighter"
-              confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost}
+              confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost || 
+                (availableSubTypes.length > 0 && !selectedSubTypeId)}
             />
           )}
 
