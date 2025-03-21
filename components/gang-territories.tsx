@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 interface Territory {
   id: string;
@@ -45,29 +47,66 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
   return (
     <div>
-      <div className="px-6 py-3 bg-gray-50">
-        <div className="text-sm font-medium text-gray-500">Territory Name</div>
-      </div>
       <div className="divide-y">
-        {territories.length > 0 ? (
-          territories.map((territory) => (
-            <div key={territory.id} className="px-6 py-3">
-              <div className="flex justify-between">
-                <div>
-                  {territory.territory_name}
-                  {territory.ruined && (
-                    <span className="ml-2 text-xs text-red-500">(Ruined)</span>
-                  )}
+        {campaigns.length > 0 ? (
+          [...campaigns]
+            .sort((a, b) => a.campaign_name.localeCompare(b.campaign_name))
+            .map((campaign) => (
+              <div key={campaign.campaign_id} className="mb-6">
+                {/* Campaign Header */}
+                <div className="text-gray-600 mb-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-1 text-sm">
+                      Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                        <Link href={`/campaigns/${campaign.campaign_id}`} className="flex items-center">
+                          {campaign.campaign_name}
+                        </Link>
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span>Role: {campaign.role ?? 'N/A'}</span>
+                      <span>Status: {campaign.status ?? 'Unknown'}</span>
+                      <span>Joined: {campaign.joined_at ?? 'Unknown'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {territory.campaign_name}
-                </div>
+
+                {/* Territories Table */}
+                {campaign.territories && campaign.territories.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-separate border-spacing-y-2">
+                      <thead className="text-sm text-gray-700 px-0 py-2">
+                        <tr>
+                          <th className="px-4 py-2 font-medium text-left">Territory</th>
+                          <th className="px-4 py-2 font-medium text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...campaign.territories]
+                          .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                          .map((territory) => (
+                            <tr key={territory.id}>
+                              <td className="px-4 py-2 text-left bg-gray-50 rounded-md">{territory.territory_name}</td>
+                              <td className="px-4 py-2 text-right bg-gray-50 rounded-md">
+                                {territory.ruined !== null && (
+                                  <span className={territory.ruined ? 'text-red-500' : 'text-green-600'}>
+                                    {territory.ruined ? 'Ruined' : 'Intact'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-gray-500 italic text-center">No territories controlled.</div>
+                )}
               </div>
-            </div>
-          ))
+            ))
         ) : (
           <div className="text-gray-500 italic text-center p-4">
-            No territories controlled.
+            No campaigns joined.
           </div>
         )}
       </div>
