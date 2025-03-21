@@ -533,6 +533,22 @@ gang_totals AS (
        AND gs.equipment_id IS NOT NULL
        GROUP BY gs.gang_id
    ),
+   campaign_territories AS (
+       SELECT 
+           ct.campaign_id,
+           json_agg(
+               json_build_object(
+                   'id', ct.id,
+                   'created_at', ct.created_at,
+                   'territory_id', ct.territory_id,
+                   'territory_name', ct.territory_name,
+                   'ruined', ct.ruined
+               )
+           ) as territories
+       FROM campaign_territories ct
+       WHERE ct.gang_id = p_gang_id
+       GROUP BY ct.campaign_id
+   ),
    gang_campaigns AS (
        SELECT 
            cg.gang_id,
@@ -547,7 +563,13 @@ gang_totals AS (
                    'invited_by', cg.invited_by,
                    'has_meat', c.has_meat,
                    'has_exploration_points', c.has_exploration_points,
-                   'has_scavenging_rolls', c.has_scavenging_rolls
+                   'has_scavenging_rolls', c.has_scavenging_rolls,
+                   'territories', COALESCE(
+                       (SELECT ct.territories 
+                        FROM campaign_territories ct 
+                        WHERE ct.campaign_id = c.id),
+                       '[]'::json
+                   )
                )
            ) as campaigns
        FROM campaign_gangs cg
