@@ -20,6 +20,7 @@ import { createClient } from '@/utils/supabase/client';
 import { allianceRank } from "@/utils/allianceRank";
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { GiAncientRuins } from "react-icons/gi";
 
 interface VehicleType {
   id: string;
@@ -74,6 +75,13 @@ interface GangProps {
     status: string | null;
     has_meat: boolean;
     has_exploration_points: boolean;
+    territories: {
+      id: string;
+      created_at: string;
+      territory_id: string;
+      territory_name: string;
+      ruined: boolean | null;
+      }[];
   }[];
   note?: string;
   stash: StashItem[];
@@ -1394,11 +1402,21 @@ export default function Gang({
 
             <div className="text-gray-600 mb-4">
               <div className="flex flex-wrap gap-4">
-                {campaigns?.[0] && (
-                  <div className="flex gap-1 items-center text-sm">
-                    Territories: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                      Placeholder
-                    </Badge>
+                {campaigns && campaigns[0]?.territories.length > 0 && (
+                  <div className="flex gap-1 items-center text-sm flex-wrap">
+                    Territories:
+                    {[...campaigns[0]?.territories]
+                      .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                      .map((territory) => (
+                        <Badge
+                          key={territory.id}
+                          variant="secondary"
+                          className="cursor-pointer hover:bg-secondary flex items-center gap-1"
+                        >
+                          {territory.territory_name}
+                          {territory.ruined && <GiAncientRuins className="text-red-500" />}
+                        </Badge>
+                      ))}
                   </div>
                 )}
               </div>
