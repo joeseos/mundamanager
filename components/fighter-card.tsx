@@ -296,6 +296,7 @@ const FighterCard = memo(function FighterCard({
           backgroundPosition: 'center',
           fontSize: 'calc(10px + 0.2vmin)'
         }}
+        {...(isInactive ? { id: "is_inactive" } : {})}
       >
         <div className="flex mb-2">
           <div className="flex w-full">
