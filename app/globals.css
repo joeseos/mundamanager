@@ -68,7 +68,7 @@
 
   @media print {
     @page {
-      margin: 6mm;  /* this affects the margin in the printer settings */
+      margin: 8mm;  /* this affects the margin in the printer settings */
     }
 
     .print-reset {

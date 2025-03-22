@@ -841,7 +841,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     {items.map(item => (
                       <div
                         key={item!.id}
-                        className="flex justify-between items-center gap-2 rounded text-sm bg-gray-100"
+                        className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
                       >
                         <span>{item!.equipment_name}</span>
                         <button

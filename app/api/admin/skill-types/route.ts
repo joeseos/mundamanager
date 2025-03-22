@@ -25,9 +25,9 @@ export async function GET() {
 
     return NextResponse.json(transformedData);
   } catch (error) {
-    console.error('Error fetching skill sets:', error);
+    console.error('Error fetching skill types:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch skill sets' },
+      { error: 'Failed to fetch skill types' },
       { status: 500 }
     );
   }
@@ -59,10 +59,78 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error creating skill set:', error);
+    console.error('Error creating skill type:', error);
     return NextResponse.json(
-      { error: 'Failed to create skill set' },
+      { error: 'Failed to create skill type' },
       { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const skillTypeData = await request.json();
+
+    const formattedData = {
+      name: skillTypeData.name,
+      id: skillTypeData.id,
+    };
+
+    const { data, error } = await supabase
+      .from('skill_types')
+      .update([formattedData])
+      .eq('id', formattedData.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error creating skill type:', error);
+    return NextResponse.json(
+      { error: 'Failed to create skill type' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const supabase = createClient();
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const body = await request.json();
+
+    if (!body.id) {
+      return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('skill_types')
+      .delete()
+      .eq('id', body.id)
+
+    if (error) {
+      throw error;
+    }
+    return NextResponse.json({ success: true, message: 'Skill Type deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    return NextResponse.json(
+        {error: 'Failed to delete skill'},
+        {status: 500}
     );
   }
 }

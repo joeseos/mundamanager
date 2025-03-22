@@ -16,6 +16,7 @@ import { fighterClassRank } from "@/utils/fighterClassRank";
 import { StashItem } from '@/types/gang';
 import GangVehicles from "@/components/gang-vehicles";
 import { VehicleProps } from '@/types/vehicle';
+import { toast } from "@/components/ui/use-toast";
 
 // Tab icons
 import { FaBox, FaUsers } from "react-icons/fa6";
@@ -289,6 +290,8 @@ interface GangDataState {
 
 export default function GangPage({ params }: { params: { id: string } }) {
   const [gangData, setGangData] = useState<GangDataState | null>(null);
+  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
+  const [showAddFighterModal, setShowAddFighterModal] = useState(false);
 
   // Memoize the callbacks
   const handleStashUpdate = useCallback((newStash: StashItem[]) => {
@@ -345,6 +348,57 @@ export default function GangPage({ params }: { params: { id: string } }) {
       };
     });
   }, []);
+
+  const handleAddFighterClick = async () => {
+    if (fighterTypes.length === 0) {
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({
+              "p_gang_type_id": gangData?.processedData.gang_type_id
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch fighter types');
+        
+        const data = await response.json();
+        const processedTypes = data
+          .map((type: any) => ({
+            id: type.id,
+            fighter_type_id: type.id,
+            fighter_type: type.fighter_type,
+            fighter_class: type.fighter_class,
+            sub_type: type.sub_type,
+            fighter_sub_type_id: type.fighter_sub_type_id,
+            cost: type.cost,
+            total_cost: type.total_cost,
+          }))
+          .sort((a: FighterType, b: FighterType) => {
+            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            if (rankA !== rankB) return rankA - rankB;
+            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+          });
+
+        setFighterTypes(processedTypes);
+      } catch (error) {
+        console.error('Error fetching fighter types:', error);
+        toast({
+          description: "Failed to load fighter types",
+          variant: "destructive"
+        });
+        return; // Don't open modal if fetch failed
+      }
+    }
+    setShowAddFighterModal(true);
+  };
 
   // Memoize the processed data for the GangPageContent
   const gangPageContentProps = useMemo(() => {
@@ -448,7 +502,7 @@ export default function GangPage({ params }: { params: { id: string } }) {
           onFighterUpdate={handleFighterUpdate}
         />
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-2xl font-bold mb-4">Territories</h2>
+          <h2 className="text-2xl font-bold mb-4">Campaign</h2>
           <GangTerritories 
             gangId={params.id} 
             campaigns={gangData.processedData.campaigns || []} 

@@ -34,6 +34,13 @@ interface GangPageContentProps {
       status: string | null;
       has_meat: boolean;
       has_exploration_points: boolean;
+      territories: {
+        id: string;
+        created_at: string;
+        territory_id: string;
+        territory_name: string;
+        ruined: boolean | null;
+        }[];
     }[];
     stash: StashItem[];
     positioning: Record<number, string>;

@@ -320,7 +320,8 @@ export async function PUT(request: Request) {
         equipment_category,
         equipment_category_id,
         equipment_type,
-        core_equipment
+        core_equipment,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id);
 
@@ -396,26 +397,60 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Update fighter type associations
-    if (fighter_types) {
-      const { error: deleteError } = await supabase
+    // More robust fighter type association handling
+    if (fighter_types !== undefined) {
+      console.log(`Updating fighter type associations for equipment ID: ${id}`);
+      
+      // First, get current associations to ensure we don't lose data
+      const { data: currentAssociations, error: fetchError } = await supabase
         .from('fighter_type_equipment')
-        .delete()
+        .select('fighter_type_id')
         .eq('equipment_id', id);
-
-      if (deleteError) throw deleteError;
-
-      if (fighter_types.length > 0) {
-        const { error: insertError } = await supabase
-          .from('fighter_type_equipment')
-          .insert(
-            fighter_types.map((fighter_type_id: string) => ({
-              fighter_type_id,
-              equipment_id: id
-            }))
-          );
-
-        if (insertError) throw insertError;
+      
+      if (fetchError) {
+        console.error('Error fetching current fighter type associations:', fetchError);
+        // Continue with the operation even if this check fails
+      }
+      
+      // Only proceed with deleting & updating if:
+      // 1. We successfully fetched the current associations
+      // 2. The new list is different from the current list
+      if (currentAssociations) {
+        const currentIds = currentAssociations.map(a => a.fighter_type_id);
+        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
+        
+        console.log(`Current associations: ${JSON.stringify(currentIds)}`);
+        console.log(`New associations: ${JSON.stringify(fighter_types)}`);
+        console.log(`Associations have changed: ${hasChanges}`);
+        
+        if (hasChanges) {
+          // Delete existing associations
+          const { error: deleteError } = await supabase
+            .from('fighter_type_equipment')
+            .delete()
+            .eq('equipment_id', id);
+          
+          if (deleteError) throw deleteError;
+          
+          // Insert new associations if there are any
+          if (fighter_types.length > 0) {
+            const { error: insertError } = await supabase
+              .from('fighter_type_equipment')
+              .insert(
+                fighter_types.map((fighter_type_id: string) => ({
+                  fighter_type_id,
+                  equipment_id: id,
+                  updated_at: new Date().toISOString()
+                }))
+              );
+            
+            if (insertError) throw insertError;
+          }
+        } else {
+          console.log('No changes to fighter type associations, preserving current data');
+        }
+      } else {
+        console.log(`fighter_types not provided, preserving existing associations for ID: ${id}`);
       }
     }
 
@@ -439,7 +474,250 @@ export async function PUT(request: Request) {
 
         if (gangTypesError) throw gangTypesError;
 
-        // In the PUT function, add proper typing for the gang type mapping
+        // Add proper typing for the gang type mapping
+        interface GangTypeData {
+          gang_type_id: string;
+          gang_type: string;
+        }
+
+        // Create a map of gang type names to IDs with proper typing
+        const gangTypeMap = new Map(
+          (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
+        );
+
+        // Add type for the discount in the map function
+        const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+          equipment_id: id,
+          gang_type_id: discount.gang_type_id,
+          discount: discount.discount.toString(),
+          fighter_type_id: null
+        }));
+
+        if (discountRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_discounts')
+            .insert(discountRecords);
+
+          if (insertError) throw insertError;
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('Error updating equipment:', error);
+    return NextResponse.json(
+      { 
+        error: 'Failed to update equipment',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const supabase = createClient();
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+
+  if (!id) {
+    return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
+  }
+
+  try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await request.json();
+    const {
+      equipment_name,
+      trading_post_category,
+      availability,
+      cost,
+      faction,
+      variants,
+      equipment_category,
+      equipment_category_id,
+      equipment_type,
+      core_equipment,
+      weapon_profiles,
+      vehicle_profiles,
+      fighter_types,
+      gang_discounts
+    } = data;
+
+    // Update equipment
+    const { error: equipmentError } = await supabase
+      .from('equipment')
+      .update({
+        equipment_name,
+        trading_post_category,
+        availability,
+        cost,
+        faction,
+        variants,
+        equipment_category,
+        equipment_category_id,
+        equipment_type,
+        core_equipment,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (equipmentError) throw equipmentError;
+
+    // Handle weapon profiles if this is a weapon
+    if (equipment_type === 'weapon' && weapon_profiles) {
+      // Delete existing profiles
+      const { error: deleteError } = await supabase
+        .from('weapon_profiles')
+        .delete()
+        .eq('weapon_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new profiles
+      if (weapon_profiles.length > 0) {
+        const { error: profilesError } = await supabase
+          .from('weapon_profiles')
+          .insert(
+            weapon_profiles.map((profile: WeaponProfile) => ({
+              weapon_id: id,
+              profile_name: profile.profile_name,
+              range_short: profile.range_short,
+              range_long: profile.range_long,
+              acc_short: profile.acc_short,
+              acc_long: profile.acc_long,
+              strength: profile.strength,
+              ap: profile.ap,
+              damage: profile.damage,
+              ammo: profile.ammo,
+              traits: profile.traits,
+              is_default_profile: profile.is_default_profile,
+              weapon_group_id: profile.weapon_group_id || id,
+              sort_order: profile.sort_order
+            }))
+          );
+
+        if (profilesError) throw profilesError;
+      }
+    }
+
+    // Handle vehicle profiles if this is a vehicle upgrade
+    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
+      // Delete existing vehicle profiles
+      const { error: deleteError } = await supabase
+        .from('vehicle_equipment_profiles')
+        .delete()
+        .eq('equipment_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new vehicle profiles
+      if (vehicle_profiles.length > 0) {
+        const { error: profilesError } = await supabase
+          .from('vehicle_equipment_profiles')
+          .insert(
+            vehicle_profiles.map((profile: VehicleProfile) => ({
+              equipment_id: id,
+              profile_name: profile.profile_name,
+              movement: profile.movement,
+              front: profile.front,
+              side: profile.side,
+              rear: profile.rear,
+              hull_points: profile.hull_points,
+              save: profile.save,
+              handling: profile.handling,
+              upgrade_type: profile.upgrade_type
+            }))
+          );
+
+        if (profilesError) throw profilesError;
+      }
+    }
+
+    // More robust fighter type association handling
+    if (fighter_types !== undefined) {
+      console.log(`Updating fighter type associations for equipment ID: ${id}`);
+      
+      // First, get current associations to ensure we don't lose data
+      const { data: currentAssociations, error: fetchError } = await supabase
+        .from('fighter_type_equipment')
+        .select('fighter_type_id')
+        .eq('equipment_id', id);
+      
+      if (fetchError) {
+        console.error('Error fetching current fighter type associations:', fetchError);
+        // Continue with the operation even if this check fails
+      }
+      
+      // Only proceed with deleting & updating if:
+      // 1. We successfully fetched the current associations
+      // 2. The new list is different from the current list
+      if (currentAssociations) {
+        const currentIds = currentAssociations.map(a => a.fighter_type_id);
+        const hasChanges = JSON.stringify(currentIds.sort()) !== JSON.stringify([...fighter_types].sort());
+        
+        console.log(`Current associations: ${JSON.stringify(currentIds)}`);
+        console.log(`New associations: ${JSON.stringify(fighter_types)}`);
+        console.log(`Associations have changed: ${hasChanges}`);
+        
+        if (hasChanges) {
+          // Delete existing associations
+          const { error: deleteError } = await supabase
+            .from('fighter_type_equipment')
+            .delete()
+            .eq('equipment_id', id);
+          
+          if (deleteError) throw deleteError;
+          
+          // Insert new associations if there are any
+          if (fighter_types.length > 0) {
+            const { error: insertError } = await supabase
+              .from('fighter_type_equipment')
+              .insert(
+                fighter_types.map((fighter_type_id: string) => ({
+                  fighter_type_id,
+                  equipment_id: id,
+                  updated_at: new Date().toISOString()
+                }))
+              );
+            
+            if (insertError) throw insertError;
+          }
+        } else {
+          console.log('No changes to fighter type associations, preserving current data');
+        }
+      } else {
+        console.log(`fighter_types not provided, preserving existing associations for ID: ${id}`);
+      }
+    }
+
+    // Handle gang discounts
+    if (gang_discounts) {
+      // First, delete existing discounts for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_discounts')
+        .delete()
+        .eq('equipment_id', id)
+        .is('fighter_type_id', null); // Only delete gang-level discounts
+
+      if (deleteError) throw deleteError;
+
+      // If there are new discounts to add
+      if (gang_discounts.length > 0) {
+        // First get the gang type IDs
+        const { data: gangTypes, error: gangTypesError } = await supabase
+          .from('gang_types')
+          .select('gang_type_id, gang_type');
+
+        if (gangTypesError) throw gangTypesError;
+
+        // Add proper typing for the gang type mapping
         interface GangTypeData {
           gang_type_id: string;
           gang_type: string;
