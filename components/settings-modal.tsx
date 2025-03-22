@@ -13,6 +13,8 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
+import Modal from "@/components/modal";
+import { Input } from "@/components/ui/input";
 
 // Icons
 import { Settings, LogOut, User, Bell, Info, Menu } from 'lucide-react';
@@ -28,6 +30,59 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printOptions, setPrintOptions] = useState({
+    includeGangCard: true,
+    includeAdditionalDetails: true,
+    includeInactiveFighters: true,
+  });
+
+  const printModalContent = (
+    <div className="space-y-4">
+      <div className="block text-sm font-medium text-gray-700">Included features</div>
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="includeGangCard"
+          checked={printOptions.includeGangCard}
+          onChange={(e) =>
+            setPrintOptions(prev => ({ ...prev, includeGangCard: e.target.checked }))
+          }
+        />
+        <label htmlFor="includeGangCard" className="text-sm">
+          Gang Card
+        </label>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="includeAdditionalDetails"
+          checked={printOptions.includeAdditionalDetails}
+          onChange={(e) =>
+            setPrintOptions(prev => ({ ...prev, includeAdditionalDetails: e.target.checked }))
+          }
+        />
+        <label htmlFor="includeAdditionalDetails" className="text-sm">
+          Gang Additional Details
+        </label>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="includeInactiveFighters"
+          checked={printOptions.includeInactiveFighters}
+          onChange={(e) =>
+            setPrintOptions(prev => ({ ...prev, includeInactiveFighters: e.target.checked }))
+          }
+        />
+        <label htmlFor="includeInactiveFighters" className="text-sm">
+          Inactive Fighters
+        </label>
+      </div>
+    </div>
+  );
 
   const handleLogout = async () => {
     setOpen(false);
@@ -99,7 +154,10 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           </Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem asChild onClick={() => Promise.resolve().then(() => window.print())}>
+        <DropdownMenuItem asChild onClick={() => {
+          setOpen(false);
+          setShowPrintModal(true);
+        }}>
           <div className="w-full cursor-pointer">
             <FiPrinter className="mr-2 h-4 w-4" />
             Print
@@ -135,6 +193,41 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
+
+      {showPrintModal && (
+        <Modal
+          title="Print Options"
+          content={printModalContent}
+          onClose={() => setShowPrintModal(false)}
+          onConfirm={() => {
+            setShowPrintModal(false);
+
+            const gangCard = document.getElementById('gang_card');
+            const details = document.getElementById('gang_card_additional_details');
+            const inactiveFighters = document.querySelectorAll('#is_inactive');
+
+            if (gangCard) gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
+            if (details) details.style.display = printOptions.includeAdditionalDetails ? '' : 'none';
+            inactiveFighters.forEach(el => {
+              (el as HTMLElement).style.display = printOptions.includeInactiveFighters ? '' : 'none';
+            });
+
+            // Delay print slightly to let DOM update
+            setTimeout(() => {
+              window.print();
+
+              // Reset visibility after print
+              if (gangCard) gangCard.style.display = '';
+              if (details) details.style.display = '';
+              inactiveFighters.forEach(el => {
+                (el as HTMLElement).style.display = '';
+              });
+            }, 100);
+          }}
+          confirmText="Print"
+        />
+      )}
+
     </DropdownMenu>
   );
 } 
