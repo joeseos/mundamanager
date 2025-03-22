@@ -197,6 +197,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
       {showPrintModal && (
         <Modal
           title="Print Options"
+          helper="The options below apply only when printing a Gang page."
           content={printModalContent}
           onClose={() => setShowPrintModal(false)}
           onConfirm={() => {
