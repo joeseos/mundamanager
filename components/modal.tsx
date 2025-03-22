@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 
 interface ModalProps {
   title: React.ReactNode;
+  helper?: string;
   content?: React.ReactNode;
   children?: React.ReactNode;
   onClose: () => void;
@@ -14,7 +15,8 @@ interface ModalProps {
 }
 
 export default function Modal({ 
-  title, 
+  title,
+  helper,
   content,
   children,
   onClose, 
@@ -50,7 +52,12 @@ export default function Modal({
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
+            {helper && (
+              <p className="text-sm text-gray-500">{helper}</p>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             {headerContent}
             <button
