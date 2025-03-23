@@ -25,12 +25,14 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
     cursor: dndKitIsDragging ? 'grabbing' : 'grab',
     touchAction: 'manipulation',
     WebkitTouchCallout: 'none',
     WebkitUserSelect: 'none',
+    zIndex: dndKitIsDragging ? 50 : 'auto',
+    position: 'relative',
   } as const;
 
   // Update isDragging when dndKitIsDragging changes
@@ -39,14 +41,14 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
   }, [dndKitIsDragging]);
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
-      {...attributes} 
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
       {...listeners}
     >
-      <FighterCard 
-        {...fighter} 
+      <FighterCard
+        {...fighter}
         name={fighter.fighter_name}
         type={fighter.fighter_type}
         disableLink={isDragging}
