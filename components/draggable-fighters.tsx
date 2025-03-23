@@ -25,7 +25,7 @@ export function DraggableFighters({
 
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 1000,
+      delay: 750,
       tolerance: 5,
     },
   });
