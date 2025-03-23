@@ -18,7 +18,11 @@ export function DraggableFighters({
   initialPositions
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
-  
+  const sortedFighters = Object.entries(currentPositions)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([_, id]) => fighters.find(f => f.id === id))
+    .filter(Boolean) as FighterProps[]; // Filter out undefined and null values
+
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
       delay: 1000,
@@ -123,14 +127,13 @@ export function DraggableFighters({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      
     >
-      <SortableContext 
-        items={fighters.map(f => f.id)}
+      <SortableContext
+        items={sortedFighters.map(f => f.id)}
         strategy={verticalListSortingStrategy}
       >
-        <MyFighters 
-          fighters={fighters} 
+        <MyFighters
+          fighters={sortedFighters}
           positions={currentPositions}
         />
       </SortableContext>
