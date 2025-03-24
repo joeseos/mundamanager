@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
-import { FighterStatsTable } from './ui/fighter-stats-table';
+import { FighterDetailsStatsTable } from './ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, Injury } from '@/types/fighter';
@@ -338,7 +338,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         )}
       </div>
       <div className="mt-4">
-        <FighterStatsTable data={stats} isCrew={isCrew} />
+        <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
     </div>
   );

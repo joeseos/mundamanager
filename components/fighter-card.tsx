@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { StatsTable } from './ui/table';
+import { StatsTable, StatsType } from './ui/fighter-card-stats-table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
@@ -12,7 +12,6 @@ import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
 import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
-import { StatsType } from './ui/table';  // Add this import
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
   name: string;  // maps to fighter_name
