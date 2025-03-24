@@ -69,7 +69,7 @@ type StatKey = keyof CrewStats | keyof FighterStats;
 
 export function StatsTable({ data, isCrew }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
-    return <p>No stats available</p>;
+    return <p>No characteristics available</p>;
   }
 
   // Define the order of stats based on fighter type

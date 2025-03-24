@@ -1,18 +1,19 @@
 import React from 'react';
+import { fighterCharacteristicLimits, crewCharacteristicLimits } from '@/utils/characteristicLimits';
 
 const formatStatValue = (key: string, value: number | string) => {
   if (key === 'BS' && value === '0+') return '-';
   return value;
 };
 
-interface FighterStatsTableProps {
+interface FighterDetailsStatsTableProps {
   data?: Record<string, number | string>;
   isCrew?: boolean;
 }
 
-export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
+export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
-    return <p>No stats available</p>;
+    return <p>No characteristics available</p>;
   }
 
   // Define the order of stats based on fighter type
@@ -38,8 +39,7 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
       if (key === 'BS') return 'border-l-[1px] border-[#a05236]';
     } else {
       if (key === 'Ld') return 'border-l-[1px] border-[#a05236]';
-      }
-
+    }
     if (key === 'XP') return 'border-l-[1px] border-[#a05236]';
     return '';
   };
@@ -51,6 +51,24 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
       ...acc,
       [key]: data[key],
     }), {} as Record<string, number | string>);
+
+  const parseValue = (val: string | number): number => {
+    if (typeof val === 'number') return val;
+    if (val.endsWith('"')) return parseInt(val); // Movement
+    if (val.endsWith('+')) return parseInt(val); // Characteristic tests
+    return parseInt(val); // Assume fallback
+  };
+
+  const isStatOutOfRange = (key: string, value: number | string): boolean => {
+    const limits = (isCrew ? crewCharacteristicLimits : fighterCharacteristicLimits)[key];
+    if (!limits) return false;
+
+    const valNum = parseValue(value);
+    const min = parseValue(limits[0]);
+    const max = parseValue(limits[1]);
+
+    return valNum < min || valNum > max;
+  };
 
   return (
     <div className="w-full">
@@ -72,9 +90,7 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
                 key={key}
                 className={`font-semibold text-center p-1 border-b-[1px] border-[#a05236]
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
               >
@@ -98,11 +114,10 @@ export function FighterStatsTable({ data, isCrew }: FighterStatsTableProps) {
                 key={key}
                 className={`text-center p-1
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
-                  ${getColumnBorderClass(key)}`}
+                  ${getColumnBorderClass(key)}
+                  ${isStatOutOfRange(key, value) ? 'text-red-500 font-semibold' : ''}`}
               >
                 {formatStatValue(key, value)}
               </td>
