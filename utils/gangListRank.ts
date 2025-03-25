@@ -18,10 +18,6 @@ export const gangListRank: { [key: string]: number } = {
   "malstrain genestealers": 32,
   "slave ogryns": 33,
   "spyre hunting party": 34,
-  "venators": 35,
-  //
-  "underhive outcasts (custom leader)": 40,
-  "underhive outcasts (delegation leader)": 41,
-  "underhive outcasts (elevated leader)": 42,
-  "underhive outcasts (mutant leader)": 43,
+  "underhive outcasts": 35,
+  "venators": 36,
 };
