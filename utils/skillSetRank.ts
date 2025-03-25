@@ -31,7 +31,8 @@ export const skillSetRank: { [key: string]: number } = {
   //
   "chaos cult wyrd powers": 60,
   "genestealer cult wyrd powers": 61,
-  "ogryn wyrd powers": 62,
+  "malstrain wyrd powers": 62,
+  "ogryn wyrd powers": 63,
   //
   "madness": 70,
   "darkness": 71,
