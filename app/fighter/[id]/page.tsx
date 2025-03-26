@@ -28,18 +28,6 @@ const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
   ssr: false
 });
 
-// Add StatChange interface
-interface StatChange {
-  id: string;
-  applied_at: string;
-  stat_change_type_id: string;
-  stat_change_name: string;
-  xp_spent: number;
-  changes: {
-    [key: string]: number;
-  };
-}
-
 interface Weapon {
   cost: number;
   weapon_id: string;
@@ -55,17 +43,6 @@ interface Wargear {
   fighter_weapon_id: string;
 }
 
-interface CharacteristicData {
-  id: string;
-  current_value: number;
-  times_increased: number;
-  xp_cost: number;
-  cost: number;
-  credits_increase: number;
-  characteristic_value: number;
-  acquired_at: string;
-}
-
 interface Campaign {
   campaign_id: string;
   campaign_name: string;
@@ -75,8 +52,6 @@ interface Campaign {
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
 }
-
-
 
 interface Fighter {
   id: string;
@@ -103,57 +78,28 @@ interface Fighter {
   intelligence: number;
   xp: number | null;
   total_xp: number | null;
-  fighter_changes?: {
-    advancement?: StatChange[];
-  };
   weapons: Weapon[];
   wargear: Wargear[];
   gang_id: string;
-  advancement_credits: number;
-  advancements: {
-    characteristics: {
-      [key: string]: CharacteristicData;
-    };
-    skills: {
-      [key: string]: {
-        id: string;
-        credits_increase: number;
-        xp_cost: number;
-        acquired_at: string;
-      };
-    };
-  };
-  killed: boolean;
-  retired: boolean;
-  enslaved: boolean;
-  starved: boolean;
-  free_skill: boolean;
-  characteristics: Array<{
-    id: string;
-    created_at: string;
-    updated_at: string;
-    code: string;
-    times_increased: number;
-    characteristic_name: string;
-    credits_increase: number;
-    xp_cost: number;
-    characteristic_value: number;
-    acquired_at: string;
-  }>;
   skills: Array<Skill>;
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
-  }
+  };
   note?: string;
   kills: number;
   cost_adjustment: number;
   base_credits: number;
   fighter_class: string;
+  killed: boolean;
+  retired: boolean;
+  enslaved: boolean;
+  starved: boolean;
+  free_skill: boolean;
   vehicles?: Array<{
     id: string;
     vehicle_type_id: string;
-    vehicle_type: string;  // Add this line
+    vehicle_type: string;
     movement: number;
     front: number;
     side: number;
@@ -189,20 +135,11 @@ interface Gang {
   gang_type_id: string;
 }
 
-interface Advancement {
-  id: string;
-  advancement_name: string;
-  description: string;
-  cost: number;
-  created_at: string;
-}
-
 // First, define our consolidated state interfaces
 interface FighterPageState {
   fighter: Fighter | null;
   equipment: Equipment[];
   vehicleEquipment: VehicleEquipment[];
-  advancements: Advancement[];
   gang: Gang | null;
   gangFighters: {
     id: string;
@@ -238,27 +175,12 @@ interface EditState {
   xpError: string;
 }
 
-
-// First, let's define an interface for the characteristic structure
-interface FighterCharacteristic {
-  id: string;
-  characteristic_name: string;
-  characteristic_value: number;
-  credits_increase: number;
-  xp_cost: number;
-  acquired_at: string;
-  code: string;
-  times_increased: number;
-}
-
-
 export default function FighterPage({ params }: { params: { id: string } }) {
   // Replace multiple state declarations with consolidated state
   const [fighterData, setFighterData] = useState<FighterPageState>({
     fighter: null,
     equipment: [],
     vehicleEquipment: [],
-    advancements: [],
     gang: null,
     gangFighters: []
   });
@@ -321,11 +243,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   // Add function to fetch available injuries
   const fetchAvailableInjuries = useCallback(async () => {
-    
     try {
       const response = await fetch(
-       `/api/fighters//injuries`,
-         {
+        `/api/fighters/injuries`,
+        {
           method: 'GET',
           headers: {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
@@ -412,17 +333,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
           gang_id: result.gang.id,
           gang_type_id: result.gang.gang_type_id,
-          characteristics: result.fighter.characteristics || [],
-          skills: result.fighter.skills || {},
-          advancements: {
-            characteristics: result.fighter.characteristics?.reduce((acc: Record<string, FighterCharacteristic>, char: FighterCharacteristic) => ({
-              ...acc,
-              [char.characteristic_name]: char
-            }), {}) || {},
-            skills: result.fighter.skills || {}
-          },
-          vehicles: result.fighter.vehicles,
-          injuries: result.fighter.effects.injuries
+          skills: result.fighter.skills || [],
+          effects: result.fighter.effects || { injuries: [], advancements: [] }
         },
         equipment: transformedEquipment,
         vehicleEquipment: transformedVehicleEquipment,
@@ -814,8 +726,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     setEditState(prev => ({ ...prev, xpAmount: totalXpFromCheckboxes === 0 ? "" : String(totalXpFromCheckboxes) }));
   }, [totalXpFromCheckboxes, setEditState]);
 
-  const handleAdvancementAdded = async (remainingXp: number, creditsIncrease: number) => {
-    await fetchFighterData();
+  const handleAdvancementAdded = () => {
+    // Simply call fetchFighterData (not refreshFighterData)
+    fetchFighterData();
   };
 
   const handleKillFighter = useCallback(async () => {
@@ -1037,20 +950,20 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_fighter_skill`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            fighter_skill_id: skillId
-          })
-        }
-      );
+      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+      
+      const response = await fetch(rpcEndpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          input_fighter_id: params.id,
+          fighter_skill_id: skillId
+        })
+      });
 
       if (!response.ok) {
         throw new Error('Failed to delete skill');
@@ -1075,17 +988,20 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_injuries?id=eq.${injuryId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-        }
-      );
+      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+      
+      const response = await fetch(rpcEndpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          input_fighter_id: params.id,
+          fighter_effect_id: injuryId
+        })
+      });
 
       if (!response.ok) {
         throw new Error('Failed to delete injury');
@@ -1549,6 +1465,61 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     }
   }, [fighterData.fighter, vehicleTypeIdMap]);
 
+  const handleDeleteAdvancement = async (advancementId: string) => {
+    setFighterData(prev => {
+      if (!prev.fighter) return prev;
+      
+      // Create new fighter state with filtered advancements
+      return {
+        ...prev,
+        fighter: {
+          ...prev.fighter,
+          effects: {
+            ...prev.fighter.effects,
+            advancements: prev.fighter.effects.advancements.filter(
+              adv => adv.id !== advancementId
+            )
+          }
+        }
+      };
+    });
+  };
+
+  // Safely convert skills to the expected format for AdvancementsList component
+  const getSkillsForAdvancements = () => {
+    const skills = fighterData.fighter?.skills;
+    
+    // If skills is already a Record/object with string keys
+    if (skills && typeof skills === 'object' && !Array.isArray(skills)) {
+      return skills;
+    }
+    
+    // If skills is an array, convert it to a Record
+    if (Array.isArray(skills)) {
+      return skills.reduce((acc, skill) => {
+        if (skill && skill.name) {
+          acc[skill.name] = {
+            id: skill.id,
+            credits_increase: skill.credits_increase,
+            xp_cost: skill.xp_cost,
+            is_advance: skill.is_advance,
+            acquired_at: skill.acquired_at
+          };
+        }
+        return acc;
+      }, {} as Record<string, {
+        id: string;
+        credits_increase: number;
+        xp_cost?: number;
+        is_advance: boolean;
+        acquired_at: string;
+      }>);
+    }
+    
+    // Default to empty object if skills is undefined or null
+    return {};
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1614,7 +1585,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             intelligence={fighterData.fighter?.intelligence}
             xp={fighterData.fighter?.xp}
             total_xp={fighterData.fighter?.total_xp}
-            advancements={fighterData.fighter?.advancements}
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
             onEdit={handleEditClick}
@@ -1623,7 +1593,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             enslaved={fighterData.fighter?.enslaved}
             starved={fighterData.fighter?.starved}
             kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter.effects || []}
+            effects={fighterData.fighter.effects || { injuries: [], advancements: [] }}
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
@@ -1681,10 +1651,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           />
           
           <AdvancementsList
+            advancements={fighterData.fighter?.effects?.advancements || []}
+            skills={getSkillsForAdvancements()}
+            fighterId={params.id}
             fighterXp={fighterData.fighter?.xp || 0}
-            fighterChanges={fighterData.fighter}
-            fighterId={fighterData.fighter?.id || ''}
-            onAdvancementDeleted={fetchFighterData}
+            onDeleteAdvancement={handleDeleteAdvancement}
+            onAdvancementAdded={handleAdvancementAdded}
           />
           
           <InjuriesList 

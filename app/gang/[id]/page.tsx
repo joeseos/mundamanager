@@ -117,6 +117,7 @@ async function processGangData(gangData: any) {
         willpower: fighter.willpower,
         intelligence: fighter.intelligence
       },
+      skills: fighter.skills || {},
       effects: fighter.effects || { injuries: [], advancements: [] },
       weapons: validEquipment
         .filter((item: Equipment) => item.equipment_type === 'weapon')

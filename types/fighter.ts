@@ -153,7 +153,7 @@ export interface FighterProps {
   gang_id?: string;
   advancements: {
     characteristics: Record<string, any>;
-    skills: Skill;
+    skills: Record<string, Skill>;
   };
   weapons: WeaponProps[];
   wargear: WargearItem[];
@@ -202,6 +202,15 @@ export interface FighterProps {
     willpower: number;
     intelligence: number;
   };
+
+  skills?: Array<Skill> | Record<string, {
+    id: string;
+    credits_increase: number;
+    xp_cost: number;
+    is_advance: boolean;
+    acquired_at: string;
+    fighter_injury_id?: string | null;
+  }>;
 }
 
 export interface WeaponProfile {

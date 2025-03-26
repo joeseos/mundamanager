@@ -25,6 +25,14 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   starved?: boolean;
   free_skill?: boolean;
   kills: number;  // Required property
+  skills?: Record<string, {
+    id: string;
+    credits_increase: number;
+    xp_cost: number;
+    is_advance: boolean;
+    acquired_at: string;
+    fighter_injury_id?: string | null;
+  }>;
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
@@ -120,6 +128,7 @@ const FighterCard = memo(function FighterCard({
   starved,
   free_skill,
   kills = 0,  // Default value
+  skills = {},  // Add default value
   effects,
   note,
   vehicle,
@@ -201,6 +210,17 @@ const FighterCard = memo(function FighterCard({
     intelligence,
     xp,
     kills,
+    skills: typeof skills === 'object' && skills 
+      ? Object.entries(skills).map(([name, data]) => ({
+          id: data.id,
+          name,
+          xp_cost: data.xp_cost,
+          credits_increase: data.credits_increase,
+          is_advance: data.is_advance,
+          acquired_at: data.acquired_at,
+          fighter_injury_id: data.fighter_injury_id || null
+        }))
+      : [],
     advancements: {
       characteristics: advancements?.characteristics || {},
       skills: advancements?.skills || {}
@@ -241,7 +261,7 @@ const FighterCard = memo(function FighterCard({
     id, name, type, fighter_class, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
-    kills, advancements, weapons, wargear, special_rules, effects
+    kills, advancements, weapons, wargear, special_rules, effects, skills
   ]);
 
   // Replace adjustedStats with modifiedStats
@@ -452,15 +472,23 @@ const FighterCard = memo(function FighterCard({
                 </>
               )}
 
-              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
+              {/* Display skills from both advancements and the new skills structure */}
+              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || 
+                (skills && Object.keys(skills).length > 0) || 
+                free_skill) && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
-                      Object.keys(advancements.skills)
-                        .sort((a, b) => a.localeCompare(b))
-                        .join(', ')
-                    ) : free_skill ? (
+                    {[
+                      // Get skills from advancements (old structure)
+                      ...(advancements?.skills ? Object.keys(advancements.skills) : []),
+                      // Get skills from the new structure
+                      ...(skills ? Object.keys(skills) : [])
+                    ]
+                      .filter(Boolean)
+                      .sort((a, b) => a.localeCompare(b))
+                      .join(', ') || 
+                    (free_skill ? (
                       <div className="flex items-center gap-2 text-amber-700">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -472,7 +500,7 @@ const FighterCard = memo(function FighterCard({
                         </svg>
                         Starting skill missing.
                       </div>
-                    ) : null}
+                    ) : null)}
                   </div>
                 </>
               )}

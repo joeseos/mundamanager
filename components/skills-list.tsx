@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { FighterSkillsTable } from "@/components/fighter-skills-table";
 import Modal from "@/components/modal";
 import { SkillModal } from "@/components/ui/skill-modal";
+import { toast } from "@/components/ui/use-toast";
 
 interface SkillsListProps {
   skills: Record<string, any>;
@@ -23,6 +24,7 @@ export function SkillsList({
 }: SkillsListProps) {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleDeleteClick = (skillId: string, skillName: string) => {
     setSkillToDelete({ id: skillId, name: skillName });
@@ -33,13 +35,6 @@ export function SkillsList({
       onDeleteSkill(skillToDelete.id);
     }
     setSkillToDelete(null);
-  };
-
-  const handleAdvancementAdded = () => {
-    setIsAddSkillModalOpen(false);
-    if (onSkillAdded) {
-      onSkillAdded();
-    }
   };
 
   // Transform skills object into array for table display
@@ -69,11 +64,11 @@ export function SkillsList({
 
       <div className="overflow-x-auto">
         <table className="w-full table-auto">
-          {(free_skill && skillsArray.length > 0) && (
+          {(skills.length > 0 || Object.keys(skills).length > 0) && (
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-1 py-1 text-left w-[75%]">Name</th>
-                <th className="px-1 py-1 text-right w-[25%]">Action</th>
+                <th className="px-1 py-1 text-left">Name</th>
+                <th className="px-1 py-1 text-right">Action</th>
               </tr>
             </thead>
           )}
@@ -96,8 +91,8 @@ export function SkillsList({
               </tr>
             ) : skillsArray.length === 0 ? (
               <tr>
-                <td colSpan={2} className="text-center py-1 text-gray-500">
-                  No skills available
+                <td colSpan={2} className="px-1 py-1 text-center text-gray-500">
+                  No skills yet
                 </td>
               </tr>
             ) : (
@@ -141,7 +136,8 @@ export function SkillsList({
         <SkillModal
           fighterId={fighterId}
           onClose={() => setIsAddSkillModalOpen(false)}
-          onSkillAdded={handleAdvancementAdded}
+          onSkillAdded={onSkillAdded || (() => {})}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>

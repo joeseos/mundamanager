@@ -3,11 +3,14 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
+import { useSession } from '@/hooks/use-session';
 
 interface SkillModalProps {
   fighterId: string;
   onClose: () => void;
   onSkillAdded: () => void;
+  isSubmitting: boolean;
+  onSelectSkill?: (selectedSkill: any) => Promise<void>;
 }
 
 interface Category {
@@ -26,13 +29,13 @@ interface SkillResponse {
   skills: Skill[];
 }
 
-export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps) {
+export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const session = useSession();
 
   // Fetch categories (skill sets)
   useEffect(() => {
@@ -112,28 +115,49 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
 
-    setIsLoading(true);
     try {
+      // Check for session
+      if (!session) {
+        toast({
+          description: "Authentication required. Please log in again.",
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      const payload = {
+        fighter_id: fighterId,
+        skill_id: selectedSkill,
+        xp_cost: 0,
+        credits_increase: 0,
+        is_advance: false
+      };
+      
+      console.log("Sending skill payload:", payload);
+      
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_skills`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_skill`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation'
           },
-          body: JSON.stringify({
-            fighter_id: fighterId,
-            skill_id: selectedSkill,
-            xp_cost: 0,
-            credits_increase: 0
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
-        throw new Error('Failed to add skill');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to add skill: ${response.status} ${errorText}`);
       }
+
+      // Log the response to verify the insertion worked correctly
+      const responseData = await response.json();
+      console.log("RPC response:", responseData);
 
       toast({
         description: "Skill successfully added",
@@ -146,12 +170,10 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
     } catch (error) {
       console.error('Error adding skill:', error);
       toast({
-        description: 'Failed to add skill',
+        description: `Failed to add skill: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -227,7 +249,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || isLoading}
+      confirmDisabled={!selectedSkill || isSubmitting}
     />
   );
 } 
