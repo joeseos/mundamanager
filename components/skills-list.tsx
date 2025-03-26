@@ -4,9 +4,10 @@ import { FighterSkillsTable } from "@/components/fighter-skills-table";
 import Modal from "@/components/modal";
 import { SkillModal } from "@/components/ui/skill-modal";
 import { toast } from "@/components/ui/use-toast";
+import { FighterSkills } from '@/types/fighter';
 
 interface SkillsListProps {
-  skills: Record<string, any>;
+  skills: FighterSkills;
   onDeleteSkill?: (skillId: string) => void;
   fighterId: string;
   fighterXp: number;
@@ -64,7 +65,7 @@ export function SkillsList({
 
       <div className="overflow-x-auto">
         <table className="w-full table-auto">
-          {(skills.length > 0 || Object.keys(skills).length > 0) && (
+          {(Object.keys(skills).length > 0) && (
             <thead>
               <tr className="bg-gray-100">
                 <th className="px-1 py-1 text-left">Name</th>

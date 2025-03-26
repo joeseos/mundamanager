@@ -129,6 +129,16 @@ export interface Vehicle {
   }>;
 }
 
+// Define a standard skills type that all components should use
+export type FighterSkills = Record<string, {
+  id: string;
+  credits_increase: number;
+  xp_cost: number;
+  is_advance: boolean;
+  acquired_at: string;
+  fighter_injury_id?: string | null;
+}>;
+
 export interface FighterProps {
   id: string;
   fighter_name: string;
@@ -203,14 +213,7 @@ export interface FighterProps {
     intelligence: number;
   };
 
-  skills?: Array<Skill> | Record<string, {
-    id: string;
-    credits_increase: number;
-    xp_cost: number;
-    is_advance: boolean;
-    acquired_at: string;
-    fighter_injury_id?: string | null;
-  }>;
+  skills?: FighterSkills; // Use the standardized type
 }
 
 export interface WeaponProfile {

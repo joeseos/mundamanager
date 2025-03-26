@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/modal";
-import { Skill } from '@/types/fighter';
-import { FighterEffect } from '@/types/fighter';
+import { Skill, FighterEffect, FighterSkills } from '@/types/fighter';
+import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 
 interface StatChange {
@@ -49,14 +49,8 @@ interface AdvancementsListProps {
   fighterChanges?: FighterChanges;
   fighterId: string;
   onAdvancementDeleted?: () => void;
-  advancements: Array<FighterEffect>;
-  skills?: Record<string, {
-    id: string;
-    credits_increase: number;
-    xp_cost?: number;
-    is_advance: boolean;
-    acquired_at: string;
-  }>;
+  advancements: Array<FighterEffectType>;
+  skills: FighterSkills;
   onDeleteAdvancement: (advancementId: string) => Promise<void>;
   onAdvancementAdded: () => void;
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { FighterProps } from "@/types/fighter";
+import { FighterProps, FighterSkills } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import { Button } from "@/components/ui/button";
 import GangPageContent from "@/components/gang-page-content";
@@ -64,6 +64,31 @@ async function processGangData(gangData: any) {
       })) || []
     } : undefined;
 
+    // Ensure skills is processed correctly
+    const processedSkills: FighterSkills = {};
+    
+    if (fighter.skills) {
+      // If skills is an object with string keys (new format)
+      if (typeof fighter.skills === 'object' && !Array.isArray(fighter.skills)) {
+        Object.assign(processedSkills, fighter.skills);
+      } 
+      // If skills is an array (old format), convert to object
+      else if (Array.isArray(fighter.skills)) {
+        fighter.skills.forEach((skill: any) => {
+          if (skill.name) {
+            processedSkills[skill.name] = {
+              id: skill.id,
+              credits_increase: skill.credits_increase,
+              xp_cost: skill.xp_cost,
+              is_advance: skill.is_advance,
+              acquired_at: skill.acquired_at,
+              fighter_injury_id: skill.fighter_injury_id
+            };
+          }
+        });
+      }
+    }
+
     return {
       id: fighter.id,
       fighter_name: fighter.fighter_name,
@@ -117,7 +142,7 @@ async function processGangData(gangData: any) {
         willpower: fighter.willpower,
         intelligence: fighter.intelligence
       },
-      skills: fighter.skills || {},
+      skills: processedSkills,
       effects: fighter.effects || { injuries: [], advancements: [] },
       weapons: validEquipment
         .filter((item: Equipment) => item.equipment_type === 'weapon')

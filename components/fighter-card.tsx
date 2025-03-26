@@ -3,7 +3,7 @@ import { StatsTable } from './ui/table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
@@ -14,7 +14,7 @@ import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 import { StatsType } from './ui/table';  // Add this import
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -24,21 +24,14 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   enslaved?: boolean;
   starved?: boolean;
   free_skill?: boolean;
-  kills: number;  // Required property
-  skills?: Record<string, {
-    id: string;
-    credits_increase: number;
-    xp_cost: number;
-    is_advance: boolean;
-    acquired_at: string;
-    fighter_injury_id?: string | null;
-  }>;
+  kills: number;
+  skills?: FighterSkills; // Use the standardized type
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
   }
   note?: string;
-  vehicle?: Vehicle;  // Add vehicle property
+  vehicle?: Vehicle;
   disableLink?: boolean;
 }
 
@@ -210,17 +203,7 @@ const FighterCard = memo(function FighterCard({
     intelligence,
     xp,
     kills,
-    skills: typeof skills === 'object' && skills 
-      ? Object.entries(skills).map(([name, data]) => ({
-          id: data.id,
-          name,
-          xp_cost: data.xp_cost,
-          credits_increase: data.credits_increase,
-          is_advance: data.is_advance,
-          acquired_at: data.acquired_at,
-          fighter_injury_id: data.fighter_injury_id || null
-        }))
-      : [],
+    skills: skills, // Direct assignment since skills is already in the correct format
     advancements: {
       characteristics: advancements?.characteristics || {},
       skills: advancements?.skills || {}

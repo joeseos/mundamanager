@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from "@/utils/supabase/client";
-import { Skill } from "@/types/fighter";
+import { Skill, FighterSkills } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
 import { WeaponList } from "@/components/weapon-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -81,7 +81,7 @@ interface Fighter {
   weapons: Weapon[];
   wargear: Wargear[];
   gang_id: string;
-  skills: Array<Skill>;
+  skills: FighterSkills;
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
@@ -323,6 +323,29 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         vehicle_equipment_id: item.id
       }));
 
+      // Transform skills
+      const transformedSkills: FighterSkills = {};
+
+      // If skills is an array, convert to object
+      if (Array.isArray(result.fighter.skills)) {
+        result.fighter.skills.forEach((skill: any) => {
+          if (skill.name) {
+            transformedSkills[skill.name] = {
+              id: skill.id,
+              credits_increase: skill.credits_increase,
+              xp_cost: skill.xp_cost,
+              is_advance: skill.is_advance,
+              acquired_at: skill.acquired_at,
+              fighter_injury_id: skill.fighter_injury_id
+            };
+          }
+        });
+      } 
+      // If skills is already an object, use it directly
+      else if (typeof result.fighter.skills === 'object' && result.fighter.skills !== null) {
+        Object.assign(transformedSkills, result.fighter.skills);
+      }
+
       // Update state in a single operation
       setFighterData(prev => ({
         ...prev,
@@ -333,7 +356,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
           gang_id: result.gang.id,
           gang_type_id: result.gang.gang_type_id,
-          skills: result.fighter.skills || [],
+          skills: transformedSkills,
           effects: result.fighter.effects || { injuries: [], advancements: [] }
         },
         equipment: transformedEquipment,
@@ -1503,7 +1526,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             credits_increase: skill.credits_increase,
             xp_cost: skill.xp_cost,
             is_advance: skill.is_advance,
-            acquired_at: skill.acquired_at
+            acquired_at: skill.acquired_at,
+            fighter_injury_id: skill.fighter_injury_id
           };
         }
         return acc;
@@ -1513,6 +1537,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         xp_cost?: number;
         is_advance: boolean;
         acquired_at: string;
+        fighter_injury_id?: string | null;
       }>);
     }
     
