@@ -226,8 +226,8 @@ export const AdvancementsList = React.memo(function AdvancementsList({
               <thead>
                 <tr className="bg-gray-100">
                   <th className="px-1 py-1 text-left">Name</th>
-                  <th className="px-1 py-1 text-center">XP</th>
-                  <th className="px-1 py-1 text-center">Cost</th>
+                  <th className="px-1 py-1 text-right">XP</th>
+                  <th className="px-1 py-1 text-right">Cost</th>
                   <th className="px-1 py-1 text-right">Action</th>
                 </tr>
               </thead>
@@ -250,13 +250,17 @@ export const AdvancementsList = React.memo(function AdvancementsList({
                     return (
                       <tr key={advancement.id} className="border-t">
                         <td className="px-1 py-1">
-                          <span>{advancement.effect_name}</span>
+                          <span>
+                            {advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
+                             advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
+                             `Characteristic - ${advancement.effect_name}`}
+                          </span>
                         </td>
-                        <td className="px-1 py-1 text-center">
-                          {specificData.xp_cost || '-'}
+                        <td className="px-1 py-1 text-right">
+                          {specificData.xp_cost || '0'}
                         </td>
-                        <td className="px-1 py-1 text-center">
-                          {specificData.credits_increase || '-'}
+                        <td className="px-1 py-1 text-right">
+                          {specificData.credits_increase || '0'}
                         </td>
                         <td className="px-1 py-1">
                           <div className="flex justify-end">
