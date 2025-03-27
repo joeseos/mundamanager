@@ -1,7 +1,8 @@
+import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FighterCard from './fighter-card';
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, FighterSkills } from '@/types/fighter';
 import { useState, useEffect } from 'react';
 
 interface SortableFighterProps {
@@ -51,6 +52,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
         {...fighter}
         name={fighter.fighter_name}
         type={fighter.fighter_type}
+        skills={fighter.skills}
         disableLink={isDragging}
       />
     </div>

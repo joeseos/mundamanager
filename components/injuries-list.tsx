@@ -1,28 +1,14 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import { FighterEffect, } from '@/types/fighter';
+
 import { useToast } from './ui/use-toast';
 import Modal from './modal';
-
-interface InjuryType {
-  id: string;
-  injury_name: string;
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
-}
+import { createClient } from '@/utils/supabase/client';
 
 interface InjuriesListProps {
-  injuries: Array<{
-    id: string;
-    injury_name: string;
-    acquired_at: string;
-    code_1?: string;
-    characteristic_1?: number;
-    code_2?: string;
-    characteristic_2?: number;
-  }>;
-  availableInjuries: InjuryType[];
+  injuries: Array<FighterEffect>;
+  availableInjuries: FighterEffect[];
   onDeleteInjury: (injuryId: string) => Promise<void>;
   fighterId: string;
   onInjuryAdded: () => void;
@@ -41,6 +27,7 @@ export function InjuriesList({
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const { toast } = useToast();
 
+
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
       toast({
@@ -51,24 +38,15 @@ export function InjuriesList({
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_injury`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            input_fighter_id: fighterId,
-            input_injury_id: selectedInjuryId
-          }),
-        }
-      );
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .rpc('add_fighter_effect', {
+          input_fighter_id: fighterId,
+          input_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
+          input_fighter_effect_type_id: selectedInjuryId
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to add injury');
-      }
+      if (error) throw error;
 
       toast({
         description: "Injury added successfully",
@@ -91,17 +69,10 @@ export function InjuriesList({
   const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
     try {
       setIsDeleting(injuryId);
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_injuries?id=eq.${injuryId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          }
-        }
-      );
+      
+      const response = await fetch(`/api/fighters/injuries?effectId=${injuryId}`, {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
         throw new Error('Failed to delete injury');
@@ -158,10 +129,13 @@ export function InjuriesList({
                 </tr>
               ) : (
                 injuries
-                  .sort((a, b) => new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime())
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   .map((injury) => (
                     <tr key={injury.id} className="border-t">
-                      <td className="px-1 py-1">{injury.injury_name}</td>
+                      
+                      <td className="px-1 py-1">
+                        <span>{injury.effect_name}</span>
+                      </td>
                       <td className="px-1 py-1">
                         <div className="flex justify-end">
                           <Button
@@ -169,7 +143,7 @@ export function InjuriesList({
                             size="sm"
                             onClick={() => setDeleteModalData({
                               id: injury.id,
-                              name: injury.injury_name
+                              name: injury.effect_name
                             })}
                             disabled={isDeleting === injury.id}
                             className="text-xs px-1.5 h-6"
@@ -204,7 +178,7 @@ export function InjuriesList({
                   <option value="">Select an injury</option>
                   {availableInjuries.map((injury) => (
                     <option key={injury.id} value={injury.id}>
-                      {injury.injury_name}
+                      {injury.effect_name}
                     </option>
                   ))}
                 </select>

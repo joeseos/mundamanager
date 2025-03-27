@@ -41,14 +41,46 @@ export interface WeaponProps {
   weapon_profiles: any[];
 }
 
-export interface Injury {
+export interface FighterEffectCategory {
   id: string;
-  injury_name: string;
-  code_1?: string;
-  characteristic_1?: number;
-  code_2?: string;
-  characteristic_2?: number;
+  created_at: string; // Timestamp with timezone
+  updated_at: string | null; // Timestamp with timezone, can be null
+  category_name: string
+}
+
+export interface StatModifier {
+  stat_name: string;
+  numeric_value: number;
+  source_id: string;
+  source_type: 'injury' | 'advancement';
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  xp_cost: number;
+  credits_increase: number;
   acquired_at: string;
+  is_advance: boolean;
+  fighter_injury_id: string | null;
+}
+
+export interface FighterEffect {
+  id: string;
+  effect_name: string;
+  effect_type: string;
+  created_at: string;
+  type_specific_data?: string;
+  fighter_effect_modifiers: Array<{
+    id: string;
+    fighter_effect_id: string;
+    stat_name: string;
+    numeric_value: number;
+  }>;
+}
+
+export interface FighterEffects {
+  injuries: FighterEffect[];
 }
 
 export interface VehicleEquipmentProfile {
@@ -97,6 +129,16 @@ export interface Vehicle {
   }>;
 }
 
+// Define a standard skills type that all components should use
+export type FighterSkills = Record<string, {
+  id: string;
+  credits_increase: number;
+  xp_cost: number;
+  is_advance: boolean;
+  acquired_at: string;
+  fighter_injury_id?: string | null;
+}>;
+
 export interface FighterProps {
   id: string;
   fighter_name: string;
@@ -121,7 +163,7 @@ export interface FighterProps {
   gang_id?: string;
   advancements: {
     characteristics: Record<string, any>;
-    skills: Record<string, any>;
+    skills: Record<string, Skill>;
   };
   weapons: WeaponProps[];
   wargear: WargearItem[];
@@ -133,8 +175,45 @@ export interface FighterProps {
   free_skill?: boolean;
   fighter_class?: string;
   note?: string;
-  injuries: Injury[];
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   vehicles?: Vehicle[];
+  
+  // Base stats (original values)
+  base_stats: {
+    movement: number;
+    weapon_skill: number;
+    ballistic_skill: number;
+    strength: number;
+    toughness: number;
+    wounds: number;
+    initiative: number;
+    attacks: number;
+    leadership: number;
+    cool: number;
+    willpower: number;
+    intelligence: number;
+  };
+  
+  // Current stats (after modifications)
+  current_stats: {
+    movement: number;
+    weapon_skill: number;
+    ballistic_skill: number;
+    strength: number;
+    toughness: number;
+    wounds: number;
+    initiative: number;
+    attacks: number;
+    leadership: number;
+    cool: number;
+    willpower: number;
+    intelligence: number;
+  };
+
+  skills?: FighterSkills; // Use the standardized type
 }
 
 export interface WeaponProfile {
@@ -152,3 +231,4 @@ export interface WeaponProfile {
   weapon_group_id: string;
   is_default_profile: boolean;
 }
+

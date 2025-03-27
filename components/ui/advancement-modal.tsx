@@ -5,6 +5,7 @@ import { Button } from "./button";
 import { useToast } from "./use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
+import { createClient } from '@/utils/supabase/client';
 
 interface AdvancementModalProps {
   fighterId: string;
@@ -15,13 +16,14 @@ interface AdvancementModalProps {
 
 interface StatChangeCategory {
   id: string;
-  name: string;
-  type: 'characteristic' | 'skill';
+  effect_name: string;
+  type: 'characteristic';
 }
 
 interface SkillType {
   id: string;
   name: string;
+  type: 'skill';
   created_at: string;
   updated_at: string | null;
 }
@@ -29,6 +31,7 @@ interface SkillType {
 interface AvailableAdvancement {
   id: string;
   xp_cost: number;
+  base_xp_cost?: number;
   stat_change: number;
   can_purchase: boolean;
   level?: number;
@@ -41,36 +44,7 @@ interface AvailableAdvancement {
   has_enough_xp?: boolean;
   available_acquisition_types?: AcquisitionType[];
   skill_type_id?: string;
-}
-
-interface AdvancementsResponse {
-  current_xp: number;
-  fighter_id: string;
-  characteristics: {
-    [key: string]: {
-      id: string;
-      xp_cost: number;
-      can_purchase: boolean;
-      is_available: boolean;
-      current_value: number;
-      has_enough_xp: boolean;
-      times_increased: number;
-      characteristic_code: string;
-      credits_increase: number;
-    };
-  };
-}
-
-interface AdvancementResponse {
-  id: string;
-  xp_cost: number;
-  fighter_id: string;
-  remaining_xp: number;
-  current_value: number;
-  times_increased: number;
-  credits_increase: number;
-  characteristic_code: string;
-  characteristic_name: string;
+  characteristic_code?: string;
 }
 
 // Add interface for skill response
@@ -108,6 +82,11 @@ interface SkillData {
   available_acquisition_types: AcquisitionType[];
 }
 
+// Add a type guard function
+function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
+  return category.type === 'characteristic';
+}
+
 export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
   const { toast } = useToast();
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
@@ -131,7 +110,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
       setLoading(true);
       try {
         const endpoint = advancementType === 'characteristic' 
-          ? 'characteristics'
+          ? 'fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419'
           : 'skill_types';
 
         const response = await fetch(
@@ -139,7 +118,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           {
             headers: {
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
+            }
           }
         );
 
@@ -177,7 +156,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           if (!selectedCategory) return;
 
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_get_fighter_available_advancements`,
             {
               method: 'POST',
               headers: {
@@ -202,19 +181,19 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           
           // Find the category name from the selected category
           const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
-          if (!selectedCategoryObj) {
-            console.error('Selected category not found:', selectedCategory);
+          if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
+            console.error('Selected category not found or wrong type:', selectedCategory);
             return;
           }
 
           console.log('Selected category:', selectedCategoryObj);
-          console.log('Looking for advancement details with key:', selectedCategoryObj.name);
+          console.log('Looking for advancement details with key:', selectedCategoryObj.effect_name);
           console.log('Available characteristics:', data.characteristics);
 
           // Get the advancement details for the selected characteristic
-          const advancementDetails = data.characteristics[selectedCategoryObj.name];
+          const advancementDetails = data.characteristics[selectedCategoryObj.effect_name];
           if (!advancementDetails) {
-            console.error('No advancement details found for category:', selectedCategoryObj.name);
+            console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
             return;
           }
 
@@ -223,13 +202,14 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
             id: advancementDetails.id,
             level: advancementDetails.times_increased || 0,
             xp_cost: advancementDetails.xp_cost,
+            base_xp_cost: advancementDetails.base_xp_cost,
             stat_change: 1,
             can_purchase: advancementDetails.can_purchase,
             is_available: advancementDetails.is_available,
-            current_level: advancementDetails.current_value || 0,
             has_enough_xp: advancementDetails.has_enough_xp,
             credits_increase: advancementDetails.credits_increase,
-            stat_change_name: selectedCategoryObj.name,
+            stat_change_name: selectedCategoryObj.effect_name,
+            characteristic_code: advancementDetails.characteristic_code,
             available_acquisition_types: []
           };
 
@@ -354,55 +334,88 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     if (!selectedAdvancement) return;
     
     try {
-      const endpoint = advancementType === 'characteristic'
-        ? 'add_fighter_advancement'
-        : 'add_fighter_skill';
-
-      const body = advancementType === 'characteristic'
-        ? {
-            fighter_id: fighterId,
-            characteristic_id: selectedAdvancement.id,
-            xp_cost: editableXpCost,
-            credits_increase: editableCreditsIncrease
-          }
-        : {
-            fighter_id: fighterId,
-            skill_id: selectedAdvancement.id,
-            xp_cost: editableXpCost,
-            credits_increase: editableCreditsIncrease,
-            is_advance: true
-          };
-
-      console.log('Sending request to:', endpoint);
-      console.log('Request body:', body);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${endpoint}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify(body)
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to purchase ${selectedAdvancement.stat_change_name}`);
+      setIsSubmitting(true);
+      
+      // Get the current user's session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No authenticated session found');
       }
+      
+      if (advancementType === 'characteristic') {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_add_fighter_advancement`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              p_fighter_id: fighterId,
+              p_fighter_effect_type_id: selectedAdvancement.id,
+              p_xp_cost: editableXpCost.toString(),
+              p_credits_increase: editableCreditsIncrease.toString()
+            })
+          }
+        );
 
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`Failed to purchase ${selectedAdvancement.stat_change_name}`);
+        }
 
-      toast({
-        title: "Success!",
-        description: `Successfully added ${selectedAdvancement.stat_change_name}`
-      });
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to add advancement');
+        }
 
-      // Use the remaining XP from the API response
-      onAdvancementAdded?.(data.remaining_xp, data.credits_increase);
+        toast({
+          title: "Success!",
+          description: `Successfully added ${selectedAdvancement.stat_change_name}`
+        });
 
-      onClose();
+        // Use the remaining XP from the API response
+        onAdvancementAdded?.(data.fighter.xp, data.advancement.credits_increase);
+
+      } else {
+        // Update the skill endpoint request as well
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_skill`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              fighter_id: fighterId,
+              skill_id: selectedAdvancement.id,
+              xp_cost: editableXpCost,
+              credits_increase: editableCreditsIncrease,
+              is_advance: true
+            })
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to purchase ${selectedAdvancement.stat_change_name}`);
+        }
+
+        const data = await response.json();
+
+        toast({
+          title: "Success!",
+          description: `Successfully added ${selectedAdvancement.stat_change_name}`
+        });
+
+        // Use the remaining XP from the API response
+        onAdvancementAdded?.(data.remaining_xp, data.credits_increase);
+      }
     } catch (error) {
       console.error('Error purchasing advancement:', error);
       toast({
@@ -412,6 +425,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
       });
     } finally {
       setIsSubmitting(false);
+      onClose();
     }
   };
 
@@ -521,13 +535,14 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                     // If selecting a Characteristic, sort dynamically by characteristicRank and group into categories
                     Object.entries(
                       categories
+                        .filter(isStatChangeCategory)  // Filter to only StatChangeCategory types
                         .sort((a, b) => {
-                          const rankA = characteristicRank[a.name.toLowerCase()] ?? Infinity;
-                          const rankB = characteristicRank[b.name.toLowerCase()] ?? Infinity;
+                          const rankA = characteristicRank[a.effect_name.toLowerCase()] ?? Infinity;
+                          const rankB = characteristicRank[b.effect_name.toLowerCase()] ?? Infinity;
                           return rankA - rankB;
                         })
                         .reduce((groups, category) => {
-                          const rank = characteristicRank[category.name.toLowerCase()] ?? Infinity;
+                          const rank = characteristicRank[category.effect_name.toLowerCase()] ?? Infinity;
                           let groupLabel = "Misc."; // Default category for unlisted characteristics
 
                           if (rank <= 8) groupLabel = "Main Characteristics";
@@ -536,12 +551,12 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                           if (!groups[groupLabel]) groups[groupLabel] = [];
                           groups[groupLabel].push(category);
                           return groups;
-                        }, {} as Record<string, typeof categories>)
+                        }, {} as Record<string, StatChangeCategory[]>)
                     ).map(([groupLabel, categoryList]) => (
                       <optgroup key={groupLabel} label={groupLabel}>
                         {categoryList.map((category) => (
                           <option key={category.id} value={category.id}>
-                            {category.name}
+                            {category.effect_name}
                           </option>
                         ))}
                       </optgroup>
@@ -550,6 +565,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                     // If selecting a Skill Type, sort and group dynamically
                     Object.entries(
                       categories
+                        .filter((cat): cat is SkillType => cat.type === 'skill')  // Filter to only SkillType
                         .sort((a, b) => {
                           const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
                           const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
@@ -569,7 +585,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                           if (!groups[groupLabel]) groups[groupLabel] = [];
                           groups[groupLabel].push(category);
                           return groups;
-                        }, {} as Record<string, typeof categories>)
+                        }, {} as Record<string, SkillType[]>)
                     ).map(([groupLabel, categoryList]) => (
                       <optgroup key={groupLabel} label={groupLabel}>
                         {categoryList.map((category) => (

@@ -451,6 +451,38 @@ export default function Gang({
         },
         injuries: [],
         free_skill: data.free_skill || false,
+        effects: {
+          injuries: [],
+          advancements: []
+        },
+        base_stats: {
+          movement: data.stats.movement,
+          weapon_skill: data.stats.weapon_skill,
+          ballistic_skill: data.stats.ballistic_skill,
+          strength: data.stats.strength,
+          toughness: data.stats.toughness,
+          wounds: data.stats.wounds,
+          initiative: data.stats.initiative,
+          attacks: data.stats.attacks,
+          leadership: data.stats.leadership,
+          cool: data.stats.cool,
+          willpower: data.stats.willpower,
+          intelligence: data.stats.intelligence
+        },
+        current_stats: {
+          movement: data.stats.movement,
+          weapon_skill: data.stats.weapon_skill,
+          ballistic_skill: data.stats.ballistic_skill,
+          strength: data.stats.strength,
+          toughness: data.stats.toughness,
+          wounds: data.stats.wounds,
+          initiative: data.stats.initiative,
+          attacks: data.stats.attacks,
+          leadership: data.stats.leadership,
+          cool: data.stats.cool,
+          willpower: data.stats.willpower,
+          intelligence: data.stats.intelligence
+        }
       } as FighterProps;
 
       setFighters(prev => [...prev, newFighter]);

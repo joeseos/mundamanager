@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
+import { Skill } from '@/types/fighter';
 
 interface Equipment {
   id: string;
@@ -72,11 +73,7 @@ interface FighterEquipment {
 }
 
 interface FighterSkill {
-  skills: {
-    id: string;
-    name: string;
-    skill_type_id: string;
-  };
+  skills: Skill[];
 }
 
 interface FighterWithDetails {

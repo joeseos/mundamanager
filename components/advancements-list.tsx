@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/modal";
+import { Skill, FighterEffect, FighterSkills } from '@/types/fighter';
+import { FighterEffect as FighterEffectType } from '@/types/fighter';
+import { createClient } from '@/utils/supabase/client';
 
 interface StatChange {
   id: string;
@@ -31,15 +34,14 @@ interface FighterChanges {
     characteristic_value: number;
     acquired_at: string;
   }>;
-  skills?: {
-    [key: string]: {
-      id: string;
-      xp_cost: number;
-      credits_increase: number;
-      acquired_at: string;
-      is_advance: boolean;
-    }
-  };
+  skills?: Skill[];
+}
+
+interface AdvancementTypeSpecificData {
+  xp_cost?: number;
+  times_increased?: number;
+  credits_increase?: number;
+  skill_id?: string;
 }
 
 interface AdvancementsListProps {
@@ -47,6 +49,10 @@ interface AdvancementsListProps {
   fighterChanges?: FighterChanges;
   fighterId: string;
   onAdvancementDeleted?: () => void;
+  advancements: Array<FighterEffectType>;
+  skills: FighterSkills;
+  onDeleteAdvancement: (advancementId: string) => Promise<void>;
+  onAdvancementAdded: () => void;
 }
 
 interface TransformedAdvancement {
@@ -63,17 +69,21 @@ interface TransformedAdvancement {
 
 export const AdvancementsList = React.memo(function AdvancementsList({ 
   fighterXp,
-  fighterChanges = { advancement: [], characteristics: [], skills: {} },
+  fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
-  onAdvancementDeleted
+  onAdvancementDeleted,
+  advancements = [],
+  skills = {},
+  onDeleteAdvancement,
+  onAdvancementAdded,
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   // Memoize the entire data transformation
-  const { characteristics, skills } = useMemo(() => {
+  const { characteristics, skills: transformedSkills } = useMemo(() => {
     const transformedCharacteristics: TransformedAdvancement[] = [];
     const transformedSkills: TransformedAdvancement[] = [];
     
@@ -95,21 +105,19 @@ export const AdvancementsList = React.memo(function AdvancementsList({
     }
 
     // Transform skills
-    if (fighterChanges.skills) {
-      Object.entries(fighterChanges.skills)
-        .filter(([_, data]) => data.is_advance)
-        .forEach(([name, data]) => {
-          transformedSkills.push({
-            id: data.id,
-            stat_change_name: name,
-            xp_spent: data.xp_cost,
-            changes: {
-              credits: data.credits_increase
-            },
-            acquired_at: data.acquired_at,
-            type: 'skill'
-          });
+    if (Array.isArray(skills)) {
+      skills.forEach((skill) => {
+        transformedSkills.push({
+          id: skill.id,
+          stat_change_name: skill.name,
+          xp_spent: skill.xp_cost || 0,
+          changes: {
+            credits: skill.credits_increase
+          },
+          acquired_at: skill.acquired_at,
+          type: 'skill'
         });
+      });
     }
 
     // Sort each array by acquired_at date
@@ -120,54 +128,83 @@ export const AdvancementsList = React.memo(function AdvancementsList({
       characteristics: transformedCharacteristics.sort(sortByDate),
       skills: transformedSkills.sort(sortByDate)
     };
-  }, [fighterChanges]); // Only recompute when fighterChanges updates
+  }, [fighterChanges, skills]); // Only recompute when fighterChanges or skills updates
 
-  const handleDeleteAdvancement = async (advancementId: string, type: string) => {
-    console.log(`Attempting to delete fighter ${type}:`, advancementId);
-    setIsDeleting(advancementId);
-
-    try {
-      const endpoint = type === 'characteristic' 
-        ? 'fighter_characteristics'
-        : 'fighter_skills';
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${endpoint}?id=eq.${advancementId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
+  // Use Object.entries to safely process the skills object
+  const advancementSkills = useMemo(() => {
+    return Object.entries(skills)
+      .filter(([_, skill]) => skill && skill.is_advance)
+      .map(([name, skill]) => ({
+        id: skill.id,
+        effect_name: `Skill - ${name}`,
+        created_at: skill.acquired_at,
+        type_specific_data: {
+          xp_cost: skill.xp_cost || 0,
+          credits_increase: skill.credits_increase
         }
-      );
+      }));
+  }, [skills]);
+
+  // Combine regular advancements with skill advancements
+  const allAdvancements = useMemo(() => {
+    return [...advancements, ...advancementSkills];
+  }, [advancements, advancementSkills]);
+
+  const handleDeleteAdvancement = async (advancementId: string, advancementName: string) => {
+    try {
+      setIsDeleting(advancementId);
+      
+      // Use the RPC endpoint for deleting effects
+      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+      
+      // Create a Supabase client and get session directly
+      const supabase = createClient();
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token || '';
+      
+      const response = await fetch(rpcEndpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          input_fighter_id: fighterId,
+          fighter_effect_id: advancementId
+        })
+      });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Delete response error:', errorText);
-        throw new Error(`Failed to delete ${type}`);
+        throw new Error(`Failed to delete advancement (${response.status})`);
       }
 
-      console.log(`Successfully deleted fighter ${type}:`, advancementId);
+      // Call the callback to update parent component state
+      await onDeleteAdvancement(advancementId);
+      
       toast({
-        description: `${type} successfully deleted`,
+        description: `${advancementName} removed successfully`,
         variant: "default"
       });
-
-      if (onAdvancementDeleted) {
-        onAdvancementDeleted();
-      }
+      
+      return true;
     } catch (error) {
-      console.error(`Error deleting fighter ${type}:`, error);
+      console.error('Error deleting advancement:', error);
       toast({
-        description: error instanceof Error ? error.message : `Failed to delete ${type}`,
+        description: 'Failed to delete advancement',
         variant: "destructive"
       });
+      return false;
     } finally {
       setIsDeleting(null);
       setDeleteModalData(null);
     }
+  };
+
+  const handleAdvancementAdded = (remainingXp: number, creditsIncrease: number) => {
+    // Call the parent component's callback
+    onAdvancementAdded();
   };
 
   return (
@@ -185,7 +222,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
       <div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
-            {([...characteristics, ...skills].length > 0) && (
+            {(allAdvancements.length > 0) && (
               <thead>
                 <tr className="bg-gray-100">
                   <th className="px-1 py-1 text-left">Name</th>
@@ -196,44 +233,54 @@ export const AdvancementsList = React.memo(function AdvancementsList({
               </thead>
             )}
             <tbody>
-              {[...characteristics, ...skills].length === 0 ? (
+              {allAdvancements.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-1 py-1 text-center text-gray-500">
                     No advancements yet
                   </td>
                 </tr>
               ) : (
-                [...characteristics, ...skills]
-                  .sort((a, b) => new Date(b.acquired_at).getTime() - new Date(a.acquired_at).getTime())
-                  .map((advancement) => (
-                    <tr key={advancement.id} className="border-t">
-                      <td className="px-1 py-1">
-                        {advancement.type === 'characteristic' 
-                          ? `Characteristic - ${advancement.stat_change_name}`
-                          : `Skill - ${advancement.stat_change_name}`
-                        }
-                      </td>
-                      <td className="px-1 py-1 text-right">{Math.abs(advancement.xp_spent)}</td>
-                      <td className="px-1 py-1 text-right">{Math.abs(advancement.changes.credits)}</td>
-                      <td className="px-1 py-1">
-                        <div className="flex justify-end">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeleteModalData({
-                              id: advancement.id,
-                              name: advancement.stat_change_name,
-                              type: advancement.type
-                            })}
-                            disabled={isDeleting === advancement.id}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                allAdvancements
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .map((advancement) => {
+                    const specificData = typeof advancement.type_specific_data === 'string'
+                      ? JSON.parse(advancement.type_specific_data || '{}')
+                      : (advancement.type_specific_data || {});
+                      
+                    return (
+                      <tr key={advancement.id} className="border-t">
+                        <td className="px-1 py-1">
+                          <span>
+                            {advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
+                             advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
+                             `Characteristic - ${advancement.effect_name}`}
+                          </span>
+                        </td>
+                        <td className="px-1 py-1 text-right">
+                          {specificData.xp_cost || '0'}
+                        </td>
+                        <td className="px-1 py-1 text-right">
+                          {specificData.credits_increase || '0'}
+                        </td>
+                        <td className="px-1 py-1">
+                          <div className="flex justify-end">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setDeleteModalData({
+                                id: advancement.id,
+                                name: advancement.effect_name
+                              })}
+                              disabled={isDeleting === advancement.id}
+                              className="text-xs px-1.5 h-6"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
               )}
             </tbody>
           </table>
@@ -246,7 +293,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
           fighterId={fighterId}
           currentXp={fighterXp}
           onClose={() => setIsAdvancementModalOpen(false)}
-          onAdvancementAdded={onAdvancementDeleted}
+          onAdvancementAdded={handleAdvancementAdded}
         />
       )}
 
@@ -255,7 +302,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
           title="Confirm Deletion"
           content={`Are you sure you want to delete the ${deleteModalData.name} advancement? This action cannot be undone.`}
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.type)}
+          onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.name)}
         />
       )}
     </div>

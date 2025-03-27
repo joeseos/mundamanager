@@ -1,4 +1,12 @@
-import { FighterProps, Injury } from '@/types/fighter';
+import { FighterProps, FighterEffect } from '@/types/fighter';
+
+// Fix the FighterEffectStatModifier by defining it directly
+interface FighterEffectStatModifier {
+  id: string;
+  fighter_effect_id: string;
+  stat_name: string;
+  numeric_value: number;
+}
 
 export function calculateAdjustedStats(fighter: FighterProps) {
   // Start with base stats
@@ -17,48 +25,76 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     intelligence: fighter.intelligence
   };
 
-  // Apply injury modifications first
-  if (fighter.injuries && fighter.injuries.length > 0) {
-    fighter.injuries.forEach((injury: Injury) => {
-      // Handle first characteristic
-      if (injury.code_1 && injury.characteristic_1) {
-        switch (injury.code_1) {
-          case 'M': adjustedStats.movement += injury.characteristic_1; break;
-          case 'WS': adjustedStats.weapon_skill += injury.characteristic_1; break;
-          case 'BS': adjustedStats.ballistic_skill += injury.characteristic_1; break;
-          case 'S': adjustedStats.strength += injury.characteristic_1; break;
-          case 'T': adjustedStats.toughness += injury.characteristic_1; break;
-          case 'W': adjustedStats.wounds += injury.characteristic_1; break;
-          case 'I': adjustedStats.initiative += injury.characteristic_1; break;
-          case 'A': adjustedStats.attacks += injury.characteristic_1; break;
-          case 'Ld': adjustedStats.leadership += injury.characteristic_1; break;
-          case 'Cl': adjustedStats.cool += injury.characteristic_1; break;
-          case 'Wil': adjustedStats.willpower += injury.characteristic_1; break;
-          case 'Int': adjustedStats.intelligence += injury.characteristic_1; break;
+  // Apply effects modifications (both injuries and advancements)
+  if (fighter.effects) {
+    // Process injuries
+    if (fighter.effects.injuries && fighter.effects.injuries.length > 0) {
+      fighter.effects.injuries.forEach((injury: FighterEffect) => {
+        // Process all stat modifiers for this injury
+        if (injury.fighter_effect_modifiers && injury.fighter_effect_modifiers.length > 0) {
+          injury.fighter_effect_modifiers.forEach((modifier: FighterEffectStatModifier) => {
+            // Handle case sensitivity in stat names
+            const statName = modifier.stat_name.toLowerCase();
+            
+            // Map the stat name to the right property name
+            const statMapping: Record<string, keyof typeof adjustedStats> = {
+              'movement': 'movement',
+              'weapon_skill': 'weapon_skill',
+              'ballistic_skill': 'ballistic_skill',
+              'strength': 'strength',
+              'toughness': 'toughness',
+              'wounds': 'wounds',
+              'initiative': 'initiative',
+              'attacks': 'attacks',
+              'leadership': 'leadership',
+              'cool': 'cool',
+              'willpower': 'willpower',
+              'intelligence': 'intelligence'
+            };
+            
+            // Apply the modifier
+            const statKey = statMapping[statName];
+            if (statKey) {
+              adjustedStats[statKey] += modifier.numeric_value;
+            }
+          });
         }
-      }
-      
-      // Handle second characteristic
-      if (injury.code_2 && injury.characteristic_2) {
-        switch (injury.code_2) {
-          case 'M': adjustedStats.movement += injury.characteristic_2; break;
-          case 'WS': adjustedStats.weapon_skill += injury.characteristic_2; break;
-          case 'BS': adjustedStats.ballistic_skill += injury.characteristic_2; break;
-          case 'S': adjustedStats.strength += injury.characteristic_2; break;
-          case 'T': adjustedStats.toughness += injury.characteristic_2; break;
-          case 'W': adjustedStats.wounds += injury.characteristic_2; break;
-          case 'I': adjustedStats.initiative += injury.characteristic_2; break;
-          case 'A': adjustedStats.attacks += injury.characteristic_2; break;
-          case 'Ld': adjustedStats.leadership += injury.characteristic_2; break;
-          case 'Cl': adjustedStats.cool += injury.characteristic_2; break;
-          case 'Wil': adjustedStats.willpower += injury.characteristic_2; break;
-          case 'Int': adjustedStats.intelligence += injury.characteristic_2; break;
+      });
+    }
+
+    // Process advancements if available
+    if (fighter.effects.advancements && fighter.effects.advancements.length > 0) {
+      // Similar logic for advancements
+      fighter.effects.advancements.forEach((advancement: FighterEffect) => {
+        if (advancement.fighter_effect_modifiers && advancement.fighter_effect_modifiers.length > 0) {
+          advancement.fighter_effect_modifiers.forEach((modifier: FighterEffectStatModifier) => {
+            const statName = modifier.stat_name.toLowerCase();
+            const statMapping: Record<string, keyof typeof adjustedStats> = {
+              'movement': 'movement',
+              'weapon_skill': 'weapon_skill',
+              'ballistic_skill': 'ballistic_skill',
+              'strength': 'strength',
+              'toughness': 'toughness',
+              'wounds': 'wounds',
+              'initiative': 'initiative',
+              'attacks': 'attacks',
+              'leadership': 'leadership',
+              'cool': 'cool',
+              'willpower': 'willpower',
+              'intelligence': 'intelligence'
+            };
+            
+            const statKey = statMapping[statName];
+            if (statKey) {
+              adjustedStats[statKey] += modifier.numeric_value;
+            }
+          });
         }
-      }
-    });
+      });
+    }
   }
 
-  // Apply advancements after injuries
+  // Apply old-style advancements if present (for backward compatibility)
   if (fighter.advancements?.characteristics) {
     const statNameMapping: { [key: string]: keyof typeof adjustedStats } = {
       'Ballistic Skill': 'ballistic_skill',

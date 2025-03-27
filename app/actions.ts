@@ -246,19 +246,16 @@ export async function getFighters(gangId: string) {
         free_skill,
         weapons,
         wargear,
-        fighter_injuries (
-          id,
-          injury_name,
-          code_1,
-          characteristic_1,
-          code_2,
-          characteristic_2,
-          created_at
+        fighter_effects (
+          *,
+          fighter_effect_stat_modifiers ( * )
         )
       `)
       .eq('gang_id', gangId);
 
     if (fightersError) throw fightersError;
+
+    
 
     const { data: fighterTypes, error: typesError } = await supabase
       .from('fighter_types')
@@ -292,7 +289,7 @@ export async function getFighters(gangId: string) {
       intelligence: fighter.intelligence,
       xp: fighter.xp ?? 0,
       advancements: fighter.advancements,
-      injuries: fighter.fighter_injuries || [],
+      injuries: fighter.fighter_effects || [],
       special_rules: fighter.special_rules || [],
       note:fighter.note,
       killed: fighter.killed || false,

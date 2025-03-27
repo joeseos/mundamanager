@@ -3,7 +3,7 @@ import { StatsTable, StatsType } from './ui/fighter-card-stats-table';
 import WeaponTable from './weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { FighterProps, Injury, Vehicle, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
@@ -13,7 +13,7 @@ import { MdChair } from "react-icons/md";
 import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -23,10 +23,14 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   enslaved?: boolean;
   starved?: boolean;
   free_skill?: boolean;
-  kills: number;  // Required property
-  injuries: Injury[];
+  kills: number;
+  skills?: FighterSkills; // Use the standardized type
+  effects: {
+    injuries: Array<FighterEffect>;
+    advancements: Array<FighterEffect>;
+  }
   note?: string;
-  vehicle?: Vehicle;  // Add vehicle property
+  vehicle?: Vehicle;
   disableLink?: boolean;
 }
 
@@ -116,7 +120,8 @@ const FighterCard = memo(function FighterCard({
   starved,
   free_skill,
   kills = 0,  // Default value
-  injuries = [],
+  skills = {},  // Add default value
+  effects,
   note,
   vehicle,
   disableLink = false,
@@ -176,7 +181,7 @@ const FighterCard = memo(function FighterCard({
     ) || [];
   }, [isCrew, vehicle]);
 
-  // Create fighter data for stat calculations
+  // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
     id,
     fighter_name: name,
@@ -197,6 +202,7 @@ const FighterCard = memo(function FighterCard({
     intelligence,
     xp,
     kills,
+    skills: skills, // Direct assignment since skills is already in the correct format
     advancements: {
       characteristics: advancements?.characteristics || {},
       skills: advancements?.skills || {}
@@ -204,17 +210,46 @@ const FighterCard = memo(function FighterCard({
     weapons,
     wargear,
     special_rules: special_rules || [],
-    injuries: injuries || [],
+    effects: effects || { injuries: [], advancements: [] },
+    base_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    },
+    current_stats: {
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence
+    }
   }), [
     id, name, type, fighter_class, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
-    kills, advancements, weapons, wargear, special_rules, injuries
+    kills, advancements, weapons, wargear, special_rules, effects, skills
   ]);
 
+  // Replace adjustedStats with modifiedStats
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
-  // Calculate stats based on fighter type
+  // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
     if (isCrew) {
       return {
@@ -249,7 +284,7 @@ const FighterCard = memo(function FighterCard({
       'Int': `${adjustedStats.intelligence}+`,
       'XP': xp
     };
-  }, [isCrew, vehicleStats, vehicle, adjustedStats, xp]);
+  }, [isCrew, vehicleStats, adjustedStats, xp]);
 
   const isInactive = killed || retired;
 
@@ -419,15 +454,23 @@ const FighterCard = memo(function FighterCard({
                 </>
               )}
 
-              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || free_skill) && (
+              {/* Display skills from both advancements and the new skills structure */}
+              {((advancements?.skills && Object.keys(advancements.skills).length > 0) || 
+                (skills && Object.keys(skills).length > 0) || 
+                free_skill) && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {(advancements?.skills && Object.keys(advancements.skills).length > 0) ? (
-                      Object.keys(advancements.skills)
-                        .sort((a, b) => a.localeCompare(b))
-                        .join(', ')
-                    ) : free_skill ? (
+                    {[
+                      // Get skills from advancements (old structure)
+                      ...(advancements?.skills ? Object.keys(advancements.skills) : []),
+                      // Get skills from the new structure
+                      ...(skills ? Object.keys(skills) : [])
+                    ]
+                      .filter(Boolean)
+                      .sort((a, b) => a.localeCompare(b))
+                      .join(', ') || 
+                    (free_skill ? (
                       <div className="flex items-center gap-2 text-amber-700">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -439,7 +482,7 @@ const FighterCard = memo(function FighterCard({
                         </svg>
                         Starting skill missing.
                       </div>
-                    ) : null}
+                    ) : null)}
                   </div>
                 </>
               )}
@@ -461,14 +504,14 @@ const FighterCard = memo(function FighterCard({
                 </>
               )}
 
-              {injuries && injuries.length > 0 && (
+              {effects && effects.injuries && effects.injuries.length > 0 && (
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {injuries
+                    {effects.injuries
                       .slice() // Create a shallow copy to avoid mutating the original array
-                      .sort((a, b) => new Date(a.acquired_at).getTime() - new Date(b.acquired_at).getTime()) // Sort by created_at
-                      .map((injury) => injury.injury_name)
+                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) // Sort by created_at
+                      .map((injury) => injury.effect_name)
                       .join(', ')}
                   </div>
                 </>
