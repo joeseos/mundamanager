@@ -175,6 +175,13 @@ interface EditState {
   xpError: string;
 }
 
+// Add this type near the top of the file or in a types file
+interface FighterEffectTypeSpecificData {
+  times_increased: number;
+  xp_cost: number;
+  credits_increase: number;
+}
+
 export default function FighterPage({ params }: { params: { id: string } }) {
   // Replace multiple state declarations with consolidated state
   const [fighterData, setFighterData] = useState<FighterPageState>({
@@ -1492,11 +1499,27 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     setFighterData(prev => {
       if (!prev.fighter) return prev;
       
-      // Create new fighter state with filtered advancements
+      // Find the advancement being deleted to get its XP cost
+      const advancement = prev.fighter.effects.advancements.find(
+        adv => adv.id === advancementId
+      );
+      
+      // Get XP cost from type_specific_data
+      const xpCost = typeof advancement?.type_specific_data === 'object' 
+        ? (advancement.type_specific_data as FighterEffectTypeSpecificData)?.xp_cost || 0
+        : 0;
+      
+      // Calculate new XP values by adding back the advancement's XP cost
+      const newXp = (prev.fighter.xp || 0) + xpCost;
+      const newTotalXp = (prev.fighter.total_xp || 0) + xpCost;
+      
+      // Create new fighter state with filtered advancements and updated XP values
       return {
         ...prev,
         fighter: {
           ...prev.fighter,
+          xp: newXp,
+          total_xp: newTotalXp,
           effects: {
             ...prev.fighter.effects,
             advancements: prev.fighter.effects.advancements.filter(
@@ -1506,6 +1529,36 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         }
       };
     });
+
+    try {
+      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+      
+      const response = await fetch(rpcEndpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          input_fighter_id: params.id,
+          fighter_effect_id: advancementId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete advancement');
+      }
+
+    } catch (error) {
+      console.error('Error deleting advancement:', error);
+      // Revert the optimistic update by refetching the data
+      await fetchFighterData();
+      toast({
+        description: 'Failed to delete advancement',
+        variant: "destructive"
+      });
+    }
   };
 
   // Safely convert skills to the expected format for AdvancementsList component
