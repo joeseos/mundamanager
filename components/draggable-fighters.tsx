@@ -18,6 +18,38 @@ export function DraggableFighters({
   initialPositions
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
+  
+  // Add useEffect to ensure all fighters have positions
+  useEffect(() => {
+    // Ensure all fighters have positions
+    const unpositionedFighters = fighters.filter(f => 
+      !Object.values(currentPositions).includes(f.id)
+    );
+    
+    if (unpositionedFighters.length > 0) {
+      // Get the next available position
+      const maxPosition = Object.keys(currentPositions).length > 0 
+        ? Math.max(...Object.keys(currentPositions).map(Number)) 
+        : -1;
+      
+      // Create new positions for unpositioned fighters
+      const newPositions = { ...currentPositions };
+      unpositionedFighters.forEach((fighter, index) => {
+        newPositions[maxPosition + index + 1] = fighter.id;
+      });
+      
+      // Update positions
+      setCurrentPositions(newPositions);
+      console.log("Added positions for unpositioned fighters:", 
+        unpositionedFighters.map(f => f.id),
+        newPositions
+      );
+      
+      // Also inform parent component about new positions
+      onPositionsUpdate?.(newPositions);
+    }
+  }, [fighters, currentPositions, onPositionsUpdate]);
+  
   const sortedFighters = Object.entries(currentPositions)
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([_, id]) => fighters.find(f => f.id === id))
