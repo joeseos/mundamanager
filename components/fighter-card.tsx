@@ -369,7 +369,7 @@ const FighterCard = memo(function FighterCard({
           </div>
           {!isInactive && (
             <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-              <span className="leading-6 font-bold text-2xl">{credits}</span>
+              <span className="leading-6 font-bold text-2xl">{credits === 0 ? '*' : credits}</span>
               <span className="leading-3 text-xs">Credits</span>
             </div>
           )}

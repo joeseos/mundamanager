@@ -344,7 +344,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           {starved && <TbMeatOff className="text-red-500" />}
         </div>
         <div className="bg-[#FFFFFF] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-          <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0)}</span>
+          <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
           <span className="leading-3 text-xs">Credits</span>
         </div>
       </div>
