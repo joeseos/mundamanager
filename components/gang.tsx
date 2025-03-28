@@ -165,6 +165,30 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
+  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
+    }
+    return 'normal';
+  });
+
+  // view mode
+  useEffect(() => {
+    // Update main content wrapper size
+    const wrapper = document.getElementById('main-content-wrapper');
+    if (wrapper) {
+      if (viewMode !== 'normal') {
+        wrapper.classList.remove('max-w-5xl');
+        wrapper.classList.add('max-w-none');
+      } else {
+        wrapper.classList.remove('max-w-none');
+        wrapper.classList.add('max-w-5xl');
+      }
+    }
+
+    // Persist view mode in localStorage
+    localStorage.setItem('gang_view_mode', viewMode);
+  }, [viewMode]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -1109,8 +1133,9 @@ export default function Gang({
   };
 
   return (
-    <div className="space-y-4 print:space-y-[5px]">
-      <div className="print:flex space-y-4 print:space-y-0">
+    <div className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}>
+
+      <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Illustration */}
           <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
@@ -1145,14 +1170,31 @@ export default function Gang({
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold">{name}</h2>
-              <div>
-                {additionalButtons}
-                <button
-                  onClick={handleEditModalOpen}
-                  className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
-                >
-                  Edit
-                </button>
+              <div className="flex gap-2">
+                {/* View Mode Dropdown */}
+                <div className="w-full print:hidden">
+                  <select
+                    id="view-mode-select"
+                    value={viewMode}
+                    onChange={(e) => setViewMode(e.target.value as 'normal' | 'small' | 'medium' | 'large')}
+                    className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
+                  >
+                    <option value="normal">Page View</option>
+                    <option value="small">Small Cards</option>
+                    <option value="medium">Medium Cards</option>
+                    <option value="large">Large Cards</option>
+                  </select>
+                </div>
+
+                <div>
+                  {additionalButtons}
+                  <button
+                    onClick={handleEditModalOpen}
+                    className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1243,7 +1285,7 @@ export default function Gang({
               <span>Created: {formatDate(created_at)}</span>
               <span>Last Updated: {formatDate(lastUpdated)}</span>
             </div>
-            <div className="mt-4 flex flex-wrap sm:justify-end justify-center gap-2">
+            <div className="mt-2 flex flex-wrap sm:justify-end justify-center gap-2">
               <Button
                 onClick={handleAddFighterClick}
                 className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
@@ -1575,13 +1617,14 @@ export default function Gang({
           </div>
         </div>
       </div>
-      <div className="print:visible">
+      <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
         {fighters.length > 0 ? (
           <DraggableFighters
             fighters={fighters}
             onPositionsUpdate={handlePositionsUpdate}
             onFightersReorder={handleFightersReorder}
             initialPositions={positions}
+            viewMode={viewMode}
           />
         ) : (
           <div className="text-white italic text-center">No fighters available.</div>

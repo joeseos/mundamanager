@@ -11,6 +11,7 @@ interface MyFightersProps {
   isLoading?: boolean;
   error?: string;
   positions: Record<number, string>;
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
 
@@ -24,7 +25,7 @@ const imageSizes = {
   desktop: '800px'
 };
 
-export function MyFighters({ fighters, positions, isLoading, error }: MyFightersProps) {
+export function MyFighters({ fighters, positions, isLoading, error, viewMode = 'normal' }: MyFightersProps) {
   const memoizedFormatters = useMemo(() => ({
     getSortedWargear: (wargear: any[]) => 
       wargear
@@ -102,12 +103,16 @@ export function MyFighters({ fighters, positions, isLoading, error }: MyFighters
   }
 
   return (
-    <div className="space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0">
+    <div className={viewMode !== 'normal'
+    ? "flex flex-wrap gap-4 justify-center items-start px-0 print:justify-start print:gap-0"
+    : "space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0"}
+    >
       {sortedFighters.map((fighter) => (
         <SortableFighter
           key={fighter.id}
           fighter={fighter}
           positions={positions}
+          viewMode={viewMode}
         />
       ))}
     </div>

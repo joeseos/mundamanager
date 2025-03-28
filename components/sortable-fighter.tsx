@@ -9,9 +9,10 @@ interface SortableFighterProps {
   fighter: FighterProps;
   positions: Record<number, string>;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
-export function SortableFighter({ fighter, positions, onFighterDeleted }: SortableFighterProps) {
+export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode = 'normal' }: SortableFighterProps) {
   const [isDragging, setIsDragging] = useState(false);
   const {
     attributes,
@@ -54,6 +55,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted }: Sortab
         type={fighter.fighter_type}
         skills={fighter.skills}
         disableLink={isDragging}
+        viewMode={viewMode}
       />
     </div>
   );

@@ -382,7 +382,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </p>
         )}
       </div>
-      <div className="mt-4">
+      <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
     </div>

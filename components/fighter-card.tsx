@@ -32,6 +32,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   note?: string;
   vehicle?: Vehicle;
   disableLink?: boolean;
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -125,10 +126,18 @@ const FighterCard = memo(function FighterCard({
   note,
   vehicle,
   disableLink = false,
+  viewMode = 'normal',
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
   const isCrew = fighter_class === 'Crew';
+
+  // View Mode card size
+  const sizeStyles = {
+    small: 'w-[520px] h-[359.1px]', // w-[430px] h-[296.9px]
+    medium: 'w-[615px] h-[424.7px]',
+    large: 'w-[800px] h-[552.3px]',
+  };
 
   // Move getVehicleWeapons function before its usage
   const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
@@ -322,8 +331,9 @@ const FighterCard = memo(function FighterCard({
   }, [special_rules]);
 
   const cardContent = (
-    <div 
-        className="relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black p-4 print:hover:scale-[1] print:print-fighter-card print:inline-block"
+    <div
+      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black p-4 print:hover:scale-[1] print:print-fighter-card print:inline-block
+      ${viewMode !== 'normal' ? `${sizeStyles[viewMode]} flex-shrink-0` : ''}`}
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
           backgroundSize: 'cover',
@@ -381,21 +391,21 @@ const FighterCard = memo(function FighterCard({
             
             {/* Show fighter weapons */}
             {!isCrew && weapons && weapons.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-2">
                 <WeaponTable weapons={weapons} />
               </div>
             )}
 
             {/* Show crew weapons */}
             {isCrew && weapons && weapons.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-2">
                 <WeaponTable weapons={weapons} entity="crew" />
               </div>
             )}
 
             {/* Add vehicle weapons section */}
             {isCrew && vehicleWeapons.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-2">
                 <WeaponTable weapons={vehicleWeapons} entity="vehicle" />
               </div>
             )}

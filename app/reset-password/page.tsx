@@ -58,7 +58,7 @@ export default function ResetPassword({ searchParams }: { searchParams: Message 
           ) : (
             <p className="text-sm text-white mb-8">Check your email for the password reset link.</p>
           )}
-          <div className="text-center mt-4">
+          <div className="text-center mt-2">
             <Link href="/sign-in" className="text-sm text-white hover:underline">
               Back to sign in
             </Link>

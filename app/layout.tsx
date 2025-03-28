@@ -79,7 +79,7 @@ export default async function RootLayout({
                 </div>
               </nav>
             )}
-            <div className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
+            <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
               {children}
             </div>
           </div>

@@ -304,7 +304,7 @@ export default function Campaign({
                     setShowEditModal(false);
                     setShowDeleteModal(true);
                   }}
-                  className="w-full mt-4"
+                  className="w-full mt-2"
                 >
                   Delete Campaign
                 </Button>
