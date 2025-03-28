@@ -98,6 +98,7 @@ interface GangProps {
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
+  gang_variants: string[] | null;
 }
 
 export default function Gang({ 
@@ -127,7 +128,9 @@ export default function Gang({
   onFighterDeleted,
   onVehicleAdd,
   positioning,
+  gang_variants,
 }: GangProps) {
+  const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
@@ -174,6 +177,10 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
+  const [variantsList, setVariantsList] = useState<Array<{id: string, variant: string}>>([]);
+  const [variantListLoaded, setVariantListLoaded] = useState(false);
+  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0)
+  const [gangVariants, setGangVariants] = useState<Array<string>>(gang_variants ?? []);
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
@@ -228,6 +235,25 @@ export default function Gang({
     }
   };
 
+  const fetchVariants = async () => {
+    if (variantListLoaded) return;
+
+    try {
+      const response = await fetch("/api/gang_variant_types");
+      if (!response.ok) throw new Error('Failed to fetch gang variant types.');
+      const data = await response.json()
+      console.log('Fetched Gang Variant Types: ',data);
+      setVariantsList(data);
+      setVariantListLoaded(true);
+    } catch (error) {
+      console.error('Error fetching Gang Variant Types:', error);
+        toast({
+          description: 'Failed to load Gang Variant Types',
+          variant: "destructive"
+        });
+    }
+  };
+
   const handleSave = async () => {
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
@@ -246,7 +272,8 @@ export default function Gang({
           alliance_id: editedAllianceId === '' ? null : editedAllianceId,
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
-          exploration_points: parseInt(editedExplorationPoints)
+          exploration_points: parseInt(editedExplorationPoints),
+          gang_variants: gangIsVariant ? gangVariants : []
         }),
       });
 
@@ -585,6 +612,7 @@ export default function Gang({
     
     // Don't fetch alliances here, just open the modal
     setShowEditModal(true);
+    fetchVariants()
   };
 
   const editModalContent = (
@@ -720,6 +748,39 @@ export default function Gang({
             onChange={(e) => setEditedExplorationPoints(e.target.value)}
           />
         </div>
+      )}
+      <label className="flex items-center space-x-2">
+        <input
+            type="checkbox"
+            checked={gangIsVariant}
+            onChange={(e) => {
+              const newValue = e.target.checked;
+              setGangIsVariant(newValue);
+            }}
+        />
+        <span>Variant</span>
+      </label>
+      {gangIsVariant && variantsList.length > 0 && (
+          <div className="grid grid-cols-4 gap-4 mt-4">
+            {variantsList.map((variant) => (
+                <div key={variant.id} className="flex flex-col items-center justify-center p-4 border rounded">
+                  <span>{variant.variant}</span>
+                  <input type="checkbox"
+                         className="mt-2"
+                         checked={(gangVariants).includes(variant.id)}
+                         onChange={(e => {
+                               const newValue = e.target.checked;
+                               if (newValue) {
+                                 setGangVariants(prev => [...prev, variant.id]);
+                               } else {
+                                 setGangVariants(prev => prev.filter(item => item !== variant.id));
+                               }
+                           console.log("checked variant: ", variant.variant);}
+                         )}
+                  />
+                </div>
+            ))}
+          </div>
       )}
       <DeleteGangButton gangId={id} />
     </div>

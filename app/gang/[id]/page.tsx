@@ -306,6 +306,7 @@ interface GangDataState {
     note?: string;
     positioning: Record<number, string>;
     campaigns: any[];
+    gang_variants: string[];
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
