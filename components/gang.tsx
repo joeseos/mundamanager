@@ -844,52 +844,7 @@ export default function Gang({
         );
 
         if (!response.ok) throw new Error('Failed to fetch gang addition types');
-        let data = await response.json();
-        
-        // Process the data to enhance with equipment_name immediately
-        data = data.map((type: any) => {
-          // Skip if no equipment selection or default equipment
-          if (!type.equipment_selection?.weapons?.default || !type.default_equipment) {
-            return type;
-          }
-          
-          // Create equipment ID to name map from default_equipment
-          const equipmentMap: Record<string, string> = {};
-          if (Array.isArray(type.default_equipment)) {
-            type.default_equipment.forEach((equipment: any) => {
-              if (equipment && equipment.id && equipment.equipment_name) {
-                equipmentMap[equipment.id] = equipment.equipment_name;
-              }
-            });
-          }
-          
-          // Add known equipment
-          equipmentMap["ce87790e-5a3b-416f-b09d-261a15da884a"] = "Tunnelling claw (Ambot)";
-          
-          // Enhance default equipment with equipment_name
-          const enhancedDefault = type.equipment_selection.weapons.default.map((item: any) => {
-            if (!item.equipment_name && equipmentMap[item.id]) {
-              return {
-                ...item,
-                equipment_name: equipmentMap[item.id],
-                equipment_category: "Close Combat Weapons" // Default category for Ambot claw
-              };
-            }
-            return item;
-          });
-          
-          // Update the type with enhanced default equipment
-          return {
-            ...type,
-            equipment_selection: {
-              ...type.equipment_selection,
-              weapons: {
-                ...type.equipment_selection.weapons,
-                default: enhancedDefault
-              }
-            }
-          };
-        });
+        const data = await response.json();
         
         setGangAdditionTypes(data);
       } catch (error) {
@@ -904,73 +859,6 @@ export default function Gang({
     setShowGangAdditionsModal(true);
   };
 
-  // Add this useEffect as a safety net to ensure equipment names are always added
-  // Note: This should be placed at the component level, not inside any function
-  useEffect(() => {
-    if (gangAdditionTypes.length > 0) {
-      // Create a deep copy to avoid mutating state directly
-      const enhancedTypes = gangAdditionTypes.map(type => {
-        // Make a deep copy
-        const typeCopy = JSON.parse(JSON.stringify(type));
-        
-        // Ensure default equipment has equipment_name if available
-        if (typeCopy.equipment_selection?.weapons?.default && 
-            Array.isArray(typeCopy.equipment_selection.weapons.default)) {
-          
-          // Map of equipment IDs to names from default_equipment
-          const equipmentMap: Record<string, string> = {};
-          
-          if (typeCopy.default_equipment && Array.isArray(typeCopy.default_equipment)) {
-            typeCopy.default_equipment.forEach((equip: any) => {
-              if (equip && equip.id && equip.equipment_name) {
-                equipmentMap[equip.id] = equip.equipment_name;
-              }
-            });
-          }
-          
-          // Add known equipment mappings
-          equipmentMap["ce87790e-5a3b-416f-b09d-261a15da884a"] = "Tunnelling claw (Ambot)";
-          
-          // Add equipment_name to default array items if missing
-          typeCopy.equipment_selection.weapons.default = 
-            typeCopy.equipment_selection.weapons.default.map((item: any) => {
-              if (!item.equipment_name && equipmentMap[item.id]) {
-                return {
-                  ...item,
-                  equipment_name: equipmentMap[item.id],
-                  equipment_category: item.equipment_category || "Close Combat Weapons"
-                };
-              }
-              return item;
-            });
-        }
-        
-        return typeCopy;
-      });
-      
-      // Only update state if there are changes to prevent infinite loop
-      const needsUpdate = enhancedTypes.some((type, i) => {
-        const original = gangAdditionTypes[i];
-        
-        // Add null checks to avoid "possibly undefined" errors
-        if (!original.equipment_selection?.weapons?.default) return false;
-        if (!type.equipment_selection?.weapons?.default) return false;
-        
-        return type.equipment_selection.weapons.default.some((item: any, j: number) => {
-          // Add a null check for the original item
-          if (!original.equipment_selection?.weapons?.default?.[j]) return false;
-          
-          const originalItem = original.equipment_selection.weapons.default[j] as any;
-          return item.equipment_name && !originalItem.equipment_name;
-        });
-      });
-      
-      if (needsUpdate) {
-        setGangAdditionTypes(enhancedTypes);
-      }
-    }
-  }, [gangAdditionTypes]);
-
   const renderEquipmentSelection = () => {
     const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
     if (!selectedType?.equipment_selection?.weapons) return null;
@@ -982,24 +870,33 @@ export default function Gang({
     // Group equipment options by category
     const categorizedOptions: Record<string, any[]> = {};
     
-    if (weapons.options) {
+    // Check if options exists before attempting to iterate over it
+    if (weapons.options && Array.isArray(weapons.options)) {
+      console.log('Equipment options:', weapons.options);
+      
       weapons.options.forEach(option => {
-        // Use type assertion to access equipment_category
-        const optionWithCategory = option as any;
+        const optionAny = option as any;
         
-        // Get category from the API response, convert to lowercase to match equipmentCategoryRank
-        const categoryName = optionWithCategory.equipment_category || 'Other Equipment';
+        // Get category name, ensure it has a value or use a default
+        const categoryName = optionAny.equipment_category || inferCategoryFromEquipmentName(optionAny.equipment_name || '');
         const categoryKey = categoryName.toLowerCase();
         
+        console.log(`Item: ${optionAny.equipment_name}, Category: ${categoryName}, Key: ${categoryKey}`);
+        
+        // Initialize category array if it doesn't exist
         if (!categorizedOptions[categoryKey]) {
           categorizedOptions[categoryKey] = [];
         }
+        
+        // Add option to the appropriate category
         categorizedOptions[categoryKey].push({
           ...option,
           displayCategory: categoryName  // Keep original case for display
         });
       });
     }
+    
+    console.log('Categorized options:', categorizedOptions);
 
     // Sort categories according to equipmentCategoryRank
     const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
@@ -1007,6 +904,8 @@ export default function Gang({
       const rankB = equipmentCategoryRank[b] ?? Infinity;
       return rankA - rankB;
     });
+    
+    console.log('Sorted categories:', sortedCategories);
 
     return (
       <div className="space-y-3">
@@ -1307,6 +1206,38 @@ export default function Gang({
       setGangAdditionCost('');
       setFighterCost('');
     }
+  };
+
+  // Simple helper function to infer category from name when API doesn't provide it
+  const inferCategoryFromEquipmentName = (name: string): string => {
+    const lowerName = name.toLowerCase();
+    
+    if (lowerName.includes('claw') || 
+        lowerName.includes('baton') || 
+        lowerName.includes('sword') || 
+        lowerName.includes('hammer') ||
+        lowerName.includes('fist') ||
+        lowerName.includes('knife') ||
+        lowerName.includes('blade')) {
+      return 'Close Combat Weapons';
+    }
+    
+    if (lowerName.includes('gun') || 
+        lowerName.includes('pistol') || 
+        lowerName.includes('shotgun') ||
+        lowerName.includes('rifle') ||
+        lowerName.includes('lasgun') ||
+        lowerName.includes('blaster')) {
+      return 'Special Weapons';
+    }
+    
+    if (lowerName.includes('armour') || 
+        lowerName.includes('armor') || 
+        lowerName.includes('carapace')) {
+      return 'Armour';
+    }
+    
+    return 'Other Equipment';
   };
 
   return (
