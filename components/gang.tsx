@@ -201,6 +201,7 @@ export default function Gang({
         wrapper.classList.add('max-w-5xl');
       }
     }
+    fetchVariants()
 
     // Persist view mode in localStorage
     localStorage.setItem('gang_view_mode', viewMode);
@@ -612,7 +613,6 @@ export default function Gang({
     
     // Don't fetch alliances here, just open the modal
     setShowEditModal(true);
-    fetchVariants()
   };
 
   const editModalContent = (
