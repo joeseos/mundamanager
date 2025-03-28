@@ -1384,6 +1384,24 @@ export default function Gang({
               </div>
             </div>
 
+            <div className="text-gray-600 mb-4">
+              <div className="flex flex-wrap gap-4">
+                {gangVariants.length > 0 && gangIsVariant && (
+                    <div className="flex items-center gap-1 text-sm">Variants:
+                      {gangVariants.map((variantId) => {
+                        const variantObj = variantsList.find(v => v.id === variantId);
+                        if (!variantObj) return null;
+                        return (
+                            <Badge key={variantObj.id} variant="secondary">
+                              {variantObj.variant}
+                            </Badge>
+                        );
+                      })}
+                    </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
               <StatItem
                 label="Alignment"
