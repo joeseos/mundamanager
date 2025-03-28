@@ -26,8 +26,8 @@ export default async function ProfilePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4 mt-4">
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4 mt-2">
+        <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
           <h2 className="text-2xl font-bold mb-4">Profile</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

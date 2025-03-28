@@ -74,7 +74,7 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4">
+    <div className="container max-w-5xl w-full space-y-4 mx-auto">
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="space-y-2">
           <div className="flex justify-between items-center">

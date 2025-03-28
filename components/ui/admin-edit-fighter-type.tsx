@@ -963,7 +963,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Fighter's Equipment List
               </label>

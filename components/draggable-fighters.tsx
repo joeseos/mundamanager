@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, Sensor } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
 
@@ -9,13 +9,15 @@ interface DraggableFightersProps {
   onPositionsUpdate?: (positions: Record<number, string>) => void;
   onFightersReorder?: (newFighters: FighterProps[]) => void;
   initialPositions: Record<number, string>;
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
 export function DraggableFighters({ 
   fighters, 
   onPositionsUpdate,
   onFightersReorder,
-  initialPositions
+  initialPositions,
+  viewMode = 'normal',
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
   
@@ -162,11 +164,12 @@ export function DraggableFighters({
     >
       <SortableContext
         items={sortedFighters.map(f => f.id)}
-        strategy={verticalListSortingStrategy}
+        strategy={viewMode !== 'normal' ? rectSortingStrategy : verticalListSortingStrategy}
       >
         <MyFighters
           fighters={sortedFighters}
           positions={currentPositions}
+          viewMode={viewMode}
         />
       </SortableContext>
     </DndContext>

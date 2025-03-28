@@ -50,7 +50,7 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
 
   return (
     <>
-      <div className="mt-4">
+      <div className="mt-2">
         <Button
           onClick={() => setShowModal(true)}
           variant="destructive"

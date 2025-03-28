@@ -284,7 +284,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
         )}
       </div>
       {campaignGangs.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-2">
           <h3 className="font-medium mb-2">Campaign Gangs:</h3>
           <ul className="space-y-2">
             {campaignGangs.map(gang => (

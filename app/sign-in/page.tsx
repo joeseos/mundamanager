@@ -74,7 +74,7 @@ export default async function SignIn({ searchParams }: { searchParams: Message }
             >
               Forgot your password?
             </Link>
-            <div className="mt-4">
+            <div className="mt-2">
               <TurnstileWidget />
             </div>
             <SubmitButton pendingText="Signing in..." className="mt-2">
