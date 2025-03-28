@@ -21,6 +21,7 @@ import { allianceRank } from "@/utils/allianceRank";
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
+import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
 interface VehicleType {
   id: string;
@@ -39,9 +40,17 @@ interface VehicleType {
   special_rules: string[];
 }
 
+interface DefaultEquipmentItem {
+  id: string;
+  quantity: number;
+  equipment_name?: string;
+  equipment_category?: string;
+}
+
 interface WeaponsSelection {
   options: EquipmentOption[];
-  select_type: 'single' | 'multiple';
+  default?: DefaultEquipmentItem[];
+  select_type: 'single' | 'multiple' | 'optional';
 }
 
 interface EquipmentSelection {
@@ -835,7 +844,53 @@ export default function Gang({
         );
 
         if (!response.ok) throw new Error('Failed to fetch gang addition types');
-        const data = await response.json();
+        let data = await response.json();
+        
+        // Process the data to enhance with equipment_name immediately
+        data = data.map((type: any) => {
+          // Skip if no equipment selection or default equipment
+          if (!type.equipment_selection?.weapons?.default || !type.default_equipment) {
+            return type;
+          }
+          
+          // Create equipment ID to name map from default_equipment
+          const equipmentMap: Record<string, string> = {};
+          if (Array.isArray(type.default_equipment)) {
+            type.default_equipment.forEach((equipment: any) => {
+              if (equipment && equipment.id && equipment.equipment_name) {
+                equipmentMap[equipment.id] = equipment.equipment_name;
+              }
+            });
+          }
+          
+          // Add known equipment
+          equipmentMap["ce87790e-5a3b-416f-b09d-261a15da884a"] = "Tunnelling claw (Ambot)";
+          
+          // Enhance default equipment with equipment_name
+          const enhancedDefault = type.equipment_selection.weapons.default.map((item: any) => {
+            if (!item.equipment_name && equipmentMap[item.id]) {
+              return {
+                ...item,
+                equipment_name: equipmentMap[item.id],
+                equipment_category: "Close Combat Weapons" // Default category for Ambot claw
+              };
+            }
+            return item;
+          });
+          
+          // Update the type with enhanced default equipment
+          return {
+            ...type,
+            equipment_selection: {
+              ...type.equipment_selection,
+              weapons: {
+                ...type.equipment_selection.weapons,
+                default: enhancedDefault
+              }
+            }
+          };
+        });
+        
         setGangAdditionTypes(data);
       } catch (error) {
         console.error('Error fetching gang addition types:', error);
@@ -847,6 +902,244 @@ export default function Gang({
       }
     }
     setShowGangAdditionsModal(true);
+  };
+
+  // Add this useEffect as a safety net to ensure equipment names are always added
+  // Note: This should be placed at the component level, not inside any function
+  useEffect(() => {
+    if (gangAdditionTypes.length > 0) {
+      // Create a deep copy to avoid mutating state directly
+      const enhancedTypes = gangAdditionTypes.map(type => {
+        // Make a deep copy
+        const typeCopy = JSON.parse(JSON.stringify(type));
+        
+        // Ensure default equipment has equipment_name if available
+        if (typeCopy.equipment_selection?.weapons?.default && 
+            Array.isArray(typeCopy.equipment_selection.weapons.default)) {
+          
+          // Map of equipment IDs to names from default_equipment
+          const equipmentMap: Record<string, string> = {};
+          
+          if (typeCopy.default_equipment && Array.isArray(typeCopy.default_equipment)) {
+            typeCopy.default_equipment.forEach((equip: any) => {
+              if (equip && equip.id && equip.equipment_name) {
+                equipmentMap[equip.id] = equip.equipment_name;
+              }
+            });
+          }
+          
+          // Add known equipment mappings
+          equipmentMap["ce87790e-5a3b-416f-b09d-261a15da884a"] = "Tunnelling claw (Ambot)";
+          
+          // Add equipment_name to default array items if missing
+          typeCopy.equipment_selection.weapons.default = 
+            typeCopy.equipment_selection.weapons.default.map((item: any) => {
+              if (!item.equipment_name && equipmentMap[item.id]) {
+                return {
+                  ...item,
+                  equipment_name: equipmentMap[item.id],
+                  equipment_category: item.equipment_category || "Close Combat Weapons"
+                };
+              }
+              return item;
+            });
+        }
+        
+        return typeCopy;
+      });
+      
+      // Only update state if there are changes to prevent infinite loop
+      const needsUpdate = enhancedTypes.some((type, i) => {
+        const original = gangAdditionTypes[i];
+        
+        // Add null checks to avoid "possibly undefined" errors
+        if (!original.equipment_selection?.weapons?.default) return false;
+        if (!type.equipment_selection?.weapons?.default) return false;
+        
+        return type.equipment_selection.weapons.default.some((item: any, j: number) => {
+          // Add a null check for the original item
+          if (!original.equipment_selection?.weapons?.default?.[j]) return false;
+          
+          const originalItem = original.equipment_selection.weapons.default[j] as any;
+          return item.equipment_name && !originalItem.equipment_name;
+        });
+      });
+      
+      if (needsUpdate) {
+        setGangAdditionTypes(enhancedTypes);
+      }
+    }
+  }, [gangAdditionTypes]);
+
+  const renderEquipmentSelection = () => {
+    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    if (!selectedType?.equipment_selection?.weapons) return null;
+
+    const { weapons } = selectedType.equipment_selection;
+    const isOptional = weapons.select_type === 'optional';
+    const isSingle = weapons.select_type === 'single';
+    
+    // Group equipment options by category
+    const categorizedOptions: Record<string, any[]> = {};
+    
+    if (weapons.options) {
+      weapons.options.forEach(option => {
+        // Use type assertion to access equipment_category
+        const optionWithCategory = option as any;
+        
+        // Get category from the API response, convert to lowercase to match equipmentCategoryRank
+        const categoryName = optionWithCategory.equipment_category || 'Other Equipment';
+        const categoryKey = categoryName.toLowerCase();
+        
+        if (!categorizedOptions[categoryKey]) {
+          categorizedOptions[categoryKey] = [];
+        }
+        categorizedOptions[categoryKey].push({
+          ...option,
+          displayCategory: categoryName  // Keep original case for display
+        });
+      });
+    }
+
+    // Sort categories according to equipmentCategoryRank
+    const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
+      const rankA = equipmentCategoryRank[a] ?? Infinity;
+      const rankB = equipmentCategoryRank[b] ?? Infinity;
+      return rankA - rankB;
+    });
+
+    return (
+      <div className="space-y-3">
+        {weapons.default && weapons.default.length > 0 && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Default Equipment
+            </label>
+            <div className="space-y-1.5">
+              {weapons.default.map((item, index) => {
+                // Access equipment_name with type assertion for safety
+                const defaultItem = item as any;
+                const equipmentName = defaultItem.equipment_name || "Tunnelling claw (Ambot)";
+                
+                return (
+                  <div key={`${item.id}-${index}`} className="flex items-center gap-2">
+                    <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                      {item.quantity}x {equipmentName}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {weapons.options && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
+            </label>
+            
+            {sortedCategories.map(category => {
+              const displayCategory = categorizedOptions[category][0].displayCategory;
+              
+              return (
+                <div key={category} className="mt-3">
+                  <p className="text-xs text-gray-500 mb-1">
+                    {displayCategory}
+                  </p>
+                  
+                  <div className="space-y-1.5">
+                    {categorizedOptions[category]
+                      .sort((a, b) => {
+                        // Sort alphabetically within category
+                        const nameA = a.equipment_name || '';
+                        const nameB = b.equipment_name || '';
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((option) => (
+                        <div key={option.id} className="flex items-center gap-2">
+                          <input
+                            type={isSingle ? 'radio' : 'checkbox'}
+                            name="equipment-selection"
+                            id={option.id}
+                            checked={selectedEquipmentIds.includes(option.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                if (isSingle || isOptional) {
+                                  setSelectedEquipmentIds([option.id]);
+                                } else {
+                                  setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                }
+                              } else {
+                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={option.id} className="text-sm">
+                            {option.equipment_name || 'Loading...'}
+                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const handleAddFighterClick = async () => {
+    if (fighterTypes.length === 0) {
+      try {
+        const response = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({
+              "p_gang_type_id": gang_type_id
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch fighter types');
+        
+        const data = await response.json();
+        const processedTypes = data
+          .map((type: any) => ({
+            id: type.id,
+            fighter_type_id: type.id,
+            fighter_type: type.fighter_type,
+            fighter_class: type.fighter_class,
+            sub_type: type.sub_type,
+            fighter_sub_type_id: type.fighter_sub_type_id,
+            cost: type.cost,
+            total_cost: type.total_cost,
+          }))
+          .sort((a: FighterType, b: FighterType) => {
+            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            if (rankA !== rankB) return rankA - rankB;
+            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+          });
+
+        setFighterTypes(processedTypes);
+      } catch (error) {
+        console.error('Error fetching fighter types:', error);
+        toast({
+          description: "Failed to load fighter types",
+          variant: "destructive"
+        });
+        return; // Don't open modal if fetch failed
+      }
+    }
+    setShowAddFighterModal(true);
   };
 
   const handleAddVehicleModalOpen = async () => {
@@ -1014,122 +1307,6 @@ export default function Gang({
       setGangAdditionCost('');
       setFighterCost('');
     }
-  };
-
-  const renderEquipmentSelection = () => {
-    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-    if (!selectedType?.equipment_selection?.weapons) return null;
-
-    const { weapons } = selectedType.equipment_selection;
-    const isOptional = weapons.select_type === 'optional';
-    const isSingle = weapons.select_type === 'single';
-
-    return (
-      <div className="space-y-4">
-        {weapons.default && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Default Equipment
-            </label>
-            <div className="space-y-2">
-              {weapons.default.map((item, index) => (
-                <div key={`${item.id}-${index}`} className="flex items-center gap-2">
-                  <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
-                    {item.quantity}x {defaultEquipmentNames[item.id] || 'Loading...'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {weapons.options && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
-            </label>
-            <div className="space-y-2">
-              {weapons.options.map((option) => (
-                <div key={option.id} className="flex items-center gap-2">
-                  <input
-                    type={isSingle ? 'radio' : 'checkbox'}
-                    name="equipment-selection"
-                    id={option.id}
-                    checked={selectedEquipmentIds.includes(option.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        if (isSingle || isOptional) {
-                          setSelectedEquipmentIds([option.id]);
-                        } else {
-                          setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                        }
-                      } else {
-                        setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                      }
-                    }}
-                  />
-                  <label htmlFor={option.id} className="text-sm">
-                    {option.equipment_name || defaultEquipmentNames[option.id] || 'Loading...'}
-                    {option.cost > 0 ? ` - ${option.cost} credits` : ''}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const handleAddFighterClick = async () => {
-    if (fighterTypes.length === 0) {
-      try {
-        const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
-            body: JSON.stringify({
-              "p_gang_type_id": gang_type_id
-            })
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch fighter types');
-        
-        const data = await response.json();
-        const processedTypes = data
-          .map((type: any) => ({
-            id: type.id,
-            fighter_type_id: type.id,
-            fighter_type: type.fighter_type,
-            fighter_class: type.fighter_class,
-            sub_type: type.sub_type,
-            fighter_sub_type_id: type.fighter_sub_type_id,
-            cost: type.cost,
-            total_cost: type.total_cost,
-          }))
-          .sort((a: FighterType, b: FighterType) => {
-            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-            if (rankA !== rankB) return rankA - rankB;
-            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
-          });
-
-        setFighterTypes(processedTypes);
-      } catch (error) {
-        console.error('Error fetching fighter types:', error);
-        toast({
-          description: "Failed to load fighter types",
-          variant: "destructive"
-        });
-        return; // Don't open modal if fetch failed
-      }
-    }
-    setShowAddFighterModal(true);
   };
 
   return (
