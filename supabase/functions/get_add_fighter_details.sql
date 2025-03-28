@@ -82,6 +82,7 @@ BEGIN
                                 jsonb_build_object(
                                     'id', opt->>'id',
                                     'equipment_name', e.equipment_name,
+                                    'equipment_category', e.equipment_category,
                                     'cost', (opt->>'cost')::numeric,
                                     'max_quantity', (opt->>'max_quantity')::integer
                                 )
@@ -115,6 +116,3 @@ BEGIN
     WHERE ft.gang_type_id = p_gang_type_id;
 END;
 $$;
-
--- Example usage:
--- SELECT * FROM get_add_fighter_details('c3b4d7e8-149a-4cad-85fd-c06f0aa771eb');

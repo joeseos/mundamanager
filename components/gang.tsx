@@ -21,6 +21,7 @@ import { allianceRank } from "@/utils/allianceRank";
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
+import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
 interface VehicleType {
   id: string;
@@ -1023,15 +1024,47 @@ export default function Gang({
     const { weapons } = selectedType.equipment_selection;
     const isOptional = weapons.select_type === 'optional';
     const isSingle = weapons.select_type === 'single';
+    
+    // Group equipment options by category using proper typing
+    const categorizedOptions: Record<string, any[]> = {};
+    
+    if (weapons.options) {
+      weapons.options.forEach(option => {
+        // Fix type safety issue with optional equipment_name
+        const safeEquipmentName = option.equipment_name || '';
+        
+        // Access the equipment_category property safely with type assertion
+        const categoryName = (option as any).equipment_category || 
+                             guessEquipmentCategory(safeEquipmentName) || 
+                             'Other Equipment';
+        
+        const categoryKey = categoryName.toLowerCase();
+        
+        if (!categorizedOptions[categoryKey]) {
+          categorizedOptions[categoryKey] = [];
+        }
+        categorizedOptions[categoryKey].push({
+          ...option,
+          displayCategory: categoryName  // Keep original case for display
+        });
+      });
+    }
+
+    // Sort categories according to equipmentCategoryRank
+    const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
+      const rankA = equipmentCategoryRank[a] ?? Infinity;
+      const rankB = equipmentCategoryRank[b] ?? Infinity;
+      return rankA - rankB;
+    });
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {weapons.default && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Default Equipment
             </label>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {weapons.default.map((item, index) => (
                 <div key={`${item.id}-${index}`} className="flex items-center gap-2">
                   <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
@@ -1045,41 +1078,80 @@ export default function Gang({
 
         {weapons.options && (
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
             </label>
-            <div className="space-y-2">
-              {weapons.options.map((option) => (
-                <div key={option.id} className="flex items-center gap-2">
-                  <input
-                    type={isSingle ? 'radio' : 'checkbox'}
-                    name="equipment-selection"
-                    id={option.id}
-                    checked={selectedEquipmentIds.includes(option.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        if (isSingle || isOptional) {
-                          setSelectedEquipmentIds([option.id]);
-                        } else {
-                          setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                        }
-                      } else {
-                        setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                      }
-                    }}
-                  />
-                  <label htmlFor={option.id} className="text-sm">
-                    {option.equipment_name || defaultEquipmentNames[option.id] || 'Loading...'}
-                    {option.cost > 0 ? ` - ${option.cost} credits` : ''}
-                  </label>
+            
+            {sortedCategories.map(category => {
+              const displayCategory = categorizedOptions[category][0].displayCategory;
+              
+              return (
+                <div key={category} className="mt-3">
+                  {/* Category label with slightly more spacing */}
+                  <p className="text-xs text-gray-500 mb-1">
+                    {displayCategory}
+                  </p>
+                  
+                  <div className="space-y-1.5">
+                    {categorizedOptions[category]
+                      .sort((a, b) => {
+                        const nameA = a.equipment_name || '';
+                        const nameB = b.equipment_name || '';
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((option) => (
+                        <div key={option.id} className="flex items-center gap-2">
+                          <input
+                            type={isSingle ? 'radio' : 'checkbox'}
+                            name="equipment-selection"
+                            id={option.id}
+                            checked={selectedEquipmentIds.includes(option.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                if (isSingle || isOptional) {
+                                  setSelectedEquipmentIds([option.id]);
+                                } else {
+                                  setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                }
+                              } else {
+                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={option.id} className="text-sm">
+                            {option.equipment_name || defaultEquipmentNames[option.id] || 'Loading...'}
+                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                          </label>
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </div>
     );
   };
+
+  // Helper function to guess equipment category from name (also fixed for type safety)
+  function guessEquipmentCategory(equipmentName: string): string | null {
+    if (!equipmentName) return null;
+    
+    const name = equipmentName.toLowerCase();
+    
+    // Weapons
+    if (name.includes('plasma gun') || name.includes('rad gun')) {
+      return 'Special Weapons';
+    } else if (name.includes('carapace armour') || name.includes('armor')) {
+      return 'Armour';
+    } else if (name.includes('servo-arm')) {
+      return 'Close Combat Weapons';
+    }
+    
+    // Default: return null to use fallback
+    return null;
+  }
 
   const handleAddFighterClick = async () => {
     if (fighterTypes.length === 0) {
