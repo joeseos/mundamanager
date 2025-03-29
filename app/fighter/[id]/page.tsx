@@ -133,6 +133,7 @@ interface Gang {
   credits: number;
   positioning?: Record<number, string>;
   gang_type_id: string;
+  rating?: number;  // Add the rating property as optional
 }
 
 // First, define our consolidated state interfaces
@@ -180,6 +181,17 @@ interface FighterEffectTypeSpecificData {
   times_increased: number;
   xp_cost: number;
   credits_increase: number;
+}
+
+class FighterDeleteError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'FighterDeleteError';
+  }
 }
 
 export default function FighterPage({ params }: { params: { id: string } }) {
@@ -410,40 +422,54 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter || !fighterData.gang) return;
 
     try {
-      // First delete the fighter and their equipment
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new FighterDeleteError('You must be logged in to delete a fighter', 401);
+      }
+      
       const deleteResponse = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/delete_fighter_and_equipment',
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?id=eq.${fighterData.fighter.id}`,
         {
-          method: 'POST',
+          method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            fighter_id: fighterData.fighter.id,
-            operations: [
-              {
-                path: "fighter_equipment",  // Changed from fighter_weapons
-                params: {
-                  fighter_id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
-                }
-              },
-              {
-                path: "fighters",
-                params: {
-                  id: `eq.${fighterData.fighter.id}`  // Added eq. prefix
-                }
-              }
-            ]
-          }),
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation' // Ask for the deleted record to be returned
+          }
         }
       );
 
+      // First check if the response is ok
       if (!deleteResponse.ok) {
-        const errorData = await deleteResponse.json();
-        throw new Error(errorData.message || 'Failed to delete fighter');
+        const errorData = await deleteResponse.json().catch(() => null);
+        
+        switch (deleteResponse.status) {
+          case 401:
+            throw new FighterDeleteError('Your session has expired. Please log in again.', 401);
+          case 403:
+            throw new FighterDeleteError('You do not have permission to delete this fighter', 403);
+          case 404:
+            throw new FighterDeleteError('Fighter not found', 404);
+          default:
+            throw new FighterDeleteError(
+              errorData?.message || 'An unexpected error occurred while deleting the fighter',
+              deleteResponse.status
+            );
+        }
       }
 
+      // Try to get the deleted data to confirm deletion
+      const deletedData = await deleteResponse.json().catch(() => null);
+      
+      // If we got no data back or empty array, the delete didn't work
+      if (!deletedData || (Array.isArray(deletedData) && deletedData.length === 0)) {
+        throw new FighterDeleteError('Fighter could not be deleted - no changes made', 403);
+      }
+
+      // Only show success and redirect if we get here
       toast({
         description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
         variant: "default"
@@ -451,9 +477,19 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       router.push(`/gang/${fighterData.gang.id}`);
     } catch (error) {
-      console.error('Error deleting fighter:', error);
+      console.error('Error deleting fighter:', {
+        error,
+        fighterId: fighterData.fighter.id,
+        fighterName: fighterData.fighter.fighter_name
+      });
+      
+      const message = error instanceof FighterDeleteError 
+        ? error.message 
+        : 'An unexpected error occurred. Please try again.';
+
       toast({
-        description: error instanceof Error ? error.message : 'Failed to delete fighter. Please try again.',
+        title: "Error",
+        description: message,
         variant: "destructive"
       });
     } finally {
