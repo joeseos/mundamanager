@@ -23,7 +23,8 @@ RETURNS TABLE(
     vehicles json,
     alliance_id uuid,
     alliance_name text,
-    alliance_type text
+    alliance_type text,
+    gang_variants json
 )
 LANGUAGE plpgsql
 STABLE SECURITY DEFINER
@@ -630,6 +631,25 @@ BEGIN
        JOIN campaigns c ON c.id = cg.campaign_id
        WHERE cg.gang_id = p_gang_id
        GROUP BY cg.gang_id
+   ),
+   -- Get variant details
+   gang_variant_info AS (
+       SELECT 
+           COALESCE(
+               json_agg(
+                   json_build_object(
+                       'id', gvt.id,
+                       'variant', gvt.variant
+                   )
+                   ORDER BY gvt.variant
+               ),
+               '[]'::json
+           ) as variant_info
+       FROM gang_variant_types gvt
+       JOIN gangs g ON g.id = p_gang_id
+       WHERE gvt.id::text IN (
+           SELECT jsonb_array_elements_text(g.gang_variants)
+       )
    )
    SELECT 
        g.id,
@@ -733,7 +753,8 @@ BEGIN
        ), '[]'::json) as vehicles,
        g.alliance_id,
        a.alliance_name,
-       a.alliance_type
+       a.alliance_type,
+       (SELECT variant_info FROM gang_variant_info) as gang_variants
    FROM gangs g
    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
    LEFT JOIN alliances a ON a.id = g.alliance_id

@@ -247,7 +247,7 @@ async function processGangData(gangData: any) {
   // Get campaign settings from the campaigns array
   const campaign = gangData.campaigns?.[0];
   
-  return {
+  const processedData = {
     ...gangData,
     alignment: gangData.alignment,
     alliance_name: gangData.alliance_name || "",
@@ -277,8 +277,35 @@ async function processGangData(gangData: any) {
       vehicle_id: item.vehicle_id
     })),
     vehicles: gangData.vehicles || [],
-    positioning
+    positioning,
+    gang_variants: gangData.gang_variants?.map((variant: any) => {
+      // Handle different possible data structures
+      if (variant.gang_variant_types) {
+        // If the data comes with nested gang_variant_types
+        return {
+          id: variant.gang_variant_types.id,
+          variant: variant.gang_variant_types.variant
+        };
+      } else if (variant.id && variant.variant) {
+        // If the data is already in the correct format
+        return {
+          id: variant.id,
+          variant: variant.variant
+        };
+      } else {
+        // If we just have an ID string
+        return {
+          id: variant,
+          variant: variant // Temporarily use ID as variant name
+        };
+      }
+    }) || [] // Provide empty array as fallback if gang_variants is undefined
   };
+
+  // Make sure user_id is included in processedData
+  processedData.user_id = gangData.user_id;
+  
+  return processedData;
 }
 
 interface GangDataState {
@@ -306,7 +333,7 @@ interface GangDataState {
     note?: string;
     positioning: Record<number, string>;
     campaigns: any[];
-    gang_variants: string[];
+    gang_variants: Array<{id: string, variant: string}>;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;

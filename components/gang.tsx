@@ -100,7 +100,7 @@ interface GangProps {
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
-  gang_variants: string[] | null;
+  gang_variants: Array<{id: string, variant: string}> | null;
 }
 
 export default function Gang({ 
@@ -179,18 +179,17 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
-  const [variantsList, setVariantsList] = useState<Array<{id: string, variant: string}>>([]);
-  const [variantListLoaded, setVariantListLoaded] = useState(false);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [gangVariants, setGangVariants] = useState<string[]>(safeGangVariant);
+  const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [editedGangVariants, setEditedGangVariants] = useState<string[]>(safeGangVariant);
+  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
     }
     return 'normal';
   });
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
 
   // view mode
   useEffect(() => {
@@ -205,7 +204,6 @@ export default function Gang({
         wrapper.classList.add('max-w-5xl');
       }
     }
-    fetchVariants()
 
     // Persist view mode in localStorage
     localStorage.setItem('gang_view_mode', viewMode);
@@ -237,25 +235,6 @@ export default function Gang({
         description: 'Failed to load alliances',
         variant: "destructive"
       });
-    }
-  };
-
-  const fetchVariants = async () => {
-    if (variantListLoaded) return;
-
-    try {
-      const response = await fetch("/api/gang_variant_types");
-      if (!response.ok) throw new Error('Failed to fetch gang variant types.');
-      const data = await response.json()
-      console.log('Fetched Gang Variant Types: ',data);
-      setVariantsList(data);
-      setVariantListLoaded(true);
-    } catch (error) {
-      console.error('Error fetching Gang Variant Types:', error);
-        toast({
-          description: 'Failed to load Gang Variant Types',
-          variant: "destructive"
-        });
     }
   };
 
@@ -302,7 +281,7 @@ export default function Gang({
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints),
-          gang_variants: editedGangVariants,
+          gang_variants: editedGangVariants.map(v => v.id),
         }),
       });
 
@@ -643,12 +622,23 @@ export default function Gang({
     setEditedReputation(reputation?.toString() || '0');
     setEditedMeat(meat?.toString() || '0');
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
-    
-    // Initialize the edited variant state variables when opening the modal
     setEditedGangIsVariant(gangIsVariant);
     setEditedGangVariants([...gangVariants]);
     
-    // Don't fetch alliances here, just open the modal
+    try {
+      // Fetch all available variants
+      const response = await fetch('/api/gang_variant_types');
+      if (!response.ok) throw new Error('Failed to fetch variants');
+      const data = await response.json();
+      setAvailableVariants(data);
+    } catch (error) {
+      console.error('Error fetching variants:', error);
+      toast({
+        description: 'Failed to load variants',
+        variant: "destructive"
+      });
+    }
+    
     setShowEditModal(true);
   };
 
@@ -798,18 +788,18 @@ export default function Gang({
           />
         </div>
 
-        {editedGangIsVariant && variantsList.length > 0 && (
+        {editedGangIsVariant && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-            {variantsList.map((variant) => (
+            {availableVariants.map((variant) => (
               <div key={variant.id} className="flex items-center space-x-2">
                 <Checkbox
                   id={`variant-${variant.id}`}
-                  checked={editedGangVariants.includes(variant.id)}
+                  checked={editedGangVariants.some(v => v.id === variant.id)}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      setEditedGangVariants(prev => [...prev, variant.id]);
+                      setEditedGangVariants(prev => [...prev, variant]);
                     } else {
-                      setEditedGangVariants(prev => prev.filter(item => item !== variant.id));
+                      setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
                     }
                   }}
                 />
@@ -1430,17 +1420,13 @@ export default function Gang({
             <div className="text-gray-600 mb-4">
               <div className="flex flex-wrap gap-4">
                 {gangVariants.length > 0 && gangIsVariant && (
-                    <div className="flex items-center gap-1 text-sm">Variants:
-                      {gangVariants.map((variantId) => {
-                        const variantObj = variantsList.find(v => v.id === variantId);
-                        if (!variantObj) return null;
-                        return (
-                            <Badge key={variantObj.id} variant="secondary">
-                              {variantObj.variant}
-                            </Badge>
-                        );
-                      })}
-                    </div>
+                  <div className="flex items-center gap-1 text-sm">Variants:
+                    {gangVariants.map((variant) => (
+                      <Badge key={variant.id} variant="secondary">
+                        {variant.variant}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

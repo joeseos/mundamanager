@@ -13,7 +13,7 @@ export async function GET(
   const supabase = createClient();
 
   try {
-    // Get gang data with all related information
+    // Get gang data with all related information, including variant names
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
       .select(`
@@ -26,6 +26,9 @@ export async function GET(
           has_meat,
           has_exploration_points,
           has_scavenging_rolls
+        ),
+        gang_variants!inner(
+          gang_variant_types(id, variant)
         )
       `)
       .eq('id', params.id)
@@ -33,8 +36,16 @@ export async function GET(
 
     if (gangError) throw gangError;
 
-    // Return the gang data directly - territories are now included in the gang details response
-    return NextResponse.json({ gang: gangData });
+    // Process the gang data to include variant names
+    const processedGangData = {
+      ...gangData,
+      gang_variants: gangData.gang_variants.map((v: any) => ({
+        id: v.gang_variant_types.id,
+        variant: v.gang_variant_types.variant
+      }))
+    };
+
+    return NextResponse.json({ gang: processedGangData });
 
   } catch (error) {
     console.error('Error fetching gang data:', error);
