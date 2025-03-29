@@ -45,6 +45,7 @@ interface GangPageContentProps {
     stash: StashItem[];
     positioning: Record<number, string>;
     note?: string;
+    gang_variants: string[];
   };
   gangData: {
     stash: StashItem[];
@@ -73,7 +74,8 @@ export default function GangPageContent({ processedData, gangData }: GangPageCon
           stash: gangData.stash,
           onStashUpdate: gangData.onStashUpdate,
           onVehicleAdd: gangData.onVehicleAdd,
-          user_id: processedData.user_id
+          user_id: processedData.user_id,
+          gang_variants: processedData.gang_variants || []
         }}
       />
     </div>
