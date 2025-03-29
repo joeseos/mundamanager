@@ -761,27 +761,31 @@ export default function Gang({
         <span>Variant</span>
       </label>
       {gangIsVariant && variantsList.length > 0 && (
-          <div className="grid grid-cols-4 gap-4 mt-4">
+          <div className="grid grid-cols-3 gap-1 mt-2">
             {variantsList.map((variant) => (
-                <div key={variant.id} className="flex flex-col items-center justify-center p-4 border rounded">
-                  <span>{variant.variant}</span>
-                  <input type="checkbox"
-                         className="mt-2"
-                         checked={(gangVariants).includes(variant.id)}
-                         onChange={(e => {
-                               const newValue = e.target.checked;
-                               if (newValue) {
-                                 setGangVariants(prev => [...prev, variant.id]);
-                               } else {
-                                 setGangVariants(prev => prev.filter(item => item !== variant.id));
-                               }
-                           console.log("checked variant: ", variant.variant);}
-                         )}
-                  />
+                <div key={variant.id} className="flex flex-col p-1">
+                  <button
+                      type="button"
+                      onClick={() => {
+                        if (gangVariants.includes(variant.id)) {
+                          setGangVariants(prev => prev.filter(item => item !== variant.id));
+                        } else {
+                          setGangVariants(prev => [...prev, variant.id]);
+                        }
+                        console.log("Toggled variant: ", variant.variant);
+                      }}
+                      className={`text-gray-600 text-xs mt-2 px-1 py-2 border rounded ${
+                          gangVariants.includes(variant.id)
+                              ? 'bg-black text-white'
+                              : 'bg-gray-200 text-black'
+                      }`}
+                  >
+                    {variant.variant}
+                  </button>
                 </div>
-            ))}
-          </div>
-      )}
+    ))}
+  </div>
+)}
       <DeleteGangButton gangId={id} />
     </div>
   );
