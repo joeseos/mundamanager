@@ -61,7 +61,8 @@ export async function PATCH(
     exploration_points,
     note,
     vehicleId,
-    vehicle_name
+    vehicle_name,
+    gang_variants
   } = await request.json();
 
   try {
@@ -153,6 +154,10 @@ export async function PATCH(
       updates.credits = operation === 'add' 
         ? (currentGang.credits || 0) + credits
         : (currentGang.credits || 0) - credits;
+    }
+
+    if (gang_variants !== undefined) {
+      updates.gang_variants = gang_variants;
     }
 
     // Perform the update

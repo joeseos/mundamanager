@@ -98,6 +98,7 @@ interface GangProps {
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
+  gang_variants: string[] | null;
 }
 
 export default function Gang({ 
@@ -127,7 +128,9 @@ export default function Gang({
   onFighterDeleted,
   onVehicleAdd,
   positioning,
+  gang_variants,
 }: GangProps) {
+  const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
@@ -174,6 +177,10 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
+  const [variantsList, setVariantsList] = useState<Array<{id: string, variant: string}>>([]);
+  const [variantListLoaded, setVariantListLoaded] = useState(false);
+  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0)
+  const [gangVariants, setGangVariants] = useState<Array<string>>(gang_variants ?? []);
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
@@ -194,6 +201,7 @@ export default function Gang({
         wrapper.classList.add('max-w-5xl');
       }
     }
+    fetchVariants()
 
     // Persist view mode in localStorage
     localStorage.setItem('gang_view_mode', viewMode);
@@ -228,6 +236,25 @@ export default function Gang({
     }
   };
 
+  const fetchVariants = async () => {
+    if (variantListLoaded) return;
+
+    try {
+      const response = await fetch("/api/gang_variant_types");
+      if (!response.ok) throw new Error('Failed to fetch gang variant types.');
+      const data = await response.json()
+      console.log('Fetched Gang Variant Types: ',data);
+      setVariantsList(data);
+      setVariantListLoaded(true);
+    } catch (error) {
+      console.error('Error fetching Gang Variant Types:', error);
+        toast({
+          description: 'Failed to load Gang Variant Types',
+          variant: "destructive"
+        });
+    }
+  };
+
   const handleSave = async () => {
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
@@ -246,7 +273,8 @@ export default function Gang({
           alliance_id: editedAllianceId === '' ? null : editedAllianceId,
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
-          exploration_points: parseInt(editedExplorationPoints)
+          exploration_points: parseInt(editedExplorationPoints),
+          gang_variants: gangIsVariant ? gangVariants : []
         }),
       });
 
@@ -721,6 +749,43 @@ export default function Gang({
           />
         </div>
       )}
+      <label className="flex items-center space-x-2">
+        <input
+            type="checkbox"
+            checked={gangIsVariant}
+            onChange={(e) => {
+              const newValue = e.target.checked;
+              setGangIsVariant(newValue);
+            }}
+        />
+        <span>Variant</span>
+      </label>
+      {gangIsVariant && variantsList.length > 0 && (
+          <div className="grid grid-cols-3 gap-1 mt-2">
+            {variantsList.map((variant) => (
+                <div key={variant.id} className="flex flex-col p-1">
+                  <button
+                      type="button"
+                      onClick={() => {
+                        if (gangVariants.includes(variant.id)) {
+                          setGangVariants(prev => prev.filter(item => item !== variant.id));
+                        } else {
+                          setGangVariants(prev => [...prev, variant.id]);
+                        }
+                        console.log("Toggled variant: ", variant.variant);
+                      }}
+                      className={`text-gray-600 text-xs mt-2 px-1 py-2 border rounded ${
+                          gangVariants.includes(variant.id)
+                              ? 'bg-black text-white'
+                              : 'bg-gray-200 text-black'
+                      }`}
+                  >
+                    {variant.variant}
+                  </button>
+                </div>
+    ))}
+  </div>
+)}
       <DeleteGangButton gangId={id} />
     </div>
   );
@@ -1319,6 +1384,24 @@ export default function Gang({
                       </Link>
                     </Badge>
                   </div>
+                )}
+              </div>
+            </div>
+
+            <div className="text-gray-600 mb-4">
+              <div className="flex flex-wrap gap-4">
+                {gangVariants.length > 0 && gangIsVariant && (
+                    <div className="flex items-center gap-1 text-sm">Variants:
+                      {gangVariants.map((variantId) => {
+                        const variantObj = variantsList.find(v => v.id === variantId);
+                        if (!variantObj) return null;
+                        return (
+                            <Badge key={variantObj.id} variant="secondary">
+                              {variantObj.variant}
+                            </Badge>
+                        );
+                      })}
+                    </div>
                 )}
               </div>
             </div>
