@@ -22,6 +22,8 @@ import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface VehicleType {
   id: string;
@@ -155,7 +157,7 @@ export default function Gang({
   const [editedAllianceName, setEditedAllianceName] = useState(initialAllianceName);
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
-  const [allianceId, setAllianceId] = useState(initialAllianceId);
+  const [allianceId, setAllianceId] = useState<string | null>(initialAllianceId);
   const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
@@ -179,8 +181,10 @@ export default function Gang({
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
   const [variantsList, setVariantsList] = useState<Array<{id: string, variant: string}>>([]);
   const [variantListLoaded, setVariantListLoaded] = useState(false);
-  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0)
-  const [gangVariants, setGangVariants] = useState<Array<string>>(gang_variants ?? []);
+  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
+  const [gangVariants, setGangVariants] = useState<string[]>(safeGangVariant);
+  const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
+  const [editedGangVariants, setEditedGangVariants] = useState<string[]>(safeGangVariant);
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
@@ -260,6 +264,30 @@ export default function Gang({
       const creditsDifference = parseInt(editedCredits) || 0;
       const operation = creditsDifference >= 0 ? 'add' : 'subtract';
 
+      // Optimistically update the UI before the API request completes
+      const prevName = name;
+      const prevCredits = credits;
+      const prevAlignment = alignment;
+      const prevAllianceId = allianceId;
+      const prevAllianceName = allianceName;
+      const prevReputation = reputation;
+      const prevMeat = meat;
+      const prevExplorationPoints = explorationPoints;
+      const prevGangVariants = [...gangVariants];
+      const prevGangIsVariant = gangIsVariant;
+
+      // Update state optimistically
+      setName(editedName);
+      setCredits(prevCredits + creditsDifference);
+      setAlignment(editedAlignment);
+      setAllianceId(editedAllianceId === '' ? null : editedAllianceId);
+      setAllianceName(allianceList.find(a => a.id === editedAllianceId)?.alliance_name || "");
+      setReputation(parseInt(editedReputation));
+      setMeat(parseInt(editedMeat));
+      setExplorationPoints(parseInt(editedExplorationPoints));
+      setGangIsVariant(editedGangIsVariant);
+      setGangVariants(editedGangVariants);
+
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
         headers: {
@@ -274,26 +302,30 @@ export default function Gang({
           reputation: parseInt(editedReputation),
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints),
-          gang_variants: gangIsVariant ? gangVariants : []
+          gang_variants: editedGangVariants,
         }),
       });
 
-      console.log(`Gang Update: ${response.body}`)
-
       if (!response.ok) {
+        // Revert optimistic updates if the request fails
+        setName(prevName);
+        setCredits(prevCredits);
+        setAlignment(prevAlignment);
+        setAllianceId(prevAllianceId);
+        setAllianceName(prevAllianceName);
+        setReputation(prevReputation);
+        setMeat(prevMeat);
+        setExplorationPoints(prevExplorationPoints);
+        setGangIsVariant(prevGangIsVariant);
+        setGangVariants(prevGangVariants);
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const updatedGang = await response.json();
       
-      setName(updatedGang.name);
-      setCredits(updatedGang.credits);
-      setAlignment(updatedGang.alignment);
-      setAllianceId(updatedGang.alliance_id);
-      setAllianceName(allianceList.find(a => a.id === updatedGang.alliance_id)?.alliance_name || ""); // Optimistically update the Alliance Name
-      setReputation(updatedGang.reputation);
-      setMeat(updatedGang.meat);
-      setExplorationPoints(updatedGang.exploration_points);
+      // Since we've already updated the state optimistically,
+      // just need to update last_updated from the response
       setLastUpdated(updatedGang.last_updated);
 
       toast({
@@ -302,6 +334,7 @@ export default function Gang({
       });
 
       setShowEditModal(false);
+      setEditedCredits('');
       return false;
     } catch (error) {
       console.error('Error updating gang:', error);
@@ -611,6 +644,10 @@ export default function Gang({
     setEditedMeat(meat?.toString() || '0');
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
     
+    // Initialize the edited variant state variables when opening the modal
+    setEditedGangIsVariant(gangIsVariant);
+    setEditedGangVariants([...gangVariants]);
+    
     // Don't fetch alliances here, just open the modal
     setShowEditModal(true);
   };
@@ -749,43 +786,45 @@ export default function Gang({
           />
         </div>
       )}
-      <label className="flex items-center space-x-2">
-        <input
-            type="checkbox"
-            checked={gangIsVariant}
-            onChange={(e) => {
-              const newValue = e.target.checked;
-              setGangIsVariant(newValue);
-            }}
-        />
-        <span>Variant</span>
-      </label>
-      {gangIsVariant && variantsList.length > 0 && (
-          <div className="grid grid-cols-3 gap-1 mt-2">
+      <div className="mt-4">
+        <div className="flex items-center space-x-2">
+          <label htmlFor="variant-toggle" className="text-base font-medium">
+            Variant
+          </label>
+          <Switch
+            id="variant-toggle"
+            checked={editedGangIsVariant}
+            onCheckedChange={setEditedGangIsVariant}
+          />
+        </div>
+
+        {editedGangIsVariant && variantsList.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
             {variantsList.map((variant) => (
-                <div key={variant.id} className="flex flex-col p-1">
-                  <button
-                      type="button"
-                      onClick={() => {
-                        if (gangVariants.includes(variant.id)) {
-                          setGangVariants(prev => prev.filter(item => item !== variant.id));
-                        } else {
-                          setGangVariants(prev => [...prev, variant.id]);
-                        }
-                        console.log("Toggled variant: ", variant.variant);
-                      }}
-                      className={`text-gray-600 text-xs mt-2 px-1 py-2 border rounded ${
-                          gangVariants.includes(variant.id)
-                              ? 'bg-black text-white'
-                              : 'bg-gray-200 text-black'
-                      }`}
-                  >
-                    {variant.variant}
-                  </button>
-                </div>
-    ))}
-  </div>
-)}
+              <div key={variant.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`variant-${variant.id}`}
+                  checked={editedGangVariants.includes(variant.id)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setEditedGangVariants(prev => [...prev, variant.id]);
+                    } else {
+                      setEditedGangVariants(prev => prev.filter(item => item !== variant.id));
+                    }
+                  }}
+                />
+                <label 
+                  htmlFor={`variant-${variant.id}`} 
+                  className="text-sm cursor-pointer"
+                >
+                  {variant.variant}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
       <DeleteGangButton gangId={id} />
     </div>
   );
