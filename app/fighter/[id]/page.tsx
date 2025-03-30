@@ -1016,6 +1016,18 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
+      // Get the supabase client and session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          description: "You must be logged in to delete skills",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
       
       const response = await fetch(rpcEndpoint, {
@@ -1023,7 +1035,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         headers: {
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
+          'Prefer': 'return=minimal',
+          'Authorization': `Bearer ${session.access_token}`  // Add this line
         },
         body: JSON.stringify({
           input_fighter_id: params.id,
@@ -1054,6 +1067,18 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
+      // Get the supabase client and session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          description: "You must be logged in to delete injuries",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
       
       const response = await fetch(rpcEndpoint, {
@@ -1061,7 +1086,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         headers: {
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
+          'Prefer': 'return=minimal',
+          'Authorization': `Bearer ${session.access_token}`  // Add this line
         },
         body: JSON.stringify({
           input_fighter_id: params.id,
