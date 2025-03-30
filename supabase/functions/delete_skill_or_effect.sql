@@ -10,9 +10,26 @@ DECLARE
     xp_to_refund INTEGER := 0;
     fighter_exists BOOLEAN;
     effect_id UUID;
+    current_user_id UUID;
+    user_is_admin BOOLEAN;
+    is_authorized BOOLEAN;
 BEGIN
+    -- Get current user ID from auth.uid()
+    current_user_id := auth.uid();
+    
+    -- Check if user is authenticated
+    IF current_user_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, 'Authentication required', 0;
+        RETURN;
+    END IF;
+    
+    -- Check if user is admin
+    SELECT EXISTS (
+        SELECT 1 FROM profiles 
+        WHERE profiles.id = current_user_id AND profiles.user_role = 'admin'
+    ) INTO user_is_admin;
+
     -- Check if fighter exists
-    -- RLS policies will ensure we only see fighters the user has access to
     SELECT EXISTS(SELECT 1 FROM fighters WHERE id = input_fighter_id) INTO fighter_exists;
     
     IF NOT fighter_exists THEN
@@ -36,6 +53,17 @@ BEGIN
         -- Check if skill exists for this fighter
         IF NOT EXISTS(SELECT 1 FROM fighter_skills WHERE fighter_id = input_fighter_id AND id = fighter_skill_id) THEN
             RETURN QUERY SELECT FALSE, 'Skill not found for this fighter', 0;
+            RETURN;
+        END IF;
+        
+        -- Check if user is authorized to delete this skill
+        SELECT 
+            (user_id = current_user_id OR user_is_admin) INTO is_authorized
+        FROM fighter_skills
+        WHERE id = fighter_skill_id;
+        
+        IF NOT is_authorized THEN
+            RETURN QUERY SELECT FALSE, 'Not authorized to delete this skill', 0;
             RETURN;
         END IF;
         
@@ -63,6 +91,17 @@ BEGIN
         -- Check if effect exists for this fighter
         IF NOT EXISTS(SELECT 1 FROM fighter_effects WHERE fighter_id = input_fighter_id AND id = effect_id) THEN
             RETURN QUERY SELECT FALSE, 'Effect not found for this fighter', 0;
+            RETURN;
+        END IF;
+        
+        -- Check if user is authorized to delete this effect
+        SELECT 
+            (user_id = current_user_id OR user_is_admin) INTO is_authorized
+        FROM fighter_effects
+        WHERE id = effect_id;
+        
+        IF NOT is_authorized THEN
+            RETURN QUERY SELECT FALSE, 'Not authorized to delete this effect', 0;
             RETURN;
         END IF;
         
@@ -99,8 +138,7 @@ SET search_path = public, auth;
 
 COMMENT ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) IS 
 'Deletes a skill or effect for a fighter and refunds the XP cost back to the fighter.
-Row-Level Security (RLS) policies handle authorization through auth.uid().
-Note: Cascade deletion is configured to automatically remove related fighter_effect_modifiers.
+Manual permission checks ensure only owners or admins can delete.
 Parameters:
 - input_fighter_id: UUID of the fighter
 - fighter_skill_id: UUID of the skill to delete (pass NULL if deleting an effect)
@@ -112,4 +150,4 @@ Returns:
 
 REVOKE ALL ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) TO service_role; 
