@@ -1553,68 +1553,160 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   }, [fighterData.fighter, vehicleTypeIdMap]);
 
   const handleDeleteAdvancement = async (advancementId: string) => {
-    setFighterData(prev => {
-      if (!prev.fighter) return prev;
-      
-      // Find the advancement being deleted to get its XP cost
-      const advancement = prev.fighter.effects.advancements.find(
-        adv => adv.id === advancementId
-      );
-      
-      // Get XP cost from type_specific_data
-      const xpCost = typeof advancement?.type_specific_data === 'object' 
-        ? (advancement.type_specific_data as FighterEffectTypeSpecificData)?.xp_cost || 0
-        : 0;
-      
-      // Calculate new XP values by adding back the advancement's XP cost
-      const newXp = (prev.fighter.xp || 0) + xpCost;
-      const newTotalXp = (prev.fighter.total_xp || 0) + xpCost;
-      
-      // Create new fighter state with filtered advancements and updated XP values
-      return {
-        ...prev,
-        fighter: {
-          ...prev.fighter,
-          xp: newXp,
-          total_xp: newTotalXp,
-          effects: {
-            ...prev.fighter.effects,
-            advancements: prev.fighter.effects.advancements.filter(
-              adv => adv.id !== advancementId
-            )
-          }
+    // First check if this is a skill advancement (exists in skills)
+    const isSkill = Object.values(fighterData.fighter?.skills || {}).some(
+      skill => skill.id === advancementId
+    );
+
+    // Find skill name if it's a skill
+    let skillName = '';
+    if (isSkill) {
+      Object.entries(fighterData.fighter?.skills || {}).forEach(([name, skill]) => {
+        if (skill.id === advancementId) {
+          skillName = name;
         }
-      };
-    });
-
-    try {
-      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-      
-      const response = await fetch(rpcEndpoint, {
-        method: 'POST',
-        headers: {
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          input_fighter_id: params.id,
-          fighter_effect_id: advancementId
-        })
       });
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to delete advancement');
+    if (isSkill) {
+      // Handle as a skill deletion
+      try {
+        // Use the session from the hook
+        if (!session) {
+          toast({
+            description: "You must be logged in to delete skills",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Find the skill to get its XP cost
+        const skill = fighterData.fighter?.skills[skillName];
+        const xpCost = skill?.xp_cost || 0;
+
+        // Optimistically update the state
+        setFighterData(prev => {
+          if (!prev.fighter) return prev;
+          
+          // Create a new skills object without the deleted skill
+          const updatedSkills = { ...prev.fighter.skills };
+          delete updatedSkills[skillName];
+          
+          return {
+            ...prev,
+            fighter: {
+              ...prev.fighter,
+              xp: (prev.fighter.xp || 0) + xpCost,
+              total_xp: (prev.fighter.total_xp || 0) + xpCost,
+              skills: updatedSkills
+            }
+          };
+        });
+
+        const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+        
+        const response = await fetch(rpcEndpoint, {
+          method: 'POST',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            input_fighter_id: params.id,
+            fighter_skill_id: advancementId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete skill');
+        }
+
+        toast({
+          description: "Skill advancement successfully deleted.",
+          variant: "default"
+        });
+      } catch (error) {
+        console.error('Error deleting skill advancement:', error);
+        // Revert the optimistic update by refetching the data
+        await fetchFighterData();
+        toast({
+          description: 'Failed to delete skill advancement. Please try again.',
+          variant: "destructive"
+        });
       }
+    } else {
+      // Handle as a regular advancement deletion
+      try {
+        // Optimistically update the state
+        setFighterData(prev => {
+          if (!prev.fighter) return prev;
+          
+          // Find the advancement being deleted to get its XP cost
+          const advancement = prev.fighter.effects.advancements.find(
+            adv => adv.id === advancementId
+          );
+          
+          // Get XP cost from type_specific_data
+          const xpCost = typeof advancement?.type_specific_data === 'object' 
+            ? (advancement.type_specific_data as FighterEffectTypeSpecificData)?.xp_cost || 0
+            : 0;
+          
+          // Calculate new XP values by adding back the advancement's XP cost
+          const newXp = (prev.fighter.xp || 0) + xpCost;
+          const newTotalXp = (prev.fighter.total_xp || 0) + xpCost;
+          
+          // Create new fighter state with filtered advancements and updated XP values
+          return {
+            ...prev,
+            fighter: {
+              ...prev.fighter,
+              xp: newXp,
+              total_xp: newTotalXp,
+              effects: {
+                ...prev.fighter.effects,
+                advancements: prev.fighter.effects.advancements.filter(
+                  adv => adv.id !== advancementId
+                )
+              }
+            }
+          };
+        });
 
-    } catch (error) {
-      console.error('Error deleting advancement:', error);
-      // Revert the optimistic update by refetching the data
-      await fetchFighterData();
-      toast({
-        description: 'Failed to delete advancement',
-        variant: "destructive"
-      });
+        const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
+        
+        const response = await fetch(rpcEndpoint, {
+          method: 'POST',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+            'Authorization': session ? `Bearer ${session.access_token}` : ''
+          },
+          body: JSON.stringify({
+            input_fighter_id: params.id,
+            fighter_effect_id: advancementId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete advancement');
+        }
+
+        toast({
+          description: "Advancement successfully deleted.",
+          variant: "default"
+        });
+      } catch (error) {
+        console.error('Error deleting advancement:', error);
+        // Revert the optimistic update by refetching the data
+        await fetchFighterData();
+        toast({
+          description: 'Failed to delete advancement',
+          variant: "destructive"
+        });
+      }
     }
   };
 
