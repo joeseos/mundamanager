@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 import { FighterEffects, FighterEffect, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
+import { useSession } from '@/hooks/use-session';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -1016,10 +1017,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
-      // Get the supabase client and session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      // Use the session from the hook instead of creating a new client
       if (!session) {
         toast({
           description: "You must be logged in to delete skills",
@@ -1036,7 +1034,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal',
-          'Authorization': `Bearer ${session.access_token}`  // Add this line
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           input_fighter_id: params.id,
@@ -1067,10 +1065,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     if (!fighterData.fighter) return;
 
     try {
-      // Get the supabase client and session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      // Use the session from the hook
       if (!session) {
         toast({
           description: "You must be logged in to delete injuries",
@@ -1087,7 +1082,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal',
-          'Authorization': `Bearer ${session.access_token}`  // Add this line
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           input_fighter_id: params.id,
@@ -1659,6 +1654,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     // Default to empty object if skills is undefined or null
     return {};
   };
+
+  // Add the useSession hook at the top of your component
+  const session = useSession();
 
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
