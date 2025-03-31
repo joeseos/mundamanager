@@ -6,9 +6,14 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X, Plus, Minus } from "lucide-react";
 import { FighterType } from "@/types/fighter";
-import { GangType, Equipment } from "@/types/gang";
+import { GangType } from "@/types/gang";
+import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+
+interface EquipmentWithId extends Equipment {
+  id: string;
+}
 
 interface AdminEditFighterTypeModalProps {
   onClose: () => void;
@@ -63,7 +68,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [attacks, setAttacks] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
   const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
@@ -82,7 +87,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
   const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
-  const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, Equipment[]>>({});
+  const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [equipmentSelection, setEquipmentSelection] = useState<{
     weapons?: {
@@ -138,7 +143,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         const response = await fetch('/api/admin/equipment');
         if (!response.ok) throw new Error('Failed to fetch equipment');
         const data = await response.json();
-        setEquipment(data);
+        
+        // Cast the data to include the id property
+        const equipmentWithIds = data.map((item: any) => ({
+          ...item,
+          id: item.id,
+          equipment_id: item.id  // Make sure both properties exist
+        })) as EquipmentWithId[];
+        
+        setEquipment(equipmentWithIds);
       } catch (error) {
         console.error('Error fetching equipment:', error);
         toast({
@@ -487,21 +500,29 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (!response.ok) throw new Error('Failed to fetch equipment');
       const equipmentData = await response.json();
       
-      // Log the first item to see what properties are available
-      if (equipmentData.length > 0) {
-        console.log('Equipment item example:', equipmentData[0]);
-      }
-      
       // Group equipment by category
-      const groupedByCategory: Record<string, Equipment[]> = {};
+      const groupedByCategory: Record<string, EquipmentWithId[]> = {};
       
       equipmentData.forEach((item: any) => {
-        // Use 'any' type for the entire item to avoid TypeScript errors
         const category = item.equipment_category || item.equipment_type || 'Uncategorized';
         if (!groupedByCategory[category]) {
           groupedByCategory[category] = [];
         }
-        groupedByCategory[category].push(item);
+        
+        // Create an object with the necessary properties
+        const equipmentItem: EquipmentWithId = {
+          ...item,
+          id: item.id,
+          equipment_id: item.id,  // Ensure equipment_id exists
+          fighter_equipment_id: item.fighter_equipment_id || '',
+          equipment_name: item.equipment_name,
+          equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
+          cost: item.cost || 0,
+          availability: item.availability,
+          equipment_category: item.equipment_category
+        };
+        
+        groupedByCategory[category].push(equipmentItem);
       });
       
       // Sort equipment within each category by name
@@ -995,8 +1016,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     .map(equipId => equipment.find(e => e.id === equipId))
                     .filter(item => item !== undefined) // Remove null values
                     .sort((a, b) => {
-                      const rankA = equipmentCategoryRank[a!.equipment_category.toLowerCase()] ?? Infinity;
-                      const rankB = equipmentCategoryRank[b!.equipment_category.toLowerCase()] ?? Infinity;
+                      if (!a || !b) return 0; // Handle undefined items
+                      
+                      const rankA = equipmentCategoryRank[(a!.equipment_category || '').toLowerCase()] ?? Infinity;
+                      const rankB = equipmentCategoryRank[(b!.equipment_category || '').toLowerCase()] ?? Infinity;
 
                       // First, sort by equipment category rank
                       if (rankA !== rankB) return rankA - rankB;
@@ -1012,7 +1035,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       groups[category].push(item);
 
                       return groups;
-                    }, {} as Record<string, Equipment[]>)
+                    }, {} as Record<string, EquipmentWithId[]>)
                 ).map(([category, items]) => (
                   <div key={category} className="flex flex-col gap-1 p-1">
                     {/* Category Title */}
@@ -1299,24 +1322,33 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                                       {items.map(item => (
                                         <div 
                                           key={item.id} 
-                                          className="border-t px-4 py-2 flex items-center"
+                                          className="border-t px-4 py-2 flex items-center justify-between"
                                         >
-                                          <input
-                                            type="checkbox"
-                                            id={`trading-post-${item.id}`}
-                                            className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
-                                            checked={tradingPostEquipment.includes(item.id)}
-                                            onChange={(e) => {
-                                              if (e.target.checked) {
-                                                setTradingPostEquipment([...tradingPostEquipment, item.id]);
-                                              } else {
-                                                setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
-                                              }
-                                            }}
-                                          />
-                                          <label htmlFor={`trading-post-${item.id}`} className="ml-2 block text-sm">
-                                            {item.equipment_name}
-                                          </label>
+                                          <div className="flex items-center flex-1">
+                                            <input
+                                              type="checkbox"
+                                              id={`trading-post-${item.id}`}
+                                              className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                              checked={tradingPostEquipment.includes(item.id)}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setTradingPostEquipment([...tradingPostEquipment, item.id]);
+                                                } else {
+                                                  setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
+                                                }
+                                              }}
+                                            />
+                                            <label htmlFor={`trading-post-${item.id}`} className="ml-2 block text-sm">
+                                              {item.equipment_name}
+                                            </label>
+                                          </div>
+                                          
+                                          {/* Use type assertion for availability */}
+                                          {item.availability && (
+                                            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                              <span className="text-[10px] font-medium">{item.availability}</span>
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
