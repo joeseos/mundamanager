@@ -518,10 +518,16 @@ const FighterCard = memo(function FighterCard({
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {effects.injuries
-                      .slice() // Create a shallow copy to avoid mutating the original array
-                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) // Sort by created_at
-                      .map((injury) => injury.effect_name)
+                    {Object.entries(
+                      effects.injuries
+                        .slice()
+                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        .reduce<Record<string, number>>((acc, injury) => {
+                          acc[injury.effect_name] = (acc[injury.effect_name] || 0) + 1;
+                          return acc;
+                        }, {})
+                    )
+                      .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
                       .join(', ')}
                   </div>
                 </>

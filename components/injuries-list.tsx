@@ -129,7 +129,7 @@ export function InjuriesList({
                 </tr>
               ) : (
                 injuries
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                   .map((injury) => (
                     <tr key={injury.id} className="border-t">
                       
