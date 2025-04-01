@@ -422,9 +422,17 @@ const FighterCard = memo(function FighterCard({
                     <>
                       <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Equipment</div>
                       <div className="min-w-[0px] text-sm break-words">
-                        {vehicleUpgrades
-                          .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
-                          .map(upgrade => upgrade.equipment_name)
+                        {Object.entries(
+                          vehicleUpgrades
+                            .slice()
+                            .sort((a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''))
+                            .reduce<Record<string, number>>((acc, item) => {
+                              const name = item.equipment_name || '';
+                              acc[name] = (acc[name] || 0) + 1;
+                              return acc;
+                            }, {})
+                        )
+                          .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
                           .join(', ')}
                       </div>
                     </>
@@ -456,9 +464,15 @@ const FighterCard = memo(function FighterCard({
                 <>
                   <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
                   <div className="min-w-[0px] text-sm break-words">
-                    {wargear
-                      .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
-                      .map(item => item.wargear_name)
+                    {Object.entries(
+                      wargear
+                        .slice() // avoid mutating original array
+                        .sort((a, b) => a.wargear_name.localeCompare(b.wargear_name))
+                        .reduce<Record<string, number>>((acc, item) => {
+                          acc[item.wargear_name] = (acc[item.wargear_name] || 0) + 1;
+                          return acc;
+                        }, {}))
+                      .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
                       .join(', ')}
                   </div>
                 </>
