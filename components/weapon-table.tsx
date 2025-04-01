@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Weapon, WeaponProfile } from '@/types/weapon';
-import { useEffect } from 'react';
 
 interface WeaponTableProps {
   weapons: Weapon[];
