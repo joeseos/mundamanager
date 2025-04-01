@@ -25,15 +25,23 @@ export default async function SignIn({ searchParams }: { searchParams: Message }
     redirect(redirectPath?.value || "/");
   }
 
-  // Show form with message if exists
-  const showMessage = "message" in searchParams;
+  // Extract error message from searchParams (query string)
+  const errorMessage = 'error' in searchParams ? searchParams.error : null;
+  
+  // Create the appropriate message object based on what's in searchParams
+  let topMessage: Message | null = null;
+  if ('success' in searchParams) {
+    topMessage = { success: searchParams.success };
+  } else if ('message' in searchParams) {
+    topMessage = { message: searchParams.message };
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full p-4">
-        {showMessage && (
+        {topMessage && (
           <div className="mb-4">
-            <FormMessage message={searchParams} />
+            <FormMessage message={topMessage} />
           </div>
         )}
         <form 
@@ -68,6 +76,11 @@ export default async function SignIn({ searchParams }: { searchParams: Message }
               className="text-black"
               autoComplete="current-password"
             />
+            {errorMessage && (
+              <div className="text-red-500 text-sm">
+                {errorMessage}
+              </div>
+            )}
             <Link 
               href="/reset-password" 
               className="text-sm text-white hover:underline self-end"
