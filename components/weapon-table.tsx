@@ -92,68 +92,65 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
             <th className="text-left p-1 border-l border-black">Traits</th>
           </tr>
         </thead>
-<tbody>
-  {(() => {
-    // Flatten all profiles
-    const allProfiles = Object.values(groupedProfiles).flat();
+        <tbody>
+          {(() => {
+            // Flatten all profiles
+            const allProfiles = Object.values(groupedProfiles).flat();
 
-    // Group and count by profile_name
-const profileMap = allProfiles.reduce<Record<string, { count: number; profile: WeaponProfile }>>((acc, profile) => {
-  const name = profile.profile_name;
-  const shouldCount = !name.startsWith('-');
+            // Group and count by profile_name
+            const profileMap = allProfiles.reduce<Record<string, { count: number; profile: WeaponProfile }>>((acc, profile) => {
+              const name = profile.profile_name;
+              const shouldCount = !name.startsWith('-');
 
-  if (!acc[name]) {
-    acc[name] = { count: shouldCount ? 1 : 0, profile };
-  } else if (shouldCount) {
-    acc[name].count += 1;
-  }
+              if (!acc[name]) {
+                acc[name] = { count: shouldCount ? 1 : 0, profile };
+              } else if (shouldCount) {
+                acc[name].count += 1;
+              }
+              return acc;
+            }, {});
 
-  return acc;
-}, {});
-
-
-    return Object.entries(profileMap).map(([name, { count, profile }], index) => {
-      const bgClass = index % 2 === 1 ? 'bg-black/[0.07]' : '';
-      return (
-        <tr key={name} className={bgClass}>
-          <td className="text-left p-1 align-top">
-            <div className="table-weapons-truncate">
-              {count > 1 ? `${profile.profile_name} (x${count})` : profile.profile_name}
-            </div>
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatters.formatValue(profile.range_short)}
-          </td>
-          <td className="text-center p-1 whitespace-nowrap align-top">
-            {formatters.formatValue(profile.range_long)}
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatters.formatAccuracy(profile.acc_short)}
-          </td>
-          <td className="text-center p-1 whitespace-nowrap align-top">
-            {formatters.formatAccuracy(profile.acc_long)}
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatStrength(profile.strength)}
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatters.formatAp(profile.ap)}
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatters.formatValue(profile.damage)}
-          </td>
-          <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-            {formatters.formatAmmo(profile.ammo)}
-          </td>
-          <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-            {profile.traits}
-          </td>
-        </tr>
-      );
-    });
-  })()}
-</tbody>
-
+            return Object.entries(profileMap).map(([name, { count, profile }], index) => {
+              const bgClass = index % 2 === 1 ? 'bg-black/[0.07]' : '';
+              return (
+                <tr key={name} className={bgClass}>
+                  <td className="text-left p-1 align-top">
+                    <div className="table-weapons-truncate">
+                      {count > 1 ? `${profile.profile_name} (x${count})` : profile.profile_name}
+                    </div>
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.range_short)}
+                  </td>
+                  <td className="text-center p-1 whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.range_long)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAccuracy(profile.acc_short)}
+                  </td>
+                  <td className="text-center p-1 whitespace-nowrap align-top">
+                    {formatters.formatAccuracy(profile.acc_long)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatStrength(profile.strength)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAp(profile.ap)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.damage)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAmmo(profile.ammo)}
+                  </td>
+                  <td className="text-left p-1 border-l border-black whitespace-normal align-top">
+                    {profile.traits}
+                  </td>
+                </tr>
+              );
+            });
+          })()}
+        </tbody>
       </table>
     </div>
   );
