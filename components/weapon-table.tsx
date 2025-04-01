@@ -144,7 +144,11 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
                     {formatters.formatAmmo(profile.ammo)}
                   </td>
                   <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-                    {profile.traits}
+                    {entity === 'crew'
+                      ? profile.traits
+                        ? `Arc (Front), ${profile.traits}`
+                        : 'Arc (Front)'
+                      : profile.traits || ''}
                   </td>
                 </tr>
               );
