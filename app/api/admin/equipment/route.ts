@@ -222,16 +222,16 @@ export async function POST(request: Request) {
         weapon_id: weaponId,
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
         weapon_group_id: profile.weapon_group_id || null,
-        // Convert empty strings to '0' or appropriate default values instead of null
-        range_short: profile.range_short || '0',
-        range_long: profile.range_long || '0',
-        acc_short: profile.acc_short || '0',
-        acc_long: profile.acc_long || '0',
-        strength: profile.strength || '0',
-        ap: profile.ap || '0',
-        damage: profile.damage || '0',
-        ammo: profile.ammo || '0',
-        traits: profile.traits || ''
+        // Properly handle explicit null values
+        range_short: profile.range_short === null ? '' : profile.range_short || '',
+        range_long: profile.range_long === null ? '' : profile.range_long || '',
+        acc_short: profile.acc_short === null ? '' : profile.acc_short || '',
+        acc_long: profile.acc_long === null ? '' : profile.acc_long || '',
+        strength: profile.strength === null ? '' : profile.strength || '',
+        ap: profile.ap === null ? '' : profile.ap || '',
+        damage: profile.damage === null ? '' : profile.damage || '',
+        ammo: profile.ammo === null ? '' : profile.ammo || '',
+        traits: profile.traits === null ? '' : profile.traits || ''
       }));
 
       const { error: profileError } = await supabase
