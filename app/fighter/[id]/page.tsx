@@ -22,6 +22,7 @@ import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
 import { FighterEffects, FighterEffect, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { useSession } from '@/hooks/use-session';
+import { EditFighterModal } from "@/components/edit-fighter-modal";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -2169,96 +2170,19 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           )}
           
           {uiState.modals.editFighter && (
-            <Modal
-              title="Edit Fighter"
-              content={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Fighter name</p>
-                    <Input
-                      type="text"
-                      value={editState.name}
-                      onChange={(e) => setEditState(prev => ({
-                        ...prev,
-                        name: e.target.value
-                      }))}
-                      className="w-full"
-                      placeholder="Fighter name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Label (max 5 characters)</p>
-                    <Input
-                      type="text"
-                      value={editState.label}
-                      onChange={(e) => {
-                        const value = e.target.value.slice(0, 5);
-                        setEditState(prev => ({
-                          ...prev,
-                          label: value
-                        }));
-                      }}
-                      className="w-full"
-                      placeholder="Label (5 chars max)"
-                      maxLength={5}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Cost Adjustment</p>
-                      <Input
-                        type="tel"
-                        inputMode="url"
-                        pattern="-?[0-9]*"
-                        value={editState.costAdjustment}
-                        onKeyDown={(e) => {
-                          if (![8, 9, 13, 27, 46, 189, 109].includes(e.keyCode) && 
-                              !/^[0-9]$/.test(e.key) && 
-                              e.key !== '-') {
-                            e.preventDefault();
-                          }
-                        }}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          const value = e.target.value;
-                          if (value === '' || value === '-' || /^-?\d*$/.test(value)) {
-                            setEditState(prev => ({
-                              ...prev,
-                              costAdjustment: value
-                            }));
-                          }
-                        }}
-                        className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        placeholder="Cost adjustment"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Kills</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={editState.kills}
-                        onChange={(e) => setEditState(prev => ({
-                          ...prev,
-                          kills: parseInt(e.target.value) || 0
-                        }))}
-                        className="w-full"
-                        placeholder="Number of kills"
-                      />
-                    </div>
-                  </div>
-                </div>
-              }
+            <EditFighterModal
+              fighter={fighterData.fighter}
+              isOpen={uiState.modals.editFighter}
+              initialValues={{
+                name: fighterData.fighter?.fighter_name || '',
+                label: fighterData.fighter?.label || '',
+                kills: fighterData.fighter?.kills || 0,
+                costAdjustment: String(fighterData.fighter?.cost_adjustment || 0)
+              }}
               onClose={() => {
                 handleModalToggle('editFighter', false);
-                setEditState(prev => ({
-                  ...prev,
-                  name: '',
-                  label: '',
-                  kills: 0,
-                  costAdjustment: '0'
-                }));
               }}
-              onConfirm={async () => {
+              onSubmit={async (values) => {
                 try {
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
@@ -2266,32 +2190,32 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                      fighter_name: editState.name,
-                      label: editState.label,
-                      kills: editState.kills,
-                      cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                      fighter_name: values.name,
+                      label: values.label,
+                      kills: values.kills,
+                      cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                         ? 0 
-                        : Number(editState.costAdjustment)
+                        : Number(values.costAdjustment)
                     }),
                   });
 
                   if (!response.ok) throw new Error('Failed to update fighter');
 
-                  handleNameUpdate(editState.name);
+                  handleNameUpdate(values.name);
                   setFighterData(prev => ({
                     ...prev,
                     fighter: prev.fighter ? 
                       { 
                         ...prev.fighter, 
-                        kills: editState.kills,
-                        fighter_name: editState.name,
-                        label: editState.label,
-                        cost_adjustment: editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                        kills: values.kills,
+                        fighter_name: values.name,
+                        label: values.label,
+                        cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
-                          : Number(editState.costAdjustment),
-                        credits: prev.fighter.base_credits + (editState.costAdjustment === '' || editState.costAdjustment === '-' 
+                          : Number(values.costAdjustment),
+                        credits: prev.fighter.base_credits + (values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
-                          : Number(editState.costAdjustment))
+                          : Number(values.costAdjustment))
                       } : null
                   }));
                   
@@ -2299,14 +2223,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                     description: "Fighter updated successfully",
                     variant: "default"
                   });
-                  handleModalToggle('editFighter', false);
-                  setEditState(prev => ({
-                    ...prev,
-                    name: '',
-                    label: '',
-                    kills: 0,
-                    costAdjustment: '0'
-                  }));
+                  
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
