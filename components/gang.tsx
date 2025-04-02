@@ -22,6 +22,7 @@ import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -778,8 +779,8 @@ export default function Gang({
       )}
       <div className="mt-4">
         <div className="flex items-center space-x-2">
-          <label htmlFor="variant-toggle" className="text-base font-medium">
-            Variant
+          <label htmlFor="variant-toggle" className="text-sm font-medium">
+            Gang Variants
           </label>
           <Switch
             id="variant-toggle"
@@ -789,28 +790,74 @@ export default function Gang({
         </div>
 
         {editedGangIsVariant && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-            {availableVariants.map((variant) => (
-              <div key={variant.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`variant-${variant.id}`}
-                  checked={editedGangVariants.some(v => v.id === variant.id)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setEditedGangVariants(prev => [...prev, variant]);
-                    } else {
-                      setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
-                    }
-                  }}
-                />
-                <label 
-                  htmlFor={`variant-${variant.id}`} 
-                  className="text-sm cursor-pointer"
-                >
-                  {variant.variant}
-                </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            {/* Unaffiliated variants (rank 1–9) */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+              <div className="flex flex-col gap-2">
+                {availableVariants
+                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                  .sort((a, b) =>
+                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                  )
+                  .map((variant, index, arr) => (
+                    <React.Fragment key={variant.id}>
+                      {/* Insert separator before 'skirmish' */}
+                      {variant.variant.toLowerCase() === "skirmish" && (
+                        <div className="border-t border-gray-300" />
+                      )}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`variant-${variant.id}`}
+                          checked={editedGangVariants.some(v => v.id === variant.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setEditedGangVariants(prev => [...prev, variant]);
+                            } else {
+                              setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
+                            }
+                          }}
+                        />
+                        <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                          {variant.variant}
+                        </label>
+                      </div>
+                    </React.Fragment>
+                  ))}
               </div>
-            ))}
+            </div>
+
+            {/* Outlaw/Corrupted variants*/}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+              <div className="flex flex-col gap-2">
+                {availableVariants
+                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                  .sort((a, b) =>
+                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                  )
+                  .map(variant => (
+                    <div key={variant.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`variant-${variant.id}`}
+                        checked={editedGangVariants.some(v => v.id === variant.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setEditedGangVariants(prev => [...prev, variant]);
+                          } else {
+                            setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                        {variant.variant}
+                      </label>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
