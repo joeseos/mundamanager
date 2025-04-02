@@ -791,7 +791,7 @@ export default function Gang({
 
         {editedGangIsVariant && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            {/* Unaffiliated variants (rank 1–9) */}
+            {/* Unaffiliated variants */}
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
               <div className="flex flex-col gap-2">
