@@ -32,8 +32,12 @@ export default function MyGangs() {
   if (isLoading) return <div className="text-center text-white">Loading gangs...</div>;
   if (error) return <div className="text-center text-red-500">{error}</div>;
 
-  // Sort gangs by last_updated in descending order (most recent first)
-  const sortedGangs = [...gangs].sort((a, b) => new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime());
+  // Sort gangs by the most recent of last_updated or created_at
+  const sortedGangs = [...gangs].sort((a, b) => {
+    const dateA = new Date(b.last_updated || b.created_at).getTime();
+    const dateB = new Date(a.last_updated || a.created_at).getTime();
+    return dateA - dateB;
+  });
 
   return (
     <div className="bg-white shadow-md rounded-lg p-3 md:p-6">
