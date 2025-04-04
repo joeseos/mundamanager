@@ -239,6 +239,22 @@ export default function Gang({
     }
   };
 
+const syncGangVariantsWithAlignment = (newAlignment: string) => {
+  const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
+  const hasOutlaw = editedGangVariants.some(v => v.variant === 'Outlaw');
+
+  if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
+    setEditedGangVariants(prev => [...prev, outlaw]);
+  } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
+    setEditedGangVariants(prev => prev.filter(v => v.variant !== 'Outlaw'));
+  }
+};
+
+const handleAlignmentChange = (value: string) => {
+  setEditedAlignment(value);
+  syncGangVariantsWithAlignment(value);
+};
+
   const handleSave = async () => {
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
@@ -660,7 +676,7 @@ export default function Gang({
         <p className="text-sm font-medium">Alignment</p>
         <select
           value={editedAlignment || ''}
-          onChange={(e) => setEditedAlignment(e.target.value)}
+          onChange={(e) => handleAlignmentChange(e.target.value)}
           className="w-full p-2 border rounded"
         >
           <option value="">Select Alignment</option>
@@ -1468,11 +1484,13 @@ export default function Gang({
               <div className="flex flex-wrap gap-4">
                 {gangVariants.length > 0 && gangIsVariant && (
                   <div className="flex items-center gap-1 text-sm">Variants:
-                    {gangVariants.map((variant) => (
-                      <Badge key={variant.id} variant="secondary">
-                        {variant.variant}
-                      </Badge>
-                    ))}
+                    {gangVariants
+                      .filter((variant) => variant.variant !== 'Outlaw')
+                      .map((variant) => (
+                        <Badge key={variant.id} variant="secondary">
+                          {variant.variant}
+                        </Badge>
+                      ))}
                   </div>
                 )}
               </div>
@@ -1484,7 +1502,7 @@ export default function Gang({
                 value={alignment}
                 isEditing={isEditing}
                 editedValue={editedAlignment}
-                onChange={setEditedAlignment}
+                onChange={handleAlignmentChange}
                 type="select"
                 options={['Law Abiding', 'Outlaw']}
               />
