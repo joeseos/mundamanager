@@ -1799,6 +1799,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           <FighterDetailsCard 
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
+            label={fighterData.fighter?.label || ''}
             type={fighterData.fighter?.fighter_type.fighter_type || ''}
             fighter_class={fighterData.fighter?.fighter_class}
             credits={fighterData.fighter?.credits || 0}
