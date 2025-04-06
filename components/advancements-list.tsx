@@ -241,14 +241,19 @@ export const AdvancementsList = React.memo(function AdvancementsList({
                 </tr>
               ) : (
                 allAdvancements
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .sort((a, b) => {
+                    // Make sure both objects have created_at before comparing them
+                    const dateA = a.created_at || ''; 
+                    const dateB = b.created_at || '';
+                    return new Date(dateB).getTime() - new Date(dateA).getTime();
+                  })
                   .map((advancement) => {
                     const specificData = typeof advancement.type_specific_data === 'string'
                       ? JSON.parse(advancement.type_specific_data || '{}')
                       : (advancement.type_specific_data || {});
                       
                     return (
-                      <tr key={advancement.id} className="border-t">
+                      <tr key={advancement.id || `temp-${Math.random()}`} className="border-t">
                         <td className="px-1 py-1">
                           <span>
                             {advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
@@ -267,11 +272,11 @@ export const AdvancementsList = React.memo(function AdvancementsList({
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => setDeleteModalData({
+                              onClick={() => advancement.id ? setDeleteModalData({
                                 id: advancement.id,
                                 name: advancement.effect_name
-                              })}
-                              disabled={isDeleting === advancement.id}
+                              }) : null}
+                              disabled={isDeleting === advancement.id || !advancement.id}
                               className="text-xs px-1.5 h-6"
                             >
                               Delete

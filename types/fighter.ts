@@ -73,7 +73,11 @@ export interface FighterEffect {
   type_specific_data?: {
     fighter_effect_category_id?: string;
     is_user_edit?: boolean;
-  };
+    xp_cost?: number;
+    credits_increase?: number;
+  } | string;
+  created_at?: string; // Optional created_at property
+  fighter_effect_type_id?: string;
 }
 
 export interface FighterEffects {
