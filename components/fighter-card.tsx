@@ -13,7 +13,7 @@ import { MdChair } from "react-icons/md";
 import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 
-interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills'> {
+interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name
   type: string;  // maps to fighter_type
   label?: string;
@@ -24,11 +24,15 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   starved?: boolean;
   free_skill?: boolean;
   kills: number;
-  skills?: FighterSkills; // Use the standardized type
-  effects: {
-    injuries: Array<FighterEffect>;
-    advancements: Array<FighterEffect>;
-  }
+  skills?: FighterSkills;
+  special_rules?: string[];
+  effects?: { 
+    injuries: FighterEffect[]; 
+    advancements: FighterEffect[];
+    bionics: FighterEffect[];
+    cybernetics: FighterEffect[];
+    user: FighterEffect[];
+  };
   note?: string;
   vehicle?: Vehicle;
   disableLink?: boolean;
@@ -191,36 +195,13 @@ const FighterCard = memo(function FighterCard({
   }, [isCrew, vehicle]);
 
   // Create fighter data object for stat calculation
-  const fighterData = useMemo<FighterProps>(() => ({
-    id,
-    fighter_name: name,
-    fighter_type: type,
-    fighter_class,
-    credits,
-    movement,
-    weapon_skill,
-    ballistic_skill,
-    strength,
-    toughness,
-    wounds,
-    initiative,
-    attacks,
-    leadership,
-    cool,
-    willpower,
-    intelligence,
-    xp,
-    kills,
-    skills: skills, // Direct assignment since skills is already in the correct format
-    advancements: {
-      characteristics: advancements?.characteristics || {},
-      skills: advancements?.skills || {}
-    },
-    weapons,
-    wargear,
-    special_rules: special_rules || [],
-    effects: effects || { injuries: [], advancements: [] },
-    base_stats: {
+  const fighterData = useMemo(() => {
+    return {
+      id,
+      fighter_name: name,
+      fighter_type: type,
+      fighter_class,
+      credits,
       movement,
       weapon_skill,
       ballistic_skill,
@@ -232,23 +213,54 @@ const FighterCard = memo(function FighterCard({
       leadership,
       cool,
       willpower,
-      intelligence
-    },
-    current_stats: {
-      movement,
-      weapon_skill,
-      ballistic_skill,
-      strength,
-      toughness,
-      wounds,
-      initiative,
-      attacks,
-      leadership,
-      cool,
-      willpower,
-      intelligence
-    }
-  }), [
+      intelligence,
+      xp,
+      kills,
+      skills: skills, // Direct assignment since skills is already in the correct format
+      advancements: {
+        characteristics: advancements?.characteristics || {},
+        skills: advancements?.skills || {}
+      },
+      weapons,
+      wargear,
+      special_rules: special_rules || [],
+      effects: {
+        injuries: effects?.injuries || [],
+        advancements: effects?.advancements || [],
+        bionics: effects?.bionics || [], // Add missing arrays
+        cybernetics: effects?.cybernetics || [], // Add missing arrays
+        user: effects?.user || []
+      },
+      base_stats: {
+        movement,
+        weapon_skill,
+        ballistic_skill,
+        strength,
+        toughness,
+        wounds,
+        initiative,
+        attacks,
+        leadership,
+        cool,
+        willpower,
+        intelligence
+      },
+      current_stats: {
+        movement,
+        weapon_skill,
+        ballistic_skill,
+        strength,
+        toughness,
+        wounds,
+        initiative,
+        attacks,
+        leadership,
+        cool,
+        willpower,
+        intelligence
+      }
+    };
+  }, [
     id, name, type, fighter_class, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
@@ -535,7 +547,11 @@ const FighterCard = memo(function FighterCard({
                     {Object.entries(
                       effects.injuries
                         .slice()
-                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        .sort((a, b) => {
+                          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                          return dateA - dateB;
+                        })
                         .reduce<Record<string, number>>((acc, injury) => {
                           acc[injury.effect_name] = (acc[injury.effect_name] || 0) + 1;
                           return acc;

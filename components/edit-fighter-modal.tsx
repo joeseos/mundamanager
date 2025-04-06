@@ -1,46 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/modal";
-import { FighterEffect } from '@/types/fighter';
-
-// Define the Fighter interface locally since it's not exported from types/fighter
-interface Fighter {
-  id: string;
-  fighter_name: string;
-  label?: string;
-  fighter_type: {
-    fighter_type: string;
-    fighter_type_id: string;
-    fighter_class?: string;
-  };
-  gang_type_id: string;
-  credits: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  xp: number | null;
-  total_xp: number | null;
-  effects?: {
-    injuries: Array<FighterEffect>;
-    advancements: Array<FighterEffect>;
-  };
-  cost_adjustment?: number;
-  kills?: number;
-  base_credits?: number;
-}
+import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
+import { Button } from "@/components/ui/button";
+import { Plus, Minus, X } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 // FighterCharacteristicTable defined within the same file
 function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
-  // Define the stat names and their display labels
+  // Define the stats to display
   const stats = [
     { key: 'movement', label: 'M' },
     { key: 'weapon_skill', label: 'WS' },
@@ -53,90 +21,57 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     { key: 'leadership', label: 'Ld' },
     { key: 'cool', label: 'Cl' },
     { key: 'willpower', label: 'Wil' },
-    { key: 'intelligence', label: 'Int' },
+    { key: 'intelligence', label: 'Int' }
   ];
 
-  // Track the specific injuries affecting each stat
-  const injuryModifiers: Record<string, Array<{ name: string, value: number }>> = {};
-  
-  // Track the specific advancements affecting each stat
-  const advancementModifiers: Record<string, Array<{ name: string, value: number }>> = {};
-  
-  // Extract injury effects with proper type annotations
-  const injuryEffects = fighter.effects?.injuries?.reduce((acc: Record<string, number>, injury: FighterEffect) => {
-    if (injury.fighter_effect_modifiers) {
-      injury.fighter_effect_modifiers.forEach(modifier => {
-        const statKey = modifier.stat_name.toLowerCase();
-        const numValue = modifier.numeric_value;
-        
-        if (numValue !== 0) {
-          if (!injuryModifiers[statKey]) {
-            injuryModifiers[statKey] = [];
-          }
-          
-          injuryModifiers[statKey].push({
-            name: injury.effect_name || 'Unknown injury',
-            value: numValue
-          });
-          
-          acc[statKey] = (acc[statKey] || 0) + numValue;
-        }
-      });
-    }
-    return acc;
-  }, {} as Record<string, number>) || {};
-
-  // Extract advancement effects with proper type annotations
-  const advancementEffects = fighter.effects?.advancements?.reduce((acc: Record<string, number>, advancement: FighterEffect) => {
-    if (advancement.fighter_effect_modifiers) {
-      advancement.fighter_effect_modifiers.forEach(modifier => {
-        const statKey = modifier.stat_name.toLowerCase();
-        const numValue = modifier.numeric_value;
-        
-        if (numValue !== 0) {
-          if (!advancementModifiers[statKey]) {
-            advancementModifiers[statKey] = [];
-          }
-          
-          advancementModifiers[statKey].push({
-            name: advancement.effect_name || 'Unknown advancement',
-            value: numValue
-          });
-          
-          acc[statKey] = (acc[statKey] || 0) + numValue;
-        }
-      });
-    }
-    return acc;
-  }, {} as Record<string, number>) || {};
-
-  // Fix TypeScript errors by accessing fighter stats safely
+  // IMPORTANT FIX: Get base values from original fighter properties directly
   const getStat = (fighter: Fighter, key: string): number => {
-    if (key === 'movement') return fighter.movement || 0;
-    if (key === 'weapon_skill') return fighter.weapon_skill || 0;
-    if (key === 'ballistic_skill') return fighter.ballistic_skill || 0;
-    if (key === 'strength') return fighter.strength || 0;
-    if (key === 'toughness') return fighter.toughness || 0;
-    if (key === 'wounds') return fighter.wounds || 0;
-    if (key === 'initiative') return fighter.initiative || 0;
-    if (key === 'attacks') return fighter.attacks || 0;
-    if (key === 'leadership') return fighter.leadership || 0;
-    if (key === 'cool') return fighter.cool || 0;
-    if (key === 'willpower') return fighter.willpower || 0;
-    if (key === 'intelligence') return fighter.intelligence || 0;
-    return 0;
+    // Return original base values from fighter object
+    return fighter[key as keyof Fighter] as number || 0;
   };
 
-  // Check if there are any advancement effects to display
-  const hasAdvancements = fighter.effects?.advancements?.some(adv => 
-    typeof adv.type_specific_data === 'object' && 
-    Object.keys(adv.type_specific_data || {}).some(key => key.endsWith('_modifier'))
-  );
+  // Calculate injury effects
+  const injuryEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.injuries?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.injuries]);
+
+  // Calculate advancement effects
+  const advancementEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.advancements?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.advancements]);
+
+  // Calculate user effects
+  const userEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.user?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.user]);
 
   return (
-    <div className="overflow-x-auto">
-      <h3 className="text-sm font-medium mb-2">Characteristics</h3>
-      <table className="min-w-full border-collapse text-sm">
+    <div className="w-full overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
             <th className="px-1 py-1 border text-xs bg-gray-100">Type</th>
@@ -146,98 +81,69 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           </tr>
         </thead>
         <tbody>
-          {/* Base Stats Row */}
+          {/* Base row - IMPORTANT FIX: Display only original base values */}
           <tr className="bg-gray-50">
             <td className="px-1 py-1 border font-medium text-xs">Base</td>
+            {stats.map(stat => {
+              const baseValue = getStat(fighter, stat.key);
+              
+              return (
+                <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+                  {stat.key === 'movement' ? `${baseValue}"` :
+                   stat.key === 'wounds' || stat.key === 'attacks' || 
+                   stat.key === 'strength' || stat.key === 'toughness' ? 
+                   baseValue : 
+                   `${baseValue}+`}
+                </td>
+              );
+            })}
+          </tr>
+          
+          {/* Injury row */}
+          <tr className="bg-red-50">
+            <td className="px-1 py-1 border font-medium text-xs">Injuries</td>
             {stats.map(stat => (
               <td key={stat.key} className="px-1 py-1 border text-center text-xs">
-                {stat.key === 'movement' ? `${getStat(fighter, stat.key)}"` : 
-                 stat.key === 'wounds' || stat.key === 'attacks' ? 
-                 getStat(fighter, stat.key) : 
-                 `${getStat(fighter, stat.key)}+`}
+                {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
               </td>
             ))}
           </tr>
           
-          {/* Injuries Row */}
-          <tr className="bg-red-50">
-            <td className="px-1 py-1 border font-medium text-xs">Injuries</td>
-            {stats.map(stat => {
-              const value = injuryEffects[stat.key] || 0;
-              const modifiers = injuryModifiers[stat.key] || [];
-              
-              return (
-                <td 
-                  key={stat.key} 
-                  className="px-1 py-1 border text-center text-xs relative group cursor-help"
-                >
-                  {value === 0 ? '-' : value > 0 ? `+${value}` : value}
-                  
-                  {modifiers.length > 0 && (
-                    <div className="hidden group-hover:block absolute z-10 bg-white shadow-lg p-2 rounded text-xs w-40 left-0 top-full mt-1">
-                      {modifiers.map((mod, idx) => (
-                        <div key={idx} className="flex justify-between text-left mb-1">
-                          <span className="truncate mr-1">{mod.name}:</span>
-                          <span className="text-right font-medium">{mod.value > 0 ? `+${mod.value}` : mod.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-          
-          {/* Advancements Row */}
+          {/* Advancements row */}
           <tr className="bg-green-50">
             <td className="px-1 py-1 border font-medium text-xs">Adv.</td>
-            {stats.map(stat => {
-              const value = advancementEffects[stat.key] || 0;
-              const modifiers = advancementModifiers[stat.key] || [];
-              
-              return (
-                <td 
-                  key={stat.key} 
-                  className="px-1 py-1 border text-center text-xs relative group cursor-help"
-                >
-                  {value === 0 ? '-' : value > 0 ? `+${value}` : value}
-                  
-                  {modifiers.length > 0 && (
-                    <div className="hidden group-hover:block absolute z-10 bg-white shadow-lg p-2 rounded text-xs w-40 left-0 top-full mt-1">
-                      {modifiers.map((mod, idx) => (
-                        <div key={idx} className="flex justify-between text-left mb-1">
-                          <span className="truncate mr-1">{mod.name}:</span>
-                          <span className="text-right font-medium">{mod.value > 0 ? `+${mod.value}` : mod.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-          
-          {/* User Input Row */}
-          <tr className="bg-blue-50">
-            <td className="px-1 py-1 border font-medium text-xs">User</td>
             {stats.map(stat => (
-              <td key={stat.key} className="px-1 py-1 border text-center text-xs">-</td>
+              <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+                {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
+              </td>
             ))}
           </tr>
           
-          {/* Total Row */}
+          {/* User row */}
+          <tr className="bg-blue-50">
+            <td className="px-1 py-1 border font-medium text-xs">User</td>
+            {stats.map(stat => (
+              <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+                {userEffects[stat.key] ? userEffects[stat.key] : '-'}
+              </td>
+            ))}
+          </tr>
+          
+          {/* Total row */}
           <tr className="bg-gray-100 font-bold">
             <td className="px-1 py-1 border text-xs">Total</td>
             {stats.map(stat => {
               const baseValue = getStat(fighter, stat.key);
               const injuryValue = injuryEffects[stat.key] || 0;
               const advancementValue = advancementEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue;
+              const userValue = userEffects[stat.key] || 0;
+              const total = baseValue + injuryValue + advancementValue + userValue;
               
               return (
                 <td key={stat.key} className="px-1 py-1 border text-center text-xs">
                   {stat.key === 'movement' ? `${total}"` :
-                   stat.key === 'wounds' || stat.key === 'attacks' ? 
+                   stat.key === 'wounds' || stat.key === 'attacks' || 
+                   stat.key === 'strength' || stat.key === 'toughness' ? 
                    total : 
                    `${total}+`}
                 </td>
@@ -246,21 +152,341 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           </tr>
         </tbody>
       </table>
-      
-      {/* Add a small summary section for advancements if there are any */}
-      {hasAdvancements && (
-        <div className="mt-2 text-xs text-green-700">
-          <p className="font-medium">Advancements:</p>
-          <ul className="list-disc pl-5">
-            {fighter.effects?.advancements?.map((adv, idx) => (
-              <li key={idx}>{adv.effect_type}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
+
+// Define StatKey type and Stat interface for the new stats modal
+type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Ld" | "Cl" | "Wil" | "Int";
+
+interface Stat {
+  key: StatKey;
+  name: string;
+  value: string;
+}
+
+// Character Stats Modal component - update title and close button
+function CharacterStatsModal({ 
+  onClose, 
+  fighter,
+  onUpdateStats,
+  isSaving = false
+}: { 
+  onClose: () => void;
+  fighter: Fighter;
+  onUpdateStats: (stats: Record<string, number>) => void;
+  isSaving?: boolean;
+}) {
+  // Keep track of the user's adjustments separately from the base values
+  const [adjustments, setAdjustments] = useState<Record<string, number>>({
+    movement: 0,
+    weapon_skill: 0,
+    ballistic_skill: 0,
+    strength: 0,
+    toughness: 0,
+    wounds: 0,
+    initiative: 0,
+    attacks: 0,
+    leadership: 0,
+    cool: 0,
+    willpower: 0,
+    intelligence: 0
+  });
+  
+  // Map fighter stats to our format for display
+  const displayStats = useMemo((): Stat[] => {
+    return [
+      { key: "M", name: "Movement", value: `${fighter.movement}"` },
+      { key: "WS", name: "Weapon Skill", value: `${fighter.weapon_skill}+` },
+      { key: "BS", name: "Ballistic Skill", value: `${fighter.ballistic_skill}+` },
+      { key: "S", name: "Strength", value: `${fighter.strength}` },
+      { key: "T", name: "Toughness", value: `${fighter.toughness}` },
+      { key: "W", name: "Wounds", value: `${fighter.wounds}` },
+      { key: "I", name: "Initiative", value: `${fighter.initiative}+` },
+      { key: "A", name: "Attacks", value: `${fighter.attacks}` },
+      { key: "Ld", name: "Leadership", value: `${fighter.leadership}+` },
+      { key: "Cl", name: "Coolness", value: `${fighter.cool}+` },
+      { key: "Wil", name: "Willpower", value: `${fighter.willpower}+` },
+      { key: "Int", name: "Intelligence", value: `${fighter.intelligence}+` },
+    ];
+  }, [fighter]);
+
+  // Get the property name from the stat key
+  const getPropertyName = (key: StatKey): string => {
+    switch (key) {
+      case "M": return "movement";
+      case "WS": return "weapon_skill";
+      case "BS": return "ballistic_skill";
+      case "S": return "strength";
+      case "T": return "toughness";
+      case "W": return "wounds";
+      case "I": return "initiative";
+      case "A": return "attacks";
+      case "Ld": return "leadership";
+      case "Cl": return "cool";
+      case "Wil": return "willpower";
+      case "Int": return "intelligence";
+      default: return "";
+    }
+  };
+  
+  // Handle increasing a stat
+  const handleIncrease = (key: StatKey) => {
+    const propName = getPropertyName(key);
+    setAdjustments(prev => ({
+      ...prev,
+      [propName]: prev[propName] + 1
+    }));
+  };
+  
+  // Handle decreasing a stat
+  const handleDecrease = (key: StatKey) => {
+    const propName = getPropertyName(key);
+    setAdjustments(prev => {
+      // Only decrease if the adjusted base value would remain above 1
+      const baseValue = fighter[propName as keyof Fighter] as number;
+      if (baseValue + prev[propName] > 1) {
+        return {
+          ...prev,
+          [propName]: prev[propName] - 1
+        };
+      }
+      return prev;
+    });
+  };
+
+  // IMPORTANT: The base values should be the fighter's original stats
+  const getBaseValue = (key: StatKey): number => {
+    const propName = getPropertyName(key);
+    return fighter[propName as keyof Fighter] as number;
+  };
+  
+  // This function now correctly gets the total including ALL modifiers
+  // but does NOT include our adjustments (those are handled separately)
+  const getCurrentTotal = (key: StatKey): number => {
+    const propName = getPropertyName(key);
+    
+    // Get base value
+    const baseValue = fighter[propName as keyof Fighter] as number;
+    
+    // Get all modifiers from effects (injuries, advancements, user effects)
+    let modifiers = 0;
+    
+    // Process all effect types
+    const processEffects = (effects: FighterEffect[] | undefined) => {
+      effects?.forEach(effect => {
+        effect.fighter_effect_modifiers?.forEach(modifier => {
+          if (modifier.stat_name.toLowerCase() === propName.toLowerCase()) {
+            modifiers += parseInt(modifier.numeric_value.toString());
+          }
+        });
+      });
+    };
+    
+    processEffects(fighter.effects?.injuries);
+    processEffects(fighter.effects?.advancements);
+    processEffects(fighter.effects?.bionics);
+    processEffects(fighter.effects?.cybernetics);
+    processEffects(fighter.effects?.user);
+    
+    // Return total (base + existing modifiers)
+    return baseValue + modifiers;
+  };
+  
+  // This function gets what the new total will be after our adjustments
+  const getAdjustedTotal = (key: StatKey): string => {
+    const propName = getPropertyName(key);
+    
+    // Start with the current total (including all existing modifiers)
+    const currentTotal = getCurrentTotal(key);
+    
+    // Add our new adjustment
+    const withAdjustment = currentTotal + (adjustments[propName] || 0);
+    
+    // Format based on stat type
+    if (key === "M") return `${withAdjustment}"`;
+    if (key === "W" || key === "A" || key === "S" || key === "T") return `${withAdjustment}`;
+    return `${withAdjustment}+`;
+  };
+  
+  // Get the base display value (without any adjustments)
+  const getBaseDisplay = (key: StatKey): string => {
+    const baseValue = getBaseValue(key);
+    
+    // Format the base value appropriately
+    if (key === "M") return `${baseValue}"`;
+    if (key === "W" || key === "A" || key === "S" || key === "T") return `${baseValue}`;
+    return `${baseValue}+`;
+  };
+  
+  const handleSave = () => {
+    // Only include stats that have been adjusted
+    const updatedStats: Record<string, number> = {};
+    
+    Object.entries(adjustments).forEach(([propName, adjustment]) => {
+      if (adjustment !== 0) {
+        // IMPORTANT: We're sending the adjustment directly, NOT the new base value
+        // This ensures we're creating user effects, not modifying base stats
+        updatedStats[propName] = adjustment;
+      }
+    });
+    
+    // Only call if there are actual changes
+    if (Object.keys(updatedStats).length > 0) {
+      onUpdateStats(updatedStats);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-[100]">
+      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={isSaving ? undefined : onClose}></div>
+      <div className="bg-white rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-2xl font-bold">Adjust Characteristics</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-xl"
+            disabled={isSaving}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {displayStats.map((stat) => {
+              const propName = getPropertyName(stat.key);
+              const adjustment = adjustments[propName] || 0;
+              return (
+                <div key={stat.key} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xl font-bold">{stat.key}</h3>
+                    <span className="text-sm text-gray-500">{stat.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 rounded-md"
+                      onClick={() => handleDecrease(stat.key)}
+                      disabled={isSaving || (fighter[propName as keyof Fighter] as number) + adjustment <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <div className="flex flex-col items-center">
+                      {/* Display TOTAL value as the large, primary value */}
+                      <span className="text-2xl font-bold">
+                        {getAdjustedTotal(stat.key)}
+                      </span>
+                      {/* Display BASE value without the adjustment */}
+                      <span className="text-xs text-gray-500">
+                        Base: {getBaseDisplay(stat.key)}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 rounded-md"
+                      onClick={() => handleIncrease(stat.key)}
+                      disabled={isSaving}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex justify-end p-4 border-t gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Confirm"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add helper functions to calculate stat modifiers and get base values
+function calculateStatModifiers(fighter: Fighter, statKey: string): number {
+  let totalModifier = 0;
+  
+  // Process all effect types
+  const processEffects = (effects: FighterEffect[] | undefined) => {
+    effects?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        if (modifier.stat_name.toLowerCase() === statKey.toLowerCase()) {
+          totalModifier += parseInt(modifier.numeric_value.toString());
+        }
+      });
+    });
+  };
+  
+  // Process each type of effect
+  processEffects(fighter.effects?.injuries);
+  processEffects(fighter.effects?.advancements);
+  processEffects(fighter.effects?.bionics);
+  processEffects(fighter.effects?.cybernetics);
+  processEffects(fighter.effects?.user);
+  
+  return totalModifier;
+}
+
+function getBaseValue(fighter: Fighter, key: StatKey): number {
+  switch (key) {
+    case "M": return fighter.movement;
+    case "WS": return fighter.weapon_skill;
+    case "BS": return fighter.ballistic_skill;
+    case "S": return fighter.strength;
+    case "T": return fighter.toughness;
+    case "W": return fighter.wounds;
+    case "I": return fighter.initiative;
+    case "A": return fighter.attacks;
+    case "Ld": return fighter.leadership;
+    case "Cl": return fighter.cool;
+    case "Wil": return fighter.willpower;
+    case "Int": return fighter.intelligence;
+    default: return 0;
+  }
+}
+
+// Add this shared helper function above both component definitions
+function calculateTotalStat(fighter: Fighter, statKey: string, baseOverride?: number): number {
+  // Use provided base value or get from fighter
+  const baseValue = baseOverride !== undefined ? 
+    baseOverride : 
+    getBaseValue(fighter, statKey as StatKey);
+  
+  // Get sum of all modifiers
+  const modifiers = calculateStatModifiers(fighter, statKey);
+  
+  // Return total
+  return baseValue + modifiers;
+}
+
+// Safe function to create a temporary effect for optimistic updates
+const createTempEffect = (statName: string, adjustment: number): FighterEffect => {
+  // Create a temporary effect ID
+  const tempEffectId = `temp-${statName}-${Date.now()}`;
+  
+  // Create a properly structured temporary effect
+  return {
+    id: tempEffectId,
+    effect_name: adjustment > 0 ? 'Increase' : 'Decrease',
+    fighter_effect_type_id: 'temp-type-id', // Required by the type
+    fighter_effect_modifiers: [{
+      id: `temp-mod-${statName}-${Date.now()}`,
+      fighter_effect_id: tempEffectId, // Required by the type
+      stat_name: statName,
+      numeric_value: adjustment // Ensure this is a number
+    }]
+  } as FighterEffect;
+};
 
 interface EditFighterModalProps {
   fighter: Fighter;
@@ -277,7 +503,9 @@ interface EditFighterModalProps {
     label: string;
     kills: number;
     costAdjustment: string;
+    stats?: Record<string, number>;
   }) => Promise<boolean>;
+  onStatsUpdate?: (updatedFighter: Fighter) => void;
 }
 
 export function EditFighterModal({
@@ -285,15 +513,31 @@ export function EditFighterModal({
   isOpen,
   initialValues,
   onClose,
-  onSubmit
+  onSubmit,
+  onStatsUpdate
 }: EditFighterModalProps) {
   // Local state for form values
   const [formValues, setFormValues] = useState({
     name: initialValues.name,
     label: initialValues.label,
     kills: initialValues.kills,
-    costAdjustment: initialValues.costAdjustment
+    costAdjustment: initialValues.costAdjustment,
+    stats: {} as Record<string, number>
   });
+  
+  // Local state for tracking current fighter state (including all modifications)
+  const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
+  
+  // State for showing the stats modal
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  
+  // State for tracking if stats are being saved
+  const [isSavingStats, setIsSavingStats] = useState(false);
+
+  // Update currentFighter when fighter prop changes
+  useEffect(() => {
+    setCurrentFighter(fighter);
+  }, [fighter]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues(prev => ({
@@ -302,95 +546,180 @@ export function EditFighterModal({
     }));
   };
 
+  const handleUpdateStats = async (stats: Record<string, number>) => {
+    if (Object.keys(stats).length === 0) {
+      setShowStatsModal(false);
+      return;
+    }
+    
+    try {
+      setIsSavingStats(true);
+      
+      // Make a clean copy of the fighter BEFORE any adjustments
+      const cleanFighter = { ...currentFighter };
+      
+      // Send the update to the server first
+      const response = await fetch('/api/fighters/effects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fighter_id: fighter.id,
+          stats // Send the adjustment values directly
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save stat changes');
+      }
+      
+      // Process the server response
+      const result = await response.json();
+      
+      // Update with the actual server data including any new effects
+      const serverUpdatedFighter = {
+        ...cleanFighter, // Use the clean fighter as the base
+        effects: {
+          ...cleanFighter.effects,
+          injuries: cleanFighter.effects?.injuries || [],
+          advancements: cleanFighter.effects?.advancements || [],
+          bionics: cleanFighter.effects?.bionics || [],
+          cybernetics: cleanFighter.effects?.cybernetics || [],
+          user: result.effects || [] // Update with the actual user effects from server
+        }
+      };
+      
+      // Update local state with server data
+      setCurrentFighter(serverUpdatedFighter);
+      
+      // Notify parent component with the fully updated fighter
+      if (onStatsUpdate) {
+        onStatsUpdate(serverUpdatedFighter);
+      }
+      
+      // Show success toast message with proper formatting
+      toast({
+        description: "Fighter characteristics updated successfully",
+        variant: "default",
+      });
+      
+      // Close the modal only after successful update
+      setShowStatsModal(false);
+      
+    } catch (error) {
+      console.error('Error saving stats:', error);
+      
+      // Show error toast message with proper formatting
+      toast({
+        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
+        variant: "destructive",
+      });
+      
+      // Do not close the modal on error
+      // No need to revert as we didn't do an optimistic update
+    } finally {
+      setIsSavingStats(false);
+    }
+  };
+
   // Don't render if modal isn't open
   if (!isOpen) return null;
 
   return (
-    <Modal
-      title="Edit Fighter"
-      content={
-        <div className="space-y-4 max-w-3xl mx-auto">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Fighter name</p>
-            <Input
-              type="text"
-              value={formValues.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              className="w-full"
-              placeholder="Fighter name"
-            />
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Label (max 5 characters)</p>
-            <Input
-              type="text"
-              value={formValues.label}
-              onChange={(e) => {
-                const value = e.target.value.slice(0, 5);
-                handleChange('label', value);
-              }}
-              className="w-full"
-              placeholder="Label (5 chars max)"
-              maxLength={5}
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Cost Adjustment</p>
+    <>
+      <Modal
+        title="Edit Fighter"
+        content={
+          <div className="space-y-4 max-w-3xl mx-auto">
+            {/* Name Input */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                Fighter name
+              </label>
               <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]*"
-                value={formValues.costAdjustment}
-                onKeyDown={(e) => {
-                  if (![8, 9, 13, 27, 46, 189, 109].includes(e.keyCode) && 
-                      !/^[0-9]$/.test(e.key) && 
-                      e.key !== '-') {
-                    e.preventDefault();
-                  }
-                }}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  const value = e.target.value;
-                  if (value === '' || value === '-' || /^-?\d*$/.test(value)) {
-                    handleChange('costAdjustment', value);
-                  }
-                }}
-                className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder="Cost adjustment"
+                id="name"
+                value={formValues.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                className="mt-1 w-full"
               />
             </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Kills</p>
+            
+            {/* Label Input */}
+            <div>
+              <label htmlFor="label" className="block text-sm font-medium text-gray-700">
+                Label (max 5 characters)
+              </label>
               <Input
-                type="number"
-                min="0"
-                value={formValues.kills}
-                onChange={(e) => handleChange('kills', parseInt(e.target.value) || 0)}
-                className="w-full"
-                placeholder="Number of kills"
+                id="label"
+                value={formValues.label}
+                onChange={(e) => handleChange('label', e.target.value)}
+                className="mt-1 w-full"
+                maxLength={5}
+                placeholder="Label (5 chars max)"
               />
             </div>
+            
+            {/* Cost Adjustment and Kills in a 2-column layout */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="costAdjustment" className="block text-sm font-medium text-gray-700">
+                  Cost Adjustment
+                </label>
+                <Input
+                  id="costAdjustment"
+                  type="number"
+                  value={formValues.costAdjustment}
+                  onChange={(e) => handleChange('costAdjustment', e.target.value)}
+                  className="mt-1 w-full"
+                />
+              </div>
+              <div>
+                <label htmlFor="kills" className="block text-sm font-medium text-gray-700">
+                  Kills
+                </label>
+                <Input
+                  id="kills"
+                  type="number"
+                  value={formValues.kills}
+                  onChange={(e) => handleChange('kills', e.target.value)}
+                  className="mt-1 w-full"
+                />
+              </div>
+            </div>
+            
+            {/* Characteristics Table */}
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Characteristics
+              </label>
+              <FighterCharacteristicTable fighter={currentFighter} />
+              <div className="flex justify-center mt-4">
+                <Button 
+                  onClick={() => setShowStatsModal(true)}
+                  className="w-full"
+                >
+                  Adjust Characteristics
+                </Button>
+              </div>
+            </div>
           </div>
-          
-          {/* Stats table appears below the form fields */}
-          <div className="mt-6">
-            <FighterCharacteristicTable fighter={fighter} />
-          </div>
-        </div>
-      }
-      onClose={() => {
-        // Reset form values back to initial values
-        setFormValues({
-          name: initialValues.name,
-          label: initialValues.label,
-          kills: initialValues.kills,
-          costAdjustment: initialValues.costAdjustment
-        });
-        onClose();
-      }}
-      onConfirm={async () => {
-        return await onSubmit(formValues);
-      }}
-    />
+        }
+        onClose={onClose}
+        onConfirm={async () => {
+          return await onSubmit(formValues);
+        }}
+      />
+      
+      {/* Stats modal */}
+      {showStatsModal && (
+        <CharacterStatsModal 
+          onClose={() => setShowStatsModal(false)} 
+          fighter={currentFighter}
+          onUpdateStats={handleUpdateStats}
+          isSaving={isSavingStats}
+        />
+      )}
+    </>
   );
 } 
