@@ -62,22 +62,21 @@ export interface Skill {
 }
 
 export interface FighterEffect {
-  id?: string;
+  id: string;
   effect_name: string;
-  fighter_effect_modifiers: Array<{
+  fighter_effect_type_id?: string;
+  fighter_effect_modifiers: {
     id: string;
     fighter_effect_id: string;
     stat_name: string;
     numeric_value: number;
-  }>;
+  }[];
   type_specific_data?: {
-    fighter_effect_category_id?: string;
-    is_user_edit?: boolean;
     xp_cost?: number;
     credits_increase?: number;
+    [key: string]: any;
   } | string;
-  created_at?: string; // Optional created_at property
-  fighter_effect_type_id?: string;
+  created_at?: string; // Explicitly mark as optional
 }
 
 export interface FighterEffects {
