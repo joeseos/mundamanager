@@ -25,6 +25,7 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FighterEffect } from '@/types/fighter';
 
 interface VehicleType {
   id: string;
@@ -526,8 +527,11 @@ export default function Gang({
         injuries: [],
         free_skill: data.free_skill || false,
         effects: {
-          injuries: [],
-          advancements: []
+          injuries: [] as FighterEffect[],
+          advancements: [] as FighterEffect[],
+          bionics: [] as FighterEffect[],
+          cybernetics: [] as FighterEffect[],
+          user: [] as FighterEffect[]
         },
         base_stats: {
           movement: data.stats.movement,

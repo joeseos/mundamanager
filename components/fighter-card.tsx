@@ -28,6 +28,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
+    user: Array<FighterEffect>;
   }
   note?: string;
   vehicle?: Vehicle;
@@ -219,7 +220,11 @@ const FighterCard = memo(function FighterCard({
     weapons,
     wargear,
     special_rules: special_rules || [],
-    effects: effects || { injuries: [], advancements: [] },
+    effects: effects || { 
+      injuries: [], 
+      advancements: [],
+      user: []  // Add user effects array
+    },
     base_stats: {
       movement,
       weapon_skill,

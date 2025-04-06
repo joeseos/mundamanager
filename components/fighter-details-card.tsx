@@ -71,6 +71,9 @@ interface FighterDetailsCardProps {
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
+    bionics: Array<FighterEffect>;
+    cybernetics: Array<FighterEffect>;
+    user: Array<FighterEffect>;
   }
   vehicles?: Array<{
     id: string;
@@ -220,7 +223,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     special_rules: [],
     effects: {
       injuries: effects?.injuries || [],
-      advancements: effects?.advancements || []
+      advancements: effects?.advancements || [],
+      bionics: effects?.bionics || [],
+      cybernetics: effects?.cybernetics || [],
+      user: effects?.user || []
     },
     fighter_class,
     base_stats: {

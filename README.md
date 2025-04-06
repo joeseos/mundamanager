@@ -45,6 +45,142 @@ Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns wi
 - Automatic stat calculations
 - Equipment transfer system
 
+## Fighter Effects System
+
+### Overview
+The fighter effects system manages all modifications to fighter statistics through a unified interface. Effects can come from various sources:
+- Injuries
+- Advancements
+- Bionics
+- Cybernetics
+- User modifications
+
+### Data Structure
+```typescript
+// Core effect interface
+interface FighterEffect {
+  id?: string;
+  effect_name: string;
+  fighter_effect_modifiers: Array<{
+    id: string;
+    fighter_effect_id: string;
+    stat_name: string;
+    numeric_value: number;
+  }>;
+}
+
+// Fighter effects structure
+interface Fighter {
+  effects: {
+    injuries: FighterEffect[];
+    advancements: FighterEffect[];
+    bionics: FighterEffect[];
+    cybernetics: FighterEffect[];
+    user: FighterEffect[];
+  }
+}
+```
+
+### How It Works
+
+1. **Effect Categories**
+   - Each effect belongs to a specific category (injury, advancement, etc.)
+   - Categories are stored in the `fighter_effect_categories` table
+   - Each category can have different business rules and UI treatments
+
+2. **Stat Modifications**
+   - Effects modify fighter stats through `fighter_effect_modifiers`
+   - Each modifier specifies:
+     - Which stat to modify (`stat_name`)
+     - How much to modify it by (`numeric_value`)
+     - Reference to its parent effect (`fighter_effect_id`)
+
+3. **Stat Calculation**
+   ```typescript
+   function calculateAdjustedStats(fighter: Fighter) {
+     // Start with base stats
+     const adjustedStats = { ...fighter.base_stats };
+
+     // Process all effect categories
+     ['injuries', 'advancements', 'bionics', 'cybernetics', 'user'].forEach(category => {
+       fighter.effects[category]?.forEach(effect => {
+         effect.fighter_effect_modifiers?.forEach(modifier => {
+           const statName = modifier.stat_name.toLowerCase();
+           adjustedStats[statName] += modifier.numeric_value;
+         });
+       });
+     });
+
+     return adjustedStats;
+   }
+   ```
+
+4. **Database Schema**
+   ```sql
+   -- Effect categories
+   CREATE TABLE fighter_effect_categories (
+     id UUID PRIMARY KEY,
+     category_name TEXT NOT NULL,
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ
+   );
+
+   -- Effects
+   CREATE TABLE fighter_effects (
+     id UUID PRIMARY KEY,
+     fighter_id UUID REFERENCES fighters(id),
+     effect_name TEXT NOT NULL,
+     category_id UUID REFERENCES fighter_effect_categories(id),
+     created_at TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   -- Effect modifiers
+   CREATE TABLE fighter_effect_modifiers (
+     id UUID PRIMARY KEY,
+     fighter_effect_id UUID REFERENCES fighter_effects(id),
+     stat_name TEXT NOT NULL,
+     numeric_value INTEGER NOT NULL
+   );
+   ```
+
+### Usage Examples
+
+1. **Adding an Injury**
+   ```typescript
+   const injury: FighterEffect = {
+     effect_name: "Head Wound",
+     fighter_effect_modifiers: [{
+       stat_name: "ballistic_skill",
+       numeric_value: -1
+     }]
+   };
+   fighter.effects.injuries.push(injury);
+   ```
+
+2. **Adding a Bionic Enhancement**
+   ```typescript
+   const bionic: FighterEffect = {
+     effect_name: "Bionic Arm",
+     fighter_effect_modifiers: [{
+       stat_name: "strength",
+       numeric_value: 1
+     }]
+   };
+   fighter.effects.bionics.push(bionic);
+   ```
+
+3. **User Modification**
+   ```typescript
+   const userMod: FighterEffect = {
+     effect_name: "Custom Bonus",
+     fighter_effect_modifiers: [{
+       stat_name: "movement",
+       numeric_value: 1
+     }]
+   };
+   fighter.effects.user.push(userMod);
+   ```
+
 ## Data Architecture
 
 ```typescript

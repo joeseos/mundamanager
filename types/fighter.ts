@@ -48,12 +48,8 @@ export interface FighterEffectCategory {
   category_name: string
 }
 
-export interface StatModifier {
-  stat_name: string;
-  numeric_value: number;
-  source_id: string;
-  source_type: 'injury' | 'advancement';
-}
+// First, let's define the effect categories as a type
+export type EffectCategory = 'injuries' | 'advancements' | 'bionics' | 'cybernetics' | 'user';
 
 export interface Skill {
   id: string;
@@ -66,17 +62,18 @@ export interface Skill {
 }
 
 export interface FighterEffect {
-  id: string;
+  id?: string;
   effect_name: string;
-  effect_type: string;
-  created_at: string;
-  type_specific_data?: string;
   fighter_effect_modifiers: Array<{
     id: string;
     fighter_effect_id: string;
     stat_name: string;
     numeric_value: number;
   }>;
+  type_specific_data?: {
+    fighter_effect_category_id?: string;
+    is_user_edit?: boolean;
+  };
 }
 
 export interface FighterEffects {
@@ -176,9 +173,12 @@ export interface FighterProps {
   fighter_class?: string;
   note?: string;
   effects: {
-    injuries: Array<FighterEffect>;
-    advancements: Array<FighterEffect>;
-  }
+    injuries: FighterEffect[];
+    advancements: FighterEffect[];
+    bionics: FighterEffect[];
+    cybernetics: FighterEffect[];
+    user: FighterEffect[];
+  };
   vehicles?: Vehicle[];
   
   // Base stats (original values)

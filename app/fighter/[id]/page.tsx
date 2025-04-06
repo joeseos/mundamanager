@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from "@/utils/supabase/client";
-import { Skill, FighterSkills } from "@/types/fighter";
+import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
 import { WeaponList } from "@/components/weapon-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -19,10 +19,11 @@ import { InjuriesList } from "@/components/injuries-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
-import { FighterEffects, FighterEffect, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterEffects, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { useSession } from '@/hooks/use-session';
 import { EditFighterModal } from "@/components/edit-fighter-modal";
+import { FighterProps } from '@/types/fighter';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
@@ -87,6 +88,9 @@ interface Fighter {
   effects: {
     injuries: Array<FighterEffect>;
     advancements: Array<FighterEffect>;
+    bionics: Array<FighterEffect>;
+    cybernetics: Array<FighterEffect>;
+    user: Array<FighterEffect>;
   };
   note?: string;
   kills: number;
@@ -378,7 +382,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           gang_id: result.gang.id,
           gang_type_id: result.gang.gang_type_id,
           skills: transformedSkills,
-          effects: result.fighter.effects || { injuries: [], advancements: [] }
+          effects: {
+            injuries: result.fighter.effects?.injuries || [],
+            advancements: result.fighter.effects?.advancements || [],
+            bionics: result.fighter.effects?.bionics || [],
+            cybernetics: result.fighter.effects?.cybernetics || [],
+            user: result.fighter.effects?.user || []
+          }
         },
         equipment: transformedEquipment,
         vehicleEquipment: transformedVehicleEquipment,
@@ -1751,6 +1761,42 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   // Add the useSession hook at the top of your component
   const session = useSession();
 
+  // Add a function to handle fighter stat updates
+  const handleFighterStatsUpdate = (updatedFighter: any) => {
+    setFighterData(prev => {
+      if (!prev.fighter) return prev;
+      
+      return {
+        ...prev,
+        fighter: {
+          ...prev.fighter,
+          // Update stats from updatedFighter but preserve fighter_type object structure
+          movement: updatedFighter.movement || prev.fighter.movement,
+          weapon_skill: updatedFighter.weapon_skill || prev.fighter.weapon_skill,
+          ballistic_skill: updatedFighter.ballistic_skill || prev.fighter.ballistic_skill,
+          strength: updatedFighter.strength || prev.fighter.strength,
+          toughness: updatedFighter.toughness || prev.fighter.toughness,
+          wounds: updatedFighter.wounds || prev.fighter.wounds,
+          initiative: updatedFighter.initiative || prev.fighter.initiative,
+          attacks: updatedFighter.attacks || prev.fighter.attacks,
+          leadership: updatedFighter.leadership || prev.fighter.leadership,
+          cool: updatedFighter.cool || prev.fighter.cool,
+          willpower: updatedFighter.willpower || prev.fighter.willpower,
+          intelligence: updatedFighter.intelligence || prev.fighter.intelligence,
+          // Update effects but preserve structure
+          effects: {
+            ...prev.fighter.effects,
+            injuries: updatedFighter.effects?.injuries || prev.fighter.effects.injuries,
+            advancements: updatedFighter.effects?.advancements || prev.fighter.effects.advancements,
+            bionics: updatedFighter.effects?.bionics || prev.fighter.effects.bionics,
+            cybernetics: updatedFighter.effects?.cybernetics || prev.fighter.effects.cybernetics,
+            user: updatedFighter.effects?.user || prev.fighter.effects.user
+          }
+        }
+      };
+    });
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -2171,7 +2217,42 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           {uiState.modals.editFighter && (
             <EditFighterModal
-              fighter={fighterData.fighter}
+              fighter={{
+                ...fighterData.fighter,
+                // Add missing properties expected by FighterProps
+                base_stats: {
+                  movement: fighterData.fighter.movement,
+                  weapon_skill: fighterData.fighter.weapon_skill,
+                  ballistic_skill: fighterData.fighter.ballistic_skill,
+                  strength: fighterData.fighter.strength,
+                  toughness: fighterData.fighter.toughness,
+                  wounds: fighterData.fighter.wounds,
+                  initiative: fighterData.fighter.initiative,
+                  attacks: fighterData.fighter.attacks,
+                  leadership: fighterData.fighter.leadership,
+                  cool: fighterData.fighter.cool,
+                  willpower: fighterData.fighter.willpower,
+                  intelligence: fighterData.fighter.intelligence
+                },
+                current_stats: {
+                  movement: fighterData.fighter.movement,
+                  weapon_skill: fighterData.fighter.weapon_skill,
+                  ballistic_skill: fighterData.fighter.ballistic_skill,
+                  strength: fighterData.fighter.strength,
+                  toughness: fighterData.fighter.toughness,
+                  wounds: fighterData.fighter.wounds,
+                  initiative: fighterData.fighter.initiative,
+                  attacks: fighterData.fighter.attacks,
+                  leadership: fighterData.fighter.leadership,
+                  cool: fighterData.fighter.cool,
+                  willpower: fighterData.fighter.willpower,
+                  intelligence: fighterData.fighter.intelligence
+                },
+                // Convert fighter_type from object to string if needed
+                fighter_type: typeof fighterData.fighter.fighter_type === 'object' 
+                  ? fighterData.fighter.fighter_type.fighter_type 
+                  : fighterData.fighter.fighter_type
+              } as any}
               isOpen={uiState.modals.editFighter}
               initialValues={{
                 name: fighterData.fighter?.fighter_name || '',
@@ -2233,6 +2314,10 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   });
                   return false;
                 }
+              }}
+              onStatsUpdate={(updatedFighter) => {
+                // Use the handleFighterStatsUpdate function we defined above
+                handleFighterStatsUpdate(updatedFighter);
               }}
             />
           )}

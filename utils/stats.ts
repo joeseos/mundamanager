@@ -1,4 +1,4 @@
-import { FighterProps, FighterEffect } from '@/types/fighter';
+import { FighterProps, FighterEffect, EffectCategory } from '@/types/fighter';
 
 // Fix the FighterEffectStatModifier by defining it directly
 interface FighterEffectStatModifier {
@@ -6,6 +6,9 @@ interface FighterEffectStatModifier {
   fighter_effect_id: string;
   stat_name: string;
   numeric_value: number;
+  // Add backward compatibility for existing code
+  modifier_name?: string;
+  modifier_value?: string;
 }
 
 export function calculateAdjustedStats(fighter: FighterProps) {
@@ -25,18 +28,14 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     intelligence: fighter.intelligence
   };
 
-  // Apply effects modifications (both injuries and advancements)
   if (fighter.effects) {
-    // Process injuries
-    if (fighter.effects.injuries && fighter.effects.injuries.length > 0) {
-      fighter.effects.injuries.forEach((injury: FighterEffect) => {
-        // Process all stat modifiers for this injury
-        if (injury.fighter_effect_modifiers && injury.fighter_effect_modifiers.length > 0) {
-          injury.fighter_effect_modifiers.forEach((modifier: FighterEffectStatModifier) => {
-            // Handle case sensitivity in stat names
+    const processEffects = (effects: FighterEffect[]) => {
+      effects?.forEach(effect => {
+        if (effect.fighter_effect_modifiers?.length > 0) {
+          effect.fighter_effect_modifiers.forEach(modifier => {
             const statName = modifier.stat_name.toLowerCase();
+            const value = modifier.numeric_value;
             
-            // Map the stat name to the right property name
             const statMapping: Record<string, keyof typeof adjustedStats> = {
               'movement': 'movement',
               'weapon_skill': 'weapon_skill',
@@ -52,46 +51,23 @@ export function calculateAdjustedStats(fighter: FighterProps) {
               'intelligence': 'intelligence'
             };
             
-            // Apply the modifier
             const statKey = statMapping[statName];
             if (statKey) {
-              adjustedStats[statKey] += modifier.numeric_value;
+              adjustedStats[statKey] += value;
             }
           });
         }
       });
-    }
+    };
 
-    // Process advancements if available
-    if (fighter.effects.advancements && fighter.effects.advancements.length > 0) {
-      // Similar logic for advancements
-      fighter.effects.advancements.forEach((advancement: FighterEffect) => {
-        if (advancement.fighter_effect_modifiers && advancement.fighter_effect_modifiers.length > 0) {
-          advancement.fighter_effect_modifiers.forEach((modifier: FighterEffectStatModifier) => {
-            const statName = modifier.stat_name.toLowerCase();
-            const statMapping: Record<string, keyof typeof adjustedStats> = {
-              'movement': 'movement',
-              'weapon_skill': 'weapon_skill',
-              'ballistic_skill': 'ballistic_skill',
-              'strength': 'strength',
-              'toughness': 'toughness',
-              'wounds': 'wounds',
-              'initiative': 'initiative',
-              'attacks': 'attacks',
-              'leadership': 'leadership',
-              'cool': 'cool',
-              'willpower': 'willpower',
-              'intelligence': 'intelligence'
-            };
-            
-            const statKey = statMapping[statName];
-            if (statKey) {
-              adjustedStats[statKey] += modifier.numeric_value;
-            }
-          });
-        }
-      });
-    }
+    // Process all effect types
+    const effectCategories: EffectCategory[] = ['injuries', 'advancements', 'bionics', 'cybernetics', 'user'];
+    
+    effectCategories.forEach(category => {
+      if (Array.isArray(fighter.effects[category])) {
+        processEffects(fighter.effects[category] || []);
+      }
+    });
   }
 
   // Apply old-style advancements if present (for backward compatibility)
