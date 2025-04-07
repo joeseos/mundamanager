@@ -708,7 +708,7 @@ export function EditFighterModal({
             {/* Fighter Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Fighter name
+                Fighter Name
               </label>
               <Input
                 id="name"
