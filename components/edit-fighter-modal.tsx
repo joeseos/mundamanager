@@ -5,6 +5,7 @@ import { FighterEffect, FighterProps as Fighter, FIGHTER_CLASSES, FighterClass }
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { fighterClassRank } from '@/utils/fighterClassRank';
 
 // FighterCharacteristicTable defined within the same file
 function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
@@ -536,6 +537,15 @@ export function EditFighterModal({
   // State for tracking if stats are being saved
   const [isSavingStats, setIsSavingStats] = useState(false);
 
+  // Create a sorted array of fighter classes based on the fighterClassRank
+  const sortedFighterClasses = useMemo(() => {
+    return [...FIGHTER_CLASSES].sort((a, b) => {
+      const rankA = fighterClassRank[a.toLowerCase()] ?? Infinity;
+      const rankB = fighterClassRank[b.toLowerCase()] ?? Infinity;
+      return rankA - rankB;
+    });
+  }, []);
+
   // Update currentFighter when fighter prop changes
   useEffect(() => {
     setCurrentFighter(fighter);
@@ -769,7 +779,7 @@ export function EditFighterModal({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select a class</option>
-                {FIGHTER_CLASSES.map((fighterClass) => (
+                {sortedFighterClasses.map((fighterClass) => (
                   <option key={fighterClass} value={fighterClass}>
                     {fighterClass}
                   </option>

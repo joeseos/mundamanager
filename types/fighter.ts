@@ -235,13 +235,17 @@ export interface WeaponProfile {
   is_default_profile: boolean;
 }
 
-// Add this to your types/fighter.ts file with the other fighter types
+// Update the FIGHTER_CLASSES to include all classes from fighterClassRank
 export const FIGHTER_CLASSES = [
+  'Leader',
   'Champion',
+  'Prospect',
+  'Specialist',
   'Ganger',
   'Juve',
-  'Prospect',
-  'Specialist'
+  'Crew',
+  'Exotic Beast',
+  'Brute'
 ] as const;
 
 export type FighterClass = typeof FIGHTER_CLASSES[number];
