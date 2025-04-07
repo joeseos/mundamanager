@@ -83,7 +83,8 @@ export async function PATCH(
     killed,
     retired,
     enslaved,
-    starved 
+    starved,
+    special_rules
   } = body;
 
   try {
@@ -143,9 +144,10 @@ export async function PATCH(
       return NextResponse.json(updatedFighter);
     }
 
-    // If updating fighter name/label/kills/cost_adjustment/note/fighter_class
+    // If updating fighter name/label/kills/cost_adjustment/note/fighter_class/special_rules
     if (fighter_name !== undefined || label !== undefined || kills !== undefined || 
-        cost_adjustment !== undefined || note !== undefined || fighter_class !== undefined) {
+        cost_adjustment !== undefined || note !== undefined || fighter_class !== undefined ||
+        special_rules !== undefined) {
       const { data: updatedFighter, error: fighterUpdateError } = await supabase
         .from("fighters")
         .update({ 
@@ -154,7 +156,8 @@ export async function PATCH(
           kills: kills !== undefined ? kills : undefined,
           cost_adjustment: cost_adjustment !== undefined ? cost_adjustment : undefined,
           note: note !== undefined ? note : undefined,
-          fighter_class: fighter_class !== undefined ? fighter_class : undefined
+          fighter_class: fighter_class !== undefined ? fighter_class : undefined,
+          special_rules: special_rules !== undefined ? special_rules : undefined
         })
         .eq('id', params.id)
         .select()
