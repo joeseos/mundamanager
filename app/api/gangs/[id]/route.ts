@@ -73,6 +73,7 @@ export async function PATCH(
     note,
     vehicleId,
     vehicle_name,
+    special_rules,
     gang_variants
   } = await request.json();
 
@@ -89,21 +90,36 @@ export async function PATCH(
 
     // For vehicle name updates
     if (operation === 'update_vehicle_name') {
-      // RLS will handle gang ownership and vehicle-to-gang relationship checks
+      // Define the type of updateData to include special_rules
+      const updateData: { 
+        vehicle_name: string; 
+        special_rules?: string[]; 
+      } = { 
+        vehicle_name 
+      };
+      
+      // Only include special_rules if they were provided
+      if (special_rules !== undefined) {
+        updateData.special_rules = special_rules;
+      }
+      
       const { error: updateError } = await supabase
         .from('vehicles')
-        .update({ vehicle_name })
+        .update(updateData)
         .eq('id', vehicleId)
         .eq('gang_id', params.id);
 
       if (updateError) {
         return NextResponse.json(
-          { error: 'Failed to update vehicle name' },
+          { error: 'Failed to update vehicle' },
           { status: 500 }
         );
       }
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ 
+        success: true,
+        updatedSpecialRules: special_rules !== undefined
+      });
     }
 
     // Prepare update object

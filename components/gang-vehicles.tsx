@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { createClient } from '@/utils/supabase/client';
 import Modal from "@/components/modal";
 import { Input } from "@/components/ui/input";
+import { Plus, Minus, X } from "lucide-react";
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -39,6 +40,8 @@ export default function GangVehicles({
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [editedVehicleName, setEditedVehicleName] = useState('');
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
+  const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
+  const [newSpecialRule, setNewSpecialRule] = useState('');
 
   // Filter for only Crew fighters
   const crewFighters = fighters.filter(fighter => fighter.fighter_class === 'Crew');
@@ -172,6 +175,23 @@ export default function GangVehicles({
     e.preventDefault();
     setEditingVehicle(vehicle);
     setEditedVehicleName(vehicle.vehicle_name);
+    setVehicleSpecialRules(vehicle.special_rules || []);
+  };
+
+  const handleAddSpecialRule = () => {
+    if (!newSpecialRule.trim()) return;
+    
+    if (vehicleSpecialRules.includes(newSpecialRule.trim())) {
+      setNewSpecialRule('');
+      return;
+    }
+    
+    setVehicleSpecialRules(prev => [...prev, newSpecialRule.trim()]);
+    setNewSpecialRule('');
+  };
+
+  const handleRemoveSpecialRule = (ruleToRemove: string) => {
+    setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
   const handleSaveVehicleName = async () => {
@@ -186,19 +206,30 @@ export default function GangVehicles({
         body: JSON.stringify({
           vehicleId: editingVehicle.id,
           vehicle_name: editedVehicleName,
-          operation: 'update_vehicle_name'
+          special_rules: vehicleSpecialRules,
+          operation: 'update_vehicle_name' // Use the existing operation name
         })
       });
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to update vehicle name');
+        throw new Error(responseData.error || 'Failed to update vehicle');
+      }
+      
+      console.log('Response from server:', responseData);
+      
+      // Check if the special rules were actually updated
+      if (!responseData.updatedSpecialRules && vehicleSpecialRules.length > 0) {
+        // If we get success but no special rules update confirmation
+        console.warn('Warning: Special rules may not have been updated on the server');
       }
 
       // Update both the vehicles list and any fighter that has this vehicle
       if (onVehicleUpdate) {
         const updatedVehicles = allVehicles.map(v => 
           v.id === editingVehicle.id 
-            ? { ...v, vehicle_name: editedVehicleName }
+            ? { ...v, vehicle_name: editedVehicleName, special_rules: vehicleSpecialRules }
             : v
         );
         onVehicleUpdate(updatedVehicles);
@@ -212,7 +243,8 @@ export default function GangVehicles({
             ...fighter,
             vehicles: [{
               ...fighter.vehicles[0],
-              vehicle_name: editedVehicleName
+              vehicle_name: editedVehicleName,
+              special_rules: vehicleSpecialRules
             }]
           };
           onFighterUpdate(updatedFighter);
@@ -221,15 +253,15 @@ export default function GangVehicles({
 
       toast({
         title: "Success",
-        description: "Vehicle name updated successfully",
+        description: "Vehicle updated successfully",
       });
       
       return true;
     } catch (error) {
-      console.error('Error updating vehicle name:', error);
+      console.error('Error updating vehicle:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update vehicle name",
+        description: error instanceof Error ? error.message : "Failed to update vehicle",
         variant: "destructive",
       });
       return false;
@@ -405,23 +437,70 @@ export default function GangVehicles({
       </div>
       {editingVehicle && (
         <Modal
-          title="Edit Vehicle Name"
+          title="Edit Vehicle"
           onClose={() => setEditingVehicle(null)}
           onConfirm={handleSaveVehicleName}
           confirmText="Save"
         >
-          <div>
-            <label htmlFor="vehicleName" className="block text-sm font-medium text-gray-700">
-              Vehicle Name
-            </label>
-            <Input
-              type="text"
-              id="vehicleName"
-              value={editedVehicleName}
-              onChange={(e) => setEditedVehicleName(e.target.value)}
-              className="mt-1 w-full"
-              placeholder="Enter vehicle name"
-            />
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="vehicleName" className="block text-sm font-medium text-gray-700">
+                Vehicle Name
+              </label>
+              <Input
+                type="text"
+                id="vehicleName"
+                value={editedVehicleName}
+                onChange={(e) => setEditedVehicleName(e.target.value)}
+                className="mt-1 w-full"
+                placeholder="Enter vehicle name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Special Rules
+              </label>
+              <div className="flex space-x-2 mb-2">
+                <Input
+                  type="text"
+                  value={newSpecialRule}
+                  onChange={(e) => setNewSpecialRule(e.target.value)}
+                  placeholder="Add a special rule"
+                  className="flex-grow"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSpecialRule();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleAddSpecialRule}
+                  type="button"
+                >
+                  Add
+                </Button>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mt-2">
+                {vehicleSpecialRules.map((rule, index) => (
+                  <div
+                    key={index}
+                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                  >
+                    <span>{rule}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
