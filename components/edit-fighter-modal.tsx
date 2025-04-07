@@ -604,7 +604,7 @@ export function EditFighterModal({
       // Make a clean copy of the fighter BEFORE any adjustments
       const cleanFighter = { ...currentFighter };
       
-      // Send the update to the server first
+      // Send the update to the server with the correct sign (positive or negative)
       const response = await fetch('/api/fighters/effects', {
         method: 'POST',
         headers: {
@@ -612,7 +612,7 @@ export function EditFighterModal({
         },
         body: JSON.stringify({
           fighter_id: fighter.id,
-          stats // Send the adjustment values directly
+          stats // This should already include negative values when decreasing
         }),
       });
       
@@ -661,9 +661,6 @@ export function EditFighterModal({
         description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
         variant: "destructive",
       });
-      
-      // Do not close the modal on error
-      // No need to revert as we didn't do an optimistic update
     } finally {
       setIsSavingStats(false);
     }

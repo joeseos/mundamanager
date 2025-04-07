@@ -367,13 +367,14 @@ async function createNewEffect(
     throw effectError;
   }
 
-  // Create the modifier
+  // Create the modifier - IMPORTANT: Use the actual changeValue, not its absolute value
+  // This preserves the negative sign when needed
   const { error: modifierError } = await supabase
     .from('fighter_effect_modifiers')
     .insert({
       fighter_effect_id: newEffect.id,
       stat_name: statName,
-      numeric_value: Math.abs(changeValue).toString()
+      numeric_value: changeValue.toString()  // Remove Math.abs() to keep negative values
     });
 
   if (modifierError) {
