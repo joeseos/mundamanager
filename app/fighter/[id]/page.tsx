@@ -2278,7 +2278,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                         ? 0 
                         : Number(values.costAdjustment),
-                      fighter_class: values.fighter_class // Send the fighter_class to the API
+                      fighter_class: values.fighter_class,
+                      special_rules: values.special_rules // Add this line
                     }),
                   });
 
@@ -2296,7 +2297,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
                           : Number(values.costAdjustment),
-                        fighter_class: values.fighter_class || prev.fighter.fighter_class, // Handle undefined case
+                        fighter_class: values.fighter_class || prev.fighter.fighter_class,
+                        special_rules: values.special_rules || [], // Use empty array as fallback
                         credits: prev.fighter.base_credits + (values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
                           : Number(values.costAdjustment))

@@ -505,6 +505,7 @@ interface EditFighterModalProps {
     kills: number;
     costAdjustment: string;
     fighter_class?: string;
+    special_rules?: string[];
     stats?: Record<string, number>;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
@@ -518,16 +519,49 @@ export function EditFighterModal({
   onSubmit,
   onStatsUpdate
 }: EditFighterModalProps) {
-  // Local state for form values
+  // Add console logging to inspect the fighter object structure
+  console.log('Fighter object:', JSON.stringify(fighter, null, 2));
+
+  // Update form state to correctly access special_rules based on the Fighter interface
   const [formValues, setFormValues] = useState({
     name: initialValues.name,
     label: initialValues.label,
     kills: initialValues.kills,
     costAdjustment: initialValues.costAdjustment,
     fighter_class: fighter.fighter_class || '',
+    // Try different possible locations for special_rules
+    special_rules: Array.isArray(fighter.special_rules) ? fighter.special_rules : [], 
     stats: {} as Record<string, number>
   });
   
+  // Add state for new special rule input
+  const [newSpecialRule, setNewSpecialRule] = useState('');
+
+  // Add handler for adding a special rule
+  const handleAddSpecialRule = () => {
+    if (!newSpecialRule.trim()) return;
+    
+    // Avoid duplicates
+    if (formValues.special_rules.includes(newSpecialRule.trim())) {
+      setNewSpecialRule('');
+      return;
+    }
+    
+    setFormValues(prev => ({
+      ...prev,
+      special_rules: [...prev.special_rules, newSpecialRule.trim()]
+    }));
+    setNewSpecialRule('');
+  };
+
+  // Add handler for removing a special rule
+  const handleRemoveSpecialRule = (ruleToRemove: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      special_rules: prev.special_rules.filter(rule => rule !== ruleToRemove)
+    }));
+  };
+
   // Local state for tracking current fighter state (including all modifications)
   const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
   
@@ -635,67 +669,28 @@ export function EditFighterModal({
     }
   };
 
-  // Update the handleConfirm function to avoid duplicate API calls
+  // Update the handleConfirm function to include special_rules
   const handleConfirm = async () => {
     try {
-      // OPTION 1: Let parent component handle the API call
       const success = await onSubmit({
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
         fighter_class: formValues.fighter_class,
+        special_rules: formValues.special_rules, // Include special_rules in the submission
       });
       
       if (success) {
-        // The parent component has already shown a success toast, no need to show another
         onClose();
       }
       
       return success;
-
-      /* OPTION 2: Handle API call here and just update parent state
-      const response = await fetch(`/api/fighters/${fighter.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fighter_name: formValues.name,
-          label: formValues.label,
-          kills: parseInt(formValues.kills.toString()),
-          cost_adjustment: parseInt(formValues.costAdjustment.toString()),
-          fighter_class: formValues.fighter_class,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update fighter');
-      }
-
-      const updatedFighter = await response.json();
-      
-      // Just update the parent component state without making another API call
-      onSubmit({
-        name: formValues.name,
-        label: formValues.label,
-        kills: formValues.kills,
-        costAdjustment: formValues.costAdjustment,
-        fighter_class: formValues.fighter_class,
-      });
-      
-      toast({
-        description: "Fighter updated successfully",
-      });
-      
-      onClose();
-      return true;
-      */
     } catch (error) {
       console.error('Error updating fighter:', error);
       toast({
-        description: "Failed to update fighter",
-        variant: "destructive",
+        description: 'Failed to update fighter',
+        variant: "destructive"
       });
       return false;
     }
@@ -785,6 +780,53 @@ export function EditFighterModal({
                   </option>
                 ))}
               </select>
+            </div>
+            
+            {/* Special Rules Section - Add this new section */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Special Rules
+              </label>
+              <div className="flex space-x-2 mb-2">
+                <Input
+                  type="text"
+                  value={newSpecialRule}
+                  onChange={(e) => setNewSpecialRule(e.target.value)}
+                  placeholder="Add a special rule"
+                  className="flex-grow"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSpecialRule();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleAddSpecialRule}
+                  type="button"
+                >
+                  Add
+                </Button>
+              </div>
+              
+              {/* Display existing special rules as tags */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formValues.special_rules.map((rule, index) => (
+                  <div
+                    key={index}
+                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                  >
+                    <span>{rule}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Characteristics */}
