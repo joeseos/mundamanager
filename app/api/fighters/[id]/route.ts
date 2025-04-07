@@ -76,6 +76,7 @@ export async function PATCH(
     label, 
     kills, 
     cost_adjustment, 
+    fighter_class,
     xp_to_add, 
     operation, 
     note, 
@@ -142,9 +143,9 @@ export async function PATCH(
       return NextResponse.json(updatedFighter);
     }
 
-    // If updating fighter name/label/kills/cost_adjustment/note
+    // If updating fighter name/label/kills/cost_adjustment/note/fighter_class
     if (fighter_name !== undefined || label !== undefined || kills !== undefined || 
-        cost_adjustment !== undefined || note !== undefined) {
+        cost_adjustment !== undefined || note !== undefined || fighter_class !== undefined) {
       const { data: updatedFighter, error: fighterUpdateError } = await supabase
         .from("fighters")
         .update({ 
@@ -152,7 +153,8 @@ export async function PATCH(
           label,
           kills: kills !== undefined ? kills : undefined,
           cost_adjustment: cost_adjustment !== undefined ? cost_adjustment : undefined,
-          note: note !== undefined ? note : undefined
+          note: note !== undefined ? note : undefined,
+          fighter_class: fighter_class !== undefined ? fighter_class : undefined
         })
         .eq('id', params.id)
         .select()
@@ -162,11 +164,11 @@ export async function PATCH(
       return NextResponse.json(updatedFighter);
     }
 
-    return NextResponse.json({ error: "No valid update parameters provided" }, { status: 400 });
+    return NextResponse.json({ message: 'No changes to make' });
   } catch (error) {
-    console.error('Error updating fighter:', error);
+    console.error('Error in PATCH handler:', error);
     return NextResponse.json(
-      { error: 'Failed to update fighter' },
+      { error: 'Error updating fighter' },
       { status: 500 }
     );
   }

@@ -235,3 +235,18 @@ export interface WeaponProfile {
   is_default_profile: boolean;
 }
 
+// Update the FIGHTER_CLASSES to include all classes from fighterClassRank
+export const FIGHTER_CLASSES = [
+  'Leader',
+  'Champion',
+  'Prospect',
+  'Specialist',
+  'Ganger',
+  'Juve',
+  'Crew',
+  'Exotic Beast',
+  'Brute'
+] as const;
+
+export type FighterClass = typeof FIGHTER_CLASSES[number];
+

@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/modal";
-import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
+import { FighterEffect, FighterProps as Fighter, FIGHTER_CLASSES, FighterClass } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { fighterClassRank } from '@/utils/fighterClassRank';
 
 // FighterCharacteristicTable defined within the same file
 function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
@@ -503,6 +504,7 @@ interface EditFighterModalProps {
     label: string;
     kills: number;
     costAdjustment: string;
+    fighter_class?: string;
     stats?: Record<string, number>;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
@@ -522,6 +524,7 @@ export function EditFighterModal({
     label: initialValues.label,
     kills: initialValues.kills,
     costAdjustment: initialValues.costAdjustment,
+    fighter_class: fighter.fighter_class || '',
     stats: {} as Record<string, number>
   });
   
@@ -534,12 +537,21 @@ export function EditFighterModal({
   // State for tracking if stats are being saved
   const [isSavingStats, setIsSavingStats] = useState(false);
 
+  // Create a sorted array of fighter classes based on the fighterClassRank
+  const sortedFighterClasses = useMemo(() => {
+    return [...FIGHTER_CLASSES].sort((a, b) => {
+      const rankA = fighterClassRank[a.toLowerCase()] ?? Infinity;
+      const rankB = fighterClassRank[b.toLowerCase()] ?? Infinity;
+      return rankA - rankB;
+    });
+  }, []);
+
   // Update currentFighter when fighter prop changes
   useEffect(() => {
     setCurrentFighter(fighter);
   }, [fighter]);
 
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = (field: string, value: any) => {
     setFormValues(prev => ({
       ...prev,
       [field]: value
@@ -623,6 +635,72 @@ export function EditFighterModal({
     }
   };
 
+  // Update the handleConfirm function to avoid duplicate API calls
+  const handleConfirm = async () => {
+    try {
+      // OPTION 1: Let parent component handle the API call
+      const success = await onSubmit({
+        name: formValues.name,
+        label: formValues.label,
+        kills: formValues.kills,
+        costAdjustment: formValues.costAdjustment,
+        fighter_class: formValues.fighter_class,
+      });
+      
+      if (success) {
+        // The parent component has already shown a success toast, no need to show another
+        onClose();
+      }
+      
+      return success;
+
+      /* OPTION 2: Handle API call here and just update parent state
+      const response = await fetch(`/api/fighters/${fighter.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fighter_name: formValues.name,
+          label: formValues.label,
+          kills: parseInt(formValues.kills.toString()),
+          cost_adjustment: parseInt(formValues.costAdjustment.toString()),
+          fighter_class: formValues.fighter_class,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update fighter');
+      }
+
+      const updatedFighter = await response.json();
+      
+      // Just update the parent component state without making another API call
+      onSubmit({
+        name: formValues.name,
+        label: formValues.label,
+        kills: formValues.kills,
+        costAdjustment: formValues.costAdjustment,
+        fighter_class: formValues.fighter_class,
+      });
+      
+      toast({
+        description: "Fighter updated successfully",
+      });
+      
+      onClose();
+      return true;
+      */
+    } catch (error) {
+      console.error('Error updating fighter:', error);
+      toast({
+        description: "Failed to update fighter",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   // Don't render if modal isn't open
   if (!isOpen) return null;
 
@@ -631,39 +709,40 @@ export function EditFighterModal({
       <Modal
         title="Edit Fighter"
         content={
-          <div className="space-y-4 max-w-3xl mx-auto">
-            {/* Name Input */}
+          <div className="space-y-4">
+            {/* Fighter Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="name" className="block text-sm font-medium mb-1">
                 Fighter name
               </label>
               <Input
                 id="name"
+                type="text"
                 value={formValues.name}
                 onChange={(e) => handleChange('name', e.target.value)}
-                className="mt-1 w-full"
+                className="w-full"
               />
             </div>
             
-            {/* Label Input */}
+            {/* Label */}
             <div>
-              <label htmlFor="label" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="label" className="block text-sm font-medium mb-1">
                 Label (max 5 characters)
               </label>
               <Input
                 id="label"
+                type="text" 
+                maxLength={5}
                 value={formValues.label}
                 onChange={(e) => handleChange('label', e.target.value)}
-                className="mt-1 w-full"
-                maxLength={5}
-                placeholder="Label (5 chars max)"
+                className="w-full"
               />
             </div>
             
-            {/* Cost Adjustment and Kills in a 2-column layout */}
+            {/* Cost Adjustment and Kills */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="costAdjustment" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
                   Cost Adjustment
                 </label>
                 <Input
@@ -671,11 +750,11 @@ export function EditFighterModal({
                   type="number"
                   value={formValues.costAdjustment}
                   onChange={(e) => handleChange('costAdjustment', e.target.value)}
-                  className="mt-1 w-full"
+                  className="w-full"
                 />
               </div>
               <div>
-                <label htmlFor="kills" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="kills" className="block text-sm font-medium mb-1">
                   Kills
                 </label>
                 <Input
@@ -683,32 +762,46 @@ export function EditFighterModal({
                   type="number"
                   value={formValues.kills}
                   onChange={(e) => handleChange('kills', e.target.value)}
-                  className="mt-1 w-full"
+                  className="w-full"
                 />
               </div>
             </div>
             
-            {/* Characteristics Table */}
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Characteristics
+            {/* Fighter Class Dropdown */}
+            <div>
+              <label htmlFor="fighter_class" className="block text-sm font-medium mb-1">
+                Fighter Class
               </label>
+              <select
+                id="fighter_class"
+                value={formValues.fighter_class}
+                onChange={(e) => handleChange('fighter_class', e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select a class</option>
+                {sortedFighterClasses.map((fighterClass) => (
+                  <option key={fighterClass} value={fighterClass}>
+                    {fighterClass}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Characteristics */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Characteristics</h3>
               <FighterCharacteristicTable fighter={currentFighter} />
-              <div className="flex justify-center mt-4">
-                <Button 
-                  onClick={() => setShowStatsModal(true)}
-                  className="w-full"
-                >
-                  Adjust Characteristics
-                </Button>
-              </div>
+              <Button 
+                onClick={() => setShowStatsModal(true)} 
+                className="w-full mt-2"
+              >
+                Adjust Characteristics
+              </Button>
             </div>
           </div>
         }
         onClose={onClose}
-        onConfirm={async () => {
-          return await onSubmit(formValues);
-        }}
+        onConfirm={handleConfirm}
       />
       
       {/* Stats modal */}
