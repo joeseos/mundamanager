@@ -2277,7 +2277,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                       kills: values.kills,
                       cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                         ? 0 
-                        : Number(values.costAdjustment)
+                        : Number(values.costAdjustment),
+                      fighter_class: values.fighter_class // Send the fighter_class to the API
                     }),
                   });
 
@@ -2295,6 +2296,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
                           : Number(values.costAdjustment),
+                        fighter_class: values.fighter_class || prev.fighter.fighter_class, // Handle undefined case
                         credits: prev.fighter.base_credits + (values.costAdjustment === '' || values.costAdjustment === '-' 
                           ? 0 
                           : Number(values.costAdjustment))
