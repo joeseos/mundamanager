@@ -356,15 +356,15 @@ function CharacterStatsModal({
         </div>
 
         <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {displayStats.map((stat) => {
               const propName = getPropertyName(stat.key);
               const adjustment = adjustments[propName] || 0;
               return (
-                <div key={stat.key} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-xl font-bold">{stat.key}</h3>
-                    <span className="text-sm text-gray-500">{stat.name}</span>
+                <div key={stat.key} className="border rounded-lg p-2">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm md:text-xl font-bold">{stat.key}</h3>
+                    <span className="text-xs text-gray-500">{stat.name}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <Button
@@ -378,7 +378,7 @@ function CharacterStatsModal({
                     </Button>
                     <div className="flex flex-col items-center">
                       {/* Display TOTAL value as the large, primary value */}
-                      <span className="text-2xl font-bold">
+                      <span className="text-sm md:text-xl font-bold">
                         {getAdjustedTotal(stat.key)}
                       </span>
                       {/* Display BASE value without the adjustment */}
@@ -708,7 +708,7 @@ export function EditFighterModal({
             {/* Fighter Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Fighter name
+                Fighter Name
               </label>
               <Input
                 id="name"
@@ -719,23 +719,26 @@ export function EditFighterModal({
               />
             </div>
             
-            {/* Label */}
-            <div>
-              <label htmlFor="label" className="block text-sm font-medium mb-1">
-                Label (max 5 characters)
-              </label>
-              <Input
-                id="label"
-                type="text" 
-                maxLength={5}
-                value={formValues.label}
-                onChange={(e) => handleChange('label', e.target.value)}
-                className="w-full"
-              />
-            </div>
+
             
             {/* Cost Adjustment and Kills */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              {/* Label */}
+              <div>
+                <label htmlFor="label" className="block text-sm font-medium mb-1">
+                  Label
+                </label>
+                <Input
+                  id="label"
+                  type="text"
+                  placeholder="Max 5 char."
+                  maxLength={5}
+                  value={formValues.label}
+                  onChange={(e) => handleChange('label', e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              {/* Cost Adjustment */}
               <div>
                 <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
                   Cost Adjustment
@@ -748,6 +751,7 @@ export function EditFighterModal({
                   className="w-full"
                 />
               </div>
+              {/* Kills */}
               <div>
                 <label htmlFor="kills" className="block text-sm font-medium mb-1">
                   Kills
@@ -792,7 +796,7 @@ export function EditFighterModal({
                   type="text"
                   value={newSpecialRule}
                   onChange={(e) => setNewSpecialRule(e.target.value)}
-                  placeholder="Add a special rule"
+                  placeholder="Add a Special Rule"
                   className="flex-grow"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
