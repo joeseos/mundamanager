@@ -75,21 +75,21 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
-            <th className="px-1 py-1 border text-xs bg-gray-100">Type</th>
+            <th className="px-1 py-1 text-xs text-left">Type</th>
             {stats.map(stat => (
-              <th key={stat.key} className="px-1 py-1 border text-center text-xs bg-gray-100">{stat.label}</th>
+              <th key={stat.key} className="min-w-[20px] max-w-[20px] border-l border-gray-300 text-center text-xs">{stat.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {/* Base row - IMPORTANT FIX: Display only original base values */}
-          <tr className="bg-gray-50">
-            <td className="px-1 py-1 border font-medium text-xs">Base</td>
+          <tr className="bg-gray-100">
+            <td className="px-1 py-1 font-medium text-xs">Base</td>
             {stats.map(stat => {
               const baseValue = getStat(fighter, stat.key);
               
               return (
-                <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
                   {stat.key === 'movement' ? `${baseValue}"` :
                    stat.key === 'wounds' || stat.key === 'attacks' || 
                    stat.key === 'strength' || stat.key === 'toughness' ? 
@@ -102,29 +102,29 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Injury row */}
           <tr className="bg-red-50">
-            <td className="px-1 py-1 border font-medium text-xs">Injuries</td>
+            <td className="px-1 py-1 font-medium text-xs">Injuries</td>
             {stats.map(stat => (
-              <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
                 {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
               </td>
             ))}
           </tr>
           
           {/* Advancements row */}
-          <tr className="bg-green-50">
-            <td className="px-1 py-1 border font-medium text-xs">Adv.</td>
+          <tr className="bg-blue-50">
+            <td className="px-1 py-1 font-medium text-xs">Adv.</td>
             {stats.map(stat => (
-              <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
                 {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
               </td>
             ))}
           </tr>
           
           {/* User row */}
-          <tr className="bg-blue-50">
-            <td className="px-1 py-1 border font-medium text-xs">User</td>
+          <tr className="bg-green-50">
+            <td className="px-1 py-1 font-medium text-xs">User</td>
             {stats.map(stat => (
-              <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
                 {userEffects[stat.key] ? userEffects[stat.key] : '-'}
               </td>
             ))}
@@ -132,7 +132,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Total row */}
           <tr className="bg-gray-100 font-bold">
-            <td className="px-1 py-1 border text-xs">Total</td>
+            <td className="px-1 py-1 text-xs">Total</td>
             {stats.map(stat => {
               const baseValue = getStat(fighter, stat.key);
               const injuryValue = injuryEffects[stat.key] || 0;
@@ -141,7 +141,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const total = baseValue + injuryValue + advancementValue + userValue;
               
               return (
-                <td key={stat.key} className="px-1 py-1 border text-center text-xs">
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
                   {stat.key === 'movement' ? `${total}"` :
                    stat.key === 'wounds' || stat.key === 'attacks' || 
                    stat.key === 'strength' || stat.key === 'toughness' ? 
@@ -728,7 +728,7 @@ export function EditFighterModal({
                 <Input
                   id="label"
                   type="text"
-                  placeholder="Max 5 char."
+                  placeholder="Max 5 Char."
                   maxLength={5}
                   value={formValues.label}
                   onChange={(e) => handleChange('label', e.target.value)}
