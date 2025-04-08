@@ -98,6 +98,7 @@ export function WeaponList({
           headers: {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`
           }
         }
       );

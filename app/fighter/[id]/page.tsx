@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter-details-card";
-import { WeaponList } from "@/components/weapon-list";
+import { WeaponList } from "@/components/fighter-equipment-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
