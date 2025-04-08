@@ -117,7 +117,13 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
       {showModal && (
         <Modal
           title="Delete Gang"
-          content="Are you sure you want to delete this gang? This action cannot be undone."
+          content={
+            <div>
+              <p>Are you sure you want to delete this gang?</p>
+              <br />
+              <p>This action cannot be undone.</p>
+            </div>
+          }
           onClose={() => setShowModal(false)}
           onConfirm={handleDelete}
         />

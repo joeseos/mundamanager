@@ -489,7 +489,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           </div>
         </div>
 
-        <div className="p-4 overflow-y-auto flex-grow">
+        <div className="p-2 overflow-y-auto flex-grow">
           <div className="mb-4">
             <p className="text-sm text-gray-600 mb-2">
               Cost and value are automatically calculated based on the type and number of advancements.
@@ -696,7 +696,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Value
+                  Cost Increase in Credits
                 </label>
                 <input
                   type="number"
@@ -721,19 +721,31 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
             {error && (
               <p className="text-red-500 text-sm">{error}</p>
             )}
-
-            <Button
-              onClick={handleAdvancementPurchase}
-              className="w-full bg-black hover:bg-gray-800 text-white"
-              disabled={
-                !selectedAdvancement || 
-                (advancementType === 'skill' && !skillAcquisitionType) ||
-                !selectedAdvancement.has_enough_xp ||
-                editableXpCost <= 0 // Add validation for positive XP cost
-              }
-            >
-              Buy Advancement
-            </Button>
+            <div className="border-t pt-2 flex justify-end gap-2">
+            <button
+                onClick={onClose}
+                disabled={isSubmitting}
+                className={`px-4 py-2 border rounded hover:bg-gray-100 ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Cancel
+              </button>
+              <Button
+                onClick={handleAdvancementPurchase}
+                className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
+                (isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+                disabled={
+                  !selectedAdvancement ||
+                  (advancementType === 'skill' && !skillAcquisitionType) ||
+                  !selectedAdvancement.has_enough_xp ||
+                  editableXpCost <= 0 // Add validation for positive XP cost
+                }
+              >
+                Buy Advancement
+              </Button>
+            </div>
           </div>
         </div>
       </div>

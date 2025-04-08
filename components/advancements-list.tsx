@@ -235,8 +235,8 @@ export const AdvancementsList = React.memo(function AdvancementsList({
             <tbody>
               {allAdvancements.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-1 py-1 text-center text-gray-500">
-                    No advancements yet
+                  <td colSpan={4} className="text-gray-500 italic text-center">
+                    No advancements yet.
                   </td>
                 </tr>
               ) : (
@@ -304,8 +304,14 @@ export const AdvancementsList = React.memo(function AdvancementsList({
 
       {deleteModalData && (
         <Modal
-          title="Confirm Deletion"
-          content={`Are you sure you want to delete the ${deleteModalData.name} advancement? This action cannot be undone.`}
+          title="Delete Advancement"
+          content={
+            <div>
+              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <br />
+              <p>This action cannot be undone.</p>
+            </div>
+          }
           onClose={() => setDeleteModalData(null)}
           onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.name)}
         />

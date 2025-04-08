@@ -511,7 +511,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         />
         
         {/* Campaign Members Section */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
           <h2 className="text-2xl font-bold mb-4">Campaign Members</h2>
           {isAdmin && (
             <MemberSearchBar
@@ -535,7 +535,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         </div>
 
         {/* Campaign Territories Section */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
           <h2 className="text-2xl font-bold mb-4">Campaign Territories</h2>
           <div className="rounded-md border overflow-x-auto">
             <table className="text-sm">
@@ -551,7 +551,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
               <tbody>
                 {campaignData.territories.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 3 : 2} className="px-4 py-2 text-center text-gray-500">
+                    <td colSpan={isAdmin ? 3 : 2} className="text-gray-500 italic text-center">
                       No territories in this campaign
                     </td>
                   </tr>
@@ -618,7 +618,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         </div>
 
         {/* Update the Battle Logs section */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Battle Logs</h2>
             {isAdmin && (
@@ -644,8 +644,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
               <tbody>
                 {campaignData.battles?.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-2 text-center text-gray-500">
-                      No battles recorded yet
+                    <td colSpan={5} className="text-gray-500 italic text-center">
+                      No battles recorded yet.
                     </td>
                   </tr>
                 ) : (

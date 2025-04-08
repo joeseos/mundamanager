@@ -79,7 +79,13 @@ export default function DeleteCampaignButton({ campaignId }: DeleteCampaignButto
       {showDeleteModal && (
         <Modal
           title="Delete Campaign"
-          content="Are you sure you want to delete this campaign? This action cannot be undone and will remove all campaign data including territories, members, and gang assignments."
+          content={
+            <div>
+              <p>Are you sure you want to delete this campaign?</p>
+              <br />
+              <p>This action cannot be undone and will remove all campaign data including territories, members, and gang assignments.</p>
+            </div>
+          }
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDelete}
           confirmText="Delete Campaign"
