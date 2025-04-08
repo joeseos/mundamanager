@@ -268,8 +268,14 @@ export function WeaponList({
 
       {deleteModalData && (
         <Modal
-          title="Confirm Deletion"
-          content={`Are you sure you want to delete ${deleteModalData.name}? This action cannot be undone.`}
+          title="Delete Equipment"
+          content={
+            <div>
+              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <br />
+              <p>This action cannot be undone.</p>
+            </div>
+          }
           onClose={() => setDeleteModalData(null)}
           onConfirm={() => handleDeleteEquipment(deleteModalData.id, deleteModalData.equipmentId)}
         />

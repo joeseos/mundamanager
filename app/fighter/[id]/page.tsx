@@ -2039,7 +2039,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
           {uiState.modals.delete && (
             <Modal
-              title="Confirm Deletion"
+              title="Delete Fighter"
+              content={
+                <div>
+                  <p>Are you sure you want to delete "{fighterData.fighter?.fighter_name}"?</p>
+                  <br />
+                  <p>This action cannot be undone.</p>
+                </div>
+              }
               onClose={() => handleModalToggle('delete', false)}
               onConfirm={handleDeleteFighter}
             />
@@ -2050,8 +2057,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               title={fighterData.fighter?.killed ? 'Confirm Resurrection' : 'Confirm Kill'}
               content={
                 fighterData.fighter?.killed 
-                  ? `Are you sure you want to resurrect ${fighterData.fighter?.fighter_name}?`
-                  : `Are you sure ${fighterData.fighter?.fighter_name} was killed in action?`
+                  ? `Are you sure you want to resurrect "${fighterData.fighter?.fighter_name}"?`
+                  : `Are you sure "${fighterData.fighter?.fighter_name}" was killed in action?`
               }
               onClose={() => handleModalToggle('kill', false)}
               onConfirm={handleKillFighter}
@@ -2063,8 +2070,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               title={fighterData.fighter?.retired ? 'Confirm Unretirement' : 'Confirm Retirement'}
               content={
                 fighterData.fighter?.retired 
-                  ? `Are you sure you want to bring ${fighterData.fighter?.fighter_name} out of retirement?`
-                  : `Are you sure you want to retire ${fighterData.fighter?.fighter_name}?`
+                  ? `Are you sure you want to bring "${fighterData.fighter?.fighter_name}" out of retirement?`
+                  : `Are you sure you want to retire "${fighterData.fighter?.fighter_name}"?`
               }
               onClose={() => handleModalToggle('retire', false)}
               onConfirm={handleRetireFighter}
@@ -2195,8 +2202,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               title={fighterData.fighter?.enslaved ? 'Confirm Rescue' : 'Confirm Sale'}
               content={
                 fighterData.fighter?.enslaved 
-                  ? `Are you sure you want to rescue ${fighterData.fighter?.fighter_name} from the Guilders?`
-                  : `Are you sure you want to sell ${fighterData.fighter?.fighter_name} to the Guilders?`
+                  ? `Are you sure you want to rescue "${fighterData.fighter?.fighter_name}" from the Guilders?`
+                  : `Are you sure you want to sell "${fighterData.fighter?.fighter_name}" to the Guilders?`
               }
               onClose={() => handleModalToggle('enslave', false)}
               onConfirm={handleEnslaveFighter}
@@ -2329,10 +2336,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
           {deleteVehicleEquipmentData && (
             <Modal
-              title="Confirm Delete"
+              title="Delete Vehicle Equipment"
               content={
                 <div>
-                  <p>Are you sure you want to delete {deleteVehicleEquipmentData.name}?</p>
+                  <p>Are you sure you want to delete "{deleteVehicleEquipmentData.name}"?</p>
+                  <br />
                   <p>This action cannot be undone.</p>
                 </div>
               }

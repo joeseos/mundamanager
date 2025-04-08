@@ -223,7 +223,7 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white shadow-md rounded-lg p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-2xl font-bold">Create a New Gang</h2>
@@ -237,18 +237,6 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
           </button>
         </div>
         <div className="space-y-4">
-          <div>
-            <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Gang Name *
-            </label>
-            <Input
-              id="gang-name"
-              type="text"
-              placeholder="Enter gang name"
-              value={gangName}
-              onChange={(e) => setGangName(e.target.value)}
-            />
-          </div>
           <div>
             <label htmlFor="gang-type" className="block text-sm font-medium text-gray-700 mb-1">
               Gang Type *
@@ -294,6 +282,18 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
                 ) : null
               ))}
             </select>
+          </div>
+          <div>
+            <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
+              Gang Name *
+            </label>
+            <Input
+              id="gang-name"
+              type="text"
+              placeholder="Enter gang name"
+              value={gangName}
+              onChange={(e) => setGangName(e.target.value)}
+            />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <SubmitButton 

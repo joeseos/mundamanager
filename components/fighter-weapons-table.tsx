@@ -52,8 +52,8 @@ export function FighterWeaponsTable({
           <tbody>
             {!equipment?.length ? (
               <tr>
-                <td colSpan={3} className="text-center py-1 text-gray-500">
-                  No equipment available
+                <td colSpan={3} className="text-gray-500 italic text-center">
+                  No equipment yet.
                 </td>
               </tr>
             ) : (

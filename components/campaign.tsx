@@ -185,7 +185,7 @@ export default function Campaign({
           >
 
           {/* 1st tab */}
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-white shadow-md rounded-lg p-4">
             <div className="flex justify-between items-start mb-2">
               <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
               {(userRole === 'OWNER' || userRole === 'ARBITRATOR') && (
@@ -211,7 +211,7 @@ export default function Campaign({
           </div>
 
           {/* 2nd tab */}
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-white shadow-md rounded-lg p-4">
             <h1 className="text-2xl font-bold mb-4">Territories</h1>
             <div className="flex flex-col gap-6">
               <div>
@@ -228,20 +228,20 @@ export default function Campaign({
           </div>
 
           {/* 3rd tab */}
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-white shadow-md rounded-lg p-4">
             <h1 className="text-2xl font-bold mb-4">Battle Logs</h1>
             <p className="text-gray-600">See the Campaign tab.</p>
           </div>
 
           {/* 4th tab */}
-          <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-white shadow-md rounded-lg p-4">
             <h1 className="text-2xl font-bold mb-4">Notes</h1>
             <p className="text-gray-600">Notes content coming soon...</p>
           </div>
 
         </Tabs>
       ) : (
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-white shadow-md rounded-lg p-4">
           <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
           <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
           <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
@@ -320,7 +320,13 @@ export default function Campaign({
       {showDeleteModal && (
         <Modal
           title="Delete Campaign"
-          content="Are you sure you want to delete this campaign? This action cannot be undone and will remove all campaign data including territories, members, and gang assignments."
+          content={
+            <div>
+              <p>Are you sure you want to delete this campaign?</p>
+              <br />
+              <p>This action cannot be undone and will remove all campaign data including territories, members, and gang assignments.</p>
+            </div>
+          }
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDeleteCampaign}
           confirmText="Delete Campaign"

@@ -100,7 +100,7 @@ export function InjuriesList({
   return (
     <div className="mt-6">
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">Injuries</h2>
+        <h2 className="text-2xl font-bold">Lasting Injuries</h2>
         <Button 
           onClick={() => setIsAddModalOpen(true)}
           className="bg-black hover:bg-gray-800 text-white"
@@ -123,8 +123,8 @@ export function InjuriesList({
             <tbody>
               {injuries.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-1 py-1 text-center text-gray-500">
-                    No injuries yet
+                  <td colSpan={2} className="text-gray-500 italic text-center">
+                    No lasting injuries yet.
                   </td>
                 </tr>
               ) : (
@@ -166,12 +166,12 @@ export function InjuriesList({
 
       {isAddModalOpen && (
         <Modal
-          title="Add Injury"
+          title="Lasting Injuries"
           content={
             <div className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="injurySelect" className="text-sm font-medium">
-                  Select Injury
+                  Lasting Injuries
                 </label>
                 <select
                   id="injurySelect"
@@ -179,7 +179,7 @@ export function InjuriesList({
                   onChange={(e) => setSelectedInjuryId(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select an injury</option>
+                  <option value="">Select a Lasting Injury</option>
                   {availableInjuries.map((injury) => (
                     <option key={injury.id} value={injury.id}>
                       {injury.effect_name}
@@ -194,15 +194,21 @@ export function InjuriesList({
             setSelectedInjuryId('');
           }}
           onConfirm={handleAddInjury}
-          confirmText="Add Injury"
+          confirmText="Add Lasting Injury"
           confirmDisabled={!selectedInjuryId}
         />
       )}
 
       {deleteModalData && (
         <Modal
-          title="Confirm Deletion"
-          content={`Are you sure you want to delete the ${deleteModalData.name} injury? This action cannot be undone.`}
+          title="Delete Lasting Injury"
+          content={
+            <div>
+              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <br />
+              <p>This action cannot be undone.</p>
+            </div>
+          }
           onClose={() => setDeleteModalData(null)}
           onConfirm={() => handleDeleteInjury(deleteModalData.id, deleteModalData.name)}
         />

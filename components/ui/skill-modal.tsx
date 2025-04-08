@@ -180,7 +180,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
   const modalContent = (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Skill Type</label>
+        <label className="text-sm font-medium">Skill Set</label>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
@@ -244,7 +244,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 
   return (
     <Modal
-      title="Add Skill"
+      title="Skills"
       content={modalContent}
       onClose={onClose}
       onConfirm={handleSubmit}
