@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { FighterEffect, } from '@/types/fighter';
 
@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
-  availableInjuries: FighterEffect[];
+  availableInjuries?: FighterEffect[];
   onDeleteInjury: (injuryId: string) => Promise<void>;
   fighterId: string;
   onInjuryAdded: () => void;
@@ -25,8 +25,51 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
+  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
+  const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
 
+  const fetchAvailableInjuries = useCallback(async () => {
+    if (isLoadingInjuries) return;
+    
+    try {
+      setIsLoadingInjuries(true);
+      const response = await fetch(
+        `/api/fighters/injuries`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch injuries');
+      const data: FighterEffect[] = await response.json();
+      
+      setLocalAvailableInjuries(data);
+    } catch (error) {
+      console.error('Error fetching injuries:', error);
+      toast({
+        description: 'Failed to load injury types',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingInjuries(false);
+    }
+  }, [isLoadingInjuries, toast]);
+
+  const handleOpenModal = useCallback(() => {
+    setIsAddModalOpen(true);
+    if (localAvailableInjuries.length === 0) {
+      fetchAvailableInjuries();
+    }
+  }, [localAvailableInjuries.length, fetchAvailableInjuries]);
+
+  const handleCloseModal = useCallback(() => {
+    setIsAddModalOpen(false);
+    setSelectedInjuryId('');
+  }, []);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -55,6 +98,7 @@ export function InjuriesList({
 
       setSelectedInjuryId('');
       onInjuryAdded();
+      handleCloseModal();
       return true;
     } catch (error) {
       console.error('Error adding injury:', error);
@@ -102,7 +146,7 @@ export function InjuriesList({
       <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className="text-2xl font-bold">Lasting Injuries</h2>
         <Button 
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={handleOpenModal}
           className="bg-black hover:bg-gray-800 text-white"
         >
           Add
@@ -178,9 +222,15 @@ export function InjuriesList({
                   value={selectedInjuryId}
                   onChange={(e) => setSelectedInjuryId(e.target.value)}
                   className="w-full p-2 border rounded-md"
+                  disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
                 >
-                  <option value="">Select a Lasting Injury</option>
-                  {availableInjuries.map((injury) => (
+                  <option value="">
+                    {isLoadingInjuries && localAvailableInjuries.length === 0 
+                      ? "Loading injuries..." 
+                      : "Select a Lasting Injury"
+                    }
+                  </option>
+                  {localAvailableInjuries.map((injury) => (
                     <option key={injury.id} value={injury.id}>
                       {injury.effect_name}
                     </option>
@@ -189,10 +239,7 @@ export function InjuriesList({
               </div>
             </div>
           }
-          onClose={() => {
-            setIsAddModalOpen(false);
-            setSelectedInjuryId('');
-          }}
+          onClose={handleCloseModal}
           onConfirm={handleAddInjury}
           confirmText="Add Lasting Injury"
           confirmDisabled={!selectedInjuryId}
