@@ -2285,31 +2285,19 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                         ? 0 
                         : Number(values.costAdjustment),
                       fighter_class: values.fighter_class,
-                      special_rules: values.special_rules // Add this line
+                      fighter_class_id: values.fighter_class_id,
+                      fighter_type: values.fighter_type,
+                      fighter_type_id: values.fighter_type_id,
+                      special_rules: values.special_rules
                     }),
                   });
 
                   if (!response.ok) throw new Error('Failed to update fighter');
 
                   handleNameUpdate(values.name);
-                  setFighterData(prev => ({
-                    ...prev,
-                    fighter: prev.fighter ? 
-                      { 
-                        ...prev.fighter, 
-                        kills: values.kills,
-                        fighter_name: values.name,
-                        label: values.label,
-                        cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
-                          ? 0 
-                          : Number(values.costAdjustment),
-                        fighter_class: values.fighter_class || prev.fighter.fighter_class,
-                        special_rules: values.special_rules || [], // Use empty array as fallback
-                        credits: prev.fighter.base_credits + (values.costAdjustment === '' || values.costAdjustment === '-' 
-                          ? 0 
-                          : Number(values.costAdjustment))
-                      } : null
-                  }));
+                  
+                  // Refresh fighter data to get the updated type information
+                  await fetchFighterData();
                   
                   toast({
                     description: "Fighter updated successfully",

@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { createClient } from '@/utils/supabase/client';
+
+const supabase = createClient();
 
 // FighterCharacteristicTable defined within the same file
 function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
@@ -505,6 +508,9 @@ interface EditFighterModalProps {
     kills: number;
     costAdjustment: string;
     fighter_class?: string;
+    fighter_class_id?: string;
+    fighter_type?: string;
+    fighter_type_id?: string;
     special_rules?: string[];
     stats?: Record<string, number>;
   }) => Promise<boolean>;
@@ -519,23 +525,121 @@ export function EditFighterModal({
   onSubmit,
   onStatsUpdate
 }: EditFighterModalProps) {
-  // Add console logging to inspect the fighter object structure
-  console.log('Fighter object:', JSON.stringify(fighter, null, 2));
-
-  // Update form state to correctly access special_rules based on the Fighter interface
+  // Update form state to include fighter type fields
   const [formValues, setFormValues] = useState({
     name: initialValues.name,
     label: initialValues.label,
     kills: initialValues.kills,
     costAdjustment: initialValues.costAdjustment,
     fighter_class: fighter.fighter_class || '',
-    // Try different possible locations for special_rules
+    fighter_class_id: (fighter as any).fighter_class_id || '',
+    fighter_type: fighter.fighter_type || '',
+    fighter_type_id: fighter.fighter_type_id || '',
     special_rules: Array.isArray(fighter.special_rules) ? fighter.special_rules : [], 
     stats: {} as Record<string, number>
   });
   
+  // Add state for fighter types
+  const [fighterTypes, setFighterTypes] = useState<Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    gang_type_id: string;
+  }>>([]);
+  
+  const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
+  
   // Add state for new special rule input
   const [newSpecialRule, setNewSpecialRule] = useState('');
+
+  // Local state for tracking current fighter state (including all modifications)
+  const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
+  
+  // State for showing the stats modal
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  
+  // State for tracking if stats are being saved
+  const [isSavingStats, setIsSavingStats] = useState(false);
+
+  // Add state for temporary selected fighter type
+  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(fighter.fighter_type_id || '');
+
+  // Update the useEffect for fighter types loading
+  useEffect(() => {
+    const loadFighterTypes = async () => {
+      if (!fighter.gang_id) {
+        console.error('No gang ID available to load fighter types');
+        return;
+      }
+      
+      try {
+        setIsLoadingFighterTypes(true);
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Use the same type assertion as in the fetch URL
+        const gangTypeId = (fighter as any).gang_type_id;
+        
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_types?gang_type_id=eq.${gangTypeId}&select=id,fighter_type,fighter_class,fighter_class_id,special_rules`,
+          {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session?.access_token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to load fighter types');
+        }
+        
+        const data = await response.json();
+        
+        const processedTypes = data.sort((a: any, b: any) => {
+          const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+          const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+          if (rankA !== rankB) return rankA - rankB;
+          return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+        });
+
+        setFighterTypes(processedTypes);
+      } catch (error) {
+        console.error('Error loading fighter types:', error);
+        toast({
+          description: 'Failed to load fighter types',
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingFighterTypes(false);
+      }
+    };
+    
+    if (isOpen) {
+      loadFighterTypes();
+    }
+  }, [isOpen, fighter.gang_id, (fighter as any).gang_type_id]); // Use type assertion in dependency array
+
+  // Update the currentFighter useEffect
+  useEffect(() => {
+    setCurrentFighter(fighter);
+  }, [fighter.id]); // Only update when fighter ID changes
+
+  const handleChange = (field: string, value: any) => {
+    setFormValues(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Update the handleFighterTypeChange function
+  const handleFighterTypeChange = (fighterTypeId: string) => {
+    setSelectedFighterTypeId(fighterTypeId);
+  };
 
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
@@ -559,36 +663,6 @@ export function EditFighterModal({
     setFormValues(prev => ({
       ...prev,
       special_rules: prev.special_rules.filter(rule => rule !== ruleToRemove)
-    }));
-  };
-
-  // Local state for tracking current fighter state (including all modifications)
-  const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
-  
-  // State for showing the stats modal
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  
-  // State for tracking if stats are being saved
-  const [isSavingStats, setIsSavingStats] = useState(false);
-
-  // Create a sorted array of fighter classes based on the fighterClassRank
-  const sortedFighterClasses = useMemo(() => {
-    return [...FIGHTER_CLASSES].sort((a, b) => {
-      const rankA = fighterClassRank[a.toLowerCase()] ?? Infinity;
-      const rankB = fighterClassRank[b.toLowerCase()] ?? Infinity;
-      return rankA - rankB;
-    });
-  }, []);
-
-  // Update currentFighter when fighter prop changes
-  useEffect(() => {
-    setCurrentFighter(fighter);
-  }, [fighter]);
-
-  const handleChange = (field: string, value: any) => {
-    setFormValues(prev => ({
-      ...prev,
-      [field]: value
     }));
   };
 
@@ -666,19 +740,66 @@ export function EditFighterModal({
     }
   };
 
-  // Update the handleConfirm function to include special_rules
+  // Update the handleConfirm function
   const handleConfirm = async () => {
     try {
+      // Get the selected fighter type details
+      const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+      
+      // First, get the session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Make the PATCH request to update the fighter
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?id=eq.${fighter.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            fighter_name: formValues.name,
+            label: formValues.label,
+            kills: formValues.kills,
+            cost_adjustment: parseInt(formValues.costAdjustment) || 0,
+            ...(selectedFighterType && {
+              fighter_type: selectedFighterType.fighter_type,
+              fighter_type_id: selectedFighterType.id,
+              fighter_class: selectedFighterType.fighter_class,
+              fighter_class_id: selectedFighterType.fighter_class_id,
+              special_rules: selectedFighterType.special_rules || []
+            }),
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update fighter');
+      }
+
+      // Call the original onSubmit for any additional processing
       const success = await onSubmit({
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: formValues.fighter_class,
-        special_rules: formValues.special_rules, // Include special_rules in the submission
+        ...(selectedFighterType && {
+          fighter_type: selectedFighterType.fighter_type,
+          fighter_type_id: selectedFighterType.id,
+          fighter_class: selectedFighterType.fighter_class,
+          fighter_class_id: selectedFighterType.fighter_class_id,
+          special_rules: selectedFighterType.special_rules || []
+        }),
       });
       
       if (success) {
+        toast({
+          description: 'Fighter updated successfully',
+          variant: "default"
+        });
         onClose();
       }
       
@@ -716,11 +837,8 @@ export function EditFighterModal({
               />
             </div>
             
-
-            
-            {/* Cost Adjustment and Kills */}
+            {/* Cost Adjustment and Kills - Move this section before Fighter Type */}
             <div className="grid grid-cols-3 gap-4">
-              {/* Label */}
               <div>
                 <label htmlFor="label" className="block text-sm font-medium mb-1">
                   Label
@@ -735,7 +853,6 @@ export function EditFighterModal({
                   className="w-full"
                 />
               </div>
-              {/* Cost Adjustment */}
               <div>
                 <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
                   Cost Adjustment
@@ -748,7 +865,6 @@ export function EditFighterModal({
                   className="w-full"
                 />
               </div>
-              {/* Kills */}
               <div>
                 <label htmlFor="kills" className="block text-sm font-medium mb-1">
                   Kills
@@ -763,27 +879,44 @@ export function EditFighterModal({
               </div>
             </div>
             
-            {/* Fighter Class Dropdown */}
+            {/* Fighter Type Dropdown */}
             <div>
-              <label htmlFor="fighter_class" className="block text-sm font-medium mb-1">
-                Fighter Class
+              <label htmlFor="fighter_type_id" className="block text-sm font-medium mb-1">
+                Change Fighter Type
               </label>
               <select
-                id="fighter_class"
-                value={formValues.fighter_class}
-                onChange={(e) => handleChange('fighter_class', e.target.value)}
+                id="fighter_type_id"
+                value={selectedFighterTypeId}
+                onChange={(e) => handleFighterTypeChange(e.target.value)}
                 className="w-full p-2 border rounded-md"
+                disabled={isLoadingFighterTypes}
               >
-                <option value="">Select a class</option>
-                {sortedFighterClasses.map((fighterClass) => (
-                  <option key={fighterClass} value={fighterClass}>
-                    {fighterClass}
+                {(!selectedFighterTypeId || isLoadingFighterTypes) && (
+                  <option value="">
+                    {isLoadingFighterTypes ? "Loading fighter types..." : "Select a fighter type"}
                   </option>
-                ))}
+                )}
+                {fighterTypes
+                  .sort((a, b) => {
+                    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+                    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+                    if (rankA !== rankB) return rankA - rankB;
+                    return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+                  })
+                  .map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
+                    </option>
+                  ))}
               </select>
+              {fighter.fighter_type && (
+                <div className="mt-1 text-sm text-gray-500">
+                  Current: {fighter.fighter_type} ({fighter.fighter_class})
+                </div>
+              )}
             </div>
             
-            {/* Special Rules Section - Add this new section */}
+            {/* Special Rules Section */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Special Rules
