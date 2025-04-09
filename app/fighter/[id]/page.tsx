@@ -264,33 +264,33 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   } | null>(null);
 
   // Add new state for available injuries
-  const [availableInjuries, setAvailableInjuries] = useState<Array<FighterEffect>>([]);
+  // const [availableInjuries, setAvailableInjuries] = useState<Array<FighterEffect>>([]);
 
   // Add function to fetch available injuries
-  const fetchAvailableInjuries = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/fighters/injuries`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      if (!response.ok) throw new Error('Failed to fetch injuries');
-      const data: FighterEffect[] = await response.json();
+  // const fetchAvailableInjuries = useCallback(async () => {
+  //   try {
+  //     const response = await fetch(
+  //       `/api/fighters/injuries`,
+  //       {
+  //         method: 'GET',
+  //         headers: {
+  //           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+  //           'Content-Type': 'application/json',
+  //         }
+  //       }
+  //     );
+  //     if (!response.ok) throw new Error('Failed to fetch injuries');
+  //     const data: FighterEffect[] = await response.json();
   
-      setAvailableInjuries(data);
-    } catch (error) {
-      console.error('Error fetching injuries:', error);
-      toast({
-        description: 'Failed to load injury types',
-        variant: "destructive"
-      });
-    }
-  }, [toast]);
+  //     setAvailableInjuries(data);
+  //   } catch (error) {
+  //     console.error('Error fetching injuries:', error);
+  //     toast({
+  //       description: 'Failed to load injury types',
+  //       variant: "destructive"
+  //     });
+  //   }
+  // }, [toast]);
 
   // Update the fetchFighterData callback
   const fetchFighterData = useCallback(async () => {
@@ -427,8 +427,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchFighterData();
-    fetchAvailableInjuries();
-  }, [fetchFighterData, fetchAvailableInjuries]);
+    // fetchAvailableInjuries();
+  }, [fetchFighterData]);
 
   const handleDeleteFighter = useCallback(async () => {
     if (!fighterData.fighter || !fighterData.gang) return;
@@ -1939,7 +1939,6 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           
           <InjuriesList 
             injuries={fighterData.fighter?.effects.injuries || []}
-            availableInjuries={availableInjuries}
             onDeleteInjury={handleDeleteInjury}
             fighterId={fighterData.fighter?.id || ''}
             onInjuryAdded={fetchFighterData}
