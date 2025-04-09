@@ -1,8 +1,12 @@
 -- Drop existing function if it exists
 DROP FUNCTION IF EXISTS move_to_gang_stash(fighter_equipment_id UUID);
+DROP FUNCTION IF EXISTS move_to_gang_stash(in_fighter_equipment_id UUID, in_user_id UUID);
 
--- Create new function with original parameter name
-CREATE OR REPLACE FUNCTION move_to_gang_stash(fighter_equipment_id UUID)
+-- Create new function with correct admin check
+CREATE OR REPLACE FUNCTION move_to_gang_stash(
+    in_fighter_equipment_id UUID,
+    in_user_id UUID
+)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -12,9 +16,30 @@ DECLARE
     v_gang_id UUID;
     v_cost NUMERIC;
     v_new_stash_id UUID;
+    v_user_has_access BOOLEAN;
+    v_is_admin BOOLEAN;
+    v_equipment_exists BOOLEAN;
 BEGIN
+    -- Check if user is an admin
+    SELECT EXISTS (
+        SELECT 1
+        FROM profiles p
+        WHERE p.id = in_user_id
+        AND p.user_role = 'admin'
+    ) INTO v_is_admin;
+    
+    -- Check if equipment exists
+    -- RLS policies should handle access control for non-admins
+    SELECT EXISTS (
+        SELECT 1 FROM fighter_equipment
+        WHERE id = in_fighter_equipment_id
+    ) INTO v_equipment_exists;
+    
+    IF NOT v_equipment_exists THEN
+        RAISE EXCEPTION 'Equipment not found or you do not have permission to move it';
+    END IF;
+    
     -- Get the necessary information before deleting the fighter_equipment record
-    -- Modified to check both fighter_id and vehicle_id relationships
     SELECT 
         fe.equipment_id,
         COALESCE(f.gang_id, v.gang_id) as gang_id,
@@ -26,11 +51,19 @@ BEGIN
     FROM fighter_equipment fe
     LEFT JOIN fighters f ON f.id = fe.fighter_id
     LEFT JOIN vehicles v ON v.id = fe.vehicle_id
-    WHERE fe.id = fighter_equipment_id;
+    WHERE fe.id = in_fighter_equipment_id;
 
-    -- Check if we found the equipment
-    IF v_equipment_id IS NULL THEN
-        RAISE EXCEPTION 'Equipment with ID % not found', fighter_equipment_id;
+    -- If the user is not an admin, check if they have permission for this gang
+    IF NOT v_is_admin THEN
+        SELECT EXISTS (
+            SELECT 1
+            FROM gangs
+            WHERE id = v_gang_id AND user_id = in_user_id
+        ) INTO v_user_has_access;
+        
+        IF NOT v_user_has_access THEN
+            RAISE EXCEPTION 'User does not have permission to move this equipment';
+        END IF;
     END IF;
 
     -- Insert into gang_stash
@@ -51,14 +84,29 @@ BEGIN
 
     -- Delete from fighter_equipment
     DELETE FROM fighter_equipment
-    WHERE id = fighter_equipment_id;
+    WHERE id = in_fighter_equipment_id;
 
     -- Return the new stash item ID
     RETURN v_new_stash_id;
 END;
 $$;
 
+-- Set search path to include auth schema
+ALTER FUNCTION move_to_gang_stash(UUID, UUID) 
+SET search_path = public, auth, private;
+
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION move_to_gang_stash(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID) TO service_role;
+REVOKE ALL ON FUNCTION move_to_gang_stash(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID, UUID) TO service_role;
+
+-- Add a comment to explain the function
+COMMENT ON FUNCTION move_to_gang_stash(UUID, UUID) IS 
+'Moves equipment from a fighter to the gang stash.
+Admins can move any equipment, while regular users can only move equipment
+from fighters belonging to gangs they own.
+Parameters:
+- in_fighter_equipment_id: UUID of the fighter equipment to move
+- in_user_id: UUID of the user performing the action
+Returns: 
+- UUID of the newly created gang stash item';

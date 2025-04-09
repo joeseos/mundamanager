@@ -201,7 +201,8 @@ export function WeaponList({
             'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            fighter_equipment_id: fighterEquipmentId
+            in_fighter_equipment_id: fighterEquipmentId,
+            in_user_id: session.user.id
           })
         }
       );
