@@ -15,7 +15,7 @@ import { Equipment, WeaponProfile } from '@/types/equipment';
 import dynamic from 'next/dynamic';
 import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { SkillsList } from "@/components/skills-list";
-import { InjuriesList } from "@/components/injuries-list";
+import { InjuriesList } from "@/components/fighter-injury-list";
 import { NotesList } from "@/components/notes-list";
 import { Input } from "@/components/ui/input";
 import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
