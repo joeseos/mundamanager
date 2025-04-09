@@ -2,7 +2,7 @@
 DROP FUNCTION IF EXISTS move_to_gang_stash(fighter_equipment_id UUID);
 DROP FUNCTION IF EXISTS move_to_gang_stash(in_fighter_equipment_id UUID, in_user_id UUID);
 
--- Create new function with correct admin check
+-- Create new function using the private.is_admin() helper
 CREATE OR REPLACE FUNCTION move_to_gang_stash(
     in_fighter_equipment_id UUID,
     in_user_id UUID
@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION move_to_gang_stash(
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, private
 AS $$
 DECLARE
     v_equipment_id UUID;
@@ -20,16 +21,13 @@ DECLARE
     v_is_admin BOOLEAN;
     v_equipment_exists BOOLEAN;
 BEGIN
-    -- Check if user is an admin
-    SELECT EXISTS (
-        SELECT 1
-        FROM profiles p
-        WHERE p.id = in_user_id
-        AND p.user_role = 'admin'
-    ) INTO v_is_admin;
+    -- Use auth.uid() to set the current user context for private.is_admin() function
+    PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
+    
+    -- Check if user is an admin using the existing helper function
+    SELECT private.is_admin() INTO v_is_admin;
     
     -- Check if equipment exists
-    -- RLS policies should handle access control for non-admins
     SELECT EXISTS (
         SELECT 1 FROM fighter_equipment
         WHERE id = in_fighter_equipment_id
@@ -91,22 +89,7 @@ BEGIN
 END;
 $$;
 
--- Set search path to include auth schema
-ALTER FUNCTION move_to_gang_stash(UUID, UUID) 
-SET search_path = public, auth, private;
-
 -- Revoke and grant permissions
 REVOKE ALL ON FUNCTION move_to_gang_stash(UUID, UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION move_to_gang_stash(UUID, UUID) TO service_role;
-
--- Add a comment to explain the function
-COMMENT ON FUNCTION move_to_gang_stash(UUID, UUID) IS 
-'Moves equipment from a fighter to the gang stash.
-Admins can move any equipment, while regular users can only move equipment
-from fighters belonging to gangs they own.
-Parameters:
-- in_fighter_equipment_id: UUID of the fighter equipment to move
-- in_user_id: UUID of the user performing the action
-Returns: 
-- UUID of the newly created gang stash item';
