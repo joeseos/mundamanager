@@ -148,7 +148,8 @@ export function WeaponList({
           },
           body: JSON.stringify({
             fighter_equipment_id: fighterEquipmentId,
-            manual_cost: manualCost
+            manual_cost: manualCost,
+            in_user_id: session.user.id
           })
         }
       );

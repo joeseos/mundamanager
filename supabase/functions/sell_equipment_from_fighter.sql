@@ -1,14 +1,22 @@
 CREATE OR REPLACE FUNCTION sell_equipment_from_fighter(
   fighter_equipment_id UUID,
-  manual_cost INTEGER DEFAULT NULL
+  manual_cost INTEGER DEFAULT NULL,
+  in_user_id UUID = auth.uid()
 )
 RETURNS JSONB AS $$
 DECLARE
   v_equipment_record record;
   v_result JSONB;
   v_sell_value INTEGER;
-  v_gang_id UUID;
+  v_user_has_access BOOLEAN;
+  v_is_admin BOOLEAN;
 BEGIN
+  -- Set the context for auth.uid() to be used in private.is_admin()
+  PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
+  
+  -- Check if user is an admin using the existing helper function
+  SELECT private.is_admin() INTO v_is_admin;
+  
   -- Get all the necessary information using the fighter_equipment_id
   SELECT 
     fe.id as fighter_equipment_id,
@@ -28,6 +36,19 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter equipment with ID % not found', fighter_equipment_id;
+  END IF;
+
+  -- If user is not an admin, check if they have permission for this gang
+  IF NOT v_is_admin THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM gangs
+      WHERE id = v_equipment_record.gang_id AND user_id = in_user_id
+    ) INTO v_user_has_access;
+    
+    IF NOT v_user_has_access THEN
+      RAISE EXCEPTION 'User does not have permission to sell this equipment';
+    END IF;
   END IF;
 
   -- Determine sell value (manual or default to purchase cost)
@@ -65,7 +86,24 @@ BEGIN
       RAISE EXCEPTION 'Failed to sell equipment: %', SQLERRM;
   END;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, auth, private;
 
 -- Grant execute permission to authenticated users
+REVOKE ALL ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) TO service_role;
+
+-- Add a comment to explain the function
+COMMENT ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) IS 
+'Sells equipment from a fighter and adds credits to gang.
+Admins can sell any equipment, while regular users can only sell equipment
+from fighters belonging to gangs they own.
+Parameters:
+- fighter_equipment_id: UUID of the fighter equipment to sell
+- manual_cost: Optional custom sell value (defaults to purchase cost)
+- in_user_id: UUID of the user performing the action (defaults to auth.uid())
+Returns: 
+- JSONB with gang and equipment information';
