@@ -1,27 +1,52 @@
 DROP FUNCTION IF EXISTS add_fighter_effect(UUID, UUID, UUID);
+DROP FUNCTION IF EXISTS add_fighter_effect(in_fighter_id UUID, in_fighter_effect_category_id UUID, in_fighter_effect_type_id UUID, in_user_id UUID);
 
 CREATE OR REPLACE FUNCTION add_fighter_effect(
-    input_fighter_id UUID,
-    input_fighter_effect_category_id UUID,
-    input_fighter_effect_type_id UUID
+    in_fighter_id UUID,
+    in_fighter_effect_category_id UUID,
+    in_fighter_effect_type_id UUID,
+    in_user_id UUID
 )
 RETURNS TABLE (result JSON) AS $$
 DECLARE
     new_effect_id UUID;
     effect_type_record RECORD;
     modifier_record RECORD;
-    current_user_id UUID;
     skill_id_val UUID;
     new_fighter_skill_id UUID;
     new_fighter_effect_skill_id UUID;
+    v_is_admin BOOLEAN;
+    v_user_has_access BOOLEAN;
+    v_gang_id UUID;
 BEGIN
-    -- Get the current user ID
-    current_user_id := auth.uid();
+    -- Set user context for is_admin check
+    PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
+    
+    -- Check if user is an admin
+    SELECT private.is_admin() INTO v_is_admin;
+    
+    -- Get the gang_id for the fighter
+    SELECT gang_id INTO v_gang_id
+    FROM fighters
+    WHERE id = in_fighter_id;
+    
+    -- If not admin, check if user owns the gang
+    IF NOT v_is_admin THEN
+        SELECT EXISTS (
+            SELECT 1
+            FROM gangs
+            WHERE id = v_gang_id AND user_id = in_user_id
+        ) INTO v_user_has_access;
+        
+        IF NOT v_user_has_access THEN
+            RAISE EXCEPTION 'User does not have permission to add effects to this fighter';
+        END IF;
+    END IF;
     
     -- Get the effect type details from fighter_effect_types
     SELECT * INTO effect_type_record
     FROM fighter_effect_types
-    WHERE id = input_fighter_effect_type_id;
+    WHERE id = in_fighter_effect_type_id;
     
     -- Validate that the effect type exists
     IF effect_type_record.id IS NULL THEN
@@ -29,7 +54,7 @@ BEGIN
     END IF;
     
     -- Validate that the effect type belongs to the specified category
-    IF effect_type_record.fighter_effect_category_id != input_fighter_effect_category_id THEN
+    IF effect_type_record.fighter_effect_category_id != in_fighter_effect_category_id THEN
         RAISE EXCEPTION 'The provided fighter effect type does not belong to the specified category';
     END IF;
     
@@ -42,18 +67,18 @@ BEGIN
         user_id
     )
     VALUES (
-        input_fighter_id,
-        input_fighter_effect_type_id,
+        in_fighter_id,
+        in_fighter_effect_type_id,
         effect_type_record.effect_name,
         effect_type_record.type_specific_data,
-        current_user_id
+        in_user_id
     )
     RETURNING id INTO new_effect_id;
     
     -- Create the modifiers associated with this effect type
     FOR modifier_record IN 
         SELECT * FROM fighter_effect_type_modifiers
-        WHERE fighter_effect_type_id = input_fighter_effect_type_id
+        WHERE fighter_effect_type_id = in_fighter_effect_type_id
     LOOP
         INSERT INTO fighter_effect_modifiers (
             fighter_effect_id,
@@ -76,17 +101,17 @@ BEGIN
             fighter_id,
             skill_id,
             user_id,
-            fighter_effect_skill_id  -- Added fighter_effect_skill_id field
+            fighter_effect_skill_id
         )
         SELECT 
-            input_fighter_id,
+            in_fighter_id,
             skill_id_val,
-            current_user_id,
+            in_user_id,
             NULL  -- Initially NULL, will update after creating relation
         WHERE 
             NOT EXISTS (
                 SELECT 1 FROM fighter_skills 
-                WHERE fighter_id = input_fighter_id AND skill_id = skill_id_val
+                WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
             )
         RETURNING id INTO new_fighter_skill_id;
         
@@ -94,7 +119,7 @@ BEGIN
         IF new_fighter_skill_id IS NULL THEN
             SELECT id INTO new_fighter_skill_id 
             FROM fighter_skills
-            WHERE fighter_id = input_fighter_id AND skill_id = skill_id_val;
+            WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
         END IF;
         
         -- Create the relation in fighter_effect_skills
@@ -171,10 +196,9 @@ END;
 $$ 
 LANGUAGE plpgsql
 SECURITY DEFINER
-VOLATILE
-SET search_path = public;
+SET search_path = public, auth, private;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION add_fighter_effect(UUID, UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION add_fighter_effect(UUID, UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION add_fighter_effect(UUID, UUID, UUID) TO service_role;
+REVOKE ALL ON FUNCTION add_fighter_effect(UUID, UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_fighter_effect(UUID, UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION add_fighter_effect(UUID, UUID, UUID, UUID) TO service_role;

@@ -82,11 +82,19 @@ export function InjuriesList({
 
     try {
       const supabase = createClient();
+      
+      // Get the current user's session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        throw new Error('No authenticated user');
+      }
+
       const { data, error } = await supabase
         .rpc('add_fighter_effect', {
-          input_fighter_id: fighterId,
-          input_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
-          input_fighter_effect_type_id: selectedInjuryId
+          in_fighter_id: fighterId,
+          in_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
+          in_fighter_effect_type_id: selectedInjuryId,
+          in_user_id: session.user.id
         });
 
       if (error) throw error;
