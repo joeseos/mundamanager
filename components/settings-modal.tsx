@@ -100,6 +100,23 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
     setOpen(false);
   };
 
+  const disableLinksForPrint = () => {
+    document.querySelectorAll('a').forEach(link => {
+      link.setAttribute('data-href', link.getAttribute('href') || '');
+      link.removeAttribute('href');
+    });
+  };
+
+  const restoreLinksAfterPrint = () => {
+    document.querySelectorAll('a').forEach(link => {
+      const originalHref = link.getAttribute('data-href');
+      if (originalHref) {
+        link.setAttribute('href', originalHref);
+        link.removeAttribute('data-href');
+      }
+    });
+  };
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -213,9 +230,13 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
               (el as HTMLElement).style.display = printOptions.includeInactiveFighters ? '' : 'none';
             });
 
+            disableLinksForPrint();
+
             // Delay print slightly to let DOM update
             setTimeout(() => {
               window.print();
+
+              restoreLinksAfterPrint();
 
               // Reset visibility after print
               if (gangCard) gangCard.style.display = '';
