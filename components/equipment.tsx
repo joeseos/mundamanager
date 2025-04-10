@@ -582,7 +582,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <span className="sr-only">Close</span>
           </Button>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 pr-8">
+          <div className="flex flex-row gap-3 pr-8">
             <h2 className="text-xl font-semibold">Equipment</h2>
             <div className="ml-auto flex items-center gap-2">
               <span className="text-sm text-gray-600">Gang Credits</span>
@@ -591,8 +591,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-[32px]">
+          <div className="flex items-center gap-3 justify-center">
+            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
               <input
                 type="radio"
                 name="equipment-list"
@@ -602,11 +602,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   setEquipmentListType("fighters-list");
                   setEquipment({});
                 }}
-                className="mr-2"
+                className="mr-1"
               />
               Fighter's List
             </label>
-            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <input
                 type="radio"
                 name="equipment-list"
@@ -616,11 +616,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   setEquipmentListType("fighters-tradingpost");
                   setEquipment({});
                 }}
-                className="mr-2"
+                className="mr-1"
               />
               Trading Post
             </label>
-            <label className="text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <input
                 type="radio"
                 name="equipment-list"
@@ -630,7 +630,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   setEquipmentListType("unrestricted");
                   setEquipment({});
                 }}
-                className="mr-2"
+                className="mr-1"
               />
               Unrestricted
             </label>
@@ -661,7 +661,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               <div key={category.id}>
                 <Button
                   variant="ghost"
-                  className="relative flex w-full justify-between rounded-none px-4 py-6 text-base bg-gray-50 hover:bg-gray-100 mb-[1px]"
+                  className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-gray-50 hover:bg-gray-100 mb-[1px]"
                   onClick={() => toggleCategory(category)}
                 >
                   <span>{category.category_name}</span>
@@ -688,7 +688,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             key={item.equipment_id}
                             className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
                           >
-                            <div className="flex-1">
+                            <div className="flex-1 pl-4 leading-none">
                               <span className="text-sm font-medium">{item.equipment_name}</span>
                             </div>
 
@@ -742,6 +742,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 <div className="h-[1px] w-full bg-gray-200" />
               </div>
             ))}
+            {availableCategories.length === 0 && equipmentListType !== 'unrestricted' && (
+              <p className="text-gray-500 italic text-center p-4">
+                No equipment available.
+              </p>
+            )}
           </div>
         </div>
       </div>
