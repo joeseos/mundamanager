@@ -661,7 +661,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               <div key={category.id}>
                 <Button
                   variant="ghost"
-                  className="relative flex w-full justify-between rounded-none px-4 py-4 text-base bg-gray-50 hover:bg-gray-100 mb-[1px]"
+                  className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-gray-50 hover:bg-gray-100 mb-[1px]"
                   onClick={() => toggleCategory(category)}
                 >
                   <span>{category.category_name}</span>
