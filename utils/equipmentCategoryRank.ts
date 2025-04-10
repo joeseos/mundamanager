@@ -1,5 +1,4 @@
 export const equipmentCategoryRank: { [key: string]: number } = {
-  "ammo": 0,
   "ammunition": 0,
   "special ammunition": 1,
   //
