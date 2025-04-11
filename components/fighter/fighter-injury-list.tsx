@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Button } from './ui/button';
+import { Button } from '../ui/button';
 import { FighterEffect, } from '@/types/fighter';
 
-import { useToast } from './ui/use-toast';
-import Modal from './modal';
+import { useToast } from '../ui/use-toast';
+import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 
 interface InjuriesListProps {

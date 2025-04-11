@@ -2,31 +2,30 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
-import { FighterDetailsCard } from "@/components/fighter-details-card";
-import { WeaponList } from "@/components/fighter-equipment-list";
+import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
+import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
-import { AdvancementsList } from "@/components/advancements-list";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import dynamic from 'next/dynamic';
-import { AdvancementModal } from "@/components/ui/advancement-modal";
-import { SkillsList } from "@/components/skills-list";
-import { InjuriesList } from "@/components/fighter-injury-list";
-import { NotesList } from "@/components/notes-list";
+import { AdvancementsList, AdvancementModal } from "@/components/fighter/fighter-advancement-list";
+import { SkillsList } from "@/components/fighter/fighter-skills-list";
+import { InjuriesList } from "@/components/fighter/fighter-injury-list";
+import { NotesList } from "@/components/fighter/fighter-notes-list";
 import { Input } from "@/components/ui/input";
-import { FighterWeaponsTable } from "@/components/fighter-weapons-table";
+import { FighterWeaponsTable } from "@/components/fighter/fighter-weapons-list";
 import { FighterEffects, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { useSession } from '@/hooks/use-session';
-import { EditFighterModal } from "@/components/edit-fighter-modal";
+import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
 
 // Dynamically import heavy components
-const WeaponTable = dynamic(() => import('@/components/weapon-table'), {
+const WeaponTable = dynamic(() => import('@/components/fighter-card-weapon-table'), {
   loading: () => <p>Loading weapons...</p>,
   ssr: false
 });

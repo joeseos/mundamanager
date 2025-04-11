@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FighterWeaponsTable } from './fighter-weapons-table';
+import { FighterWeaponsTable } from './fighter-weapons-list';
 import { useToast } from "@/components/ui/use-toast";
-import { Button } from './ui/button';
-import Modal from './modal';
+import { Button } from '../ui/button';
+import Modal from '../modal';
 import { Equipment } from '@/types/equipment';
 import { createClient } from "@/utils/supabase/client";
 
@@ -249,18 +249,18 @@ export function WeaponList({
       </div>
       <FighterWeaponsTable 
         equipment={equipment} 
-        onDeleteEquipment={(id, equipId) => setDeleteModalData({ 
+        onDeleteEquipment={(id: string, equipId: string) => setDeleteModalData({ 
           id, 
           equipmentId: equipId, 
           name: equipment.find(e => e.fighter_equipment_id === id)?.equipment_name || 'equipment' 
         })}
-        onSellEquipment={(fighterEquipmentId, equipmentId) => {
+        onSellEquipment={(fighterEquipmentId: string, equipmentId: string) => {
           const item = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
           if (item) {
             setSellModalData(item);
           }
         }}
-        onStashEquipment={(fighterEquipmentId, equipmentId) => {
+        onStashEquipment={(fighterEquipmentId: string, equipmentId: string) => {
           const item = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
           if (item) {
             setStashModalData(item);
