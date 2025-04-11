@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { useToast } from './ui/use-toast';
-import { Textarea } from './ui/textarea';
+import { Button } from '../ui/button';
+import { useToast } from '../ui/use-toast';
+import { Textarea } from '../ui/textarea';
 
 interface NotesListProps {
   fighterId: string;

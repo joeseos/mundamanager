@@ -1,14 +1,89 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { AdvancementModal } from "@/components/ui/advancement-modal";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/modal";
 import { Skill, FighterEffect, FighterSkills } from '@/types/fighter';
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
+import { skillSetRank } from "@/utils/skillSetRank";
+import { characteristicRank } from "@/utils/characteristicRank";
 
+// AdvancementModal Interfaces
+interface AdvancementModalProps {
+  fighterId: string;
+  currentXp: number;
+  onClose: () => void;
+  onAdvancementAdded?: (remainingXp: number, creditsIncrease: number) => void;
+}
+
+interface StatChangeCategory {
+  id: string;
+  effect_name: string;
+  type: 'characteristic';
+}
+
+interface SkillType {
+  id: string;
+  name: string;
+  type: 'skill';
+  created_at: string;
+  updated_at: string | null;
+}
+
+interface AvailableAdvancement {
+  id: string;
+  xp_cost: number;
+  base_xp_cost?: number;
+  stat_change: number;
+  can_purchase: boolean;
+  level?: number;
+  credits_increase?: number;
+  skill_id?: string;
+  stat_change_name?: string;
+  description?: string;
+  is_available?: boolean;
+  current_level?: number;
+  has_enough_xp?: boolean;
+  available_acquisition_types?: AcquisitionType[];
+  skill_type_id?: string;
+  characteristic_code?: string;
+}
+
+interface SkillResponse {
+  skills: {
+    skill_id: string;
+    skill_name: string;
+    skill_type_id: string;
+    available_acquisition_types: AcquisitionType[];
+  }[];
+  fighter_id: string;
+  fighter_class: string;
+}
+
+interface SkillAcquisitionType {
+  id: string;
+  name: string;
+  xpCost: number;
+  creditCost: number;
+}
+
+type AcquisitionType = {
+  name: string;
+  type_id: string;
+  xp_cost: number;
+  credit_cost: number;
+};
+
+interface SkillData {
+  skill_id: string;
+  skill_name: string;
+  skill_type_id: string;
+  available_acquisition_types: AcquisitionType[];
+}
+
+// AdvancementsList Interfaces
 interface StatChange {
   id: string;
   applied_at: string;
@@ -67,6 +142,204 @@ interface TransformedAdvancement {
   type: 'characteristic' | 'skill';
 }
 
+// Type guard function
+function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
+  return category.type === 'characteristic';
+}
+
+// AdvancementModal Component
+export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
+  const { toast } = useToast();
+  const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [availableAdvancements, setAvailableAdvancements] = useState<AvailableAdvancement[]>([]);
+  const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [advancementType, setAdvancementType] = useState<'characteristic' | 'skill' | ''>('');
+  const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
+  const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
+  const [editableXpCost, setEditableXpCost] = useState<number>(0);
+  const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch stat change categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!advancementType) return;
+      
+      setLoading(true);
+      try {
+        const endpoint = advancementType === 'characteristic' 
+          ? 'fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419'
+          : 'skill_types';
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${endpoint}`,
+          {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${advancementType}s`);
+        }
+
+        const data = await response.json();
+        const categoriesWithType = data.map((cat: any) => ({
+          ...cat,
+          type: advancementType
+        }));
+        setCategories(categoriesWithType);
+      } catch (err) {
+        setError(`Failed to load ${advancementType} categories`);
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, [advancementType]);
+
+  // Additional AdvancementModal logic here...
+  const handleAdvancementPurchase = async () => {
+    if (!selectedAdvancement) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Logic for purchasing advancement
+      // This would need to be implemented based on your application's requirements
+
+      // Example implementation:
+      // const response = await fetch('your-api-endpoint', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     fighterId,
+      //     advancementId: selectedAdvancement.id,
+      //     xpCost: editableXpCost,
+      //     creditsIncrease: editableCreditsIncrease
+      //   })
+      // });
+      
+      // if (!response.ok) throw new Error('Failed to purchase advancement');
+      
+      // Call onAdvancementAdded callback
+      if (onAdvancementAdded) {
+        onAdvancementAdded(currentXp - editableXpCost, editableCreditsIncrease);
+      }
+      
+      toast({
+        description: "Advancement purchased successfully",
+        variant: "default"
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Error purchasing advancement:', error);
+      toast({
+        description: "Failed to purchase advancement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Render the AdvancementModal component
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[80vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4">Add Advancement</h2>
+        
+        {/* Selection UI for advancement type, category, etc. */}
+        <div className="space-y-4">
+          {/* Type Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Advancement Type</label>
+            <select 
+              className="w-full p-2 border rounded"
+              value={advancementType}
+              onChange={(e) => setAdvancementType(e.target.value as 'characteristic' | 'skill' | '')}
+            >
+              <option value="">Select type</option>
+              <option value="characteristic">Characteristic</option>
+              <option value="skill">Skill</option>
+            </select>
+          </div>
+          
+          {/* Category Selection */}
+          {advancementType && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                {advancementType === 'characteristic' ? 'Characteristic' : 'Skill Set'}
+              </label>
+              <select 
+                className="w-full p-2 border rounded"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">Select {advancementType === 'characteristic' ? 'characteristic' : 'skill set'}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {isStatChangeCategory(category) ? category.effect_name : category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {/* Cost inputs */}
+          {selectedAdvancement && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">XP Cost</label>
+                <input 
+                  type="number" 
+                  className="w-full p-2 border rounded" 
+                  value={editableXpCost}
+                  onChange={(e) => setEditableXpCost(Number(e.target.value))}
+                  min={0}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Credits Increase</label>
+                <input 
+                  type="number" 
+                  className="w-full p-2 border rounded" 
+                  value={editableCreditsIncrease}
+                  onChange={(e) => setEditableCreditsIncrease(Number(e.target.value))}
+                  min={0}
+                />
+              </div>
+            </div>
+          )}
+          
+          {error && <div className="text-red-500">{error}</div>}
+        </div>
+        
+        <div className="flex justify-end space-x-2 mt-6">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAdvancementPurchase} 
+            disabled={!selectedAdvancement || isSubmitting}
+            className="bg-black hover:bg-gray-800 text-white"
+          >
+            {isSubmitting ? 'Purchasing...' : 'Purchase'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// AdvancementsList Component
 export const AdvancementsList = React.memo(function AdvancementsList({ 
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
@@ -318,4 +591,4 @@ export const AdvancementsList = React.memo(function AdvancementsList({
       )}
     </div>
   );
-});
+}); 

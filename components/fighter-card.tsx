@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { StatsTable, StatsType } from './ui/fighter-card-stats-table';
-import WeaponTable from './weapon-table';
+import WeaponTable from './fighter-card-weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile, FighterSkills } from '@/types/fighter';
