@@ -198,10 +198,19 @@ export default function GangVehicles({
     if (!editingVehicle) return true;
     
     try {
+      // Get session for auth headers
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No authenticated session found');
+      }
+      
       const response = await fetch(`/api/gangs/${gangId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           vehicleId: editingVehicle.id,
@@ -278,10 +287,19 @@ export default function GangVehicles({
 
     setIsLoading(true);
     try {
+      // Get session for auth headers
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No authenticated session found');
+      }
+      
       const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           vehicleId: deletingVehicle.id,
