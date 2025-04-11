@@ -7,7 +7,7 @@ import { FighterProps, FighterSkills } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import { Button } from "@/components/ui/button";
 import GangPageContent from "@/components/gang/gang-page-content";
-import Tabs from "@/components/tabs";
+import Tabs from "@/components/ui/tabs";
 import GangInventory from "@/components/gang/stash-tab";
 import { GangNotes } from "@/components/gang/notes-tab";
 import GangTerritories from "@/components/gang/campaign-tab";
