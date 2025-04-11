@@ -1,12 +1,31 @@
 "use client";
 
 import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions";
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
+import { type ComponentProps } from "react";
+
+// Create a local submit button component
+function LocalSubmitButton({ 
+  children, 
+  pendingText = "Submitting...", 
+  ...props 
+}: ComponentProps<typeof Button> & { 
+  pendingText?: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" aria-disabled={pending} {...props}>
+      {pending ? pendingText : children}
+    </Button>
+  );
+}
 
 export default function ResetPassword({ searchParams }: { searchParams: Message }) {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -46,13 +65,13 @@ export default function ResetPassword({ searchParams }: { searchParams: Message 
                   className="text-black mt-1"
                   autoComplete="email"
                 />
-                <SubmitButton 
+                <LocalSubmitButton 
                   formAction={forgotPasswordAction} 
                   pendingText="Sending..." 
                   className="mt-2"
                 >
                   Send Reset Instructions
-                </SubmitButton>
+                </LocalSubmitButton>
               </div>
             </>
           ) : (

@@ -1,13 +1,32 @@
 import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
+import { useFormStatus } from "react-dom";
 import TurnstileWidget from './TurnstileWidget';
+import { type ComponentProps } from "react";
+
+// Create a local submit button component
+function LocalSubmitButton({ 
+  children, 
+  pendingText = "Submitting...", 
+  ...props 
+}: ComponentProps<typeof Button> & { 
+  pendingText?: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" aria-disabled={pending} {...props}>
+      {pending ? pendingText : children}
+    </Button>
+  );
+}
 
 export default async function SignIn({ searchParams }: { searchParams: Message }) {
   const supabase = createClient();
@@ -90,9 +109,9 @@ export default async function SignIn({ searchParams }: { searchParams: Message }
             <div className="mt-2">
               <TurnstileWidget />
             </div>
-            <SubmitButton pendingText="Signing in..." className="mt-2">
+            <LocalSubmitButton pendingText="Signing in..." className="mt-2">
               Sign in
-            </SubmitButton>
+            </LocalSubmitButton>
           </div>
         </form>
       </div>

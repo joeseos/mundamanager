@@ -1,12 +1,32 @@
 'use client';
 
+import { Button } from "@/components/ui/button";
 import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { updatePasswordAction } from "@/app/actions";
+import { type ComponentProps } from "react";
+import { useFormStatus } from "react-dom";
+
+// Create a local submit button component
+function LocalSubmitButton({ 
+  children, 
+  pendingText = "Submitting...", 
+  ...props 
+}: ComponentProps<typeof Button> & { 
+  pendingText?: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" aria-disabled={pending} {...props}>
+      {pending ? pendingText : children}
+    </Button>
+  );
+}
 
 function UpdatePasswordFormContent() {
   const [message, setMessage] = useState<Message>({} as Message);
@@ -117,14 +137,14 @@ function UpdatePasswordFormContent() {
           />
         </div>
 
-        <SubmitButton 
+        <LocalSubmitButton 
           type="submit"
           disabled={isSubmitting}
           pendingText="Updating..." 
           className="mt-2"
         >
           Update Password
-        </SubmitButton>
+        </LocalSubmitButton>
 
         <FormMessage message={message} />
       </div>

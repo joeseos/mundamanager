@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useGangs } from '@/contexts/GangsContext'
 import { createClient } from "@/utils/supabase/client"
-import { SubmitButton } from "./submit-button"
 import { useToast } from "@/components/ui/use-toast"
 import { gangListRank } from "@/utils/gangListRank";
+import { type ComponentProps } from "react";
+import { useFormStatus } from "react-dom";
 
 type GangType = {
   gang_type_id: string;
@@ -50,6 +51,23 @@ const CREATE_GANG_MUTATION = `
 `;
 
 const EXCLUDED_GANG_TYPES = ['Exotic Beasts', 'Hired guns', 'Other'];
+
+// Create a local submit button component
+function LocalSubmitButton({ 
+  children, 
+  pendingText = "Submitting...", 
+  ...props 
+}: ComponentProps<typeof Button> & { 
+  pendingText?: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button aria-disabled={pending} {...props}>
+      {pending ? pendingText : children}
+    </Button>
+  );
+}
 
 export default function CreateGangModal({ onClose }: CreateGangModalProps) {
   const { refreshGangs } = useGangs();
@@ -296,14 +314,14 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
             />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <SubmitButton 
+          <LocalSubmitButton 
             onClick={handleCreateGang} 
             className="w-full" 
             disabled={isLoading || !gangName.trim() || !gangType}
             pendingText="Creating..."
           >
             Create Gang
-          </SubmitButton>
+          </LocalSubmitButton>
         </div>
       </div>
     </div>
