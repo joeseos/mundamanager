@@ -1744,7 +1744,11 @@ const handleAlignmentChange = (value: string) => {
 
                             if (rank <= 2) groupLabel = "Hangers-on & Brutes";
                             else if (rank <= 10) groupLabel = "Vehicle Crews";
-                            else if (rank <= 23) groupLabel = "Hired Guns";
+                            else if (rank <= 29) groupLabel = "Hired Guns";
+                            else if (rank <= 39) groupLabel = "Equipment";
+                            else if (rank <= 49) groupLabel = "Alliances: Criminal Organisations";
+                            else if (rank <= 59) groupLabel = "Alliances: Merchant Guilds";
+                            else if (rank <= 69) groupLabel = "Alliances: Noble Houses";
 
                             if (!groups[groupLabel]) groups[groupLabel] = [];
                             groups[groupLabel].push(classType);
