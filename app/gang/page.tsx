@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import Gang from "@/components/gang";
+import Gang from "@/components/gang/gang";
 import { FighterProps } from "@/types/fighter";
 
 interface FighterType {

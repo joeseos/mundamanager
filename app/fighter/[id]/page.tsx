@@ -25,7 +25,7 @@ import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
 
 // Dynamically import heavy components
-const WeaponTable = dynamic(() => import('@/components/fighter-card-weapon-table'), {
+const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
   loading: () => <p>Loading weapons...</p>,
   ssr: false
 });
