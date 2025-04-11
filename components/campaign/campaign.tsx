@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from "@/utils/supabase/client";
-import Tabs from '@/components/tabs';
+import Tabs from '@/components/ui/tabs';
 import TerritoryList from '@/components/campaign/campaign-territory-list';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/modal';
