@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Campaign from "@/components/campaign";
-import TerritoryGangModal from "@/components/territory-gang-modal";
+import TerritoryGangModal from "@/components/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
-import MemberSearchBar from "@/components/member-search-bar"
-import MembersTable from "@/components/members-table"
+import MemberSearchBar from "@/components/campaign-member-search-bar"
+import MembersTable from "@/components/campaign-members-table"
 
 interface Gang {
   id: string;

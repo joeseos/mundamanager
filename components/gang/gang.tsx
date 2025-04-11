@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
 import { Weapon } from '@/types/weapon';
 import { FighterProps } from '@/types/fighter';

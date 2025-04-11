@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import Gang from "@/components/gang";
+import Gang from "@/components/gang/gang";
 import { FighterProps } from '@/types/fighter';
 import { FighterType } from '@/types/fighter-type';
 import { StashItem } from '@/types/gang';

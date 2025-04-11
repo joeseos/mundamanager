@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from './ui/button';
+import { Button } from '../ui/button';
 import Modal from '@/components/modal';
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
