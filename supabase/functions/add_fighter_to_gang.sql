@@ -15,6 +15,7 @@ CREATE OR REPLACE FUNCTION add_fighter_to_gang(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, private
 AS $function$
 DECLARE
   v_fighter_id UUID;
@@ -30,8 +31,22 @@ DECLARE
   v_skills_info JSONB;
   v_error TEXT;
   v_inserted_fighter RECORD;
+  v_gang_owner_id UUID;
+  v_is_admin BOOLEAN;
+  v_user_has_access BOOLEAN;
 BEGIN
-  -- Get fighter type details and gang credits in a single query
+  -- Check if user_id parameter exists, use auth.uid() if not provided
+  IF p_user_id IS NULL THEN
+    p_user_id := auth.uid();
+  END IF;
+
+  -- Set the current user context for private.is_admin() function
+  PERFORM set_config('request.jwt.claim.sub', p_user_id::text, true);
+  
+  -- Check if user is an admin using the existing helper function
+  SELECT private.is_admin() INTO v_is_admin;
+
+  -- Get fighter type details, gang credits, and gang owner's user_id in a single query
   WITH fighter_and_gang AS (
     SELECT 
       ft.fighter_type,
@@ -39,7 +54,8 @@ BEGIN
       fc.id as fighter_class_id,
       ft.free_skill,
       COALESCE(p_cost, ft.cost) as fighter_cost,
-      g.credits as gang_credits
+      g.credits as gang_credits,
+      g.user_id as gang_owner_id
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     CROSS JOIN gangs g
@@ -52,18 +68,33 @@ BEGIN
     fighter_class_id,
     free_skill,
     fighter_cost,
-    gang_credits
+    gang_credits,
+    gang_owner_id
   INTO 
     v_fighter_type,
     v_fighter_class,
     v_fighter_class_id,
     v_free_skill,
     v_fighter_cost,
-    v_gang_credits
+    v_gang_credits,
+    v_gang_owner_id
   FROM fighter_and_gang;
 
   IF NOT FOUND THEN
     RETURN json_build_object('error', 'Fighter type or gang not found');
+  END IF;
+
+  -- If the user is not an admin, check if they are the gang owner
+  IF NOT v_is_admin THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM gangs
+      WHERE id = p_gang_id AND user_id = p_user_id
+    ) INTO v_user_has_access;
+    
+    IF NOT v_user_has_access THEN
+      RETURN json_build_object('error', 'User does not have permission to add fighters to this gang');
+    END IF;
   END IF;
 
   -- Insert fighter and get equipment in a single transaction
@@ -93,7 +124,7 @@ BEGIN
       xp,
       kills,
       special_rules,
-      user_id
+      user_id  -- Always use the gang owner's user_id
     )
     SELECT 
       p_fighter_name,
@@ -119,7 +150,7 @@ BEGIN
       0,
       0,
       ft.special_rules,
-      p_user_id
+      v_gang_owner_id  -- Using gang owner's user_id
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     WHERE ft.id = p_fighter_type_id
@@ -296,3 +327,8 @@ EXCEPTION
     RETURN jsonb_build_object('error', v_error);
 END;
 $function$;
+
+-- Revoke and grant permissions
+REVOKE ALL ON FUNCTION add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID) TO service_role;
