@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
-import CampaignPageContent from "@/components/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaign-error-boundary";
+import CampaignPageContent from "@/components/campaign/campaign-page-content";
+import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
 
 export default async function CampaignPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
