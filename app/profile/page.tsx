@@ -1,6 +1,18 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
+import dynamic from 'next/dynamic';
+
+// Define the type for the NotificationsContent component
+type NotificationsContentProps = {
+  userId: string;
+};
+
+// Dynamic import with type annotation
+const NotificationsContent = dynamic<NotificationsContentProps>(
+  () => import('../../components/notifications-content'),
+  { ssr: false }
+);
 
 export default async function ProfilePage() {
   const supabase = createClient();
@@ -73,6 +85,12 @@ export default async function ProfilePage() {
                 {new Date(user.created_at).toLocaleDateString()}
               </div>
             </div>
+          </div>
+          
+          {/* Notifications section */}
+          <div className="mt-8">
+            <h3 className="text-xl font-bold mb-4">Notifications</h3>
+            <NotificationsContent userId={user.id} />
           </div>
         </div>
       </div>
