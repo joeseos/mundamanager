@@ -76,7 +76,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
             <th className="text-left p-1 align-bottom" rowSpan={2}>
               {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
             </th>
-            <th className="text-center p-1 print:hidden" colSpan={2}>Range</th>
+            <th className="text-center p-1 print:hidden" colSpan={2}>Rng</th>
             <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
             <th className="text-center p-1" colSpan={5}></th>
           </tr>
@@ -94,29 +94,72 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
         </thead>
         <tbody>
           {(() => {
-            // Flatten all profiles
             const allProfiles = Object.values(groupedProfiles).flat();
 
-            // Group and count by profile_name
-            const profileMap = allProfiles.reduce<Record<string, { count: number; profile: WeaponProfile }>>((acc, profile) => {
-              const name = profile.profile_name;
-              const shouldCount = !name.startsWith('-');
-
-              if (!acc[name]) {
-                acc[name] = { count: shouldCount ? 1 : 0, profile };
-              } else if (shouldCount) {
-                acc[name].count += 1;
+            const nameCountMap = allProfiles.reduce<Record<string, number>>((acc, profile) => {
+              if (!profile.profile_name.startsWith('-')) {
+                acc[profile.profile_name] = (acc[profile.profile_name] || 0) + 1;
               }
               return acc;
             }, {});
 
-            return Object.entries(profileMap).map(([name, { count, profile }], index) => {
-              const bgClass = index % 2 === 1 ? 'bg-black/[0.07]' : '';
-              return (
-                <tr key={name} className={bgClass}>
+            const weaponGroups: { weaponName: string; profiles: WeaponProfile[]; count: number }[] = [];
+
+            const seenWeapons = new Set<string>();
+
+            let currentWeaponName = '';
+            let currentProfiles: WeaponProfile[] = [];
+
+            let skipMode = false;
+
+            allProfiles.forEach(profile => {
+              if (!profile.profile_name.startsWith('-')) {
+                if (seenWeapons.has(profile.profile_name)) {
+                  skipMode = true;
+                  return;
+                }
+
+                skipMode = false;
+
+                if (currentProfiles.length) {
+                  weaponGroups.push({
+                    weaponName: currentWeaponName,
+                    profiles: currentProfiles,
+                    count: nameCountMap[currentWeaponName] || 1,
+                  });
+                }
+
+                seenWeapons.add(profile.profile_name);
+                currentWeaponName = profile.profile_name;
+                currentProfiles = [profile];
+              } else {
+                if (!skipMode) {
+                  currentProfiles.push(profile);
+                }
+              }
+            });
+
+            if (currentProfiles.length) {
+              weaponGroups.push({
+                weaponName: currentWeaponName,
+                profiles: currentProfiles,
+                count: nameCountMap[currentWeaponName] || 1,
+              });
+            }
+
+            let rowIndex = 0;
+
+            return weaponGroups.map(({ weaponName, profiles, count }) => {
+              rowIndex++;
+              const bgClass = rowIndex % 2 === 1 ? 'bg-black/[0.07]' : '';
+
+              return profiles.map((profile, profileIndex) => (
+                <tr key={`${weaponName}-${profileIndex}`} className={bgClass}>
                   <td className="text-left p-1 align-top">
                     <div className="table-weapons-truncate">
-                      {count > 1 ? `${profile.profile_name} (x${count})` : profile.profile_name}
+                      {profileIndex === 0 && count > 1
+                        ? `${weaponName} (x${count})`
+                        : profile.profile_name}
                     </div>
                   </td>
                   <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
@@ -144,14 +187,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
                     {formatters.formatAmmo(profile.ammo)}
                   </td>
                   <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-                    {entity === 'crew'
-                      ? profile.traits
-                        ? `Arc (Front), ${profile.traits}`
-                        : 'Arc (Front)'
-                      : profile.traits || ''}
+                    {profile.traits}
                   </td>
                 </tr>
-              );
+              ));
             });
           })()}
         </tbody>
