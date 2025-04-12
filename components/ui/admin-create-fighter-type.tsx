@@ -67,6 +67,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [attacks, setAttacks] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
+  const [isGangAddition, setIsGangAddition] = useState(false);
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
@@ -308,6 +309,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         attacks: attacks ? parseInt(attacks) : null,
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
+        is_gang_addition: isGangAddition,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -791,17 +793,32 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="freeSkill"
-                checked={freeSkill}
-                onChange={(e) => setFreeSkill(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <label htmlFor="freeSkill" className="text-sm font-medium text-gray-700">
-                Free Skill
-              </label>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="freeSkill"
+                  checked={freeSkill}
+                  onChange={(e) => setFreeSkill(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="freeSkill" className="text-sm font-medium text-gray-700">
+                  Free Skill
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isGangAddition"
+                  checked={isGangAddition}
+                  onChange={(e) => setIsGangAddition(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="isGangAddition" className="text-sm font-medium text-gray-700">
+                  Gang Addition
+                </label>
+              </div>
             </div>
 
             <div>
