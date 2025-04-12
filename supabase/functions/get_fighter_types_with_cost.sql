@@ -85,66 +85,27 @@ BEGIN
             )
             SELECT 
                 CASE 
-                    WHEN es IS NOT NULL THEN
-                        -- First modify the weapons.default array
+                    WHEN es IS NOT NULL AND es#>'{weapons,options}' IS NOT NULL THEN
+                        -- Only process if both es and the options path exist
                         jsonb_set(
-                            -- Then modify the weapons.options array
-                            jsonb_set(
-                                -- Then modify the weapons.optional array if it exists
-                                CASE 
-                                    WHEN es#>'{weapons,optional}' IS NOT NULL THEN
-                                        jsonb_set(
-                                            es,
-                                            '{weapons,optional}',
-                                            (
-                                                SELECT jsonb_agg(
-                                                    jsonb_build_object(
-                                                        'id', opt->>'id',
-                                                        'equipment_name', e.equipment_name,
-                                                        'equipment_type', e.equipment_type,
-                                                        'equipment_category', e.equipment_category,
-                                                        'cost', (opt->>'cost')::numeric,
-                                                        'max_quantity', (opt->>'max_quantity')::integer
-                                                    )
-                                                )
-                                                FROM jsonb_array_elements(es#>'{weapons,optional}') opt
-                                                LEFT JOIN equipment e ON e.id::text = opt->>'id'
-                                            )
-                                        )
-                                    ELSE es
-                                END,
-                                '{weapons,options}',
-                                (
-                                    SELECT jsonb_agg(
-                                        jsonb_build_object(
-                                            'id', opt->>'id',
-                                            'equipment_name', e.equipment_name,
-                                            'equipment_type', e.equipment_type,
-                                            'equipment_category', e.equipment_category,
-                                            'cost', (opt->>'cost')::numeric,
-                                            'max_quantity', (opt->>'max_quantity')::integer
-                                        )
-                                    )
-                                    FROM jsonb_array_elements(es#>'{weapons,options}') opt
-                                    LEFT JOIN equipment e ON e.id::text = opt->>'id'
-                                )
-                            ),
-                            '{weapons,default}',
+                            es,
+                            '{weapons,options}',
                             (
                                 SELECT jsonb_agg(
                                     jsonb_build_object(
-                                        'id', def->>'id',
+                                        'id', opt->>'id',
                                         'equipment_name', e.equipment_name,
                                         'equipment_type', e.equipment_type,
                                         'equipment_category', e.equipment_category,
-                                        'quantity', (def->>'quantity')::integer
+                                        'cost', (opt->>'cost')::numeric,
+                                        'max_quantity', (opt->>'max_quantity')::integer
                                     )
                                 )
-                                FROM jsonb_array_elements(es#>'{weapons,default}') def
-                                LEFT JOIN equipment e ON e.id::text = def->>'id'
+                                FROM jsonb_array_elements(es#>'{weapons,options}') opt
+                                LEFT JOIN equipment e ON e.id::text = opt->>'id'
                             )
                         )
-                    ELSE NULL
+                    ELSE es -- Return original JSON if path doesn't exist
                 END
             FROM equipment_json
         ) AS equipment_selection,
