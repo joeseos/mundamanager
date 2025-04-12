@@ -31,7 +31,8 @@ as $$
         e.id,
         e.equipment_name,
         e.trading_post_category,
-        e.availability,
+        -- Check for gang-specific availability, default to equipment table's availability if none found
+        COALESCE(ea.availability, e.availability) as availability,
         e.cost::numeric as base_cost,
         case
             when ed.discount is not null 
@@ -56,6 +57,9 @@ as $$
             else false
         end as equipment_tradingpost
     from equipment e
+    -- Join with equipment_availability to get gang-specific availability
+    left join equipment_availability ea on e.id = ea.equipment_id 
+        and ea.gang_type_id = get_equipment_with_discounts.gang_type_id
     left join equipment_discounts ed on e.id = ed.equipment_id 
         and (
             (ed.gang_type_id = get_equipment_with_discounts.gang_type_id and ed.fighter_type_id is null)

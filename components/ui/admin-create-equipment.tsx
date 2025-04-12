@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { X } from "lucide-react";
 
 interface AdminCreateEquipmentModalProps {
   onClose: () => void;
@@ -39,6 +40,12 @@ interface VehicleProfile {
   save: string;
   upgrade_type?: string;
   handling?: string;
+}
+
+interface EquipmentAvailability {
+  gang_type: string;
+  gang_type_id: string;
+  availability: string;
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
@@ -78,6 +85,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     save: '',
     upgrade_type: ''
   }]);
+  const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
+  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
+  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
+  const [availabilityValue, setAvailabilityValue] = useState("");
+  const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   
   const { toast } = useToast();
 
@@ -119,6 +131,27 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
     fetchWeapons();
   }, [toast]);
+
+  useEffect(() => {
+    const fetchGangTypes = async () => {
+      if (showAvailabilityDialog) {
+        try {
+          const response = await fetch('/api/admin/gang-types');
+          if (!response.ok) throw new Error('Failed to fetch gang types');
+          const data = await response.json();
+          setGangTypeOptions(data);
+        } catch (error) {
+          console.error('Error fetching gang types:', error);
+          toast({
+            description: 'Failed to load gang types',
+            variant: "destructive"
+          });
+        }
+      }
+    };
+
+    fetchGangTypes();
+  }, [showAvailabilityDialog, toast]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
@@ -216,7 +249,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
           weapon_profiles: cleanedWeaponProfiles,
-          vehicle_profiles: cleanedVehicleProfiles
+          vehicle_profiles: cleanedVehicleProfiles,
+          equipment_availabilities: equipmentAvailabilities.map(a => ({
+            gang_type_id: a.gang_type_id,
+            availability: a.availability
+          }))
         }),
       });
 
@@ -389,7 +426,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </select>
             </div>
 
-            {equipmentType !== 'vehicle_upgrade' && (
+            {equipmentType && equipmentType !== 'vehicle_upgrade' && (
               <div className="col-span-3">
                 <label className="flex items-start space-x-2">
                   <input
@@ -405,6 +442,130 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                     </p>
                   </div>
                 </label>
+              </div>
+            )}
+
+            {equipmentType && equipmentType !== 'vehicle_upgrade' && (
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipment Availability by Gang
+                </label>
+                <Button
+                  onClick={() => setShowAvailabilityDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                >
+                  Add Gang-Specific Availability
+                </Button>
+
+                {equipmentAvailabilities.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {equipmentAvailabilities.map((avail, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                        <button
+                          onClick={() => setEquipmentAvailabilities(prev => 
+                            prev.filter((_, i) => i !== index)
+                          )}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showAvailabilityDialog && (
+                  <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
+                        setShowAvailabilityDialog(false);
+                        setSelectedAvailabilityGangType("");
+                        setAvailabilityValue("");
+                      }
+                    }}
+                  >
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <h3 className="text-xl font-bold mb-4">Gang-Specific Availability Menu</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter availability value</p>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <select
+                            value={selectedAvailabilityGangType}
+                            onChange={(e) => {
+                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              if (selected) {
+                                setSelectedAvailabilityGangType(e.target.value);
+                              }
+                            }}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Select a gang type</option>
+                            {gangTypeOptions.map((gang) => (
+                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                {gang.gang_type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Availability</label>
+                          <Input
+                            type="text"
+                            value={availabilityValue}
+                            onChange={(e) => setAvailabilityValue(e.target.value)}
+                            placeholder="Enter availability (e.g. R9, C, E)"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 justify-end mt-6">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowAvailabilityDialog(false);
+                              setSelectedAvailabilityGangType("");
+                              setAvailabilityValue("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (selectedAvailabilityGangType && availabilityValue) {
+                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                                if (selectedGang) {
+                                  setEquipmentAvailabilities(prev => [
+                                    ...prev,
+                                    {
+                                      gang_type: selectedGang.gang_type,
+                                      gang_type_id: selectedGang.gang_type_id,
+                                      availability: availabilityValue
+                                    }
+                                  ]);
+                                  setShowAvailabilityDialog(false);
+                                  setSelectedAvailabilityGangType("");
+                                  setAvailabilityValue("");
+                                }
+                              }
+                            }}
+                            disabled={!selectedAvailabilityGangType || !availabilityValue}
+                          >
+                            Save Availability
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
