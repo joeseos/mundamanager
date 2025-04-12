@@ -77,6 +77,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [attacks, setAttacks] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
+  const [isGangAddition, setIsGangAddition] = useState(false);
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
@@ -245,6 +246,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setAttacks(data.attacks?.toString() || '0');
       setSpecialSkills(data.special_rules?.join(', ') || '');
       setFreeSkill(!!data.free_skill);
+      setIsGangAddition(!!data.is_gang_addition);
       setSelectedEquipment(data.default_equipment || []);
       setSelectedSkills(data.default_skills || []);
       setEquipmentListSelections(data.equipment_list || []);
@@ -537,6 +539,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         attacks: parseInt(attacks),
         special_rules: specialRulesArray,
         free_skill: freeSkill,
+        is_gang_addition: isGangAddition,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -990,16 +993,30 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={freeSkill}
-                onChange={(e) => setFreeSkill(e.target.checked)}
-                className="h-4 w-4 text-primary border-gray-300 rounded"
-              />
-              <label className="ml-2 block text-sm text-gray-900">
-                Free Skill
-              </label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={freeSkill}
+                  onChange={(e) => setFreeSkill(e.target.checked)}
+                  className="h-4 w-4 text-primary border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">
+                  Free Skill
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={isGangAddition}
+                  onChange={(e) => setIsGangAddition(e.target.checked)}
+                  className="h-4 w-4 text-primary border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">
+                  Gang Addition
+                </label>
+              </div>
             </div>
 
             <div>
