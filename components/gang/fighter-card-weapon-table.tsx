@@ -39,7 +39,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
   // Group profiles by weapon_group_id
   const groupedProfiles = useMemo(() => {
     const groups: { [key: string]: WeaponProfile[] } = {};
-    
+
     weapons.forEach(weapon => {
       weapon.weapon_profiles?.forEach(profile => {
         const groupKey = profile.weapon_group_id || weapon.fighter_weapon_id;
@@ -53,8 +53,62 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
     return groups;
   }, [weapons]);
 
-  // Track row index for alternating colors
-  let rowIndex = 0;
+  // Group weapons and count duplicates
+  const weaponGroups = useMemo(() => {
+    const allProfiles = Object.values(groupedProfiles).flat();
+
+    const nameCountMap = allProfiles.reduce<Record<string, number>>((acc, profile) => {
+      if (!profile.profile_name.startsWith('-')) {
+        acc[profile.profile_name] = (acc[profile.profile_name] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    const weaponGroups: { weaponName: string; profiles: WeaponProfile[]; count: number }[] = [];
+
+    const seenWeapons = new Set<string>();
+
+    let currentWeaponName = '';
+    let currentProfiles: WeaponProfile[] = [];
+
+    let skipMode = false;
+
+    allProfiles.forEach(profile => {
+      if (!profile.profile_name.startsWith('-')) {
+        if (seenWeapons.has(profile.profile_name)) {
+          skipMode = true;
+          return;
+        }
+
+        skipMode = false;
+
+        if (currentProfiles.length) {
+          weaponGroups.push({
+            weaponName: currentWeaponName,
+            profiles: currentProfiles,
+            count: nameCountMap[currentWeaponName] || 1,
+          });
+        }
+
+        seenWeapons.add(profile.profile_name);
+        currentWeaponName = profile.profile_name;
+        currentProfiles = [profile];
+      } else {
+        if (!skipMode) {
+          currentProfiles.push(profile);
+        }
+      }
+    });
+
+    if (currentProfiles.length) {
+      weaponGroups.push({
+        weaponName: currentWeaponName,
+        profiles: currentProfiles,
+        count: nameCountMap[currentWeaponName] || 1,
+      });
+    }
+    return weaponGroups;
+  }, [groupedProfiles]);
 
   return (
     <div className="overflow-x-auto w-full">
@@ -94,58 +148,6 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
         </thead>
         <tbody>
           {(() => {
-            const allProfiles = Object.values(groupedProfiles).flat();
-
-            const nameCountMap = allProfiles.reduce<Record<string, number>>((acc, profile) => {
-              if (!profile.profile_name.startsWith('-')) {
-                acc[profile.profile_name] = (acc[profile.profile_name] || 0) + 1;
-              }
-              return acc;
-            }, {});
-
-            const weaponGroups: { weaponName: string; profiles: WeaponProfile[]; count: number }[] = [];
-
-            const seenWeapons = new Set<string>();
-
-            let currentWeaponName = '';
-            let currentProfiles: WeaponProfile[] = [];
-
-            let skipMode = false;
-
-            allProfiles.forEach(profile => {
-              if (!profile.profile_name.startsWith('-')) {
-                if (seenWeapons.has(profile.profile_name)) {
-                  skipMode = true;
-                  return;
-                }
-
-                skipMode = false;
-
-                if (currentProfiles.length) {
-                  weaponGroups.push({
-                    weaponName: currentWeaponName,
-                    profiles: currentProfiles,
-                    count: nameCountMap[currentWeaponName] || 1,
-                  });
-                }
-
-                seenWeapons.add(profile.profile_name);
-                currentWeaponName = profile.profile_name;
-                currentProfiles = [profile];
-              } else {
-                if (!skipMode) {
-                  currentProfiles.push(profile);
-                }
-              }
-            });
-
-            if (currentProfiles.length) {
-              weaponGroups.push({
-                weaponName: currentWeaponName,
-                profiles: currentProfiles,
-                count: nameCountMap[currentWeaponName] || 1,
-              });
-            }
 
             let rowIndex = 0;
 
