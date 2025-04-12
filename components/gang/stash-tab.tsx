@@ -261,8 +261,15 @@ export default function GangInventory({
                   </label>
                 ))}
               </div>
+              <Button
+                  onClick={() => {
+                    console.log('Add Equipment clicked');
+                  }}
+                  className="w-full"
+                >
+                  Add Equipment
+                </Button>
             </div>
-
             <div className="px-0">
               <div className="border-t pt-4">
                 <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
