@@ -11,6 +11,11 @@ import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
+interface FighterSubType {
+  id: string;
+  sub_type_name: string;
+}
+
 interface EquipmentWithId extends Equipment {
   id: string;
 }
@@ -53,6 +58,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedFighterClass, setSelectedFighterClass] = useState<string>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
   
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
@@ -363,6 +369,25 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSkillNames();
   }, [selectedSkills, toast]);
 
+  useEffect(() => {
+    const fetchFighterSubTypes = async () => {
+      try {
+        const response = await fetch('/api/admin/fighter-sub-types');
+        if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
+        const data = await response.json();
+        setFighterSubTypes(data);
+      } catch (error) {
+        console.error('Error fetching fighter sub-types:', error);
+        toast({
+          description: 'Failed to load fighter sub-types',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchFighterSubTypes();
+  }, [toast]);
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
@@ -386,6 +411,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         gang_type_id: selectedFighter.gang_type_id,
         fighter_class: selectedFighterClass,
         fighter_class_id: fighterClass?.id,
+        fighter_sub_type_id: selectedFighter.fighter_sub_type_id,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -608,11 +634,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </option>
                   {fighterTypes
                     .filter(type => !gangTypeFilter || type.gang_type_id === gangTypeFilter)
-                    .map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
-                      </option>
-                    ))}
+                    .map((type) => {
+                      // Find sub-type name if available
+                      const subType = type.fighter_sub_type_id 
+                        ? fighterSubTypes.find(st => st.id === type.fighter_sub_type_id)
+                        : undefined;
+                      
+                      // Format display name with fighter class first, then sub-type if available
+                      const displayName = subType 
+                        ? `${type.fighter_type} (${type.fighter_class || "Unknown Class"}, ${subType.sub_type_name})`
+                        : `${type.fighter_type} (${type.fighter_class || "Unknown Class"})`;
+                        
+                      return (
+                        <option key={type.id} value={type.id}>
+                          {displayName}
+                        </option>
+                      );
+                    })}
                 </select>
               </div>
 
