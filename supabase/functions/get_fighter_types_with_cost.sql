@@ -61,53 +61,78 @@ BEGIN
         ft.alignment,
         ft.is_gang_addition,
         (
-            SELECT jsonb_agg(
+            SELECT COALESCE(jsonb_agg(
                 jsonb_build_object(
                     'id', e.id,
                     'equipment_name', e.equipment_name,
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
-                    'cost', 0,  -- Always show 0 for default equipment
+                    'cost', 0,
                     'availability', e.availability,
                     'faction', e.faction
                 )
-            )
+            ), '[]'::jsonb)
             FROM fighter_defaults fd
             JOIN equipment e ON e.id = fd.equipment_id
             WHERE fd.fighter_type_id = ft.id
         ) AS default_equipment,
         (
-            WITH equipment_json AS (
-                SELECT fes.equipment_selection::jsonb AS es
-                FROM fighter_equipment_selections fes
-                WHERE fes.fighter_type_id = ft.id
-                LIMIT 1
-            )
+            -- Process both options and default arrays
             SELECT 
                 CASE 
-                    WHEN es IS NOT NULL AND es#>'{weapons,options}' IS NOT NULL THEN
-                        -- Only process if both es and the options path exist
-                        jsonb_set(
-                            es,
-                            '{weapons,options}',
-                            (
-                                SELECT jsonb_agg(
-                                    jsonb_build_object(
-                                        'id', opt->>'id',
-                                        'equipment_name', e.equipment_name,
-                                        'equipment_type', e.equipment_type,
-                                        'equipment_category', e.equipment_category,
-                                        'cost', (opt->>'cost')::numeric,
-                                        'max_quantity', (opt->>'max_quantity')::integer
+                    WHEN fes.equipment_selection IS NOT NULL THEN
+                        (
+                            SELECT 
+                                -- First process the options
+                                jsonb_set(
+                                    -- Then process the default
+                                    jsonb_set(
+                                        fes.equipment_selection::jsonb,
+                                        '{weapons,options}',
+                                        COALESCE(
+                                            (
+                                                SELECT jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', opt->>'id',
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (opt->>'cost')::numeric,
+                                                        'max_quantity', (opt->>'max_quantity')::integer
+                                                    )
+                                                )
+                                                FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,options}') AS opt
+                                                LEFT JOIN equipment e ON e.id::text = opt->>'id'
+                                                WHERE e.id IS NOT NULL
+                                            ),
+                                            '[]'::jsonb
+                                        )
+                                    ),
+                                    '{weapons,default}',
+                                    COALESCE(
+                                        (
+                                            SELECT jsonb_agg(
+                                                jsonb_build_object(
+                                                    'id', def->>'id',
+                                                    'equipment_name', e.equipment_name,
+                                                    'equipment_type', e.equipment_type,
+                                                    'equipment_category', e.equipment_category,
+                                                    'quantity', (def->>'quantity')::integer
+                                                )
+                                            )
+                                            FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,default}') AS def
+                                            LEFT JOIN equipment e ON e.id::text = def->>'id'
+                                            WHERE e.id IS NOT NULL
+                                        ),
+                                        '[]'::jsonb
                                     )
                                 )
-                                FROM jsonb_array_elements(es#>'{weapons,options}') opt
-                                LEFT JOIN equipment e ON e.id::text = opt->>'id'
-                            )
                         )
-                    ELSE es -- Return original JSON if path doesn't exist
+                    ELSE NULL
                 END
-            FROM equipment_json
+            FROM fighter_equipment_selections fes
+            WHERE fes.fighter_type_id = ft.id
+            LIMIT 1
         ) AS equipment_selection,
         ft.cost AS total_cost
     FROM fighter_types ft
