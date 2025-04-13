@@ -1124,14 +1124,37 @@ const handleAlignmentChange = (value: string) => {
                             id={option.id}
                             checked={selectedEquipmentIds.includes(option.id)}
                             onChange={(e) => {
+                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                              const baseCost = selectedType?.total_cost || 0;
+                              
+                              // Get the option's cost
+                              const optionCost = option.cost || 0;
+                              
                               if (e.target.checked) {
+                                // Add this option
                                 if (isSingle || isOptional) {
+                                  // For single or optional selection, replace previous selection
+                                  const prevSelectedId = selectedEquipmentIds[0];
+                                  let prevSelectedCost = 0;
+                                  
+                                  // Find cost of previously selected item if any
+                                  if (prevSelectedId) {
+                                    const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
+                                    prevSelectedCost = prevOption?.cost || 0;
+                                  }
+                                  
+                                  // Update IDs and cost
                                   setSelectedEquipmentIds([option.id]);
+                                  setFighterCost(String(baseCost - prevSelectedCost + optionCost));
                                 } else {
+                                  // For multiple selection, add to existing selections
                                   setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                  setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
                                 }
                               } else {
+                                // Remove this option
                                 setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                                setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
                               }
                             }}
                           />
