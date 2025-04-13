@@ -413,8 +413,8 @@ export function SkillsList({
               </tr>
             ) : skillsArray.length === 0 ? (
               <tr>
-                <td colSpan={2} className="px-1 py-1 text-center text-gray-500">
-                  No skills yet
+                <td colSpan={2} className="text-gray-500 italic text-center">
+                  No skills yet.
                 </td>
               </tr>
             ) : (
