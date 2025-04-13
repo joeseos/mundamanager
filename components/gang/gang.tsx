@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
 import { Weapon } from '@/types/weapon';
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
 import { Equipment } from '@/types/equipment';
 import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
@@ -25,7 +25,6 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FighterEffect } from '@/types/fighter';
 
 interface VehicleType {
   id: string;
@@ -536,6 +535,17 @@ const handleAlignmentChange = (value: string) => {
             fighter_weapon_id: item.fighter_equipment_id
           })),
         special_rules: data.special_rules || [],
+        skills: data.skills ? data.skills.reduce((acc: FighterSkills, skill: any) => {
+          acc[skill.skill_name] = {
+            id: skill.skill_id,
+            credits_increase: 0,
+            xp_cost: 0,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+            fighter_injury_id: null
+          };
+          return acc;
+        }, {}) : {},
         advancements: {
           characteristics: {},
           skills: {}
