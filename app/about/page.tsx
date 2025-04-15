@@ -27,19 +27,15 @@ export default async function AboutPage() {
     },
     {
       q: "Is there a cost to use Munda Manager?",
-      a: "Munda Manager is free to use! Our goal is to support the community and make it easier for players to manage their gangs and campaigns. However, if you would like to support the development, you can become a Patreon member."
+      a: "Munda Manager is free to use! The goal is to support the community and make it easier for players to manage their gangs and campaigns. However, if you would like to support the development, you can become a Patreon member."
     },
     {
       q: "How can I provide feedback or request features?",
-      a: <>Join our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
+      a: <>Join the <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
     },
     {
       q: "Can I report a bug or technical issue?",
-      a: <>Yes, please reach out to us on our <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. We'll do our best to address it as soon as possible.</>
-    },
-    {
-      q: "How is my data stored?",
-      a: <>Munda Manager stores users' email addresses and passwords to enable secure account access. We are committed to protecting user privacy and take measures to securely store this information. Any gang or campaign data you enter is also managed with your privacy in mind. If you have specific questions about data storage or security practices, please contact us at <a href={`mailto:${emailAddress}`} className="text-blue-600 hover:underline">{emailAddress}</a>.</>
+      a: <>Yes, please reach out on the <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. I'll do my best to address it as soon as possible.</>
     }
   ];
 
@@ -67,9 +63,9 @@ export default async function AboutPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold mb-2">Support Us</h2>
+              <h2 className="text-xl font-semibold mb-2">Support</h2>
               <p className="text-gray-700">
-                If you enjoy using Munda Manager and would like to support its development, consider becoming a Patreon member! Your contributions help us continue to improve and expand the tool for the community. You can join our Patreon at:{' '}
+                If you enjoy using Munda Manager and would like to support its development, consider becoming a Patreon member! Your contributions help me continue to improve and expand the tool for the community. You can join my Patreon at:{' '}
                 <a 
                   href={patreonUrl}
                   className="text-blue-600 hover:underline"
@@ -78,7 +74,7 @@ export default async function AboutPage() {
                 >
                   patreon.com/mundamanager
                 </a>{' '}
-                or buy us a coffee at{' '}
+                or buy me a coffee at{' '}
                 <a 
                   href={buyMeACoffeeUrl}
                   className="text-blue-600 hover:underline"
@@ -93,7 +89,7 @@ export default async function AboutPage() {
             <section>
               <h2 className="text-xl font-semibold mb-2">Contact</h2>
               <p className="text-gray-700">
-                For support or feedback, please join our{' '}
+                For support or feedback, please join the{' '}
                 <a 
                   href="https://discord.gg/FrqEWShQd7" 
                   className="text-blue-600 hover:underline"
