@@ -1356,9 +1356,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           headers: {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session?.access_token || ''}`,
           },
           body: JSON.stringify({
-            fighter_equipment_id: stashVehicleEquipmentData.id
+            in_fighter_equipment_id: stashVehicleEquipmentData.id,
+            in_user_id: session?.user?.id
           })
         }
       );
@@ -1482,10 +1484,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           headers: {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session?.access_token || ''}`,
           },
           body: JSON.stringify({
             fighter_equipment_id: sellVehicleEquipmentData.id,
-            manual_cost: sellVehicleEquipmentData.cost
+            manual_cost: sellVehicleEquipmentData.cost,
+            in_user_id: session?.user?.id
           })
         }
       );
