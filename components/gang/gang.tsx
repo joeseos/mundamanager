@@ -1640,7 +1640,15 @@ const handleAlignmentChange = (value: string) => {
 
           {showAddFighterModal && (
             <Modal
-              title="Add New Fighter"
+              title="Add Fighter"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
               content={addFighterModalContent}
               onClose={() => {
                 setShowAddFighterModal(false);
@@ -1662,6 +1670,14 @@ const handleAlignmentChange = (value: string) => {
           {showAddVehicleModal && (
             <Modal
               title="Add Vehicle"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
               content={
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -1738,6 +1754,14 @@ const handleAlignmentChange = (value: string) => {
           {showGangAdditionsModal && (
             <Modal
               title="Gang Additions"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
               content={
                 <div className="space-y-4">
                   <div className="space-y-2">
