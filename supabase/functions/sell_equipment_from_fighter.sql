@@ -1,3 +1,9 @@
+-- Drop existing functions in reverse order to avoid dependency issues
+DROP FUNCTION IF EXISTS sell_equipment_from_fighter(UUID);
+DROP FUNCTION IF EXISTS sell_equipment_from_fighter(UUID, INTEGER);
+DROP FUNCTION IF EXISTS sell_equipment_from_fighter(UUID, INTEGER, UUID);
+
+-- Main function with all three parameters
 CREATE OR REPLACE FUNCTION sell_equipment_from_fighter(
   fighter_equipment_id UUID,
   manual_cost INTEGER DEFAULT NULL,
@@ -89,14 +95,41 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, auth, private;
 
--- Grant execute permission to authenticated users
+-- Two-parameter overload
+CREATE OR REPLACE FUNCTION sell_equipment_from_fighter(
+  fighter_equipment_id UUID,
+  manual_cost INTEGER
+)
+RETURNS JSONB AS $$
+  SELECT sell_equipment_from_fighter(fighter_equipment_id, manual_cost, auth.uid());
+$$ LANGUAGE SQL SECURITY DEFINER
+SET search_path = public, auth, private;
+
+-- One-parameter overload
+CREATE OR REPLACE FUNCTION sell_equipment_from_fighter(
+  fighter_equipment_id UUID
+)
+RETURNS JSONB AS $$
+  SELECT sell_equipment_from_fighter(fighter_equipment_id, NULL, auth.uid());
+$$ LANGUAGE SQL SECURITY DEFINER
+SET search_path = public, auth, private;
+
+-- Revoke permissions from all function signatures
 REVOKE ALL ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION sell_equipment_from_fighter(UUID) FROM PUBLIC;
+
+-- Grant permissions to authenticated users for all function signatures
 GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID) TO authenticated;
+
+-- Grant permissions to service role for all function signatures
 GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION sell_equipment_from_fighter(UUID) TO service_role;
 
--- Add a comment to explain the function
+-- Add comments to explain the functions
 COMMENT ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER, UUID) IS 
 'Sells equipment from a fighter and adds credits to gang.
 Admins can sell any equipment, while regular users can only sell equipment
@@ -105,5 +138,22 @@ Parameters:
 - fighter_equipment_id: UUID of the fighter equipment to sell
 - manual_cost: Optional custom sell value (defaults to purchase cost)
 - in_user_id: UUID of the user performing the action (defaults to auth.uid())
+Returns: 
+- JSONB with gang and equipment information';
+
+COMMENT ON FUNCTION sell_equipment_from_fighter(UUID, INTEGER) IS 
+'Sells equipment from a fighter and adds credits to gang.
+Calls the main function with the current user ID.
+Parameters:
+- fighter_equipment_id: UUID of the fighter equipment to sell
+- manual_cost: Custom sell value
+Returns: 
+- JSONB with gang and equipment information';
+
+COMMENT ON FUNCTION sell_equipment_from_fighter(UUID) IS 
+'Sells equipment from a fighter and adds credits to gang.
+Calls the main function with NULL for manual_cost and the current user ID.
+Parameters:
+- fighter_equipment_id: UUID of the fighter equipment to sell
 Returns: 
 - JSONB with gang and equipment information';
