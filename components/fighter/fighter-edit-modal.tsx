@@ -765,12 +765,12 @@ export function EditFighterModal({
             label: formValues.label,
             kills: formValues.kills,
             cost_adjustment: parseInt(formValues.costAdjustment) || 0,
+            special_rules: formValues.special_rules,
             ...(selectedFighterType && {
               fighter_type: selectedFighterType.fighter_type,
               fighter_type_id: selectedFighterType.id,
               fighter_class: selectedFighterType.fighter_class,
               fighter_class_id: selectedFighterType.fighter_class_id,
-              special_rules: selectedFighterType.special_rules || []
             }),
           })
         }
@@ -786,12 +786,12 @@ export function EditFighterModal({
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
+        special_rules: formValues.special_rules,
         ...(selectedFighterType && {
           fighter_type: selectedFighterType.fighter_type,
           fighter_type_id: selectedFighterType.id,
           fighter_class: selectedFighterType.fighter_class,
           fighter_class_id: selectedFighterType.fighter_class_id,
-          special_rules: selectedFighterType.special_rules || []
         }),
       });
       
