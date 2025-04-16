@@ -48,4 +48,131 @@ export async function GET() {
       { status: 500 }
     );
   }
+}
+
+export async function POST(request: Request) {
+  console.log('POST to fighter sub-types API endpoint called');
+  
+  const supabase = createClient();
+  
+  try {
+    // Check admin authorization
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      console.log('Unauthorized - not an admin');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Parse request body
+    const body = await request.json();
+    
+    // Validate required fields
+    if (!body.sub_type_name || typeof body.sub_type_name !== 'string') {
+      return NextResponse.json({ 
+        error: 'Invalid request body',
+        details: 'sub_type_name is required and must be a string'
+      }, { status: 400 });
+    }
+    
+    // Insert new fighter sub-type
+    const { data, error } = await supabase
+      .from('fighter_sub_types')
+      .insert([{ sub_type_name: body.sub_type_name.trim() }])
+      .select('id, sub_type_name')
+      .single();
+    
+    if (error) {
+      console.error('Database error on insert:', error);
+      return NextResponse.json({ 
+        error: 'Database error', 
+        details: error.message 
+      }, { status: 500 });
+    }
+    
+    console.log('Successfully created fighter sub-type:', data);
+    return NextResponse.json(data, { status: 201 });
+    
+  } catch (error) {
+    console.error('Error in POST fighter sub-types:', error);
+    return NextResponse.json(
+      { 
+        error: 'Error creating fighter sub-type',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  console.log('PUT to fighter sub-types API endpoint called');
+  
+  const supabase = createClient();
+  
+  try {
+    // Check admin authorization
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      console.log('Unauthorized - not an admin');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Get ID from query string
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json({ 
+        error: 'Invalid request',
+        details: 'ID is required as a query parameter'
+      }, { status: 400 });
+    }
+    
+    // Parse request body
+    const body = await request.json();
+    
+    // Validate required fields
+    if (!body.sub_type_name || typeof body.sub_type_name !== 'string') {
+      return NextResponse.json({ 
+        error: 'Invalid request body',
+        details: 'sub_type_name is required and must be a string'
+      }, { status: 400 });
+    }
+    
+    // Update fighter sub-type
+    const { data, error } = await supabase
+      .from('fighter_sub_types')
+      .update({ sub_type_name: body.sub_type_name.trim() })
+      .eq('id', id)
+      .select('id, sub_type_name')
+      .single();
+    
+    if (error) {
+      console.error('Database error on update:', error);
+      return NextResponse.json({ 
+        error: 'Database error', 
+        details: error.message 
+      }, { status: 500 });
+    }
+    
+    if (!data) {
+      return NextResponse.json({ 
+        error: 'Not found',
+        details: 'Fighter sub-type with the specified ID not found'
+      }, { status: 404 });
+    }
+    
+    console.log('Successfully updated fighter sub-type:', data);
+    return NextResponse.json(data);
+    
+  } catch (error) {
+    console.error('Error in PUT fighter sub-types:', error);
+    return NextResponse.json(
+      { 
+        error: 'Error updating fighter sub-type',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
 } 
