@@ -537,43 +537,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       let subTypeId = selectedFighter.fighter_sub_type_id;
       
-      // If we have a sub-type name but no sub-type ID, first check if it already exists
+      // If we have a sub-type name but no sub-type ID, create a new sub-type
       if (newSubTypeName && !subTypeId) {
         try {
-          // Check if a sub-type with this name already exists
-          const existingSubType = fighterSubTypes.find(
-            st => st.sub_type_name.toLowerCase() === newSubTypeName.trim().toLowerCase()
-          );
+          const subTypeResponse = await fetch('/api/admin/fighter-sub-types', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sub_type_name: newSubTypeName.trim()
+            }),
+          });
           
-          if (existingSubType) {
-            // If it exists, use its ID
-            console.log('Using existing sub-type:', existingSubType);
-            subTypeId = existingSubType.id;
-          } else {
-            // If it doesn't exist, create a new one
-            const subTypeResponse = await fetch('/api/admin/fighter-sub-types', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                sub_type_name: newSubTypeName.trim()
-              }),
-            });
-            
-            if (!subTypeResponse.ok) {
-              throw new Error('Failed to create fighter sub-type');
-            }
-            
-            const subTypeData = await subTypeResponse.json();
-            subTypeId = subTypeData.id as string;
-            
-            // Add to fighter sub-types list
-            setFighterSubTypes([
-              ...fighterSubTypes, 
-              { id: subTypeData.id as string, sub_type_name: newSubTypeName }
-            ]);
+          if (!subTypeResponse.ok) {
+            throw new Error('Failed to create fighter sub-type');
           }
+          
+          const subTypeData = await subTypeResponse.json();
+          subTypeId = subTypeData.id as string;
+          
+          // Add to fighter sub-types list
+          setFighterSubTypes([
+            ...fighterSubTypes, 
+            { id: subTypeData.id as string, sub_type_name: newSubTypeName }
+          ]);
         } catch (error) {
           console.error('Error creating sub-type:', error);
           throw new Error(`Failed to create sub-type: ${error instanceof Error ? error.message : 'Unknown error'}`);
