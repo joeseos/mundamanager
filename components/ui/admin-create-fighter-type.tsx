@@ -94,6 +94,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       select_type: 'optional' | 'single' | 'multiple';
     };
   }>({ weapons: { select_type: 'optional' } });
+  const [subTypeName, setSubTypeName] = useState('');
 
   const { toast } = useToast();
 
@@ -289,12 +290,62 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
     setIsLoading(true);
     try {
+      // Handle sub-type if provided
+      let subTypeId = null;
+      if (subTypeName.trim()) {
+        try {
+          // First, check if a sub-type with this name (case insensitive) already exists
+          const checkResponse = await fetch('/api/admin/fighter-sub-types');
+          if (!checkResponse.ok) throw new Error('Failed to fetch sub-types');
+          
+          const existingSubTypes = await checkResponse.json();
+          const matchingSubType = existingSubTypes.find(
+            (st: any) => st.sub_type_name.toLowerCase() === subTypeName.trim().toLowerCase()
+          );
+          
+          if (matchingSubType) {
+            // Use existing sub-type
+            subTypeId = matchingSubType.id;
+            
+            // Show toast notification
+            toast({
+              description: `Using existing sub-type "${matchingSubType.sub_type_name}" instead of creating a duplicate`,
+              variant: "default"
+            });
+          } else {
+            // Create new sub-type with proper capitalization
+            const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
+            
+            const subTypeResponse = await fetch('/api/admin/fighter-sub-types', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ sub_type_name: formattedName }),
+            });
+            
+            if (!subTypeResponse.ok) throw new Error('Failed to create fighter sub-type');
+            
+            const newSubType = await subTypeResponse.json();
+            subTypeId = newSubType.id;
+          }
+        } catch (error) {
+          console.error('Error handling sub-type:', error);
+          toast({
+            description: 'Failed to process fighter sub-type',
+            variant: "destructive"
+          });
+          return false;
+        }
+      }
+
       const requestData = {
         fighterType,
         baseCost: parseInt(baseCost),
         gangTypeId: selectedGangType,
         fighterClass: selectedFighterClass.class_name,
         fighterClassId: selectedFighterClass.id,
+        fighter_sub_type_id: subTypeId,
         movement: movement ? parseInt(movement) : null,
         weapon_skill: weaponSkill ? parseInt(weaponSkill) : null,
         ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : null,
@@ -438,8 +489,8 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fighter Type *
                 </label>
@@ -452,7 +503,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fighter Class *
                 </label>
@@ -472,8 +523,23 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   ))}
                 </select>
               </div>
+            </div>
 
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fighter Sub-Type
+                </label>
+                <Input
+                  type="text"
+                  value={subTypeName}
+                  onChange={(e) => setSubTypeName(e.target.value)}
+                  placeholder="e.g. Natborn, Unborn, etc."
+                  className="w-full"
+                />
+              </div>
+
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Base Cost *
                 </label>
