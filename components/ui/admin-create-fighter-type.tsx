@@ -45,12 +45,6 @@ interface EquipmentWithId extends Equipment {
   availability?: string | null;
 }
 
-// Add fighter sub-type interface
-interface FighterSubType {
-  id: string;
-  sub_type_name: string;
-}
-
 export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFighterTypeModalProps) {
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
@@ -58,10 +52,6 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Add fighter sub-type state
-  const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
-  const [subTypeName, setSubTypeName] = useState('');
   
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
@@ -266,26 +256,6 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     fetchSkills();
   }, [selectedSkillType, toast]);
 
-  // Add effect to fetch fighter sub-types
-  useEffect(() => {
-    const fetchFighterSubTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/fighter-sub-types');
-        if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
-        const data = await response.json();
-        setFighterSubTypes(data);
-      } catch (error) {
-        console.error('Error fetching fighter sub-types:', error);
-        toast({
-          description: 'Failed to load fighter sub-types',
-          variant: "destructive"
-        });
-      }
-    };
-
-    fetchFighterSubTypes();
-  }, [toast]);
-
   const handleSubmit = async () => {
     // Check if selected fighter class is Crew
     const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
@@ -319,58 +289,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
     setIsLoading(true);
     try {
-      // Handle sub-type creation/selection
-      let subTypeId: string | undefined = undefined;
-      
-      if (subTypeName.trim()) {
-        // Check if a sub-type with the same name already exists
-        const existingSubType = fighterSubTypes.find(
-          st => st.sub_type_name.toLowerCase() === subTypeName.trim().toLowerCase()
-        );
-        
-        if (existingSubType) {
-          // Use existing sub-type
-          console.log('Using existing sub-type:', existingSubType);
-          subTypeId = existingSubType.id;
-        } else {
-          // Create a new sub-type
-          try {
-            const subTypeResponse = await fetch('/api/admin/fighter-sub-types', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                sub_type_name: subTypeName.trim()
-              }),
-            });
-            
-            if (!subTypeResponse.ok) {
-              throw new Error('Failed to create fighter sub-type');
-            }
-            
-            const subTypeData = await subTypeResponse.json();
-            subTypeId = subTypeData.id;
-            
-            // Add to local state for next time
-            setFighterSubTypes([
-              ...fighterSubTypes, 
-              { id: subTypeData.id, sub_type_name: subTypeName.trim() }
-            ]);
-          } catch (error) {
-            console.error('Error creating sub-type:', error);
-            throw new Error(`Failed to create sub-type: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
-        }
-      }
-
       const requestData = {
         fighterType,
         baseCost: parseInt(baseCost),
         gangTypeId: selectedGangType,
         fighterClass: selectedFighterClass.class_name,
         fighterClassId: selectedFighterClass.id,
-        fighter_sub_type_id: subTypeId, // Add sub-type ID to request
         movement: movement ? parseInt(movement) : null,
         weapon_skill: weaponSkill ? parseInt(weaponSkill) : null,
         ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : null,
@@ -514,7 +438,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fighter Type *
@@ -528,21 +452,6 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Sub-Type
-                </label>
-                <Input
-                  type="text"
-                  value={subTypeName}
-                  onChange={(e) => setSubTypeName(e.target.value)}
-                  placeholder="e.g. Champion, Specialist, Juve, etc."
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fighter Class *
