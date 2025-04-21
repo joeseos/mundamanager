@@ -281,7 +281,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   //     );
   //     if (!response.ok) throw new Error('Failed to fetch injuries');
   //     const data: FighterEffect[] = await response.json();
-  
+
   //     setAvailableInjuries(data);
   //   } catch (error) {
   //     console.error('Error fetching injuries:', error);
@@ -365,7 +365,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             };
           }
         });
-      } 
+      }
       // If skills is already an object, use it directly
       else if (typeof result.fighter.skills === 'object' && result.fighter.skills !== null) {
         Object.assign(transformedSkills, result.fighter.skills);
@@ -436,11 +436,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new FighterDeleteError('You must be logged in to delete a fighter', 401);
       }
-      
+
       const deleteResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?id=eq.${fighterData.fighter.id}`,
         {
@@ -457,7 +457,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       // First check if the response is ok
       if (!deleteResponse.ok) {
         const errorData = await deleteResponse.json().catch(() => null);
-        
+
         switch (deleteResponse.status) {
           case 401:
             throw new FighterDeleteError('Your session has expired. Please log in again.', 401);
@@ -475,7 +475,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       // Try to get the deleted data to confirm deletion
       const deletedData = await deleteResponse.json().catch(() => null);
-      
+
       // If we got no data back or empty array, the delete didn't work
       if (!deletedData || (Array.isArray(deletedData) && deletedData.length === 0)) {
         throw new FighterDeleteError('Fighter could not be deleted - no changes made', 403);
@@ -494,9 +494,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         fighterId: fighterData.fighter.id,
         fighterName: fighterData.fighter.fighter_name
       });
-      
-      const message = error instanceof FighterDeleteError 
-        ? error.message 
+
+      const message = error instanceof FighterDeleteError
+        ? error.message
         : 'An unexpected error occurred. Please try again.';
 
       toast({
@@ -539,9 +539,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   }, []);
 
   const handleEquipmentBought = useCallback((
-    newFighterCredits: number, 
-    newGangCredits: number, 
-    boughtEquipment: Equipment, 
+    newFighterCredits: number,
+    newGangCredits: number,
+    boughtEquipment: Equipment,
     isVehicleEquipment = false
   ) => {
     setFighterData(prev => {
@@ -551,7 +551,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       if (isVehicleEquipment && updatedVehicles?.[0] && boughtEquipment.vehicle_equipment_profiles?.[0]) {
         const vehicle = updatedVehicles[0];
         const profile = boughtEquipment.vehicle_equipment_profiles[0];
-        
+
         // Update slots based on upgrade_type
         const slotUpdates = {
           body_slots_occupied: profile.upgrade_type === 'body' ? 1 : 0,
@@ -603,7 +603,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const supabase = createClient();
       // Get authenticated session
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         console.error('No session found');
         return;
@@ -656,7 +656,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }));
       return false;
     }
-    
+
     const amount = parseInt(editState.xpAmount || '0');
 
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
@@ -1907,7 +1907,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               />
             </div>
           )}
-          
+
           <WeaponList
             fighterId={params.id}
             gangId={fighterData.gang?.id || ''}
@@ -1968,7 +1968,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               onEquipmentBought={handleEquipmentBought}
             />
           )}
-          
+
           {uiState.modals.addVehicleEquipment && fighterData.fighter?.vehicles?.[0] && (
             <ItemModal
               title="Vehicle Equipment"
@@ -1992,7 +1992,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
             />
           )}
-          
+
           <div className="mt-6">
             <div className="flex flex-wrap gap-2">
               <Button
@@ -2097,27 +2097,28 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                           {xpCase.label} (+{xpCase.xp} XP each)
                         </label>
                         <div className="flex items-center space-x-2">
-                          <button
+                          <Button
                             variant="outline"
                             size="icon"
                             className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
                             onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
                           >
                             <Minus className="h-4 w-4" />
-                          </button>
+                          </Button>
                           <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                          <button
+                          <Button
                             variant="outline"
                             size="icon"
                             className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
                             onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
                           >
                             <Plus className="h-4 w-4" />
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
 
+                    {/* Separator after the first three */}
                     <hr className="my-2 border-gray-300" />
 
                     {/* Single XP Checkboxes */}
@@ -2135,6 +2136,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                             className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                           />
                         </div>
+                        {/* Only show a separator if it's not the last item in this slice */}
                         {idx < arr.length - 1 && <hr className="my-2 border-gray-300" />}
                       </div>
                     ))}
@@ -2170,11 +2172,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }
               onClose={() => {
                 handleModalToggle('addXp', false);
+                // Clear numeric
                 setEditState((prev) => ({
                   ...prev,
                   xpAmount: '',
                   xpError: '',
                 }));
+                // Reset all checkboxes
                 setXpCheckboxes(
                   xpCheckboxCases.reduce((acc, xpCase) => {
                     acc[xpCase.id] = false;
