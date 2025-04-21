@@ -210,6 +210,20 @@ export default function Gang({
     localStorage.setItem('gang_view_mode', viewMode);
   }, [viewMode]);
 
+  // Automatically select Default or Vatborn sub-type if available
+  useEffect(() => {
+    if (availableSubTypes.length > 0 && !selectedSubTypeId) {
+      const defaultSubType = availableSubTypes.find(
+        (sub) =>
+          sub.sub_type_name.toLowerCase() === "default" ||
+          sub.sub_type_name.toLowerCase() === "vatborn"
+      );
+      if (defaultSubType) {
+        setSelectedSubTypeId(defaultSubType.id);
+      }
+    }
+  }, [availableSubTypes, selectedSubTypeId]);
+
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
     e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
@@ -923,32 +937,32 @@ const handleAlignmentChange = (value: string) => {
           <option value="">Select fighter type</option>
           {/* Modified dropdown options to properly handle sub-types */}
           {Array.from(new Set(fighterTypes.map(type => type.fighter_type))).map(uniqueType => {
-            // Find either the selected sub-type or the lowest cost type
-            const selectedSubType = selectedSubTypeId ? 
-              fighterTypes.find(t => t.id === selectedSubTypeId && t.fighter_type === uniqueType) : null;
-            
-            // If a sub-type is selected and it's for this fighter type, show that
+            const matchingFighters = fighterTypes.filter(ft => ft.fighter_type === uniqueType);
+
+            // Find the selected sub-type if it matches this fighter type
+            const selectedSubType = selectedSubTypeId
+              ? matchingFighters.find(t => t.id === selectedSubTypeId)
+              : null;
+
+            // Find the cheapest fighter for this type
+            const lowestCostFighter = matchingFighters.reduce((lowest, current) =>
+              current.total_cost < lowest.total_cost ? current : lowest
+            );
+
+            // Show the selected sub-type if available; otherwise, fall back to the cheapest option for this fighter type
             if (selectedSubType) {
               return (
                 <option key={selectedSubType.id} value={selectedSubType.id}>
-                  {uniqueType} ({selectedSubType.fighter_class}) - {selectedSubType.total_cost} credits
+                  {uniqueType} ({selectedSubType.fighter_class}) - {lowestCostFighter.total_cost} credits
+                </option>
+              );
+            } else {
+              return (
+                <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
+                  {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
                 </option>
               );
             }
-            
-            // Otherwise show the lowest cost option for this fighter type
-            const lowestCostFighter = fighterTypes
-              .filter(ft => ft.fighter_type === uniqueType)
-              .reduce((lowest, current) => 
-                current.total_cost < lowest.total_cost ? current : lowest, 
-                fighterTypes.find(ft => ft.fighter_type === uniqueType)!
-              );
-            
-            return (
-              <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
-                {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
-              </option>
-            );
           })}
         </select>
       </div>
@@ -965,11 +979,40 @@ const handleAlignmentChange = (value: string) => {
             className="w-full p-2 border rounded"
           >
             <option value="">Select fighter sub-type</option>
-            {availableSubTypes.map((subType) => (
-              <option key={subType.id} value={subType.id}>
-                {subType.sub_type_name} - {fighterTypes.find(ft => ft.id === subType.id)?.total_cost} credits
-              </option>
-            ))}
+            {[...availableSubTypes]
+              .sort((a, b) => {
+                const aName = a.sub_type_name.toLowerCase();
+                const bName = b.sub_type_name.toLowerCase();
+
+                // Always keep "Default" or "Vatborn" first
+                const isAFirst = aName === 'default' || aName === 'vatborn';
+                const isBFirst = bName === 'default' || bName === 'vatborn';
+                if (isAFirst && !isBFirst) return -1;
+                if (!isAFirst && isBFirst) return 1;
+
+                // Otherwise sort by cost, then name
+                const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
+                const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
+                if (aCost !== bCost) return aCost - bCost;
+
+                return aName.localeCompare(bName);
+              })
+              .map((subType) => {
+                const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
+                const lowestSubTypeCost = Math.min(
+                  ...availableSubTypes.map(sub =>
+                    fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
+                  )
+                );
+                const diff = subTypeCost - lowestSubTypeCost;
+                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
+
+                return (
+                  <option key={subType.id} value={subType.id}>
+                    {subType.sub_type_name} {costLabel}
+                  </option>
+                );
+              })}
           </select>
         </div>
       )}
