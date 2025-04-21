@@ -87,7 +87,7 @@ async function processGangData(gangData: any) {
 }
 
 export default async function GangPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const {

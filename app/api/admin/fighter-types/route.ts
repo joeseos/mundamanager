@@ -4,7 +4,7 @@ import { checkAdmin } from "@/utils/auth";
 
 // Get all fighter types
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const equipment_id = searchParams.get('equipment_id');
@@ -237,7 +237,7 @@ export async function GET(request: Request) {
 
 // Add PUT handler to the existing file
 export async function PUT(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -453,7 +453,7 @@ export async function PUT(request: Request) {
 
 // Add POST handler if it doesn't exist, or update the existing one
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -615,7 +615,7 @@ export async function POST(request: Request) {
 
 // Add PATCH method specifically for is_gang_addition
 export async function PATCH(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 

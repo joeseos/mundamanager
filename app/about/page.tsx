@@ -1,13 +1,15 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
+import type { JSX } from "react";
+
 type FAQItem = {
   q: string;
   a: string | JSX.Element;
 };
 
 export default async function AboutPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const emailAddress = "mundamanager@proton.me";
   const patreonUrl = "https://www.patreon.com/c/mundamanager/membership";
   const buyMeACoffeeUrl = "https://buymeacoffee.com/mundamanager";

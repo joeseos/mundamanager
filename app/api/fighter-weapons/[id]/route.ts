@@ -5,7 +5,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const fighterWeaponId = params.id;
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');

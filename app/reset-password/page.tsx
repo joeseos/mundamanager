@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions";
-import { useState } from "react";
+import { useState, use } from "react";
 
-export default function ResetPassword({ searchParams }: { searchParams: Message }) {
+export default function ResetPassword(props: { searchParams: Promise<Message> }) {
+  const searchParams = use(props.searchParams);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
   const successMessage = "success" in searchParams ? searchParams.success : undefined;

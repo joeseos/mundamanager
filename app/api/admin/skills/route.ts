@@ -9,7 +9,7 @@ interface Skill {
 }
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const skillTypeId = searchParams.get('skill_type_id');
 
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -122,7 +122,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   try {
     const isAdmin = await checkAdmin(supabase);

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -51,7 +51,7 @@ interface FighterTypeData {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     // Check admin authorization

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 

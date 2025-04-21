@@ -9,15 +9,24 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import TurnstileWidget from './TurnstileWidget';
 
-export default async function SignIn({ searchParams }: { searchParams: Message }) {
-  const supabase = createClient();
+export default async function SignIn({
+  searchParams,
+}: {
+  searchParams: { 
+    message?: string;
+    success?: string;
+    error?: string;
+  };
+}) {
+  const cookieStore = await cookies();
+  const supabase = await createClient(cookieStore);
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (user) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const redirectPath = cookieStore.get('redirectPath');
     if (redirectPath) {
       cookieStore.delete('redirectPath');
@@ -26,13 +35,13 @@ export default async function SignIn({ searchParams }: { searchParams: Message }
   }
 
   // Extract error message from searchParams (query string)
-  const errorMessage = 'error' in searchParams ? searchParams.error : null;
-  
+  const errorMessage = searchParams.error || null;
+
   // Create the appropriate message object based on what's in searchParams
   let topMessage: Message | null = null;
-  if ('success' in searchParams) {
+  if (searchParams.success) {
     topMessage = { success: searchParams.success };
-  } else if ('message' in searchParams) {
+  } else if (searchParams.message) {
     topMessage = { message: searchParams.message };
   }
 

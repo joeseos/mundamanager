@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   const { searchParams } = new URL(request.url);
   const fetch_type = searchParams.get('fetch_type');
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const vehicleData = await request.json();
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const vehicleData = await request.json();

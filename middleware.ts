@@ -1,5 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/utils/supabase/middleware";
+import { type NextRequest, NextResponse } from 'next/server'
+import { updateSession } from '@/utils/supabase/middleware'
 import { createClient } from "@/utils/supabase/server";
 
 export async function middleware(request: NextRequest) {
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
     : await updateSession(request);
 
   // Check if the user is authenticated
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   console.log("User authenticated:", !!user);
@@ -89,6 +89,14 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|images|site.webmanifest).*)'
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images (public images folder)
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

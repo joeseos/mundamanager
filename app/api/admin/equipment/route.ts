@@ -46,7 +46,7 @@ interface EquipmentAvailability {
 }
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const equipment_category = searchParams.get('equipment_category');
   const id = searchParams.get('id');
@@ -197,7 +197,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -362,7 +362,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -605,7 +605,7 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 

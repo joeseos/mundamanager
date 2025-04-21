@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export async function GET(
   request: Request
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const campaignId = request.headers.get('X-Campaign-Id');
 
   if (!campaignId) {
@@ -61,7 +61,7 @@ export async function GET(
 export async function POST(
   request: Request
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const campaignId = request.headers.get('X-Campaign-Id');
 
   if (!campaignId) {
