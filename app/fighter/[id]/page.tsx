@@ -23,6 +23,7 @@ import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPM
 import { useSession } from '@/hooks/use-session';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
+import { Plus, Minus, X } from "lucide-react";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
@@ -656,8 +657,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       return false;
     }
     
-    const amount = parseInt(editState.xpAmount);
-    
+    const amount = parseInt(editState.xpAmount || '0');
+
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
       setEditState(prev => ({
         ...prev,
@@ -670,7 +671,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       ...prev,
       xpError: ''
     }));
-    
+
     try {
       const response = await fetch(`/api/fighters/${params.id}`, {
         method: 'PATCH',
@@ -682,9 +683,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       });
 
       if (!response.ok) throw new Error('Failed to add XP');
-      
+
       const updatedFighter = await response.json();
-      
+
       // Update local state
       setFighterData(prev => ({
         ...prev,
@@ -694,12 +695,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
           total_xp: updatedFighter.total_xp
         } : null
       }));
-      
+
       toast({
         description: `Successfully added ${amount} XP`,
         variant: "default"
       });
-      
+
       return true;
     } catch (error) {
       console.error('Error adding XP:', error);
@@ -722,47 +723,30 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   };
 
   // Define XP "events" for the checkbox list
-  const xpCases = [
-    {
-      id: 'seriousInjury',
-      label: 'Cause Serious Injury',
-      xp: 1
-    },
-    {
-      id: 'outOfAction',
-      label: 'Cause OOA',
-      xp: 2
-    },
-    {
-      id: 'leaderChampionBonus',
-      label: 'Leader/Champion',
-      xp: 1
-    },
-    {
-      id: 'vehicleWrecked',
-      label: 'Wreck Vehicle',
-      xp: 2
-    },
-    {
-      id: 'battleParticipation',
-      label: 'Battle Participation',
-      xp: 1
-    },
-    {
-      id: 'rally',
-      label: 'Successful Rally',
-      xp: 1
-    },
-    {
-      id: 'assistance',
-      label: 'Provide Assistance',
-      xp: 1
-    }
+  const xpCountCases = [
+    { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
+    { id: 'outOfAction', label: 'Cause OOA', xp: 2 },
+    { id: 'leaderChampionBonus', label: 'Leader/Champion', xp: 1 },
+    { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2 },
   ];
 
+  const xpCheckboxCases = [
+    { id: 'battleParticipation', label: 'Battle Participation', xp: 1 },
+    { id: 'rally', label: 'Successful Rally', xp: 1 },
+    { id: 'assistance', label: 'Provide Assistance', xp: 1 },
+  ];
+
+
   // Track which of these XP events are checked
+  const [xpCounts, setXpCounts] = useState(
+    xpCountCases.reduce((acc, xpCase) => {
+      acc[xpCase.id] = 0;
+      return acc;
+    }, {} as Record<string, number>)
+  );
+
   const [xpCheckboxes, setXpCheckboxes] = useState(
-    xpCases.reduce((acc, xpCase) => {
+    xpCheckboxCases.reduce((acc, xpCase) => {
       acc[xpCase.id] = false;
       return acc;
     }, {} as Record<string, boolean>)
@@ -790,18 +774,29 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     });
   };
 
+  const handleXpCountChange = (id: string, value: number) => {
+    setXpCounts(prev => ({
+      ...prev,
+      [id]: value
+    }));
+  };
+
   // Compute total from checkboxes
-  const totalXpFromCheckboxes = xpCases.reduce((sum, xpCase) => {
-    if (xpCheckboxes[xpCase.id]) {
-      return sum + xpCase.xp;
-    }
-    return sum;
-  }, 0);
+  const totalXpFromCountsAndCheckboxes =
+    Object.entries(xpCounts).reduce((sum, [id, count]) => {
+      const xpCase = xpCountCases.find(x => x.id === id);
+      return sum + (xpCase ? xpCase.xp * count : 0);
+    }, 0) +
+    xpCheckboxCases.reduce((sum, xpCase) => {
+      return xpCheckboxes[xpCase.id] ? sum + xpCase.xp : sum;
+    }, 0);
+
 
   useEffect(() => {
     // Convert to string since editState.xpAmount is a string
-    setEditState(prev => ({ ...prev, xpAmount: totalXpFromCheckboxes === 0 ? "" : String(totalXpFromCheckboxes) }));
-  }, [totalXpFromCheckboxes, setEditState]);
+    setEditState(prev => ({ ...prev, xpAmount: totalXpFromCountsAndCheckboxes === 0 ? "" : String(totalXpFromCountsAndCheckboxes) }));
+  }, [totalXpFromCountsAndCheckboxes, setEditState]);
+
 
   const handleAdvancementAdded = () => {
     // Simply call fetchFighterData (not refreshFighterData)
@@ -829,7 +824,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: fighterData.fighter.killed 
+        description: fighterData.fighter.killed
           ? `${fighterData.fighter.fighter_name} has been resurrected.`
           : `${fighterData.fighter.fighter_name} has been killed in action.`,
         variant: "default"
@@ -839,7 +834,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter status:', error);
       toast({
-        description: fighterData.fighter.killed 
+        description: fighterData.fighter.killed
           ? 'Failed to resurrect fighter. Please try again.'
           : 'Failed to kill fighter. Please try again.',
         variant: "destructive"
@@ -876,7 +871,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: fighterData.fighter.retired 
+        description: fighterData.fighter.retired
           ? `${fighterData.fighter.fighter_name} has come out of retirement.`
           : `${fighterData.fighter.fighter_name} has retired from fighting.`,
         variant: "default"
@@ -886,7 +881,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter retirement status:', error);
       toast({
-        description: fighterData.fighter.retired 
+        description: fighterData.fighter.retired
           ? 'Failed to unretire fighter. Please try again.'
           : 'Failed to retire fighter. Please try again.',
         variant: "destructive"
@@ -923,7 +918,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: fighterData.fighter.enslaved 
+        description: fighterData.fighter.enslaved
           ? `${fighterData.fighter.fighter_name} has been rescued from the Guilders.`
           : `${fighterData.fighter.fighter_name} has been sold to the Guilders.`,
         variant: "default"
@@ -933,7 +928,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error updating fighter enslavement status:', error);
       toast({
-        description: fighterData.fighter.enslaved 
+        description: fighterData.fighter.enslaved
           ? 'Failed to rescue fighter. Please try again.'
           : 'Failed to sell fighter. Please try again.',
         variant: "destructive"
@@ -972,7 +967,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         );
 
         const data = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(data.message || 'Failed to feed fighter');
         }
@@ -999,7 +994,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       toast({
-        description: fighterData.fighter.starved 
+        description: fighterData.fighter.starved
           ? `${fighterData.fighter.fighter_name} has been fed.`
           : `${fighterData.fighter.fighter_name} is starving.`,
         variant: "default"
@@ -1037,7 +1032,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       }
 
       const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-      
+
       const response = await fetch(rpcEndpoint, {
         method: 'POST',
         headers: {
@@ -1083,9 +1078,9 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         });
         return;
       }
-      
+
       const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-      
+
       const response = await fetch(rpcEndpoint, {
         method: 'POST',
         headers: {
@@ -1155,7 +1150,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const equipmentToRemove = fighterData.vehicleEquipment.find(
         e => e.fighter_equipment_id === fighterEquipmentId
       );
-      
+
       if (!equipmentToRemove) {
         toast({
           title: "Error",
@@ -1185,7 +1180,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   // Rename the current delete handler to handleConfirmVehicleEquipmentDelete
   const handleConfirmVehicleEquipmentDelete = async () => {
     if (!deleteVehicleEquipmentData) return;
-    
+
     try {
       // Find the equipment to remove and its profiles
       const equipmentToRemove = fighterData.vehicleEquipment.find(
@@ -1264,7 +1259,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const equipmentToStash = fighterData.vehicleEquipment.find(
         e => e.fighter_equipment_id === fighterEquipmentId
       );
-      
+
       if (!equipmentToStash) {
         toast({
           title: "Error",
@@ -1294,7 +1289,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   // Add the actual stash function
   const handleConfirmVehicleEquipmentStash = async () => {
     if (!stashVehicleEquipmentData) return;
-    
+
     try {
       // Find the equipment to remove and its profiles
       const equipmentToRemove = fighterData.vehicleEquipment.find(
@@ -1378,7 +1373,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         description: "Failed to stash equipment",
         variant: "destructive"
       });
-      
+
       // Revert optimistic update on error
       await fetchFighterData();
     }
@@ -1391,7 +1386,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
       const equipmentToSell = fighterData.vehicleEquipment.find(
         e => e.fighter_equipment_id === fighterEquipmentId
       );
-      
+
       if (!equipmentToSell) {
         toast({
           title: "Error",
@@ -1421,7 +1416,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   // Add the confirm sell handler
   const handleConfirmVehicleEquipmentSell = async () => {
     if (!sellVehicleEquipmentData) return;
-    
+
     try {
       // Find the equipment to remove and its profiles
       const equipmentToRemove = fighterData.vehicleEquipment.find(
@@ -1472,8 +1467,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
       // Close modal and show feedback
       setSellVehicleEquipmentData(null);
-      toast({ 
-        description: `Successfully sold ${equipmentToRemove.equipment_name} for ${sellVehicleEquipmentData.cost} credits` 
+      toast({
+        description: `Successfully sold ${equipmentToRemove.equipment_name} for ${sellVehicleEquipmentData.cost} credits`
       });
 
       // Make the actual API request
@@ -1525,13 +1520,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchVehicleTypeId = async (vehicleType: string) => {
       if (!vehicleType || vehicleTypeIdMap[vehicleType]) return;
-      
+
       try {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (!session) return;
-        
+
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
           {
@@ -1544,7 +1539,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
 
         if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
         const data = await response.json();
-        
+
         if (data && data.length > 0) {
           console.log(`Found ID ${data[0].id} for vehicle type: ${vehicleType}`);
           setVehicleTypeIdMap(prev => ({
@@ -1602,11 +1597,11 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         // Optimistically update the state
         setFighterData(prev => {
           if (!prev.fighter) return prev;
-          
+
           // Create a new skills object without the deleted skill
           const updatedSkills = { ...prev.fighter.skills };
           delete updatedSkills[skillName];
-          
+
           return {
             ...prev,
             fighter: {
@@ -1619,7 +1614,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         });
 
         const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-        
+
         const response = await fetch(rpcEndpoint, {
           method: 'POST',
           headers: {
@@ -1657,21 +1652,21 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         // Optimistically update the state
         setFighterData(prev => {
           if (!prev.fighter) return prev;
-          
+
           // Find the advancement being deleted to get its XP cost
           const advancement = prev.fighter.effects.advancements.find(
             adv => adv.id === advancementId
           );
-          
+
           // Get XP cost from type_specific_data
-          const xpCost = typeof advancement?.type_specific_data === 'object' 
+          const xpCost = typeof advancement?.type_specific_data === 'object'
             ? (advancement.type_specific_data as FighterEffectTypeSpecificData)?.xp_cost || 0
             : 0;
-          
+
           // Calculate new XP values by adding back the advancement's XP cost
           const newXp = (prev.fighter.xp || 0) + xpCost;
           const newTotalXp = (prev.fighter.total_xp || 0) + xpCost;
-          
+
           // Create new fighter state with filtered advancements and updated XP values
           return {
             ...prev,
@@ -1690,7 +1685,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         });
 
         const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-        
+
         const response = await fetch(rpcEndpoint, {
           method: 'POST',
           headers: {
@@ -1728,12 +1723,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   // Safely convert skills to the expected format for AdvancementsList component
   const getSkillsForAdvancements = () => {
     const skills = fighterData.fighter?.skills;
-    
+
     // If skills is already a Record/object with string keys
     if (skills && typeof skills === 'object' && !Array.isArray(skills)) {
       return skills;
     }
-    
+
     // If skills is an array, convert it to a Record
     if (Array.isArray(skills)) {
       return skills.reduce((acc, skill) => {
@@ -1757,7 +1752,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
         fighter_injury_id?: string | null;
       }>);
     }
-    
+
     // Default to empty object if skills is undefined or null
     return {};
   };
@@ -1769,7 +1764,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
   const handleFighterStatsUpdate = (updatedFighter: any) => {
     setFighterData(prev => {
       if (!prev.fighter) return prev;
-      
+
       return {
         ...prev,
         fighter: {
@@ -1846,7 +1841,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               ))}
             </select>
           </div>
-          <FighterDetailsCard 
+          <FighterDetailsCard
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             label={fighterData.fighter?.label || ''}
@@ -1896,14 +1891,14 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             <div className="mt-6">
               <div className="flex flex-wrap justify-between items-center mb-2">
                 <h2 className="text-2xl font-bold">Vehicle Equipment</h2>
-                <Button 
+                <Button
                   onClick={() => handleModalToggle('addVehicleEquipment', true)}
                   className="bg-black hover:bg-gray-800 text-white"
                 >
                   Add
                 </Button>
               </div>
-              <FighterWeaponsTable 
+              <FighterWeaponsTable
                 equipment={fighterData.vehicleEquipment}
                 onDeleteEquipment={handleVehicleEquipmentDelete}
                 onSellEquipment={handleVehicleEquipmentSell}
@@ -1913,8 +1908,8 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             </div>
           )}
           
-          <WeaponList 
-            fighterId={params.id} 
+          <WeaponList
+            fighterId={params.id}
             gangId={fighterData.gang?.id || ''}
             gangCredits={fighterData.gang?.credits || 0}
             fighterCredits={fighterData.fighter?.credits || 0}
@@ -1922,16 +1917,16 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             equipment={fighterData.equipment}
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
           />
-          
-          <SkillsList 
-            skills={fighterData.fighter?.skills || {}} 
+
+          <SkillsList
+            skills={fighterData.fighter?.skills || {}}
             onDeleteSkill={handleDeleteSkill}
             fighterId={fighterData.fighter?.id || ''}
             fighterXp={fighterData.fighter?.xp || 0}
             onSkillAdded={fetchFighterData}
             free_skill={fighterData.fighter?.free_skill}
           />
-          
+
           <AdvancementsList
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={getSkillsForAdvancements()}
@@ -1940,23 +1935,23 @@ export default function FighterPage({ params }: { params: { id: string } }) {
             onDeleteAdvancement={handleDeleteAdvancement}
             onAdvancementAdded={handleAdvancementAdded}
           />
-          
-          <InjuriesList 
+
+          <InjuriesList
             injuries={fighterData.fighter?.effects.injuries || []}
             onDeleteInjury={handleDeleteInjury}
             fighterId={fighterData.fighter?.id || ''}
             onInjuryAdded={fetchFighterData}
           />
-          
+
           <div className="mt-6">
             {fighterData.fighter && (
-              <NotesList 
-                fighterId={fighterData.fighter.id} 
+              <NotesList
+                fighterId={fighterData.fighter.id}
                 initialNote={fighterData.fighter.note}
               />
             )}
           </div>
-          
+
           {uiState.modals.addWeapon && (
             <ItemModal
               title="Equipment"
@@ -1984,13 +1979,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               fighterId={fighterData.fighter?.id || ''}
               fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
               fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) => 
+              onEquipmentBought={(newFighterCredits, newGangCredits, equipment) =>
                 handleEquipmentBought(newFighterCredits, newGangCredits, equipment, true)}
               vehicleId={fighterData.fighter.vehicles[0].id}
               vehicleType={fighterData.fighter.vehicles[0].vehicle_type}
               vehicleTypeId={
-                fighterData.fighter.vehicles[0].vehicle_type_id || 
-                vehicleTypeIdMap[fighterData.fighter.vehicles[0].vehicle_type] || 
+                fighterData.fighter.vehicles[0].vehicle_type_id ||
+                vehicleTypeIdMap[fighterData.fighter.vehicles[0].vehicle_type] ||
                 undefined
               }
               isVehicleEquipment={true}
@@ -2030,7 +2025,7 @@ export default function FighterPage({ params }: { params: { id: string } }) {
                   {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
                 </Button>
               )}
-              <Button 
+              <Button
                 variant="destructive"
                 className="flex-1"
                 onClick={() => handleModalToggle('delete', true)}
@@ -2054,12 +2049,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               onConfirm={handleDeleteFighter}
             />
           )}
-          
+
           {uiState.modals.kill && (
             <Modal
               title={fighterData.fighter?.killed ? 'Confirm Resurrection' : 'Confirm Kill'}
               content={
-                fighterData.fighter?.killed 
+                fighterData.fighter?.killed
                   ? `Are you sure you want to resurrect "${fighterData.fighter?.fighter_name}"?`
                   : `Are you sure "${fighterData.fighter?.fighter_name}" was killed in action?`
               }
@@ -2067,12 +2062,12 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               onConfirm={handleKillFighter}
             />
           )}
-          
+
           {uiState.modals.retire && (
             <Modal
               title={fighterData.fighter?.retired ? 'Confirm Unretirement' : 'Confirm Retirement'}
               content={
-                fighterData.fighter?.retired 
+                fighterData.fighter?.retired
                   ? `Are you sure you want to bring "${fighterData.fighter?.fighter_name}" out of retirement?`
                   : `Are you sure you want to retire "${fighterData.fighter?.fighter_name}"?`
               }
@@ -2080,13 +2075,13 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               onConfirm={handleRetireFighter}
             />
           )}
-          
+
           {uiState.modals.addXp && fighterData.fighter && (
             <Modal
               title="Add XP"
               headerContent={
                 <div className="flex items-center">
-                  <span className="mr-2 text-sm text-gray-600">Current XP</span>
+                  <span className="mr-2 text-sm text-gray-600">Fighter XP</span>
                   <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
                     {fighterData.fighter.xp ?? 0}
                   </span>
@@ -2094,99 +2089,107 @@ export default function FighterPage({ params }: { params: { id: string } }) {
               }
               content={
                 <div className="space-y-4">
-                  <div className="text-sm text-gray-600 mb-1">
-                    Select any applicable checkboxes, or override the total in the bottom input.
-                  </div>
-                  {/* Checkbox list for XP */}
-                  <div>
-                    {/* First 3 XP cases, rendered without separators */}
-                    {xpCases.slice(0, 3).map((xpCase) => (
-                      <div key={xpCase.id} className="flex items-center space-x-2 mb-2">
-                        <input
-                          type="checkbox"
-                          id={xpCase.id}
-                          checked={xpCheckboxes[xpCase.id]}
-                          onChange={() => handleXpCheckboxChange(xpCase.id)}
-                        />
-                        <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
+                  <div className="space-y-2">
+                    {/* Repeatable XP with counters */}
+                    {xpCountCases.map((xpCase) => (
+                      <div key={xpCase.id} className="flex items-center justify-between">
+                        <label className="text-sm text-gray-800">
+                          {xpCase.label} (+{xpCase.xp} XP each)
+                        </label>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            variant="outline"
+                            size="icon"
+                            className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                            onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
+                          <button
+                            variant="outline"
+                            size="icon"
+                            className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                            onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
 
-                    {/* Separator after the first three */}
                     <hr className="my-2 border-gray-300" />
 
-                    {/* Remaining XP cases, each followed by a separator except the last */}
-                    {xpCases.slice(3).map((xpCase, idx, arr) => (
+                    {/* Single XP Checkboxes */}
+                    {xpCheckboxCases.map((xpCase, idx, arr) => (
                       <div key={xpCase.id}>
-                        <div className="flex items-center space-x-2 mb-2">
+                        <div className="flex items-center justify-between mb-2 mr-[52px]">
+                          <label htmlFor={xpCase.id} className="text-sm text-gray-800">
+                            {xpCase.label} (+{xpCase.xp} XP)
+                          </label>
                           <input
                             type="checkbox"
                             id={xpCase.id}
                             checked={xpCheckboxes[xpCase.id]}
                             onChange={() => handleXpCheckboxChange(xpCase.id)}
+                            className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                           />
-                          <label htmlFor={xpCase.id} className="text-sm text-gray-800">{xpCase.label} (+{xpCase.xp} XP)</label>
                         </div>
-                        {/* Only show a separator if it's not the last item in this slice */}
-                        {idx < arr.length - 1 && (
-                          <hr className="my-2 border-gray-300" />
-                        )}
+                        {idx < arr.length - 1 && <hr className="my-2 border-gray-300" />}
                       </div>
                     ))}
                   </div>
 
-                  {/* Numeric Input */}
-                  <div>
-                    <div className="text-sm text-gray-600 my-6 mb-1">
-                      Total XP from checkboxes: {totalXpFromCheckboxes}
-                    </div>
-
-                    <Input
-                      type="tel"
-                      inputMode="url"
-                      pattern="-?[0-9]+"
-                      value={editState.xpAmount}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setEditState((prev) => ({
-                          ...prev,
-                          xpAmount: value,
-                          // Clear any existing error when the user is typing
-                          xpError: ''
-                        }));
-                      }}
-                      placeholder="Override XP (use a negative value to subtract)"
-                      className="w-full"
-                    />
-                    {editState.xpError && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {editState.xpError}
-                      </p>
-                    )}
+                  {/* XP Summary */}
+                  <div className="text-xs text-gray-600">
+                    <div>Total XP: {totalXpFromCountsAndCheckboxes}</div>
+                    <div>Below value can be overridden (use a negative value to subtract)</div>
                   </div>
+
+                  {/* Manual Override */}
+                  <Input
+                    type="tel"
+                    inputMode="url"
+                    pattern="-?[0-9]+"
+                    value={editState.xpAmount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setEditState((prev) => ({
+                        ...prev,
+                        xpAmount: value,
+                        xpError: '',
+                      }));
+                    }}
+                    placeholder="XP Amount"
+                    className="w-full"
+                  />
+                  {editState.xpError && (
+                    <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>
+                  )}
                 </div>
               }
               onClose={() => {
                 handleModalToggle('addXp', false);
-                // Clear numeric
-                setEditState(prev => ({
+                setEditState((prev) => ({
                   ...prev,
-                  xpAmount: ''
+                  xpAmount: '',
+                  xpError: '',
                 }));
-                setEditState(prev => ({
-                  ...prev,
-                  xpError: ''
-                }));
-                // Reset all checkboxes
                 setXpCheckboxes(
-                  xpCases.reduce((acc, xpCase) => {
+                  xpCheckboxCases.reduce((acc, xpCase) => {
                     acc[xpCase.id] = false;
                     return acc;
                   }, {} as Record<string, boolean>)
                 );
+                setXpCounts(
+                  xpCountCases.reduce((acc, xpCase) => {
+                    acc[xpCase.id] = 0;
+                    return acc;
+                  }, {} as Record<string, number>)
+                );
               }}
               onConfirm={handleAddXp}
-              confirmText="Add XP"
+              confirmText={parseInt(editState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
               confirmDisabled={!editState.xpAmount || !isValidXpInput(editState.xpAmount)}
             />
           )}
