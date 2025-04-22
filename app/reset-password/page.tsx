@@ -6,13 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions";
-import { useState, use } from "react";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function ResetPassword(props: { searchParams: Promise<Message> }) {
-  const searchParams = use(props.searchParams);
+export default function ResetPassword() {
+  const searchParams = useSearchParams();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
-  const successMessage = "success" in searchParams ? searchParams.success : undefined;
+  
+  // Get search params safely
+  const error = searchParams.get('error');
+  const success = searchParams.get('success');
+  const message = searchParams.get('message');
+
+  // Convert searchParams to Message format expected by FormMessage component
+  const messageObj: Message = {};
+  if (success) messageObj.success = success;
+  if (error) messageObj.error = error;
+  if (message) messageObj.message = message;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,7 +75,9 @@ export default function ResetPassword(props: { searchParams: Promise<Message> })
               Back to sign in
             </Link>
           </div>
-          <FormMessage message={searchParams} />
+          {(Object.keys(messageObj).length > 0 || feedbackMessage) && (
+            <FormMessage message={feedbackMessage ? { success: feedbackMessage } : messageObj} />
+          )}
         </form>
       </div>
     </main>

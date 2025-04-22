@@ -9,17 +9,12 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import TurnstileWidget from './TurnstileWidget';
 
-export default async function SignIn({
-  searchParams,
-}: {
-  searchParams: { 
-    message?: string;
-    success?: string;
-    error?: string;
-  };
+export default async function SignIn(props: {
+  searchParams: Promise<{ message?: string; success?: string; error?: string }>;
 }) {
-  const cookieStore = await cookies();
-  const supabase = await createClient(cookieStore);
+  const searchParams = await props.searchParams;
+  
+  const supabase = await createClient();
 
   const {
     data: { user },
