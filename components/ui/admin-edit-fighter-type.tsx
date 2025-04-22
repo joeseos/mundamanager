@@ -522,8 +522,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     if (!subTypeId) return; // If cleared, don't do anything else
     
     if (subTypeId === "default") {
-      // Clear the sub-type name for default
-      setSubTypeName('');
       // Load the main fighter type details
       if (selectedFighterTypeId) {
         fetchFighterTypeDetails(selectedFighterTypeId);
@@ -574,7 +572,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       let subTypeId: string | null = null;
       let shouldUpdateSubType = false;
       
-      if (selectedSubTypeId && selectedSubTypeId !== "default") {
+      if (!subTypeName.trim()) {
+        // If sub-type name is blank/empty, set subTypeId to null (Default)
+        subTypeId = null;
+      } else if (selectedSubTypeId && selectedSubTypeId !== "default") {
         subTypeId = selectedSubTypeId;
         
         // Check if the sub-type name has changed
@@ -951,7 +952,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   onChange={(e) => setSubTypeName(e.target.value)}
                   placeholder="e.g. Natborn, Alpha, etc."
                   className="w-full"
-                  disabled={!selectedFighterTypeId || selectedSubTypeId === 'default'}
+                  disabled={!selectedFighterTypeId}
                 />
               </div>
             </div>
