@@ -19,11 +19,15 @@ export default function ResetPassword() {
   const success = searchParams.get('success');
   const message = searchParams.get('message');
 
-  // Convert searchParams to Message format expected by FormMessage component
-  const messageObj: Message = {};
-  if (success) messageObj.success = success;
-  if (error) messageObj.error = error;
-  if (message) messageObj.message = message;
+  // Create the appropriate message object based on search params
+  let messageObj: Message | null = null;
+  if (success) {
+    messageObj = { success };
+  } else if (error) {
+    messageObj = { error };
+  } else if (message) {
+    messageObj = { message };
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -75,8 +79,8 @@ export default function ResetPassword() {
               Back to sign in
             </Link>
           </div>
-          {(Object.keys(messageObj).length > 0 || feedbackMessage) && (
-            <FormMessage message={feedbackMessage ? { success: feedbackMessage } : messageObj} />
+          {(messageObj || feedbackMessage) && (
+            <FormMessage message={feedbackMessage ? { success: feedbackMessage } : messageObj || { message: '' }} />
           )}
         </form>
       </div>
