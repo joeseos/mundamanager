@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   try {
     const { data: effects, error: effectsError } = await supabase
       .from('fighter_effect_types')
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const url = new URL(request.url);
   const effectId = url.searchParams.get('effectId');
 

@@ -6,11 +6,9 @@ import { cookies } from 'next/headers';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient();
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const url = new URL(request.url);
   const injuryId = url.searchParams.get('injuryId');
   console.log("route in fighters")
@@ -65,11 +63,9 @@ export async function DELETE(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient();
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const body = await request.json();
   const { 
     fighter_name, 

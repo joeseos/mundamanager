@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, use } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
@@ -200,7 +200,8 @@ class FighterDeleteError extends Error {
   }
 }
 
-export default function FighterPage({ params }: { params: { id: string } }) {
+export default function FighterPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   // Replace multiple state declarations with consolidated state
   const [fighterData, setFighterData] = useState<FighterPageState>({
     fighter: null,

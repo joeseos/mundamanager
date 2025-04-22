@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, use } from 'react';
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { FighterProps, FighterSkills } from "@/types/fighter";
@@ -342,7 +342,8 @@ interface GangDataState {
 
 }
 
-export default function GangPage({ params }: { params: { id: string } }) {
+export default function GangPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const [gangData, setGangData] = useState<GangDataState | null>(null);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);

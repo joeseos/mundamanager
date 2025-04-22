@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
 
 export default async function ProfilePage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

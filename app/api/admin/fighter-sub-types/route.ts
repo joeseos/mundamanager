@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   console.log('Fighter sub-types API endpoint called');
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     // Check admin authorization
@@ -53,7 +53,7 @@ export async function GET() {
 export async function POST(request: Request) {
   console.log('POST fighter sub-type API endpoint called');
   
-  const supabase = createClient();
+  const supabase = await createClient();
   
   try {
     // Check admin authorization
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   console.log('PUT fighter sub-type API endpoint called');
   
-  const supabase = createClient();
+  const supabase = await createClient();
   
   try {
     // Check admin authorization
@@ -209,4 +209,9 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(request: Request) {
+  const supabase = await createClient();
+  // ... existing code ...
 } 

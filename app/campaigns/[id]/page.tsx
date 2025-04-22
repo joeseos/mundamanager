@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import CampaignPageContent from "@/components/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaign-error-boundary";
 
-export default async function CampaignPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
 
   try {
     const { data, error } = await supabase

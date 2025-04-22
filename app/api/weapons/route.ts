@@ -9,7 +9,7 @@ const CACHE_MAX_AGE = 3600;
 
 export async function GET() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: weapons, error } = await supabase
       .from('weapons')
       .select('id, weapon_name, cost')

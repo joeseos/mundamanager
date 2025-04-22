@@ -1,17 +1,24 @@
 import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
+export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   
   try {
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Create Supabase client
+    const supabase = await createClient();
+    
+    if (!supabase) {
+      console.error("Supabase client could not be created");
+      return NextResponse.json(
+        { error: 'Authentication service unavailable' },
+        { status: 500 }
+      );
+    }
+    
+    // Check if authenticated - use getUser() instead of getSession() for server-side code
+    const { data, error: authError } = await supabase.auth.getUser();
+    const user = data?.user;
     
     if (authError || !user) {
       console.error("Auth error:", authError);

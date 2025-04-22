@@ -5,7 +5,7 @@ import MyCampaigns from '@/components/my-campaigns'
 import { CampaignsProvider } from '@/contexts/CampaignsContext'
 
 export default async function CampaignsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

@@ -7,11 +7,11 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 
 export const signUpAction = async (formData: FormData) => {
-  const origin = headers().get("origin");
+  const origin = (await headers()).get("origin");
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const username = formData.get("username") as string;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     // Check if username already exists
@@ -115,7 +115,7 @@ export const signInAction = async (formData: FormData) => {
     }
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -126,7 +126,7 @@ export const signInAction = async (formData: FormData) => {
     return redirect("/sign-in?error=" + encodeURIComponent(error.message));
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const redirectPath = cookieStore.get('redirectPath');
   cookieStore.delete('redirectPath');
   
@@ -168,7 +168,7 @@ async function verifyTurnstileToken(token: string) {
 }
 
 export const forgotPasswordAction = async (formData: FormData) => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const email = formData.get("email") as string;
 
   if (!email) {
@@ -190,7 +190,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
 
 export const resetPasswordAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password/update`,
@@ -205,13 +205,13 @@ export const resetPasswordAction = async (formData: FormData) => {
 };
 
 export const signOutAction = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.auth.signOut();
   return redirect("/");
 };
 
 export async function getFighters(gangId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const { data: fighters, error: fightersError } = await supabase
@@ -311,7 +311,7 @@ export async function getFighters(gangId: string) {
 export const updatePasswordAction = async (formData: FormData) => {
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match" };

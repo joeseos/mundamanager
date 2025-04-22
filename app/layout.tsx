@@ -7,11 +7,7 @@ import { Inter } from 'next/font/google'
 import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { createClient } from "@/utils/supabase/server";
-
-const Toaster = dynamic(
-  () => import('@/components/ui/toaster').then(mod => ({ default: mod.Toaster })),
-  { ssr: false }
-);
+import ClientToaster from "@/components/ui/client-toaster";
 
 const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
   ssr: true,
@@ -56,7 +52,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -84,7 +80,7 @@ export default async function RootLayout({
             </div>
           </div>
         </main>
-        <Toaster />
+        <ClientToaster />
       </body>
     </html>
   );

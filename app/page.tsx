@@ -5,7 +5,7 @@ import MyGangs from '@/components/my-gangs'
 import { GangsProvider } from '@/contexts/GangsContext'
 
 export default async function Home() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
