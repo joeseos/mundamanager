@@ -90,10 +90,9 @@ export function InjuriesList({
       }
 
       const { data, error } = await supabase
-        .rpc('add_fighter_effect', {
+        .rpc('add_fighter_injury', {
           in_fighter_id: fighterId,
-          in_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
-          in_fighter_effect_type_id: selectedInjuryId,
+          in_injury_type_id: selectedInjuryId,
           in_user_id: session.user.id
         });
 
