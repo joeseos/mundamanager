@@ -1,11 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { campaignId: string } }
-) {
-  const supabase = createClient();
+export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
@@ -34,11 +32,9 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { campaignId: string } }
-) {
-  const supabase = createClient();
+export async function PATCH(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {

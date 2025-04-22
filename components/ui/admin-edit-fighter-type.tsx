@@ -11,6 +11,12 @@ import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 
+interface FighterSubType {
+  id: string;
+  sub_type_name: string;
+  fighterId?: string;
+}
+
 interface EquipmentWithId extends Equipment {
   id: string;
 }
@@ -53,6 +59,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedFighterClass, setSelectedFighterClass] = useState<string>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
+  const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
   
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
@@ -68,6 +77,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [attacks, setAttacks] = useState('');
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
+  const [isGangAddition, setIsGangAddition] = useState(false);
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
@@ -96,6 +106,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       select_type: 'optional' | 'single' | 'multiple';
     };
   }>({ weapons: { select_type: 'optional' } });
+
+  // Add a new state variable to track the sub-type name
+  const [subTypeName, setSubTypeName] = useState('');
 
   const { toast } = useToast();
 
@@ -163,93 +176,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
     fetchEquipment();
   }, [toast]);
-
-  useEffect(() => {
-    const fetchFighterTypeDetails = async () => {
-      if (!selectedFighterTypeId) return;
-
-      try {
-        console.log('Fetching fighter type details for ID:', selectedFighterTypeId);
-        const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`);
-        
-        // Log the response status
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response:', errorText);
-          throw new Error(`Failed to fetch fighter type details: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('Received fighter type data:', data);
-
-        if (!data) {
-          throw new Error('No data received from server');
-        }
-
-        // Set the form data
-        setFighterType(data.fighter_type || '');
-        setBaseCost(data.cost?.toString() || '0');
-        setSelectedFighterClass(data.fighter_class || '');
-        setMovement(data.movement?.toString() || '0');
-        setWeaponSkill(data.weapon_skill?.toString() || '0');
-        setBallisticSkill(data.ballistic_skill?.toString() || '0');
-        setStrength(data.strength?.toString() || '0');
-        setToughness(data.toughness?.toString() || '0');
-        setWounds(data.wounds?.toString() || '0');
-        setInitiative(data.initiative?.toString() || '0');
-        setLeadership(data.leadership?.toString() || '0');
-        setCool(data.cool?.toString() || '0');
-        setWillpower(data.willpower?.toString() || '0');
-        setIntelligence(data.intelligence?.toString() || '0');
-        setAttacks(data.attacks?.toString() || '0');
-        setSpecialSkills(data.special_rules?.join(', ') || '');
-        setFreeSkill(!!data.free_skill);
-        setSelectedEquipment(data.default_equipment || []);
-        setSelectedSkills(data.default_skills || []);
-        setEquipmentListSelections(data.equipment_list || []);
-        setEquipmentDiscounts(data.equipment_discounts || []);
-        setTradingPostEquipment(data.trading_post_equipment || []);
-
-        // Set equipment selection
-        if (data.equipment_selection) {
-          setEquipmentSelection({
-            weapons: {
-              select_type: data.equipment_selection.weapons?.select_type || 'optional',
-              default: data.equipment_selection.weapons?.default || [],
-              options: data.equipment_selection.weapons?.options?.map((option: any) => ({
-                id: option.id,
-                cost: option.cost,
-                max_quantity: option.max_quantity,
-                replaces: option.replaces,
-                max_replace: option.max_replace
-              })) || []
-            }
-          });
-        } else {
-          // Reset to default state if no equipment selection
-          setEquipmentSelection({ 
-            weapons: { 
-              select_type: 'optional',
-              default: [],
-              options: []
-            } 
-          });
-        }
-
-      } catch (error) {
-        console.error('Detailed error in fetchFighterTypeDetails:', error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
-          variant: "destructive",
-        });
-      }
-    };
-
-    fetchFighterTypeDetails();
-  }, [selectedFighterTypeId, toast]);
 
   useEffect(() => {
     const fetchFighterClasses = async () => {
@@ -363,6 +289,269 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSkillNames();
   }, [selectedSkills, toast]);
 
+  useEffect(() => {
+    const fetchFighterSubTypes = async () => {
+      try {
+        const response = await fetch('/api/admin/fighter-sub-types');
+        if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
+        const data = await response.json();
+        setFighterSubTypes(data);
+      } catch (error) {
+        console.error('Error fetching fighter sub-types:', error);
+        toast({
+          description: 'Failed to load fighter sub-types',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchFighterSubTypes();
+  }, [toast]);
+
+  const handleFighterTypeChange = (typeId: string) => {
+    // Always update the selected fighter type ID for the dropdown
+    setSelectedFighterTypeId(typeId);
+    // Reset sub-type selection when fighter type changes
+    setSelectedSubTypeId('');
+
+    if (!typeId) {
+      // Clear form if no fighter type selected
+      setFighterType('');
+      setSelectedFighterClass('');
+      setAvailableSubTypes([]);
+      return;
+    }
+
+    const selectedFighter = fighterTypes.find(f => f.id === typeId);
+    if (!selectedFighter) return;
+
+    // Find if this fighter type (same name & class) has any sub-types
+    const relatedFighters = fighterTypes.filter(ft => 
+      ft.fighter_type === selectedFighter.fighter_type && 
+      ft.fighter_class === selectedFighter.fighter_class
+    );
+    
+    // Check if there's at least one fighter with this type name that doesn't have a sub-type
+    const defaultFighter = relatedFighters.find(ft => 
+      !ft.fighter_sub_type_id || ft.fighter_sub_type_id === null
+    );
+    
+    // Find all fighters with sub-types
+    const subTypedFighters = relatedFighters.filter(ft => 
+      ft.fighter_sub_type_id !== undefined && 
+      ft.fighter_sub_type_id !== null
+    );
+    
+    // Set basic info
+    setFighterType(selectedFighter.fighter_type);
+    setSelectedFighterClass(selectedFighter.fighter_class);
+    
+    // Build sub-type options list if there are any sub-typed fighters
+    if (subTypedFighters.length > 0) {
+      const subTypeOptions: FighterSubType[] = [];
+      
+      subTypedFighters.forEach(ft => {
+        if (ft.fighter_sub_type_id) {
+          const subType = fighterSubTypes.find(st => st.id === ft.fighter_sub_type_id);
+          if (subType) {
+            subTypeOptions.push({
+              ...subType,
+              fighterId: ft.id
+            });
+          }
+        }
+      });
+      
+      // Sort sub-types alphabetically
+      subTypeOptions.sort((a, b) => a.sub_type_name.localeCompare(b.sub_type_name));
+      setAvailableSubTypes(subTypeOptions);
+      
+      // Rule 1 & 2: If there's a default fighter (no sub-type), select it
+      if (defaultFighter) {
+        setSelectedSubTypeId("default");
+      } 
+      // Rule 3: If there's no default but there are sub-types, select the first one
+      else if (subTypeOptions.length > 0) {
+        setSelectedSubTypeId(subTypeOptions[0].id);
+      }
+    } else {
+      // No sub-types available
+      setAvailableSubTypes([]);
+      // Rule 1: If there's no sub-type, just show default
+      setSelectedSubTypeId("default");
+    }
+  }
+
+  // Handle edge cases where no sub-type selection was made
+  useEffect(() => {
+    if (selectedFighterTypeId && !selectedSubTypeId) {
+      setSelectedSubTypeId("default");
+    }
+  }, [selectedFighterTypeId, selectedSubTypeId]);
+
+  // Fetch fighter details when sub-type selection changes
+  useEffect(() => {
+    if (selectedFighterTypeId && selectedSubTypeId) {
+      if (selectedSubTypeId === "default") {
+        // For the default option, find the fighter with no sub-type
+        const relatedFighters = fighterTypes.filter(ft => 
+          ft.id === selectedFighterTypeId || 
+          (ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type && 
+           ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class)
+        );
+        
+        const defaultFighter = relatedFighters.find(ft => 
+          !ft.fighter_sub_type_id || ft.fighter_sub_type_id === null
+        );
+        
+        if (defaultFighter) {
+          fetchFighterTypeDetails(defaultFighter.id);
+        } else {
+          // If no default version exists, use the selected fighter type
+          fetchFighterTypeDetails(selectedFighterTypeId);
+        }
+      } else {
+        // For a specific sub-type, find its fighter ID
+        const subType = availableSubTypes.find(st => st.id === selectedSubTypeId);
+        if (subType && subType.fighterId) {
+          fetchFighterTypeDetails(subType.fighterId);
+        }
+      }
+    }
+  }, [selectedFighterTypeId, selectedSubTypeId, availableSubTypes, fighterTypes]);
+
+  const fetchFighterTypeDetails = async (fighterId: string) => {
+    if (!fighterId) return;
+
+    try {
+      console.log('Fetching fighter type details for ID:', fighterId);
+      const response = await fetch(`/api/admin/fighter-types?id=${fighterId}`);
+      
+      // Log the response status
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to fetch fighter type details: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Received fighter type data:', data);
+
+      if (!data) {
+        throw new Error('No data received from server');
+      }
+
+      // Set the form data - but don't change the selection state
+      // This allows us to keep the dropdown showing the currently selected fighter type
+      // while loading the details for the specific sub-type variant
+      setFighterType(data.fighter_type || '');
+      setBaseCost(data.cost?.toString() || '0');
+      setSelectedFighterClass(data.fighter_class || '');
+      setMovement(data.movement?.toString() || '0');
+      setWeaponSkill(data.weapon_skill?.toString() || '0');
+      setBallisticSkill(data.ballistic_skill?.toString() || '0');
+      setStrength(data.strength?.toString() || '0');
+      setToughness(data.toughness?.toString() || '0');
+      setWounds(data.wounds?.toString() || '0');
+      setInitiative(data.initiative?.toString() || '0');
+      setLeadership(data.leadership?.toString() || '0');
+      setCool(data.cool?.toString() || '0');
+      setWillpower(data.willpower?.toString() || '0');
+      setIntelligence(data.intelligence?.toString() || '0');
+      setAttacks(data.attacks?.toString() || '0');
+      setSpecialSkills(data.special_rules?.join(', ') || '');
+      setFreeSkill(!!data.free_skill);
+      setIsGangAddition(!!data.is_gang_addition);
+      setSelectedEquipment(data.default_equipment || []);
+      setSelectedSkills(data.default_skills || []);
+      setEquipmentListSelections(data.equipment_list || []);
+      setEquipmentDiscounts(data.equipment_discounts || []);
+      setTradingPostEquipment(data.trading_post_equipment || []);
+
+      // If there's a fighter_sub_type_id, fetch the sub-type name
+      if (data.fighter_sub_type_id) {
+        const subType = fighterSubTypes.find(st => st.id === data.fighter_sub_type_id);
+        if (subType) {
+          setSubTypeName(subType.sub_type_name);
+        }
+      } else {
+        setSubTypeName(''); // Clear the sub-type name if there's no sub-type
+      }
+
+      // Set equipment selection
+      if (data.equipment_selection) {
+        setEquipmentSelection({
+          weapons: {
+            select_type: data.equipment_selection.weapons?.select_type || 'optional',
+            default: data.equipment_selection.weapons?.default || [],
+            options: data.equipment_selection.weapons?.options?.map((option: any) => ({
+              id: option.id,
+              cost: option.cost,
+              max_quantity: option.max_quantity,
+              replaces: option.replaces,
+              max_replace: option.max_replace
+            })) || []
+          }
+        });
+      } else {
+        // Reset to default state if no equipment selection
+        setEquipmentSelection({ 
+          weapons: { 
+            select_type: 'optional',
+            default: [],
+            options: []
+          } 
+        });
+      }
+
+    } catch (error) {
+      console.error('Detailed error in fetchFighterTypeDetails:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubTypeChange = (subTypeId: string) => {
+    setSelectedSubTypeId(subTypeId);
+    
+    if (!subTypeId) return; // If cleared, don't do anything else
+    
+    if (subTypeId === "default") {
+      // Load the main fighter type details
+      if (selectedFighterTypeId) {
+        fetchFighterTypeDetails(selectedFighterTypeId);
+      }
+      return;
+    }
+    
+    // Find the fighter with this sub-type
+    const subType = availableSubTypes.find(st => st.id === subTypeId);
+    if (subType) {
+      // Set the sub-type name
+      setSubTypeName(subType.sub_type_name);
+      
+      if ('fighterId' in subType) {
+      const subTypeFighter = fighterTypes.find(ft => ft.id === subType.fighterId);
+      if (subTypeFighter) {
+        // Don't change selectedFighterTypeId, which controls the dropdown selection
+        // Instead, update the form data to match the selected sub-type's fighter variant
+        setFighterType(subTypeFighter.fighter_type);
+        setSelectedFighterClass(subTypeFighter.fighter_class);
+        
+        // Fetch details for this specific sub-type variant
+        if (typeof subType.fighterId === 'string') {
+          fetchFighterTypeDetails(subType.fighterId);
+          }
+        }
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
@@ -379,6 +568,88 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('Missing required fields');
       }
 
+      // Find the current sub-type ID if we have a selected sub-type
+      let subTypeId: string | null = null;
+      let shouldUpdateSubType = false;
+      
+      if (!subTypeName.trim()) {
+        // If sub-type name is blank/empty, set subTypeId to null (Default)
+        subTypeId = null;
+      } else if (selectedSubTypeId && selectedSubTypeId !== "default") {
+        subTypeId = selectedSubTypeId;
+        
+        // Check if the sub-type name has changed
+        const existingSubType = fighterSubTypes.find(st => st.id === subTypeId);
+        if (existingSubType && existingSubType.sub_type_name !== subTypeName && subTypeName.trim()) {
+          shouldUpdateSubType = true;
+        }
+      } else if (subTypeName.trim()) {
+        // We don't have a sub-type selected but have a name entered - check for existing with same name
+        const normalizedName = subTypeName.trim().toLowerCase();
+        
+        // Check if a sub-type with this name (case-insensitive) already exists
+        const existingSubType = fighterSubTypes.find(st => 
+          st.sub_type_name.toLowerCase() === normalizedName
+        );
+        
+        if (existingSubType) {
+          // Use existing sub-type instead of creating a new one
+          subTypeId = existingSubType.id;
+          shouldUpdateSubType = false;
+          
+          // Display a toast notification to inform the user
+          toast({
+            description: `Using existing sub-type "${existingSubType.sub_type_name}" instead of creating a duplicate`,
+            variant: "default"
+          });
+        } else {
+          // No existing sub-type with this name - create a new one
+          shouldUpdateSubType = true;
+        }
+      }
+      
+      // If we need to update the sub-type, call the API
+      if (shouldUpdateSubType && subTypeName.trim()) {
+        try {
+          let updateSubTypeResponse;
+          
+          if (subTypeId) {
+            // Update existing sub-type
+            updateSubTypeResponse = await fetch(`/api/admin/fighter-sub-types?id=${subTypeId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ sub_type_name: subTypeName }),
+            });
+          } else {
+            // Create new sub-type - use normalized first letter capitalization
+            const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
+            
+            updateSubTypeResponse = await fetch('/api/admin/fighter-sub-types', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ sub_type_name: formattedName }),
+            });
+            
+            // Get the new sub-type ID
+            if (updateSubTypeResponse.ok) {
+              const newSubType = await updateSubTypeResponse.json() as { id: string };
+              subTypeId = newSubType.id;
+            }
+          }
+          
+          if (!updateSubTypeResponse.ok) {
+            throw new Error('Failed to update sub-type');
+          }
+        } catch (error) {
+          console.error('Error updating sub-type:', error);
+          throw new Error('Failed to update sub-type');
+        }
+      }
+
       const updateData = {
         id: selectedFighterTypeId,
         fighter_type: fighterType,
@@ -386,6 +657,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         gang_type_id: selectedFighter.gang_type_id,
         fighter_class: selectedFighterClass,
         fighter_class_id: fighterClass?.id,
+        fighter_sub_type_id: subTypeId,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
@@ -400,6 +672,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         attacks: parseInt(attacks),
         special_rules: specialRulesArray,
         free_skill: freeSkill,
+        is_gang_addition: isGangAddition,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -569,7 +842,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </label>
               <select
                 value={gangTypeFilter}
-                onChange={(e) => setGangTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setGangTypeFilter(e.target.value);
+                  // Reset downstream selections when gang type changes
+                  setSelectedFighterTypeId('');
+                  setSelectedSubTypeId('');
+                }}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">All Gang Types</option>
@@ -581,22 +859,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* First row: Fighter Type selection and Sub-Type selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Select Fighter Type to Edit
                 </label>
                 <select
                   value={selectedFighterTypeId}
-                  onChange={(e) => {
-                    setSelectedFighterTypeId(e.target.value);
-
-                    // Dynamically set the fighter class based on the selected fighter type
-                    const selectedFighter = fighterTypes.find(f => f.id === e.target.value);
-                    if (selectedFighter) {
-                      setSelectedFighterClass(selectedFighter.fighter_class);
-                    }
-                  }}
+                  onChange={(e) => handleFighterTypeChange(e.target.value)}
                   className="w-full p-2 border rounded-md"
                   disabled={!gangTypeFilter}
                 >
@@ -608,6 +879,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </option>
                   {fighterTypes
                     .filter(type => !gangTypeFilter || type.gang_type_id === gangTypeFilter)
+                    .filter((type, index, self) => 
+                      index === self.findIndex(t => 
+                        t.fighter_type === type.fighter_type && 
+                        t.fighter_class === type.fighter_class
+                      )
+                    )
                     .map((type) => (
                       <option key={type.id} value={type.id}>
                         {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
@@ -618,20 +895,70 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Type *
+                  Select Fighter Sub-Type to Edit
+                </label>
+                <select
+                  value={selectedSubTypeId}
+                  onChange={(e) => handleSubTypeChange(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedFighterTypeId}
+                >
+                  {!selectedFighterTypeId ? (
+                    <option value="">Select a fighter type first</option>
+                  ) : (
+                    <>
+                      {/* Only show "Default" option if there's a fighter without a sub-type */}
+                      {fighterTypes.some(ft => 
+                        ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type &&
+                        ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class &&
+                        (!ft.fighter_sub_type_id || ft.fighter_sub_type_id === null)
+                      ) && (
+                        <option value="default">Default</option>
+                      )}
+                  {availableSubTypes.map((subType) => (
+                    <option key={subType.id} value={subType.id}>
+                      {subType.sub_type_name}
+                    </option>
+                  ))}
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Second row: Fighter Type name and Fighter Sub-Type input */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fighter Type *
+              </label>
+              <Input
+                type="text"
+                value={fighterType}
+                onChange={(e) => setFighterType(e.target.value)}
+                placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
+                className="w-full"
+                disabled={!selectedFighterTypeId}
+              />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fighter Sub-Type
                 </label>
                 <Input
                   type="text"
-                  value={fighterType}
-                  onChange={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
+                  value={subTypeName}
+                  onChange={(e) => setSubTypeName(e.target.value)}
+                  placeholder="e.g. Natborn, Alpha, etc."
                   className="w-full"
                   disabled={!selectedFighterTypeId}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Third row: Fighter Class and Base Cost */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fighter Class *
@@ -824,16 +1151,30 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={freeSkill}
-                onChange={(e) => setFreeSkill(e.target.checked)}
-                className="h-4 w-4 text-primary border-gray-300 rounded"
-              />
-              <label className="ml-2 block text-sm text-gray-900">
-                Free Skill
-              </label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={freeSkill}
+                  onChange={(e) => setFreeSkill(e.target.checked)}
+                  className="h-4 w-4 text-primary border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">
+                  Free Skill
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={isGangAddition}
+                  onChange={(e) => setIsGangAddition(e.target.checked)}
+                  className="h-4 w-4 text-primary border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">
+                  Gang Addition
+                </label>
+              </div>
             </div>
 
             <div>

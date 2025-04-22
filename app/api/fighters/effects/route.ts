@@ -44,7 +44,7 @@ interface ModifierInfo {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Get the authenticated user
   const { data: { user }, error: authError } = await supabase.auth.getUser();

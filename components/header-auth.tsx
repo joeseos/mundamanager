@@ -6,7 +6,7 @@ import Image from "next/image";
 import SettingsModal from "./settings-modal";
 
 export default async function HeaderAuth() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

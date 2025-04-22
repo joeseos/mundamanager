@@ -7,21 +7,48 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function ResetPassword({ searchParams }: { searchParams: Message }) {
+export default function ResetPassword() {
+  const searchParams = useSearchParams();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
-  const successMessage = "success" in searchParams ? searchParams.success : undefined;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get search params safely
+  const error = searchParams.get('error');
+  const success = searchParams.get('success');
+  const message = searchParams.get('message');
+
+  // Create the appropriate message object based on search params
+  let messageObj: Message | null = null;
+  if (success) {
+    messageObj = { success };
+  } else if (error) {
+    messageObj = { error };
+  } else if (message) {
+    messageObj = { message };
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const response = await forgotPasswordAction(formData);
-    if (response.success) {
-      setFeedbackMessage(response.success);
-      setEmailSent(true);
-    } else {
-      setFeedbackMessage(response.error ?? null);
+    setIsSubmitting(true);
+    
+    try {
+      const formData = new FormData(event.currentTarget);
+      const response = await forgotPasswordAction(formData);
+      
+      if (response.success) {
+        setFeedbackMessage(response.success);
+        setEmailSent(true);
+      } else if (response.error) {
+        setFeedbackMessage(response.error);
+      }
+    } catch (error) {
+      console.error('Error during password reset:', error);
+      setFeedbackMessage('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -47,9 +74,9 @@ export default function ResetPassword({ searchParams }: { searchParams: Message 
                   autoComplete="email"
                 />
                 <SubmitButton 
-                  formAction={forgotPasswordAction} 
                   pendingText="Sending..." 
                   className="mt-2"
+                  disabled={isSubmitting}
                 >
                   Send Reset Instructions
                 </SubmitButton>
@@ -63,7 +90,9 @@ export default function ResetPassword({ searchParams }: { searchParams: Message 
               Back to sign in
             </Link>
           </div>
-          <FormMessage message={searchParams} />
+          {(messageObj || feedbackMessage) && (
+            <FormMessage message={feedbackMessage ? { success: feedbackMessage } : messageObj || { message: '' }} />
+          )}
         </form>
       </div>
     </main>

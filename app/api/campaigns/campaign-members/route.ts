@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function PATCH(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const { campaignId, userId, newRole } = await request.json();

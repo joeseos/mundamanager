@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
     
     // Create Supabase client and insert the skill
-    const supabase = createClient();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('fighter_skills')

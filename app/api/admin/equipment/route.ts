@@ -40,8 +40,13 @@ interface GangDiscount {
   discount: number;
 }
 
+interface EquipmentAvailability {
+  gang_type_id: string;
+  availability: string;
+}
+
 export async function GET(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const equipment_category = searchParams.get('equipment_category');
   const id = searchParams.get('id');
@@ -71,7 +76,20 @@ export async function GET(request: Request) {
         .is('fighter_type_id', null);
 
       if (discountsError) throw discountsError;
-      console.log('Fetched discounts:', discounts); // Debug log
+      console.log('Fetched discounts:', discounts);
+
+      // Fetch equipment availabilities
+      const { data: availabilities, error: availabilitiesError } = await supabase
+        .from('equipment_availability')
+        .select('availability, gang_type_id')
+        .eq('equipment_id', id);
+
+      // Don't throw error if the query fails or returns empty, just log it
+      if (availabilitiesError) {
+        console.warn('Error fetching from equipment_availability:', availabilitiesError);
+      }
+      
+      console.log('Fetched availabilities:', availabilities || []);
 
       // Then fetch all gang types
       const { data: gangTypes, error: gangTypesError } = await supabase
@@ -79,7 +97,7 @@ export async function GET(request: Request) {
         .select('gang_type_id, gang_type');
 
       if (gangTypesError) throw gangTypesError;
-      console.log('Fetched gang types:', gangTypes); // Debug log
+      console.log('Fetched gang types:', gangTypes);
 
       // Create a map of gang type IDs to names
       const gangTypeMap = new Map(
@@ -87,23 +105,39 @@ export async function GET(request: Request) {
           [gt.gang_type_id, gt.gang_type]
         )
       );
-      console.log('Gang type map:', Object.fromEntries(gangTypeMap)); // Debug log
+      console.log('Gang type map:', Object.fromEntries(gangTypeMap));
 
       // Format the discounts with null check
       interface DiscountData {
         discount: string;
-        gang_type_id: string | null;  // Allow null
+        gang_type_id: string | null;
       }
 
       const formattedDiscounts = (discounts as DiscountData[] || [])
-        .filter(d => d.gang_type_id !== null)  // Filter out null gang_type_ids
+        .filter(d => d.gang_type_id !== null)
         .map(d => ({
-          gang_type: gangTypeMap.get(d.gang_type_id!) || '',  // Use non-null assertion since we filtered
+          gang_type: gangTypeMap.get(d.gang_type_id!) || '',
           gang_type_id: d.gang_type_id!,
           discount: parseInt(d.discount)
         }));
 
-      console.log('Formatted discounts:', formattedDiscounts); // Debug log
+      console.log('Formatted discounts:', formattedDiscounts);
+
+      // Format the availabilities with null check
+      interface AvailabilityData {
+        availability: string;
+        gang_type_id: string | null;
+      }
+
+      const formattedAvailabilities = (availabilities as AvailabilityData[] || [])
+        .filter(a => a && a.gang_type_id !== null)
+        .map(a => ({
+          gang_type: gangTypeMap.get(a.gang_type_id!) || '',
+          gang_type_id: a.gang_type_id!,
+          availability: a.availability
+        }));
+
+      console.log('Formatted availabilities:', formattedAvailabilities);
 
       // When fetching equipment details, include upgrade_type in the vehicle profiles query
       const { data: vehicleProfiles, error: vehicleProfilesError } = await supabase
@@ -123,11 +157,12 @@ export async function GET(request: Request) {
         .eq('equipment_id', id);
 
       if (vehicleProfilesError) throw vehicleProfilesError;
-      console.log('Fetched vehicle profiles:', vehicleProfiles); // Debug log
+      console.log('Fetched vehicle profiles:', vehicleProfiles);
 
       return NextResponse.json({
         ...equipment,
         gang_discounts: formattedDiscounts,
+        equipment_availabilities: formattedAvailabilities || [],
         vehicle_profiles: vehicleProfiles
       });
 
@@ -162,7 +197,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const isAdmin = await checkAdmin(supabase);
@@ -182,7 +217,10 @@ export async function POST(request: Request) {
       equipment_type,
       core_equipment,
       weapon_profiles,
-      vehicle_profiles
+      vehicle_profiles,
+      fighter_types,
+      gang_discounts,
+      equipment_availabilities
     } = data;
 
     // First get the category name from the ID
@@ -261,6 +299,55 @@ export async function POST(request: Request) {
       if (vehicleProfileError) throw vehicleProfileError;
     }
 
+    // Handle fighter types if provided
+    if (fighter_types && fighter_types.length > 0) {
+      const { error: fighterTypesError } = await supabase
+        .from('fighter_type_equipment')
+        .insert(
+          fighter_types.map((fighter_type_id: string) => ({
+            fighter_type_id,
+            equipment_id: equipment.id,
+            updated_at: new Date().toISOString()
+          }))
+        );
+      
+      if (fighterTypesError) throw fighterTypesError;
+    }
+
+    // Handle gang discounts if provided
+    if (gang_discounts && gang_discounts.length > 0) {
+      const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+        equipment_id: equipment.id,
+        gang_type_id: discount.gang_type_id,
+        discount: discount.discount.toString(),
+        fighter_type_id: null
+      }));
+
+      const { error: discountsError } = await supabase
+        .from('equipment_discounts')
+        .insert(discountRecords);
+      
+      if (discountsError) throw discountsError;
+    }
+
+    // Handle equipment availabilities if provided
+    if (equipment_availabilities && equipment_availabilities.length > 0) {
+      const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+        equipment_id: equipment.id,
+        gang_type_id: avail.gang_type_id,
+        availability: avail.availability
+      }));
+
+      const { error: availabilityError } = await supabase
+        .from('equipment_availability')
+        .insert(availabilityRecords);
+      
+      // Log but don't throw on insert error for availabilities
+      if (availabilityError) {
+        console.warn('Error inserting into equipment_availability:', availabilityError);
+      }
+    }
+
     return NextResponse.json(equipment);
   } catch (error) {
     console.error('Error in POST equipment:', error);
@@ -275,7 +362,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -518,7 +605,7 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -547,7 +634,8 @@ export async function PATCH(request: Request) {
       weapon_profiles,
       vehicle_profiles,
       fighter_types,
-      gang_discounts
+      gang_discounts,
+      equipment_availabilities
     } = data;
 
     // Update equipment
@@ -742,6 +830,40 @@ export async function PATCH(request: Request) {
             .insert(discountRecords);
 
           if (insertError) throw insertError;
+        }
+      }
+    }
+
+    // Handle equipment availabilities
+    if (equipment_availabilities !== undefined) {
+      // First, delete all existing availabilities for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_availability')
+        .delete()
+        .eq('equipment_id', id);
+
+      // Log but don't throw on delete error
+      if (deleteError) {
+        console.warn('Error deleting from equipment_availability:', deleteError);
+      }
+
+      // If there are new availabilities to add
+      if (Array.isArray(equipment_availabilities) && equipment_availabilities.length > 0) {
+        const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
+          equipment_id: id,
+          gang_type_id: avail.gang_type_id,
+          availability: avail.availability
+        }));
+
+        if (availabilityRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_availability')
+            .insert(availabilityRecords);
+
+          // Log but don't throw on insert error
+          if (insertError) {
+            console.warn('Error inserting into equipment_availability:', insertError);
+          }
         }
       }
     }

@@ -50,6 +50,12 @@ interface GangDiscount {
   discount: number;
 }
 
+interface EquipmentAvailability {
+  gang_type: string;
+  gang_type_id: string;
+  availability: string;
+}
+
 interface Equipment {
   id: string;
   equipment_name: string;
@@ -65,6 +71,7 @@ interface Equipment {
   vehicle_profiles?: VehicleProfile[];
   fighter_types?: string[];
   gang_discounts?: GangDiscount[];
+  equipment_availabilities?: EquipmentAvailability[];
 }
 
 export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmentModalProps) {
@@ -114,6 +121,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [discountValue, setDiscountValue] = useState("");
   const [gangDiscounts, setGangDiscounts] = useState<GangDiscount[]>([]);
   const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
+  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
+  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
+  const [availabilityValue, setAvailabilityValue] = useState("");
+  const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
 
   const { toast } = useToast();
 
@@ -190,7 +201,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           is_default_profile: true,
           sort_order: 1
         }]);
-        setGangDiscounts([]); // Reset gang discounts
+        setGangDiscounts([]);
+        setEquipmentAvailabilities([]);
         return;
       }
 
@@ -218,6 +230,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             gang_type: d.gang_type,
             gang_type_id: d.gang_type_id,
             discount: d.discount
+          })));
+        }
+
+        // Set equipment availabilities if they exist
+        if (data.equipment_availabilities) {
+          setEquipmentAvailabilities(data.equipment_availabilities.map((a: any) => ({
+            gang_type: a.gang_type,
+            gang_type_id: a.gang_type_id,
+            availability: a.availability
           })));
         }
 
@@ -376,7 +397,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   // Add this useEffect to fetch gang types
   useEffect(() => {
     const fetchGangTypes = async () => {
-      if (showDiscountDialog) {
+      if (showDiscountDialog || showAvailabilityDialog) {
         try {
           const response = await fetch('/api/admin/gang-types');
           if (!response.ok) throw new Error('Failed to fetch gang types');
@@ -393,7 +414,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     };
 
     fetchGangTypes();
-  }, [showDiscountDialog, toast]);
+  }, [showDiscountDialog, showAvailabilityDialog, toast]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
@@ -479,8 +500,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
-      const hasEditedGangDiscounts = gangDiscounts.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
-
+      
       const requestBody = {
         equipment_name: equipmentName,
         trading_post_category: tradingPostCategory,
@@ -512,10 +532,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           }))
         } : {}),
         ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
-        ...(hasEditedGangDiscounts ? { gang_discounts: gangDiscounts.map(d => ({
+        gang_discounts: gangDiscounts.map(d => ({
           gang_type_id: d.gang_type_id,
           discount: d.discount
-        })) } : {})
+        })),
+        equipment_availabilities: equipmentAvailabilities.map(a => ({
+          gang_type_id: a.gang_type_id,
+          availability: a.availability
+        }))
       };
 
       const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
@@ -571,7 +595,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-3 mb-4">
+            <div className="col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Select Category *
               </label>
@@ -592,7 +616,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </select>
             </div>
 
-            <div className="col-span-3 mb-4">
+            <div className="col-span-3 mb-4 border-b pb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Select Equipment to Edit *
               </label>
@@ -622,71 +646,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 value={equipmentName}
                 onChange={(e) => setEquipmentName(e.target.value)}
                 placeholder="E.g. Bolt pistol, Combat knife"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Trading Post Category
-              </label>
-              <Input
-                type="text"
-                value={tradingPostCategory}
-                onChange={(e) => setTradingPostCategory(e.target.value)}
-                placeholder="E.g. Core Trading Post"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Availability
-              </label>
-              <Input
-                type="text"
-                value={availability}
-                onChange={(e) => setAvailability(e.target.value)}
-                placeholder="E.g. E, C, R9, I13"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cost *
-              </label>
-              <Input
-                type="number"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="E.g. 130"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Faction
-              </label>
-              <Input
-                type="text"
-                value={faction}
-                onChange={(e) => setFaction(e.target.value)}
-                placeholder="Enter faction"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Variants
-              </label>
-              <Input
-                type="text"
-                value={variants}
-                onChange={(e) => setVariants(e.target.value)}
-                placeholder="Enter variants"
                 disabled={!selectedEquipmentId}
               />
             </div>
@@ -726,7 +685,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 <option value="">Select equipment type</option>
                 {EQUIPMENT_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type === 'vehicle_upgrade' 
+                    {type === 'vehicle_upgrade'
                       ? 'Vehicle Upgrade'
                       : type.charAt(0).toUpperCase() + type.slice(1)}
                   </option>
@@ -734,8 +693,34 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </select>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cost (TP default) *
+              </label>
+              <Input
+                type="number"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                placeholder="E.g. 130"
+                disabled={!selectedEquipmentId}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Availability (TP default) *
+              </label>
+              <Input
+                type="text"
+                value={availability}
+                onChange={(e) => setAvailability(e.target.value)}
+                placeholder="E.g. E, C, R9, I13"
+                disabled={!selectedEquipmentId}
+              />
+            </div>
+
             {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-3">
+              <div className="col-span-1">
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
@@ -744,9 +729,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-700">Exclusive Equipment</span>
+                    <span className="text-sm font-medium text-gray-700">Exclusive to a single Fighter</span>
                     <p className="text-sm text-gray-500 mt-1">
-                      When checked, this equipment will be restricted to specific fighters and will not appear in the trading post. For example, the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                      I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
                     </p>
                   </div>
                 </label>
@@ -754,73 +739,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             )}
 
             {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-3">
+              <div className="col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Types with this Equipment
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !selectedFighterTypes.includes(value)) {
-                      setSelectedFighterTypes([...selectedFighterTypes, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedEquipmentId}
-                >
-                  <option value="">Select fighter type to add</option>
-                  {fighterTypes
-                    .filter(ft => !selectedFighterTypes.includes(ft.id))
-                    .sort((a, b) => {
-                      // First sort by gang type
-                      const gangCompare = a.gang_type.localeCompare(b.gang_type);
-                      if (gangCompare !== 0) return gangCompare;
-                      // Then by fighter class priority
-                      const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
-                        - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
-                      if (classCompare !== 0) return classCompare;
-                      // Finally by fighter type name
-                      return a.fighter_type.localeCompare(b.fighter_type);
-                    })
-                    .map((ft) => (
-                      <option key={ft.id} value={ft.id}>
-                        {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedFighterTypes.map((ftId) => {
-                    const ft = fighterTypes.find(f => f.id === ftId);
-                    if (!ft) return null;
-                    
-                    return (
-                      <div 
-                        key={ft.id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                      >
-                        <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
-                          className="hover:text-red-500 focus:outline-none"
-                          disabled={!selectedEquipmentId}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gang Discounts
+                  Cost per Gang
                 </label>
                 <Button
                   onClick={() => setShowDiscountDialog(true)}
@@ -828,7 +749,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   size="sm"
                   className="mb-2"
                 >
-                  Add Gang Discount
+                  Add Gang
                 </Button>
 
                 {gangDiscounts.length > 0 && (
@@ -865,8 +786,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     }}
                   >
                     <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Gang Discount Menu</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select your gang and enter a discount</p>
+                      <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter the discounted cost</p>
                       
                       <div className="space-y-4">
                         <div>
@@ -881,7 +802,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             }}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Select a gang type</option>
+                            <option key="default" value="">Select a Gang Type</option>
                             {gangTypeOptions.map((gang) => (
                               <option key={gang.gang_type_id} value={gang.gang_type_id}>
                                 {gang.gang_type}
@@ -891,12 +812,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Discount (credits)</label>
+                          <label className="block text-sm font-medium mb-1">Discounted Cost</label>
                           <Input
                             type="number"
                             value={discountValue}
                             onChange={(e) => setDiscountValue(e.target.value)}
-                            placeholder="Enter discount in credits"
+                            placeholder="E.g. 120"
                             min="0"
                             onKeyDown={(e) => {
                               if (e.key === '-') {
@@ -951,6 +872,197 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </div>
             )}
 
+            {equipmentType !== 'vehicle_upgrade' && (
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Availability per Gang
+                </label>
+                <Button
+                  onClick={() => setShowAvailabilityDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                >
+                  Add Gang
+                </Button>
+
+                {equipmentAvailabilities.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {equipmentAvailabilities.map((avail, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                        <button
+                          onClick={() => setEquipmentAvailabilities(prev => 
+                            prev.filter((_, i) => i !== index)
+                          )}
+                          className="hover:text-red-500 focus:outline-none"
+                          disabled={!selectedEquipmentId}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showAvailabilityDialog && (
+                  <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
+                        setShowAvailabilityDialog(false);
+                        setSelectedAvailabilityGangType("");
+                        setAvailabilityValue("");
+                      }
+                    }}
+                  >
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <select
+                            value={selectedAvailabilityGangType}
+                            onChange={(e) => {
+                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              if (selected) {
+                                setSelectedAvailabilityGangType(e.target.value);
+                              }
+                            }}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option key="default" value="">Select a Gang Type</option>
+                            {gangTypeOptions.map((gang) => (
+                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                {gang.gang_type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Availability</label>
+                          <Input
+                            type="text"
+                            value={availabilityValue}
+                            onChange={(e) => setAvailabilityValue(e.target.value)}
+                            placeholder="E.g. R9, C, E"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 justify-end mt-6">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowAvailabilityDialog(false);
+                              setSelectedAvailabilityGangType("");
+                              setAvailabilityValue("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (selectedAvailabilityGangType && availabilityValue) {
+                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                                if (selectedGang) {
+                                  setEquipmentAvailabilities(prev => [
+                                    ...prev,
+                                    {
+                                      gang_type: selectedGang.gang_type,
+                                      gang_type_id: selectedGang.gang_type_id,
+                                      availability: availabilityValue
+                                    }
+                                  ]);
+                                  setShowAvailabilityDialog(false);
+                                  setSelectedAvailabilityGangType("");
+                                  setAvailabilityValue("");
+                                }
+                              }
+                            }}
+                            disabled={!selectedAvailabilityGangType || !availabilityValue}
+                          >
+                            Save Availability
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+
+            {equipmentType !== 'vehicle_upgrade' && (
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fighter Types with this Equipment
+                </label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !selectedFighterTypes.includes(value)) {
+                      setSelectedFighterTypes([...selectedFighterTypes, value]);
+                    }
+                    e.target.value = "";
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedEquipmentId}
+                >
+                  <option value="">Select fighter type to add</option>
+                  {fighterTypes
+                    .filter(ft => !selectedFighterTypes.includes(ft.id))
+                    .sort((a, b) => {
+                      // First sort by gang type
+                      const gangCompare = a.gang_type.localeCompare(b.gang_type);
+                      if (gangCompare !== 0) return gangCompare;
+                      // Then by fighter class priority
+                      const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
+                        - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
+                      if (classCompare !== 0) return classCompare;
+                      // Finally by fighter type name
+                      return a.fighter_type.localeCompare(b.fighter_type);
+                    })
+                    .map((ft) => (
+                      <option key={ft.id} value={ft.id}>
+                        {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedFighterTypes.map((ftId) => {
+                    const ft = fighterTypes.find(f => f.id === ftId);
+                    if (!ft) return null;
+
+                    return (
+                      <div
+                        key={ft.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                          disabled={!selectedEquipmentId}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Weapon Profiles Section */}
             {equipmentType === 'weapon' && (
               <div className="col-span-3 space-y-4">
                 <div className="flex justify-between items-center sticky top-0 bg-white py-2">
@@ -1333,7 +1445,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !equipmentCategory || !equipmentType || isLoading}
+            disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
             className="bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Updating...' : 'Update Equipment'}

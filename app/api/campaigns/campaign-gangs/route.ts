@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Check if user is authenticated
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Get the authenticated user
   const { data: { user } } = await supabase.auth.getUser();

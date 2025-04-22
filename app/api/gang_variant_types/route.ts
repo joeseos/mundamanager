@@ -8,7 +8,7 @@ interface Variant {
 }
 
 export async function GET(request: Request) {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     try {
         let query = supabase

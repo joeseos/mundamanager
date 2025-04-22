@@ -8,6 +8,7 @@ export interface FighterType {
   gang_type: string;
   fighter_class: string;
   fighter_class_id?: string;
+  fighter_sub_type_id?: string;
   cost: number;
   movement: number;
   weapon_skill: number;

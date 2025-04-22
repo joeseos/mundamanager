@@ -5,7 +5,7 @@ import { checkAdmin } from "@/utils/auth";
 export async function GET() {
   console.log('Fighter classes API endpoint called');
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const { data: { user } } = await supabase.auth.getUser();

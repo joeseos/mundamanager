@@ -16,11 +16,9 @@ interface CampaignTerritory {
   gang_name?: string;
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { campaignId: string } }
-) {
-  const supabase = createClient();
+export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
@@ -50,11 +48,9 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { campaignId: string } }
-) {
-  const supabase = createClient();
+export async function POST(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {

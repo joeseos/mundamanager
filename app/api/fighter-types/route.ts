@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Gang type ID is required' }, { status: 400 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const { data: fighterTypes, error } = await supabase

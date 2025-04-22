@@ -11,29 +11,59 @@ declare global {
 }
 
 export default function TurnstileWidget() {
-  const widgetId = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Get sitekey once at component initialization
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
-  const renderTurnstile = () => {
-    if (containerRef.current && window.turnstile) {
-      if (widgetId.current) {
-        window.turnstile.remove(widgetId.current);
+  useEffect(() => {
+    // Define callback for Turnstile
+    window.onloadTurnstileCallback = function() {
+      if (!window.turnstile) {
+        console.error('Turnstile not available after callback');
+        return;
       }
       
-      try {
-        if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-          throw new Error('Turnstile site key is not defined');
-        }
-        
-        console.log('Rendering Turnstile with sitekey:', process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
-        widgetId.current = window.turnstile.render(containerRef.current, {
-          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
-          theme: 'dark',
-          callback: function(token: string) {
-            console.log('Turnstile token generated');
-            const form = containerRef.current?.closest('form');
+      console.log('Turnstile loaded, ready to render');
+      // Note: We don't need to explicitly render here as we're using implicit rendering
+    };
+    
+    return () => {
+      // Cleanup - nothing specific needed for implicit rendering
+    };
+  }, []);
+
+  return (
+    <div className="w-full">
+      {/* Use implicit rendering as recommended by Cloudflare */}
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback"
+        strategy="afterInteractive"
+      />
+      
+      <div 
+        ref={containerRef}
+        className="cf-turnstile" 
+        data-sitekey={siteKey}
+        data-theme="dark"
+        data-callback="onTurnstileSuccess"
+        data-error-callback="onTurnstileError"
+      ></div>
+      
+      {process.env.NODE_ENV === 'development' && !siteKey && (
+        <div className="text-amber-500 text-sm mt-2">
+          Note: NEXT_PUBLIC_TURNSTILE_SITE_KEY environment variable is not set
+        </div>
+      )}
+      
+      {/* Add global callbacks for Turnstile */}
+      <Script id="turnstile-callbacks" strategy="afterInteractive">
+        {`
+          window.onTurnstileSuccess = function(token) {
+            console.log("Turnstile verification successful");
+            const form = document.querySelector('form');
             if (form) {
-              let tokenInput = form.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null;
+              let tokenInput = form.querySelector('input[name="cf-turnstile-response"]');
               if (!tokenInput) {
                 tokenInput = document.createElement('input');
                 tokenInput.type = 'hidden';
@@ -41,52 +71,14 @@ export default function TurnstileWidget() {
                 form.appendChild(tokenInput);
               }
               tokenInput.value = token;
-            } else {
-              console.error('Form not found');
             }
-          },
-          'error-callback': function(error: Error) {
-            console.error('Turnstile error:', error);
-          }
-        });
-        console.log('Turnstile rendered with ID:', widgetId.current);
-      } catch (err) {
-        console.error('Error rendering Turnstile:', err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    window.onloadTurnstileCallback = renderTurnstile;
-
-    // Render Turnstile when the component mounts
-    if (window.turnstile) {
-      renderTurnstile();
-    }
-
-    // Clean up function
-    return () => {
-      if (widgetId.current && window.turnstile) {
-        window.turnstile.remove(widgetId.current);
-      }
-    };
-  }, []);
-
-  return (
-    <>
-      <Script
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-        async
-        defer
-        onLoad={() => {
-          console.log('Turnstile script loaded');
-          window.onloadTurnstileCallback && window.onloadTurnstileCallback();
-        }}
-        onError={() => {
-          console.error('Failed to load Turnstile script');
-        }}
-      />
-      <div ref={containerRef} className="cf-turnstile" data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}></div>
-    </>
+          };
+          
+          window.onTurnstileError = function(error) {
+            console.error("Turnstile error:", error);
+          };
+        `}
+      </Script>
+    </div>
   );
 }
