@@ -13,6 +13,7 @@ export default function ResetPassword() {
   const searchParams = useSearchParams();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Get search params safely
   const error = searchParams.get('error');
@@ -31,13 +32,23 @@ export default function ResetPassword() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const response = await forgotPasswordAction(formData);
-    if (response.success) {
-      setFeedbackMessage(response.success);
-      setEmailSent(true);
-    } else {
-      setFeedbackMessage(response.error ?? null);
+    setIsSubmitting(true);
+    
+    try {
+      const formData = new FormData(event.currentTarget);
+      const response = await forgotPasswordAction(formData);
+      
+      if (response.success) {
+        setFeedbackMessage(response.success);
+        setEmailSent(true);
+      } else if (response.error) {
+        setFeedbackMessage(response.error);
+      }
+    } catch (error) {
+      console.error('Error during password reset:', error);
+      setFeedbackMessage('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -63,9 +74,9 @@ export default function ResetPassword() {
                   autoComplete="email"
                 />
                 <SubmitButton 
-                  formAction={forgotPasswordAction} 
                   pendingText="Sending..." 
                   className="mt-2"
+                  disabled={isSubmitting}
                 >
                   Send Reset Instructions
                 </SubmitButton>
