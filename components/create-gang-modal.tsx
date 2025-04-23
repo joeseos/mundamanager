@@ -29,10 +29,12 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangType, setGangType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
 
   useEffect(() => {
     const fetchGangTypes = async () => {
-      if (gangTypes.length === 0) {
+      if (gangTypes.length === 0 && !isLoadingGangTypes) {
+        setIsLoadingGangTypes(true);
         try {
           const supabase = createClient();
           
@@ -49,12 +51,14 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
         } catch (err) {
           console.error('Error fetching gang types:', err);
           setError('Failed to load gang types. Please try again.');
+        } finally {
+          setIsLoadingGangTypes(false);
         }
       }
     };
 
     fetchGangTypes();
-  }, [gangTypes]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
