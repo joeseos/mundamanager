@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
+import { createClient } from '@/utils/supabase/client';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -122,11 +123,17 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        // Get the session from the hook
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/skill_types`,
           {
             headers: {
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session?.access_token || ''}`,
+              'Content-Type': 'application/json',
             },
           }
         );
