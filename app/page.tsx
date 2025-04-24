@@ -1,8 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import CreateGangButton from '@/components/create-gang-button'
 import MyGangs from '@/components/my-gangs'
 import { GangsProvider } from '@/contexts/GangsContext'
+import { CreateGangButton } from '@/components/create-gang-modal'
 
 export default async function Home() {
   const supabase = await createClient();

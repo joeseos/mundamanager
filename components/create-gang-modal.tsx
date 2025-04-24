@@ -21,7 +21,34 @@ interface CreateGangModalProps {
 
 const EXCLUDED_GANG_TYPES = ['Exotic Beasts', 'Hired guns', 'Other'];
 
-export default function CreateGangModal({ onClose }: CreateGangModalProps) {
+// Button component that opens the modal
+export function CreateGangButton() {
+  const [showModal, setShowModal] = useState(false);
+
+  const handleClose = () => {
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <Button 
+        onClick={() => setShowModal(true)}
+        className="w-full"
+      >
+        Create New Gang
+      </Button>
+
+      {showModal && (
+        <CreateGangModal
+          onClose={handleClose}
+        />
+      )}
+    </>
+  );
+}
+
+// Modal component
+export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const { refreshGangs } = useGangs();
   const { toast } = useToast();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
