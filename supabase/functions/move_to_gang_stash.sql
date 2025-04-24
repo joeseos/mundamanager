@@ -16,6 +16,7 @@ DECLARE
     v_equipment_id UUID;
     v_gang_id UUID;
     v_cost NUMERIC;
+    v_is_master_crafted BOOLEAN;
     v_new_stash_id UUID;
     v_user_has_access BOOLEAN;
     v_is_admin BOOLEAN;
@@ -41,11 +42,13 @@ BEGIN
     SELECT 
         fe.equipment_id,
         COALESCE(f.gang_id, v.gang_id) as gang_id,
-        fe.purchase_cost
+        fe.purchase_cost,
+        fe.is_master_crafted
     INTO 
         v_equipment_id,
         v_gang_id,
-        v_cost
+        v_cost,
+        v_is_master_crafted
     FROM fighter_equipment fe
     LEFT JOIN fighters f ON f.id = fe.fighter_id
     LEFT JOIN vehicles v ON v.id = fe.vehicle_id
@@ -70,13 +73,15 @@ BEGIN
         created_at,
         gang_id,
         equipment_id,
-        cost
+        cost,
+        is_master_crafted
     ) VALUES (
         gen_random_uuid(),
         NOW(),
         v_gang_id,
         v_equipment_id,
-        v_cost
+        v_cost,
+        v_is_master_crafted
     )
     RETURNING id INTO v_new_stash_id;
 

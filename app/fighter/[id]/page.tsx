@@ -309,8 +309,15 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         cost: item.purchase_cost,
         base_cost: item.original_cost,
         weapon_profiles: item.weapon_profiles,
-        core_equipment: item.core_equipment
+        core_equipment: item.core_equipment,
+        is_master_crafted: item.is_master_crafted
       }));
+      
+      // Just log the first equipment item to see the structure
+      if (result.equipment && result.equipment.length > 0) {
+        console.log('Equipment item original:', result.equipment[0]);
+        console.log('Equipment item transformed:', transformedEquipment[0]);
+      }
       console.log(result.fighter.effects)
       console.log(result.fighter.effects.injuries)
       var testing: FighterEffect[] = result.fighter.effects.injuries

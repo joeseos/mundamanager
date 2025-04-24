@@ -64,6 +64,7 @@ export function FighterWeaponsTable({
                 >
                   <td className="px-1 py-1">
                     {item.equipment_name}
+                    {item.is_master_crafted && " (Master-Crafted)"}
                   </td>
                   <td className="px-1 py-1 text-right">
                     {item.cost ?? '-'}
