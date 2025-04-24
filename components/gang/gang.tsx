@@ -25,9 +25,6 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import AddFighter from './add-fighter';
-import AddVehicle from './add-vehicle';
-import GangAdditions from './gang-additions';
 
 interface VehicleType {
   id: string;
@@ -913,6 +910,135 @@ const handleAlignmentChange = (value: string) => {
     </div>
   );
 
+  const addFighterModalContent = (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Fighter Name
+        </label>
+        <Input
+          type="text"
+          placeholder="Fighter name"
+          value={fighterName}
+          onChange={(e) => setFighterName(e.target.value)}
+          className="w-full"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Fighter Type
+        </label>
+        <select
+          value={selectedFighterTypeId}
+          onChange={handleFighterTypeChange}
+          className="w-full p-2 border rounded"
+        >
+          <option value="">Select fighter type</option>
+          {/* Modified dropdown options to properly handle sub-types */}
+          {Array.from(new Set(fighterTypes.map(type => type.fighter_type))).map(uniqueType => {
+            const matchingFighters = fighterTypes.filter(ft => ft.fighter_type === uniqueType);
+
+            // Find the selected sub-type if it matches this fighter type
+            const selectedSubType = selectedSubTypeId
+              ? matchingFighters.find(t => t.id === selectedSubTypeId)
+              : null;
+
+            // Find the cheapest fighter for this type
+            const lowestCostFighter = matchingFighters.reduce((lowest, current) =>
+              current.total_cost < lowest.total_cost ? current : lowest
+            );
+
+            // Show the selected sub-type if available; otherwise, fall back to the cheapest option for this fighter type
+            if (selectedSubType) {
+              return (
+                <option key={selectedSubType.id} value={selectedSubType.id}>
+                  {uniqueType} ({selectedSubType.fighter_class}) - {lowestCostFighter.total_cost} credits
+                </option>
+              );
+            } else {
+              return (
+                <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
+                  {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
+                </option>
+              );
+            }
+          })}
+        </select>
+      </div>
+
+      {/* Conditionally show sub-type dropdown if there are available sub-types */}
+      {availableSubTypes.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Fighter Sub-Type
+          </label>
+          <select
+            value={selectedSubTypeId}
+            onChange={handleSubTypeChange}
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select fighter sub-type</option>
+            {[...availableSubTypes]
+              .sort((a, b) => {
+                const aName = a.sub_type_name.toLowerCase();
+                const bName = b.sub_type_name.toLowerCase();
+
+                // Always keep "Default" or "Vatborn" first
+                const isAFirst = aName === 'default' || aName === 'vatborn';
+                const isBFirst = bName === 'default' || bName === 'vatborn';
+                if (isAFirst && !isBFirst) return -1;
+                if (!isAFirst && isBFirst) return 1;
+
+                // Otherwise sort by cost, then name
+                const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
+                const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
+                if (aCost !== bCost) return aCost - bCost;
+
+                return aName.localeCompare(bName);
+              })
+              .map((subType) => {
+                const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
+                const lowestSubTypeCost = Math.min(
+                  ...availableSubTypes.map(sub =>
+                    fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
+                  )
+                );
+                const diff = subTypeCost - lowestSubTypeCost;
+                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
+
+                return (
+                  <option key={subType.id} value={subType.id}>
+                    {subType.sub_type_name} {costLabel}
+                  </option>
+                );
+              })}
+          </select>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Cost (credits)
+        </label>
+        <Input
+          type="number"
+          value={fighterCost}
+          onChange={(e) => setFighterCost(e.target.value)}
+          className="w-full"
+          min={0}
+        />
+        {selectedFighterTypeId && (
+          <p className="text-sm text-gray-500">
+            Base cost: {fighterTypes.find(t => t.id === selectedFighterTypeId)?.total_cost} credits
+          </p>
+        )}
+      </div>
+
+      {fetchError && <p className="text-red-500">{fetchError}</p>}
+    </div>
+  );
+
   const handleGangAdditionsModalOpen = async () => {
     // Only fetch if we haven't already loaded the gang addition types
     if (gangAdditionTypes.length === 0) {
@@ -1556,20 +1682,17 @@ const handleAlignmentChange = (value: string) => {
           )}
 
           {showAddFighterModal && (
-            <AddFighter
-              isOpen={showAddFighterModal}
-              gangCredits={initialCredits}
-              fighterName={fighterName}
-              setFighterName={setFighterName}
-              selectedFighterTypeId={selectedFighterTypeId}
-              handleFighterTypeChange={handleFighterTypeChange}
-              availableSubTypes={availableSubTypes}
-              selectedSubTypeId={selectedSubTypeId}
-              handleSubTypeChange={handleSubTypeChange}
-              fighterCost={fighterCost}
-              setFighterCost={setFighterCost}
-              fetchError={fetchError}
-              fighterTypes={fighterTypes}
+            <Modal
+              title="Add Fighter"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
+              content={addFighterModalContent}
               onClose={() => {
                 setShowAddFighterModal(false);
                 // Reset all form fields
@@ -1581,21 +1704,83 @@ const handleAlignmentChange = (value: string) => {
                 setFetchError(null);
               }}
               onConfirm={handleAddFighter}
+              confirmText="Add Fighter"
+              confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost || 
+                (availableSubTypes.length > 0 && !selectedSubTypeId)}
             />
           )}
 
           {showAddVehicleModal && (
-            <AddVehicle
-              isOpen={showAddVehicleModal}
-              gangCredits={initialCredits}
-              vehicleName={vehicleName}
-              setVehicleName={setVehicleName}
-              selectedVehicleTypeId={selectedVehicleTypeId}
-              setSelectedVehicleTypeId={setSelectedVehicleTypeId}
-              vehicleTypes={vehicleTypes}
-              vehicleCost={vehicleCost}
-              setVehicleCost={setVehicleCost}
-              vehicleError={vehicleError}
+            <Modal
+              title="Add Vehicle"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
+              content={
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Vehicle Name
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Enter vehicle name"
+                      value={vehicleName}
+                      onChange={(e) => setVehicleName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Vehicle Type
+                    </label>
+                    <select
+                      value={selectedVehicleTypeId}
+                      onChange={(e) => {
+                        setSelectedVehicleTypeId(e.target.value);
+                        const vehicle = vehicleTypes.find(v => v.id === e.target.value);
+                        if (vehicle) {
+                          setVehicleCost(vehicle.cost.toString());
+                        }
+                      }}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select vehicle type</option>
+                      {vehicleTypes.map((type: VehicleType) => (
+                        <option key={type.id} value={type.id}>
+                          {type.vehicle_type} - {type.cost} credits
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cost (credits)
+                    </label>
+                    <Input
+                      type="number"
+                      value={vehicleCost}
+                      onChange={(e) => setVehicleCost(e.target.value)}
+                      className="w-full"
+                      min={0}
+                    />
+                    {selectedVehicleTypeId && (
+                      <p className="text-sm text-gray-500">
+                        Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
+                      </p>
+                    )}
+                  </div>
+
+                  {vehicleError && <p className="text-red-500">{vehicleError}</p>}
+                </div>
+              }
               onClose={() => {
                 setShowAddVehicleModal(false);
                 setSelectedVehicleTypeId('');
@@ -1604,24 +1789,152 @@ const handleAlignmentChange = (value: string) => {
                 setVehicleError(null);
               }}
               onConfirm={handleAddVehicle}
+              confirmText="Add Vehicle"
+              confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
             />
           )}
 
           {showGangAdditionsModal && (
-            <GangAdditions
-              isOpen={showGangAdditionsModal}
-              gangCredits={initialCredits}
-              fighterName={fighterName}
-              setFighterName={setFighterName}
-              selectedGangAdditionTypeId={selectedGangAdditionTypeId}
-              handleGangAdditionTypeChange={handleGangAdditionTypeChange}
-              gangAdditionCost={gangAdditionCost}
-              setGangAdditionCost={setGangAdditionCost}
-              selectedGangAdditionClass={selectedGangAdditionClass}
-              handleGangAdditionClassChange={handleGangAdditionClassChange}
-              gangAdditionTypes={gangAdditionTypes}
-              fetchError={fetchError}
-              renderEquipmentSelection={renderEquipmentSelection}
+            <Modal
+              title="Gang Additions"
+              headerContent={
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Gang Credits</span>
+                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                    {initialCredits}
+                  </span>
+                </div>
+              }
+              content={
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Name
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Fighter name"
+                      value={fighterName}
+                      onChange={(e) => setFighterName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Class
+                    </label>
+                    <select
+                      value={selectedGangAdditionClass}
+                      onChange={handleGangAdditionClassChange}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select Fighter Class</option>
+
+                      {Object.entries(
+                        Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
+                          .sort((a, b) => {
+                            const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
+                            const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
+                            return rankA - rankB;
+                          })
+                          .reduce((groups, classType) => {
+                            const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
+                            let groupLabel = "Misc."; // Default category for unlisted fighter classes
+
+                            if (rank <= 2) groupLabel = "Hangers-on & Brutes";
+                            else if (rank <= 10) groupLabel = "Vehicle Crews";
+                            else if (rank <= 29) groupLabel = "Hired Guns";
+                            else if (rank <= 39) groupLabel = "Equipment";
+                            else if (rank <= 49) groupLabel = "Alliances: Criminal Organisations";
+                            else if (rank <= 59) groupLabel = "Alliances: Merchant Guilds";
+                            else if (rank <= 69) groupLabel = "Alliances: Noble Houses";
+
+                            if (!groups[groupLabel]) groups[groupLabel] = [];
+                            groups[groupLabel].push(classType);
+                            return groups;
+                          }, {} as Record<string, string[]>)
+                      ).map(([groupLabel, classList]) => (
+                        <optgroup key={groupLabel} label={groupLabel}>
+                          {classList.map(classType => (
+                            <option key={classType} value={classType}>
+                              {classType}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Fighter Type
+                    </label>
+                    <select
+                      value={selectedGangAdditionTypeId}
+                      onChange={handleGangAdditionTypeChange}
+                      className="w-full p-2 border rounded"
+                      disabled={!selectedGangAdditionClass}
+                    >
+                      <option value="">Select Fighter Type</option>
+
+                      {Object.entries(
+                        filteredGangAdditionTypes
+                          .slice() // Create a shallow copy to avoid mutating the original array
+                          .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
+                          .reduce((groups, type) => {
+                            const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
+
+                            if (!groups[groupLabel]) groups[groupLabel] = [];
+                            groups[groupLabel].push(type);
+                            return groups;
+                          }, {} as Record<string, typeof filteredGangAdditionTypes>)
+                      )
+                        // Sort optgroup labels by predefined priority
+                        .sort(([groupA], [groupB]) => {
+                          const alignmentOrder: Record<string, number> = {
+                            "law abiding": 1,
+                            "outlaw": 2,
+                            "unaligned": 3,
+                          };
+
+                          return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
+                        })
+                        .map(([groupLabel, fighterList]) => (
+                          <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
+                            {fighterList.map(type => (
+                              <option key={type.id} value={type.id}>
+                                {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cost (credits)
+                    </label>
+                    <Input
+                      type="number"
+                      value={fighterCost}
+                      onChange={(e) => setFighterCost(e.target.value)}
+                      className="w-full"
+                      min={0}
+                    />
+                    {selectedGangAdditionTypeId && (
+                      <p className="text-sm text-gray-500">
+                        Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
+                      </p>
+                    )}
+                  </div>
+
+                  {renderEquipmentSelection()}
+
+                  {fetchError && <p className="text-red-500">{fetchError}</p>}
+                </div>
+              }
               onClose={() => {
                 setShowGangAdditionsModal(false);
                 setFighterName('');
@@ -1631,6 +1944,13 @@ const handleAlignmentChange = (value: string) => {
                 setFetchError(null);
               }}
               onConfirm={handleAddFighter}
+              confirmText="Add Fighter"
+              confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost ||
+                (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                  ?.equipment_selection?.weapons?.select_type === 'single' &&
+                  !selectedEquipmentIds.length &&
+                  !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
+                    ?.equipment_selection?.weapons?.default)}
             />
           )}
         </div>
