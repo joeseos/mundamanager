@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '../ui/button';
-import { FighterDetailsStatsTable, StatsType } from '../ui/fighter-details-stats-table';
+import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterEffects, FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
