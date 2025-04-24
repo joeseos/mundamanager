@@ -63,6 +63,7 @@ BEGIN
         f.starved,
         f.retired,
         f.enslaved,
+        f.recovery,
         f.free_skill
     FROM fighters f
     WHERE f.gang_id = p_gang_id
@@ -509,6 +510,7 @@ BEGIN
            f.starved,
            f.retired,
            f.enslaved,
+           f.recovery,
            f.free_skill,
            f.cost_adjustment,
            (COALESCE(f.base_credits, 0) + 
@@ -710,6 +712,7 @@ BEGIN
                    'starved', cf.starved,
                    'retired', cf.retired,
                    'enslaved', cf.enslaved,
+                   'recovery', cf.recovery,
                    'free_skill', cf.free_skill
                )
            )

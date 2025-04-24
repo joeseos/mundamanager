@@ -10,6 +10,7 @@ import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { FaMedkit } from "react-icons/fa";
 import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
 
@@ -22,6 +23,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   retired?: boolean;
   enslaved?: boolean;
   starved?: boolean;
+  recovery?: boolean;
   free_skill?: boolean;
   kills: number;
   skills?: FighterSkills;
@@ -123,6 +125,7 @@ const FighterCard = memo(function FighterCard({
   retired,
   enslaved,
   starved,
+  recovery,
   free_skill,
   kills = 0,  // Default value
   skills = {},  // Add default value
@@ -388,6 +391,7 @@ const FighterCard = memo(function FighterCard({
             {retired && <MdChair className="text-gray-600" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
             {starved && <TbMeatOff className="text-red-500" />}
+            {recovery && <FaMedkit className="text-blue-500" />}
           </div>
           {!isInactive && (
             <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">

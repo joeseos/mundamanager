@@ -168,6 +168,7 @@ async function processGangData(gangData: any) {
       retired: fighter.retired || false,
       enslaved: fighter.enslaved || false,
       starved: fighter.starved || false,
+      recovery: fighter.recovery || false,
       free_skill: fighter.free_skill || false,
       vehicle,
     };
