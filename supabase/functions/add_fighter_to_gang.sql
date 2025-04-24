@@ -26,6 +26,7 @@ DECLARE
   v_fighter_type TEXT;
   v_fighter_class TEXT;
   v_fighter_class_id UUID;
+  v_fighter_sub_type_id UUID;
   v_free_skill BOOLEAN;
   v_equipment_info JSONB;
   v_skills_info JSONB;
@@ -52,6 +53,7 @@ BEGIN
       ft.fighter_type,
       fc.class_name as fighter_class,
       fc.id as fighter_class_id,
+      ft.fighter_sub_type_id, -- Add fighter_sub_type_id to the query
       ft.free_skill,
       COALESCE(p_cost, ft.cost) as fighter_cost,
       g.credits as gang_credits,
@@ -66,6 +68,7 @@ BEGIN
     fighter_type,
     fighter_class,
     fighter_class_id,
+    fighter_sub_type_id, -- Add fighter_sub_type_id to the SELECT list
     free_skill,
     fighter_cost,
     gang_credits,
@@ -74,6 +77,7 @@ BEGIN
     v_fighter_type,
     v_fighter_class,
     v_fighter_class_id,
+    v_fighter_sub_type_id, -- Store fighter_sub_type_id
     v_free_skill,
     v_fighter_cost,
     v_gang_credits,
@@ -105,6 +109,7 @@ BEGIN
       gang_id, 
       fighter_type_id,
       fighter_class_id,
+      fighter_sub_type_id, -- Add fighter_sub_type_id column to the INSERT
       fighter_type,
       fighter_class,
       free_skill,
@@ -131,6 +136,7 @@ BEGIN
       p_gang_id,
       p_fighter_type_id,
       fc.id as fighter_class_id,
+      ft.fighter_sub_type_id, -- Add fighter_sub_type_id to the SELECT
       ft.fighter_type,
       fc.class_name as fighter_class,
       ft.free_skill,
@@ -297,6 +303,7 @@ BEGIN
       'fighter_type', v_fighter_type,
       'fighter_class', v_fighter_class,
       'fighter_class_id', v_fighter_class_id,
+      'fighter_sub_type_id', v_fighter_sub_type_id, -- Return the fighter_sub_type_id in the JSON response
       'free_skill', v_free_skill,
       'cost', v_fighter_cost,
       'total_cost', v_total_cost,
