@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/modal";
 import { FighterType } from "@/types/fighter-type";
