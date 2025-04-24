@@ -18,7 +18,7 @@ interface GangAdditionsProps {
   handleGangAdditionClassChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   gangAdditionTypes: FighterType[];
   fetchError: string | null;
-  renderEquipmentSelection: () => JSX.Element | null;
+  renderEquipmentSelection: () => React.ReactNode;
   onClose: () => void;
   onConfirm: () => Promise<boolean>;
 }
