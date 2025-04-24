@@ -288,6 +288,7 @@ BEGIN
                 'starved', f.starved,
                 'retired', f.retired,
                 'enslaved', f.enslaved,
+                'recovery', f.recovery,
                 'free_skill', f.free_skill,
                 'kills', f.kills,
                 -- Fixed approach using the new categorized_effects CTE

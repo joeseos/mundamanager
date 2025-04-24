@@ -24,6 +24,7 @@ import { useSession } from '@/hooks/use-session';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
 import { Plus, Minus, X } from "lucide-react";
+import { Vehicle } from '@/types/fighter';
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
@@ -59,13 +60,12 @@ interface Campaign {
 interface Fighter {
   id: string;
   fighter_name: string;
-  label?: string;
   fighter_type: {
     fighter_type: string;
     fighter_type_id: string;
-    fighter_class?: string;
   };
-  gang_type_id: string;
+  fighter_class?: string;
+  label?: string;
   credits: number;
   movement: number;
   weapon_skill: number;
@@ -79,59 +79,37 @@ interface Fighter {
   cool: number;
   willpower: number;
   intelligence: number;
-  xp: number | null;
-  total_xp: number | null;
-  weapons: Weapon[];
-  wargear: Wargear[];
-  gang_id: string;
-  skills: FighterSkills;
-  effects: {
-    injuries: Array<FighterEffect>;
-    advancements: Array<FighterEffect>;
-    bionics: Array<FighterEffect>;
-    cybernetics: Array<FighterEffect>;
-    user: Array<FighterEffect>;
+  xp: number;
+  total_xp: number;
+  killed?: boolean;
+  retired?: boolean;
+  enslaved?: boolean;
+  starved?: boolean;
+  recovery?: boolean;
+  free_skill?: boolean;
+  kills: number;
+  advancements?: {
+    characteristics: Record<string, any>;
+    skills: Record<string, any>;
   };
   note?: string;
-  kills: number;
-  cost_adjustment: number;
-  base_credits: number;
-  fighter_class: string;
-  killed: boolean;
-  retired: boolean;
-  enslaved: boolean;
-  starved: boolean;
-  free_skill: boolean;
-  vehicles?: Array<{
-    id: string;
-    vehicle_type_id: string;
-    vehicle_type: string;
-    movement: number;
-    front: number;
-    side: number;
-    rear: number;
-    hull_points: number;
-    handling: number;
-    save: number;
-    vehicle_name?: string;
-    body_slots: number;
-    body_slots_occupied: number;
-    drive_slots: number;
-    drive_slots_occupied: number;
-    engine_slots: number;
-    engine_slots_occupied: number;
-    equipment?: Array<{
-      id: string;
-      equipment_id: string;
-      equipment_name: string;
-      equipment_type: string;
-      purchase_cost: number;
-      original_cost: number;
-      weapon_profiles?: WeaponProfile[];
-      vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-    }>;
-  }>;
-  campaigns?: Campaign[];
+  special_rules?: string[];
+  cost_adjustment?: number;
+  injury_advances?: number;
+  skills?: FighterSkills;
+  effects: {
+    injuries: FighterEffect[];
+    advancements: FighterEffect[];
+    bionics: FighterEffect[];
+    cybernetics: FighterEffect[];
+    user: FighterEffect[];
+  };
+  vehicles?: Vehicle[];
+  gang_id?: string;
+  gang_type_id?: string;
+  campaigns?: any[];
+  weapons?: any[];
+  wargear?: any[];
 }
 
 interface Gang {
@@ -170,6 +148,7 @@ interface UIState {
     editFighter: boolean;
     addWeapon: boolean;
     addVehicleEquipment: boolean;
+    recovery: boolean;
   };
 }
 
@@ -224,7 +203,8 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       advancement: false,
       editFighter: false,
       addWeapon: false,
-      addVehicleEquipment: false
+      addVehicleEquipment: false,
+      recovery: false
     }
   });
 
@@ -566,12 +546,12 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           drive_slots_occupied: (vehicle.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied,
           engine_slots_occupied: (vehicle.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied,
           equipment: [...(vehicle.equipment || []), {
-            id: boughtEquipment.equipment_id,
+            fighter_equipment_id: boughtEquipment.equipment_id,
             equipment_id: boughtEquipment.equipment_id,
             equipment_name: boughtEquipment.equipment_name,
             equipment_type: boughtEquipment.equipment_type,
-            purchase_cost: boughtEquipment.cost,
-            original_cost: boughtEquipment.cost,
+            cost: boughtEquipment.cost,
+            base_cost: boughtEquipment.cost,
             weapon_profiles: boughtEquipment.weapon_profiles || undefined,
             vehicle_equipment_profiles: boughtEquipment.vehicle_equipment_profiles
           }]
@@ -893,6 +873,53 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         modals: {
           ...prev.modals,
           retire: false
+        }
+      }));
+    }
+  }, [fighterData.fighter, toast, fetchFighterData]);
+
+  const handleRecoveryFighter = useCallback(async () => {
+    if (!fighterData.fighter) return;
+
+    const newRecoveryState = !fighterData.fighter.recovery;
+
+    try {
+      const response = await fetch(`/api/fighters/${fighterData.fighter.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recovery: newRecoveryState
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(fighterData.fighter.recovery ? 'Failed to remove recovery status' : 'Failed to set recovery status');
+      }
+
+      toast({
+        description: fighterData.fighter.recovery
+          ? `${fighterData.fighter.fighter_name} has been cleared from recovery.`
+          : `${fighterData.fighter.fighter_name} has been sent to recovery.`,
+        variant: "default"
+      });
+
+      await fetchFighterData();
+    } catch (error) {
+      console.error('Error updating fighter recovery status:', error);
+      toast({
+        description: fighterData.fighter.recovery
+          ? 'Failed to clear recovery status. Please try again.'
+          : 'Failed to set recovery status. Please try again.',
+        variant: "destructive"
+      });
+    } finally {
+      setUiState(prev => ({
+        ...prev,
+        modals: {
+          ...prev.modals,
+          recovery: false
         }
       }));
     }
@@ -1592,7 +1619,8 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         }
 
         // Find the skill to get its XP cost
-        const skill = fighterData.fighter?.skills[skillName];
+        const skills = fighterData.fighter?.skills || {};
+        const skill = skills[skillName];
         const xpCost = skill?.xp_cost || 0;
 
         // Optimistically update the state
@@ -1819,9 +1847,12 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
 
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
-  const getPillColor = (occupied: number, total: number) => {
-    if (occupied > total) return "bg-red-500";
-    if (occupied === total) return "bg-gray-500";
+  const getPillColor = (occupied: number | undefined, total: number | undefined) => {
+    const occupiedValue = occupied || 0;
+    const totalValue = total || 0;
+    
+    if (occupiedValue > totalValue) return "bg-red-500";
+    if (occupiedValue === totalValue) return "bg-gray-500";
     return "bg-green-500";
   };
 
@@ -1845,31 +1876,32 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           <FighterDetailsCard
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
-            label={fighterData.fighter?.label || ''}
-            type={fighterData.fighter?.fighter_type.fighter_type || ''}
-            fighter_class={fighterData.fighter?.fighter_class}
+            type={fighterData.fighter?.fighter_type?.fighter_type || ''}
             credits={fighterData.fighter?.credits || 0}
-            movement={fighterData.fighter?.movement}
-            weapon_skill={fighterData.fighter?.weapon_skill}
-            ballistic_skill={fighterData.fighter?.ballistic_skill}
-            strength={fighterData.fighter?.strength}
-            toughness={fighterData.fighter?.toughness}
-            wounds={fighterData.fighter?.wounds}
-            initiative={fighterData.fighter?.initiative}
-            attacks={fighterData.fighter?.attacks}
-            leadership={fighterData.fighter?.leadership}
-            cool={fighterData.fighter?.cool}
-            willpower={fighterData.fighter?.willpower}
-            intelligence={fighterData.fighter?.intelligence}
-            xp={fighterData.fighter?.xp}
-            total_xp={fighterData.fighter?.total_xp}
+            movement={fighterData.fighter?.movement || 0}
+            weapon_skill={fighterData.fighter?.weapon_skill || 0}
+            ballistic_skill={fighterData.fighter?.ballistic_skill || 0}
+            strength={fighterData.fighter?.strength || 0}
+            toughness={fighterData.fighter?.toughness || 0}
+            wounds={fighterData.fighter?.wounds || 0}
+            initiative={fighterData.fighter?.initiative || 0}
+            attacks={fighterData.fighter?.attacks || 0}
+            leadership={fighterData.fighter?.leadership || 0}
+            cool={fighterData.fighter?.cool || 0}
+            willpower={fighterData.fighter?.willpower || 0}
+            intelligence={fighterData.fighter?.intelligence || 0}
+            xp={fighterData.fighter?.xp || 0}
+            total_xp={fighterData.fighter?.total_xp || 0}
+            advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
-            onEdit={handleEditClick}
+            onEdit={() => handleModalToggle('editFighter', true)}
             killed={fighterData.fighter?.killed}
             retired={fighterData.fighter?.retired}
             enslaved={fighterData.fighter?.enslaved}
             starved={fighterData.fighter?.starved}
+            recovery={fighterData.fighter?.recovery}
+            fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
             effects={fighterData.fighter.effects || { injuries: [], advancements: [] }}
             vehicles={fighterData.fighter?.vehicles}
@@ -1942,6 +1974,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             onDeleteInjury={handleDeleteInjury}
             fighterId={fighterData.fighter?.id || ''}
             onInjuryAdded={fetchFighterData}
+            fighterRecovery={fighterData.fighter?.recovery || false}
           />
 
           <div className="mt-6">
@@ -1985,7 +2018,6 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
               vehicleId={fighterData.fighter.vehicles[0].id}
               vehicleType={fighterData.fighter.vehicles[0].vehicle_type}
               vehicleTypeId={
-                fighterData.fighter.vehicles[0].vehicle_type_id ||
                 vehicleTypeIdMap[fighterData.fighter.vehicles[0].vehicle_type] ||
                 undefined
               }
@@ -2026,6 +2058,13 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                   {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
                 </Button>
               )}
+              <Button
+                variant={fighterData.fighter?.recovery ? 'success' : 'default'}
+                className="flex-1"
+                onClick={() => handleModalToggle('recovery', true)}
+              >
+                {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
+              </Button>
               <Button
                 variant="destructive"
                 className="flex-1"
@@ -2371,6 +2410,19 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
               }
               onClose={() => setStashVehicleEquipmentData(null)}
               onConfirm={handleConfirmVehicleEquipmentStash}
+            />
+          )}
+
+          {uiState.modals.recovery && (
+            <Modal
+              title={fighterData.fighter?.recovery ? 'Clear Recovery Status' : 'Send to Recovery'}
+              content={
+                fighterData.fighter?.recovery
+                  ? `Are you sure you want to clear the recovery status for "${fighterData.fighter?.fighter_name}"?`
+                  : `Are you sure you want to send "${fighterData.fighter?.fighter_name}" to recovery?`
+              }
+              onClose={() => handleModalToggle('recovery', false)}
+              onConfirm={handleRecoveryFighter}
             />
           )}
         </div>

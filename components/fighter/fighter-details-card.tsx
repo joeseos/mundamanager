@@ -3,12 +3,13 @@ import { Button } from '../ui/button';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterEffects, FighterProps, FighterEffect } from '@/types/fighter';
+import { FighterEffects, FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
+import { FaMedkit } from "react-icons/fa";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 
 // Vehicle equipment profile interface
@@ -56,55 +57,32 @@ interface FighterDetailsCardProps {
   cool: number;
   willpower: number;
   intelligence: number;
-  xp: number | null;
-  total_xp: number | null;
-  advancements?: any;
-  onNameUpdate: (newName: string) => void;
+  xp: number;
+  total_xp?: number;
+  advancements?: {
+    characteristics: Record<string, any>;
+    skills: Record<string, any>;
+  };
+  onNameUpdate?: (name: string) => void;
   onAddXp?: () => void;
-  killed: boolean;
-  retired: boolean;
-  enslaved: boolean;
-  starved: boolean;
+  onEdit?: () => void;
+  killed?: boolean;
+  retired?: boolean;
+  enslaved?: boolean;
+  starved?: boolean;
+  recovery?: boolean;
   fighter_class?: string;
-  onEdit: () => void;
   kills: number;
-  effects: {
-    injuries: Array<FighterEffect>;
-    advancements: Array<FighterEffect>;
-    bionics: Array<FighterEffect>;
-    cybernetics: Array<FighterEffect>;
-    user: Array<FighterEffect>;
-  }
-  vehicles?: Array<{
-    id: string;
-    movement: number;
-    front: number;
-    side: number;
-    rear: number;
-    hull_points: number;
-    handling: number;
-    save: number;
-    vehicle_type?: string;
-    vehicle_name?: string;
-    body_slots: number;
-    body_slots_occupied: number;
-    drive_slots: number;
-    drive_slots_occupied: number;
-    engine_slots: number;
-    engine_slots_occupied: number;
-    equipment?: Array<{
-      id: string;
-      equipment_id: string;
-      equipment_name: string;
-      equipment_type: string;
-      purchase_cost: number;
-      original_cost: number;
-      weapon_profiles?: WeaponProfile[];
-      vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-    }>;
-  }>;
-  vehicleEquipment?: (Equipment | VehicleEquipment)[]; // Accept both types
-  gangId: string;
+  effects?: { 
+    injuries: FighterEffect[]; 
+    advancements: FighterEffect[];
+    bionics: FighterEffect[];
+    cybernetics: FighterEffect[];
+    user: FighterEffect[];
+  };
+  vehicles?: Vehicle[];
+  vehicleEquipment?: VehicleEquipment[];
+  gangId?: string;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -182,12 +160,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   advancements,
   onNameUpdate,
   onAddXp,
+  onEdit,
   killed,
   retired,
   enslaved,
   starved,
+  recovery,
   fighter_class,
-  onEdit,
   kills,
   effects,
   vehicles,
@@ -348,6 +327,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           {retired && <MdChair className="text-gray-600" />}
           {enslaved && <GiCrossedChains className="text-sky-200" />}
           {starved && <TbMeatOff className="text-red-500" />}
+          {recovery && <FaMedkit className="text-blue-500" />}
         </div>
         <div className="bg-[#FFFFFF] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
           <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>

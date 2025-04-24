@@ -173,6 +173,7 @@ export interface FighterProps {
   retired?: boolean;
   enslaved?: boolean;
   starved?: boolean;
+  recovery?: boolean;
   free_skill?: boolean;
   fighter_class?: string;
   note?: string;
