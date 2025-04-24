@@ -58,7 +58,7 @@ interface Category {
 }
 
 function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
-  const [manualCost, setManualCost] = useState(item.discounted_cost ?? item.cost);
+  const [manualCost, setManualCost] = useState<string>(String(item.discounted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
 
@@ -78,7 +78,12 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
   }, [isMasterCrafted, item]);
 
   const handleConfirm = () => {
-    if (manualCost > gangCredits) {
+    const parsedCost = Number(manualCost);
+
+    if (isNaN(parsedCost)) {
+      setCreditError(`Incorrect input, please update the input value`);
+      return false; // Explicitly return false to prevent modal closure
+    } else if (parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false; // Explicitly return false to prevent modal closure
     }
@@ -102,12 +107,20 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="-?[0-9]*"
                   value={manualCost}
                   onChange={(e) => {
-                    const newCost = Number(e.target.value);
-                    setManualCost(newCost);
-                    if (newCost <= gangCredits) {
-                      setCreditError(null);
+                    const val = e.target.value;
+
+                    // Allow only empty (0), "-", or digits (optionally starting with "-")
+                    if (/^-?\d*$/.test(val)) {
+                      setManualCost(val);
+
+                      const parsed = Number(val);
+                      if (!Number.isNaN(parsed) && parsed <= gangCredits) {
+                        setCreditError(null);
+                      }
                     }
                   }}
                   className="w-full p-2 border rounded-md"
