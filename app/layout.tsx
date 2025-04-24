@@ -62,7 +62,7 @@ export default async function RootLayout({
       <head>
         <link rel="manifest" href="/site.webmanifest" />
       </head>
-      <body className="bg-background text-foreground">
+      <body className="bg-background text-foreground" suppressHydrationWarning>
         <BackgroundImage />
         <DynamicHeaderAuth />
         {user && <DynamicBreadcrumbNav />}
