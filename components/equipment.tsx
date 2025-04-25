@@ -568,7 +568,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ...item,
         fighter_equipment_id: equipmentRecord.id,
         cost: manualCost,
-        master_crafted: equipmentRecord.is_master_crafted,
+        is_master_crafted: equipmentRecord.is_master_crafted,
+        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
+          ? `${item.equipment_name} (Master-crafted)` 
+          : item.equipment_name,
         vehicle_equipment_profiles: equipmentRecord.vehicle_profile ? [{
           ...equipmentRecord.vehicle_profile,
           id: equipmentRecord.id,
@@ -579,7 +582,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       toast({
         title: "Equipment purchased",
-        description: `Successfully bought ${item.equipment_name}${equipmentRecord.is_master_crafted ? ' (Master-crafted)' : ''} for ${manualCost} credits`,
+        description: `Successfully bought ${equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
+          ? `${item.equipment_name} (Master-crafted)` 
+          : item.equipment_name} for ${manualCost} credits`,
         variant: "default",
       });
 
