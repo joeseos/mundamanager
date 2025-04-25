@@ -304,13 +304,22 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       const transformedEquipment = (result.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
         equipment_id: item.equipment_id,
-        equipment_name: item.equipment_name,
+        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-Crafted)` 
+          : item.equipment_name,
         equipment_type: item.equipment_type,
         cost: item.purchase_cost,
         base_cost: item.original_cost,
         weapon_profiles: item.weapon_profiles,
-        core_equipment: item.core_equipment
+        core_equipment: item.core_equipment,
+        is_master_crafted: item.is_master_crafted
       }));
+      
+      // Just log the first equipment item to see the structure
+      if (result.equipment && result.equipment.length > 0) {
+        console.log('Equipment item original:', result.equipment[0]);
+        console.log('Equipment item transformed:', transformedEquipment[0]);
+      }
       console.log(result.fighter.effects)
       console.log(result.fighter.effects.injuries)
       var testing: FighterEffect[] = result.fighter.effects.injuries
@@ -319,7 +328,9 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       const transformedVehicleEquipment = (result.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
         equipment_id: item.equipment_id,
-        equipment_name: item.equipment_name,
+        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-Crafted)` 
+          : item.equipment_name,
         equipment_type: item.equipment_type,
         cost: item.purchase_cost,
         base_cost: item.original_cost,

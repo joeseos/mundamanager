@@ -215,7 +215,8 @@ BEGIN
                    'traits', wp.traits,
                    'weapon_group_id', wp.weapon_group_id,
                    'is_default_profile', wp.is_default_profile,
-                   'sort_order', wp.sort_order
+                   'sort_order', wp.sort_order,
+                   'is_master_crafted', fe.is_master_crafted
                )
                ORDER BY wp.sort_order NULLS LAST, wp.profile_name
            ) as profiles
@@ -249,6 +250,7 @@ BEGIN
                            'equipment_type', e.equipment_type,
                            'equipment_category', e.equipment_category,
                            'cost', fe.purchase_cost,
+                           'is_master_crafted', fe.is_master_crafted,
                            'weapon_profiles', COALESCE(
                                (SELECT wpa.profiles FROM weapon_profiles_agg wpa WHERE wpa.equipment_id = e.id),
                                '[]'::json
@@ -261,7 +263,8 @@ BEGIN
                            'equipment_name', e.equipment_name,
                            'equipment_type', e.equipment_type,
                            'equipment_category', e.equipment_category,
-                           'cost', fe.purchase_cost
+                           'cost', fe.purchase_cost,
+                           'is_master_crafted', fe.is_master_crafted
                        )
                    ELSE NULL
                END
@@ -366,6 +369,7 @@ BEGIN
                            'equipment_type', e.equipment_type,
                            'equipment_category', e.equipment_category,
                            'cost', ve.purchase_cost,
+                           'is_master_crafted', ve.is_master_crafted,
                            'weapon_profiles', COALESCE(
                                (SELECT wpa.profiles FROM weapon_profiles_agg wpa WHERE wpa.equipment_id = e.id), 
                                '[]'::json
@@ -383,6 +387,7 @@ BEGIN
                            'equipment_type', e.equipment_type,
                            'equipment_category', e.equipment_category,
                            'cost', ve.purchase_cost,
+                           'is_master_crafted', ve.is_master_crafted,
                            'vehicle_equipment_profiles', COALESCE(
                                (SELECT vepa.profiles FROM vehicle_equipment_profiles_agg vepa WHERE vepa.equipment_id = e.id),
                                '[]'::json
@@ -575,6 +580,7 @@ BEGIN
                    'equipment_type', e.equipment_type,
                    'equipment_category', e.equipment_category,
                    'cost', gs.cost,
+                   'is_master_crafted', gs.is_master_crafted,
                    'type', 'equipment'
                )
            ) as stash_items

@@ -155,7 +155,9 @@ const FighterCard = memo(function FighterCard({
       .map(weapon => ({
         fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
         weapon_id: weapon.equipment_id,
-        weapon_name: weapon.equipment_name,
+        weapon_name: weapon.is_master_crafted || weapon.master_crafted 
+          ? `${weapon.equipment_name} (Master-Crafted)` 
+          : weapon.equipment_name,
         weapon_profiles: weapon.weapon_profiles?.map(profile => ({
           ...profile,
           range_short: profile.range_short,
@@ -169,7 +171,8 @@ const FighterCard = memo(function FighterCard({
           traits: profile.traits || '',
           id: profile.id,
           profile_name: profile.profile_name,
-          is_default_profile: profile.is_default_profile
+          is_default_profile: profile.is_default_profile,
+          is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
         })) || [],
         cost: weapon.cost
       })) as unknown as Weapon[];

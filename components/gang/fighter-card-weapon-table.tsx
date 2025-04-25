@@ -154,6 +154,9 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
             return weaponGroups.map(({ weaponName, profiles, count }) => {
               rowIndex++;
               const bgClass = rowIndex % 2 === 1 ? 'bg-black/[0.07]' : '';
+              
+              // Check if any profile in this group is master-crafted
+              const isMasterCrafted = profiles.some(profile => profile.is_master_crafted);
 
               return profiles.map((profile, profileIndex) => (
                 <tr key={`${weaponName}-${profileIndex}`} className={bgClass}>
@@ -189,7 +192,9 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
                     {formatters.formatAmmo(profile.ammo)}
                   </td>
                   <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-                    {profile.traits}
+                    {isMasterCrafted 
+                      ? (profile.traits ? `${profile.traits}, Master-Crafted` : 'Master-Crafted')
+                      : profile.traits}
                   </td>
                 </tr>
               ));

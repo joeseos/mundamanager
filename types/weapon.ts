@@ -12,6 +12,7 @@ export interface WeaponProfile {
   traits: string;
   is_default_profile: boolean;
   weapon_group_id?: string | null;
+  is_master_crafted?: boolean;
 }
 
 export interface Weapon {
