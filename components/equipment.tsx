@@ -805,7 +805,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           item={buyModalData}
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
-          onConfirm={(manualCost, isMasterCrafted) => handleBuyEquipment(buyModalData, manualCost, isMasterCrafted)}
+          onConfirm={(parsedCost, isMasterCrafted) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted)}
         />
       )}
     </div>
