@@ -156,7 +156,7 @@ const FighterCard = memo(function FighterCard({
         fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
         weapon_id: weapon.equipment_id,
         weapon_name: weapon.is_master_crafted || weapon.master_crafted 
-          ? `${weapon.equipment_name} (Master-Crafted)` 
+          ? `${weapon.equipment_name} (Master-crafted)`
           : weapon.equipment_name,
         weapon_profiles: weapon.weapon_profiles?.map(profile => ({
           ...profile,
