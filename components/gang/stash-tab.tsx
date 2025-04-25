@@ -57,7 +57,7 @@ export default function GangInventory({
     if (item.equipment_type === 'weapon' && 
         item.equipment_name && 
         item.equipment_name.toLowerCase() === 'enforcer boltgun') {
-      return `${baseName} (Master-Crafted)`;
+      return `${baseName} (Master-crafted)`;
     }
     
     return baseName;

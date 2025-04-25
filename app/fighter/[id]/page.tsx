@@ -305,7 +305,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         fighter_equipment_id: item.fighter_equipment_id,
         equipment_id: item.equipment_id,
         equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-          ? `${item.equipment_name} (Master-Crafted)` 
+          ? `${item.equipment_name} (Master-crafted)`
           : item.equipment_name,
         equipment_type: item.equipment_type,
         cost: item.purchase_cost,
@@ -329,7 +329,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         fighter_equipment_id: item.fighter_equipment_id,
         equipment_id: item.equipment_id,
         equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-          ? `${item.equipment_name} (Master-Crafted)` 
+          ? `${item.equipment_name} (Master-crafted)`
           : item.equipment_name,
         equipment_type: item.equipment_type,
         cost: item.purchase_cost,

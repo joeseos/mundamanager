@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Weapon, WeaponProfile } from '@/types/weapon';
+import { TbHexagonLetterM } from "react-icons/tb";
 
 interface WeaponTableProps {
   weapons: Weapon[];
@@ -36,79 +37,47 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
     return strength.toString();
   };
 
-  // Group profiles by weapon_group_id
-  const groupedProfiles = useMemo(() => {
-    const groups: { [key: string]: WeaponProfile[] } = {};
+  type VariantKey = string; // weapon_group_id|mc|reg
+  interface VariantBlock {
+    weaponName: string;
+    isMasterCrafted: boolean;
+    baseProfiles: WeaponProfile[];
+    specials: Map<string, WeaponProfile>; // deduplicated by name
+  }
 
-    weapons.forEach(weapon => {
-      weapon.weapon_profiles?.forEach(profile => {
-        const groupKey = profile.weapon_group_id || weapon.fighter_weapon_id;
-        if (!groups[groupKey]) {
-          groups[groupKey] = [];
-        }
-        groups[groupKey].push(profile);
-      });
-    });
+  const variantMap: Record<VariantKey, VariantBlock> = {};
+  weapons.forEach((weapon) => {
+    weapon.weapon_profiles?.forEach((profile) => {
+      const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
+      const key: VariantKey = `${groupId}|${profile.is_master_crafted ? 'mc' : 'reg'}`;
 
-    return groups;
-  }, [weapons]);
-
-  // Group weapons and count duplicates
-  const weaponGroups = useMemo(() => {
-    const allProfiles = Object.values(groupedProfiles).flat();
-
-    const nameCountMap = allProfiles.reduce<Record<string, number>>((acc, profile) => {
-      if (!profile.profile_name.startsWith('-')) {
-        acc[profile.profile_name] = (acc[profile.profile_name] || 0) + 1;
+      if (!variantMap[key]) {
+        variantMap[key] = {
+          weaponName: profile.profile_name.startsWith('-') ? '' : profile.profile_name,
+          isMasterCrafted: !!profile.is_master_crafted,
+          baseProfiles: [],
+          specials: new Map<string, WeaponProfile>(),
+        };
       }
-      return acc;
-    }, {});
 
-    const weaponGroups: { weaponName: string; profiles: WeaponProfile[]; count: number }[] = [];
+      const block = variantMap[key];
 
-    const seenWeapons = new Set<string>();
-
-    let currentWeaponName = '';
-    let currentProfiles: WeaponProfile[] = [];
-
-    let skipMode = false;
-
-    allProfiles.forEach(profile => {
-      if (!profile.profile_name.startsWith('-')) {
-        if (seenWeapons.has(profile.profile_name)) {
-          skipMode = true;
-          return;
-        }
-
-        skipMode = false;
-
-        if (currentProfiles.length) {
-          weaponGroups.push({
-            weaponName: currentWeaponName,
-            profiles: currentProfiles,
-            count: nameCountMap[currentWeaponName] || 1,
-          });
-        }
-
-        seenWeapons.add(profile.profile_name);
-        currentWeaponName = profile.profile_name;
-        currentProfiles = [profile];
+      if (profile.profile_name.startsWith('-')) {
+        if (!block.specials.has(profile.profile_name)) block.specials.set(profile.profile_name, profile);
       } else {
-        if (!skipMode) {
-          currentProfiles.push(profile);
-        }
+        block.baseProfiles.push(profile);
+        if (!block.weaponName) block.weaponName = profile.profile_name;
       }
     });
+  });
 
-    if (currentProfiles.length) {
-      weaponGroups.push({
-        weaponName: currentWeaponName,
-        profiles: currentProfiles,
-        count: nameCountMap[currentWeaponName] || 1,
-      });
-    }
-    return weaponGroups;
-  }, [groupedProfiles]);
+  // Convert to array, discard orphan specials, sort
+  const variantBlocks = Object.values(variantMap)
+    .filter((b) => b.baseProfiles.length)
+    .sort((a, b) => {
+      const cmp = a.weaponName.localeCompare(b.weaponName, undefined, { sensitivity: 'base' });
+      return cmp !== 0 ? cmp : Number(a.isMasterCrafted) - Number(b.isMasterCrafted);
+    });
 
   return (
     <div className="overflow-x-auto w-full">
@@ -147,59 +116,77 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
           </tr>
         </thead>
         <tbody>
-          {(() => {
+          {variantBlocks.map((block, blockIdx) => {
+            const { weaponName, isMasterCrafted, baseProfiles, specials } = block;
 
-            let rowIndex = 0;
-
-            return weaponGroups.map(({ weaponName, profiles, count }) => {
-              rowIndex++;
-              const bgClass = rowIndex % 2 === 1 ? 'bg-black/[0.07]' : '';
-              
-              // Check if any profile in this group is master-crafted
-              const isMasterCrafted = profiles.some(profile => profile.is_master_crafted);
-
-              return profiles.map((profile, profileIndex) => (
-                <tr key={`${weaponName}-${profileIndex}`} className={bgClass}>
-                  <td className="text-left p-1 align-top">
-                    <div className="table-weapons-truncate">
-                      {profileIndex === 0 && count > 1
-                        ? `${weaponName} (x${count})`
-                        : profile.profile_name}
-                    </div>
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatters.formatValue(profile.range_short)}
-                  </td>
-                  <td className="text-center p-1 whitespace-nowrap align-top">
-                    {formatters.formatValue(profile.range_long)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatters.formatAccuracy(profile.acc_short)}
-                  </td>
-                  <td className="text-center p-1 whitespace-nowrap align-top">
-                    {formatters.formatAccuracy(profile.acc_long)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatStrength(profile.strength)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatters.formatAp(profile.ap)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatters.formatValue(profile.damage)}
-                  </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                    {formatters.formatAmmo(profile.ammo)}
-                  </td>
-                  <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-                    {isMasterCrafted 
-                      ? (profile.traits ? `${profile.traits}, Master-Crafted` : 'Master-Crafted')
-                      : profile.traits}
-                  </td>
-                </tr>
-              ));
+            // group identical base names (Boltgun vs Flamer on combi)
+            const baseGroups: Record<string, WeaponProfile[]> = {};
+            baseProfiles.forEach((bp) => {
+              (baseGroups[bp.profile_name] = baseGroups[bp.profile_name] || []).push(bp);
             });
-          })()}
+            const baseDistinct = Object.keys(baseGroups).map((name) => baseGroups[name][0]);
+            const maxDuplicate = Math.max(...Object.values(baseGroups).map((arr) => arr.length));
+            const multipleBaseNames = baseDistinct.length > 1;
+
+            // special rows ordered by sort_order then name
+            const specialRows = Array.from(specials.values()).sort((a, b) => {
+              const aOrder = (a as any).sort_order ?? 0;
+              const bOrder = (b as any).sort_order ?? 0;
+              return aOrder !== bOrder ? aOrder - bOrder : a.profile_name.localeCompare(b.profile_name, undefined, { sensitivity: 'base' });
+            });
+
+            const rows: { profile: WeaponProfile; duplicate: number }[] = [
+              ...baseDistinct.map((p) => ({ profile: p, duplicate: baseGroups[p.profile_name].length })),
+              ...specialRows.map((p) => ({ profile: p, duplicate: 1 })),
+            ];
+
+            const bg = blockIdx % 2 ? 'bg-black/[0.07]' : '';
+
+            return rows.map(({ profile, duplicate }, rowIdx) => (
+              <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>
+                <td className="text-left p-1 align-top">
+                  <div className="table-weapons-truncate">
+                    {rowIdx === 0 && !profile.profile_name.startsWith('-') ? (
+                      <>
+                        {weaponName}
+                        {isMasterCrafted && ` (MC)`}
+                        {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
+                      </>
+                    ) : (
+                      profile.profile_name
+                    )}
+                  </div>
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatters.formatValue(profile.range_short)}
+                </td>
+                <td className="text-center p-1 whitespace-nowrap align-top">
+                  {formatters.formatValue(profile.range_long)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatters.formatAccuracy(profile.acc_short)}
+                </td>
+                <td className="text-center p-1 whitespace-nowrap align-top">
+                  {formatters.formatAccuracy(profile.acc_long)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatStrength(profile.strength)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatters.formatAp(profile.ap)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatters.formatValue(profile.damage)}
+                </td>
+                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  {formatters.formatAmmo(profile.ammo)}
+                </td>
+                <td className="text-left p-1 border-l border-black whitespace-normal align-top">
+                  {isMasterCrafted && profile.traits ? `${profile.traits}, Master-crafted` : profile.traits}
+                </td>
+              </tr>
+            ));
+          })}
         </tbody>
       </table>
     </div>
