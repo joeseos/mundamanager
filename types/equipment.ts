@@ -31,4 +31,6 @@ export interface Equipment {
   weapon_profiles?: WeaponProfile[] | null;
   core_equipment?: boolean;
   vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+  master_crafted?: boolean;
+  is_master_crafted?: boolean;
 } 

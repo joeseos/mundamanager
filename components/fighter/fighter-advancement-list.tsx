@@ -170,6 +170,10 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
       
       setLoading(true);
       try {
+        // Get the current user's session
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const endpoint = advancementType === 'characteristic' 
           ? 'fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419'
           : 'skill_types';
@@ -179,6 +183,8 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
           {
             headers: {
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session?.access_token || ''}`,
+              'Content-Type': 'application/json',
             }
           }
         );

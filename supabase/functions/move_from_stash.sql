@@ -12,6 +12,7 @@ DECLARE
    v_gang_id UUID;
    v_equipment_id UUID;
    v_cost NUMERIC;
+   v_is_master_crafted BOOLEAN;
    v_debug_count INTEGER;
    v_weapon_profiles json;
    v_vehicle_profiles json;
@@ -53,13 +54,14 @@ BEGIN
        );
    END IF;
 
-   SELECT gs.gang_id, gs.equipment_id, gs.cost::numeric
-   INTO v_gang_id, v_equipment_id, v_cost
+   SELECT gs.gang_id, gs.equipment_id, gs.cost::numeric, gs.is_master_crafted
+   INTO v_gang_id, v_equipment_id, v_cost, v_is_master_crafted
    FROM gang_stash gs
    WHERE gs.id = p_stash_id;
 
    -- Debug: Log the values we found
-   RAISE NOTICE 'Found gang_id: %, equipment_id: %, cost: %', v_gang_id, v_equipment_id, v_cost;
+   RAISE NOTICE 'Found gang_id: %, equipment_id: %, cost: %, is_master_crafted: %', 
+           v_gang_id, v_equipment_id, v_cost, v_is_master_crafted;
 
    -- Check ownership based on provided ID
    IF p_fighter_id IS NOT NULL THEN
@@ -87,13 +89,14 @@ BEGIN
    -- Insert into fighter_equipment
    BEGIN
        INSERT INTO fighter_equipment (
-           fighter_id, vehicle_id, equipment_id, purchase_cost, created_at
+           fighter_id, vehicle_id, equipment_id, purchase_cost, created_at, is_master_crafted
        ) VALUES (
            p_fighter_id,
            p_vehicle_id,
            v_equipment_id,
            v_cost,
-           NOW()
+           NOW(),
+           v_is_master_crafted
        );
    EXCEPTION WHEN OTHERS THEN
        RETURN json_build_object(
@@ -123,7 +126,8 @@ BEGIN
        'fighter_id', p_fighter_id,
        'vehicle_id', p_vehicle_id,
        'equipment_id', v_equipment_id,
-       'cost', v_cost
+       'cost', v_cost,
+       'is_master_crafted', v_is_master_crafted
    );
 
    -- Check for weapon profiles

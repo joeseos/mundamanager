@@ -39,7 +39,6 @@ export default function ResetPassword() {
       const response = await forgotPasswordAction(formData);
       
       if (response.success) {
-        setFeedbackMessage(response.success);
         setEmailSent(true);
       } else if (response.error) {
         setFeedbackMessage(response.error);
@@ -81,6 +80,9 @@ export default function ResetPassword() {
                   Send Reset Instructions
                 </SubmitButton>
               </div>
+              {feedbackMessage && (
+                <FormMessage message={{ error: feedbackMessage }} />
+              )}
             </>
           ) : (
             <p className="text-sm text-white mb-8">Check your email for the password reset link.</p>
@@ -90,9 +92,6 @@ export default function ResetPassword() {
               Back to sign in
             </Link>
           </div>
-          {(messageObj || feedbackMessage) && (
-            <FormMessage message={feedbackMessage ? { success: feedbackMessage } : messageObj || { message: '' }} />
-          )}
         </form>
       </div>
     </main>

@@ -19,39 +19,36 @@ interface CreateGangModalProps {
   onClose: () => void;
 }
 
-const FETCH_GANG_TYPES_QUERY = `
-  query FetchGangTypes {
-    gang_typesCollection {
-      edges {
-        node {
-          gang_type_id
-          gang_type
-          alignment
-        }
-      }
-    }
-  }
-`;
-
-const CREATE_GANG_MUTATION = `
-  mutation CreateGang($input: gangs_insert_input!) {
-    insertIntogangsCollection(objects: [$input]) {
-      records {
-        id
-        name
-        credits
-        reputation
-        user_id
-        gang_type_id
-        gang_type
-      }
-    }
-  }
-`;
-
 const EXCLUDED_GANG_TYPES = ['Exotic Beasts', 'Hired guns', 'Other'];
 
-export default function CreateGangModal({ onClose }: CreateGangModalProps) {
+// Button component that opens the modal
+export function CreateGangButton() {
+  const [showModal, setShowModal] = useState(false);
+
+  const handleClose = () => {
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <Button 
+        onClick={() => setShowModal(true)}
+        className="w-full"
+      >
+        Create New Gang
+      </Button>
+
+      {showModal && (
+        <CreateGangModal
+          onClose={handleClose}
+        />
+      )}
+    </>
+  );
+}
+
+// Modal component
+export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const { refreshGangs } = useGangs();
   const { toast } = useToast();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
@@ -59,49 +56,36 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangType, setGangType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
 
   useEffect(() => {
     const fetchGangTypes = async () => {
-      if (gangTypes.length === 0) {
+      if (gangTypes.length === 0 && !isLoadingGangTypes) {
+        setIsLoadingGangTypes(true);
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/graphql/v1`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              },
-              body: JSON.stringify({
-                query: FETCH_GANG_TYPES_QUERY,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error('Failed to fetch gang types');
+          const supabase = createClient();
+          
+          const { data: gangTypesData, error: gangTypesError } = await supabase
+            .from('gang_types')
+            .select('gang_type_id, gang_type, alignment')
+            .order('gang_type');
+          
+          if (gangTypesError) {
+            throw gangTypesError;
           }
-
-          const { data, errors } = await response.json();
-
-          if (errors) {
-            throw new Error(errors[0].message);
-          }
-
-          const fetchedGangTypes = data.gang_typesCollection.edges.map((edge: any) => edge.node);
-          const sortedGangTypes = fetchedGangTypes.sort((a: GangType, b: GangType) => 
-            a.gang_type.localeCompare(b.gang_type)
-          );
-          setGangTypes(sortedGangTypes);
+          
+          setGangTypes(gangTypesData);
         } catch (err) {
           console.error('Error fetching gang types:', err);
           setError('Failed to load gang types. Please try again.');
+        } finally {
+          setIsLoadingGangTypes(false);
         }
       }
     };
 
     fetchGangTypes();
-  }, [gangTypes]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -135,7 +119,6 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        const { data: { session } } = await supabase.auth.getSession();
 
         if (!user) {
           throw new Error('User not authenticated');
@@ -146,43 +129,21 @@ export default function CreateGangModal({ onClose }: CreateGangModalProps) {
           throw new Error('Invalid gang type selected');
         }
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/graphql/v1`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token}`
-            },
-            body: JSON.stringify({
-              query: CREATE_GANG_MUTATION,
-              variables: {
-                input: {
-                  name: gangName,
-                  credits: "1000",
-                  reputation: "1",
-                  user_id: user.id,
-                  gang_type_id: gangType,
-                  gang_type: selectedGangType.gang_type,
-                  alignment: selectedGangType.alignment
-                }
-              }
-            }),
-          }
-        );
+        const { data, error: insertError } = await supabase
+          .from('gangs')
+          .insert([{
+            name: gangName,
+            credits: "1000",
+            reputation: "1",
+            user_id: user.id,
+            gang_type_id: gangType,
+            gang_type: selectedGangType.gang_type,
+            alignment: selectedGangType.alignment
+          }])
+          .select();
 
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error('Response not OK:', errorData);
-          throw new Error('Failed to create gang');
-        }
-
-        const { data, errors } = await response.json();
-
-        if (errors) {
-          console.error('GraphQL Errors:', errors);
-          throw new Error(errors[0].message);
+        if (insertError) {
+          throw insertError;
         }
 
         console.log('Gang created successfully:', data);

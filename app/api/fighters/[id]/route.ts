@@ -80,6 +80,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     retired,
     enslaved,
     starved,
+    recovery,
     special_rules
   } = body;
 
@@ -121,13 +122,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     // If updating fighter status (killed, retired, enslaved, starved)
-    if (killed !== undefined || retired !== undefined || enslaved !== undefined || starved !== undefined) {
+    if (killed !== undefined || retired !== undefined || enslaved !== undefined || starved !== undefined || recovery !== undefined) {
       const updateData: Record<string, boolean> = {};
       
       if (killed !== undefined) updateData.killed = killed;
       if (retired !== undefined) updateData.retired = retired;
       if (enslaved !== undefined) updateData.enslaved = enslaved;
       if (starved !== undefined) updateData.starved = starved;
+      if (recovery !== undefined) updateData.recovery = recovery;
 
       const { data: updatedFighter, error: statusUpdateError } = await supabase
         .from("fighters")

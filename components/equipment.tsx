@@ -42,13 +42,14 @@ interface RawEquipmentData {
   fighter_type_equipment_tp: boolean;
   fighter_weapon_id?: string;
   fighter_equipment_id: string;
+  master_crafted?: boolean;
 }
 
 interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (cost: number) => void;
+  onConfirm: (cost: number, isMasterCrafted: boolean) => void;
 }
 
 interface Category {
@@ -57,17 +58,38 @@ interface Category {
 }
 
 function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
-  const [manualCost, setManualCost] = useState(item.discounted_cost ?? item.cost);
+  const [manualCost, setManualCost] = useState<string>(String(item.discounted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
+  const [isMasterCrafted, setIsMasterCrafted] = useState(false);
+
+  const calculateMasterCraftedCost = (baseCost: number) => {
+    // Increase by 25% and round up to nearest 5
+    const increased = baseCost * 1.25;
+    return Math.ceil(increased / 5) * 5;
+  };
+
+  useEffect(() => {
+    const baseCost = item.discounted_cost ?? item.cost;
+    const newCost = isMasterCrafted && item.equipment_type === 'weapon' 
+      ? calculateMasterCraftedCost(baseCost)
+      : baseCost;
+    
+    setManualCost(String(newCost));
+  }, [isMasterCrafted, item]);
 
   const handleConfirm = () => {
-    if (manualCost > gangCredits) {
+    const parsedCost = Number(manualCost);
+
+    if (isNaN(parsedCost)) {
+      setCreditError(`Incorrect input, please update the input value`);
+      return false; // Explicitly return false to prevent modal closure
+    } else if (parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false; // Explicitly return false to prevent modal closure
     }
 
     setCreditError(null);
-    onConfirm(manualCost);
+    onConfirm(parsedCost, isMasterCrafted);
     return true; // Allow modal to close
   };
 
@@ -85,12 +107,20 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="-?[0-9]*"
                   value={manualCost}
                   onChange={(e) => {
-                    const newCost = Number(e.target.value);
-                    setManualCost(newCost);
-                    if (newCost <= gangCredits) {
-                      setCreditError(null);
+                    const val = e.target.value;
+
+                    // Allow only empty (0), "-", or digits (optionally starting with "-")
+                    if (/^-?\d*$/.test(val)) {
+                      setManualCost(val);
+
+                      const parsed = Number(val);
+                      if (!Number.isNaN(parsed) && parsed <= gangCredits) {
+                        setCreditError(null);
+                      }
                     }
                   }}
                   className="w-full p-2 border rounded-md"
@@ -98,6 +128,22 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
                 />
               </div>
             </div>
+            
+            {item.equipment_type === 'weapon' && (
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="master-crafted"
+                  checked={isMasterCrafted}
+                  onChange={() => setIsMasterCrafted(!isMasterCrafted)}
+                  className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                />
+                <label htmlFor="master-crafted" className="text-sm text-gray-700">
+                  Buy master-crafted
+                </label>
+              </div>
+            )}
+
             {creditError && (
               <p className="text-red-500 text-sm">{creditError}</p>
             )}
@@ -423,7 +469,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           base_cost: item.base_cost,
           discounted_cost: item.discounted_cost,
           equipment_type: item.equipment_type as 'weapon' | 'wargear',
-          fighter_weapon_id: item.fighter_weapon_id || undefined
+          fighter_weapon_id: item.fighter_weapon_id || undefined,
+          master_crafted: item.master_crafted || false
         }))
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
@@ -471,13 +518,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.discounted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number) => {
+  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false) => {
     if (!session) return;
     try {
       const requestBody = {
         equipment_id: item.equipment_id,
         gang_id: gangId,
         manual_cost: manualCost,
+        master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
         ...(isVehicleEquipment
           ? { vehicle_id: vehicleId }
           : { fighter_id: fighterId }
@@ -520,6 +568,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ...item,
         fighter_equipment_id: equipmentRecord.id,
         cost: manualCost,
+        is_master_crafted: equipmentRecord.is_master_crafted,
+        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
+          ? `${item.equipment_name} (Master-crafted)` 
+          : item.equipment_name,
         vehicle_equipment_profiles: equipmentRecord.vehicle_profile ? [{
           ...equipmentRecord.vehicle_profile,
           id: equipmentRecord.id,
@@ -530,7 +582,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       toast({
         title: "Equipment purchased",
-        description: `Successfully bought ${item.equipment_name} for ${manualCost} credits`,
+        description: `Successfully bought ${equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
+          ? `${item.equipment_name} (Master-crafted)` 
+          : item.equipment_name} for ${manualCost} credits`,
         variant: "default",
       });
 
@@ -756,7 +810,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           item={buyModalData}
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
-          onConfirm={(manualCost) => handleBuyEquipment(buyModalData, manualCost)}
+          onConfirm={(parsedCost, isMasterCrafted) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted)}
         />
       )}
     </div>

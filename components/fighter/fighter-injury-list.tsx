@@ -12,6 +12,7 @@ interface InjuriesListProps {
   onDeleteInjury: (injuryId: string) => Promise<void>;
   fighterId: string;
   onInjuryAdded: () => void;
+  fighterRecovery?: boolean;
 }
 
 export function InjuriesList({ 
@@ -20,11 +21,14 @@ export function InjuriesList({
   onDeleteInjury,
   fighterId,
   onInjuryAdded,
+  fighterRecovery = false,
 }: InjuriesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
+  const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
@@ -69,9 +73,49 @@ export function InjuriesList({
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
     setSelectedInjuryId('');
+    setSelectedInjury(null);
   }, []);
 
   const handleAddInjury = async () => {
+    if (!selectedInjuryId) {
+      toast({
+        description: "Please select an injury",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Find the selected injury object
+    const injury = localAvailableInjuries.find(injury => injury.id === selectedInjuryId);
+    if (!injury) {
+      toast({
+        description: "Selected injury not found",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    setSelectedInjury(injury);
+
+    // Check if the injury requires recovery
+    const requiresRecovery = injury.type_specific_data && 
+                            typeof injury.type_specific_data === 'object' && 
+                            injury.type_specific_data.recovery === "true";
+
+    // If fighter is already in recovery, don't show the recovery modal again
+    if (requiresRecovery && !fighterRecovery) {
+      // Close the injury selection modal and open the recovery confirmation modal
+      setIsAddModalOpen(false);
+      setIsRecoveryModalOpen(true);
+      return false;
+    } else {
+      // Directly add the injury without asking for recovery
+      // If fighter is already in recovery or injury doesn't require recovery
+      return await proceedWithAddingInjury(false);
+    }
+  };
+
+  const proceedWithAddingInjury = async (sendToRecovery: boolean = false) => {
     if (!selectedInjuryId) {
       toast({
         description: "Please select an injury",
@@ -90,23 +134,24 @@ export function InjuriesList({
       }
 
       const { data, error } = await supabase
-        .rpc('add_fighter_effect', {
+        .rpc('add_fighter_injury', {
           in_fighter_id: fighterId,
-          in_fighter_effect_category_id: "1cc0f7d5-3c5b-4098-9892-bcd4843f69b6", // injuries category
-          in_fighter_effect_type_id: selectedInjuryId,
-          in_user_id: session.user.id
+          in_injury_type_id: selectedInjuryId,
+          in_user_id: session.user.id,
+          in_recovery: sendToRecovery
         });
 
       if (error) throw error;
 
       toast({
-        description: "Injury added successfully",
+        description: `Injury added successfully${sendToRecovery ? ' and fighter sent to recovery' : ''}`,
         variant: "default"
       });
 
       setSelectedInjuryId('');
+      setSelectedInjury(null);
       onInjuryAdded();
-      handleCloseModal();
+      setIsRecoveryModalOpen(false);
       return true;
     } catch (error) {
       console.error('Error adding injury:', error);
@@ -146,6 +191,18 @@ export function InjuriesList({
     } finally {
       setIsDeleting(null);
       setDeleteModalData(null);
+    }
+  };
+
+  const handleInjuryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    setSelectedInjuryId(id);
+    
+    if (id) {
+      const selectedInjury = localAvailableInjuries.find(injury => injury.id === id);
+      setSelectedInjury(selectedInjury || null);
+    } else {
+      setSelectedInjury(null);
     }
   };
 
@@ -228,7 +285,7 @@ export function InjuriesList({
                 <select
                   id="injurySelect"
                   value={selectedInjuryId}
-                  onChange={(e) => setSelectedInjuryId(e.target.value)}
+                  onChange={handleInjuryChange}
                   className="w-full p-2 border rounded-md"
                   disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
                 >
@@ -252,6 +309,68 @@ export function InjuriesList({
           confirmText="Add Lasting Injury"
           confirmDisabled={!selectedInjuryId}
         />
+      )}
+
+      {isRecoveryModalOpen && (
+        <div 
+          className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsRecoveryModalOpen(false);
+              setSelectedInjuryId('');
+              setSelectedInjury(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
+            <div className="border-b px-[10px] py-2 flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">Send ganger into recovery?</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsRecoveryModalOpen(false);
+                    setSelectedInjuryId('');
+                    setSelectedInjury(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            <div className="px-[10px] py-4">
+              <p>You will need to remove the recovery flag yourself when you update the gang next.</p>
+            </div>
+
+            <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsRecoveryModalOpen(false);
+                  setSelectedInjuryId('');
+                  setSelectedInjury(null);
+                }}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => proceedWithAddingInjury(false)}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                No
+              </button>
+              <button
+                onClick={() => proceedWithAddingInjury(true)}
+                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteModalData && (

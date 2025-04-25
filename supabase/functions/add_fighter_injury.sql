@@ -1,105 +1,218 @@
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID);
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID);
 
 CREATE OR REPLACE FUNCTION add_fighter_injury(
-    input_fighter_id UUID,
-    input_injury_id UUID
+    in_fighter_id UUID,
+    in_injury_type_id UUID,
+    in_user_id UUID
 )
 RETURNS TABLE (result JSON) AS $$
 DECLARE
-    new_injury_id UUID;
+    new_effect_id UUID;
+    effect_type_record RECORD;
+    modifier_record RECORD;
+    skill_id_val UUID;
     new_fighter_skill_id UUID;
-    injury_record RECORD;
+    new_fighter_effect_skill_id UUID;
+    v_is_admin BOOLEAN;
+    v_user_has_access BOOLEAN;
+    v_gang_id UUID;
+    injury_count INTEGER;
+    is_partially_deafened BOOLEAN;
 BEGIN
-    -- Get the injury details from the injuries table
-    SELECT * INTO injury_record
-    FROM injuries
-    WHERE id = input_injury_id;
-
-    -- Insert the new injury first
-    INSERT INTO fighter_injuries (
+    -- Set user context for is_admin check
+    PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
+    
+    -- Check if user is an admin
+    SELECT private.is_admin() INTO v_is_admin;
+    
+    -- Get the gang_id for the fighter
+    SELECT gang_id INTO v_gang_id
+    FROM fighters
+    WHERE id = in_fighter_id;
+    
+    -- If not admin, check if user owns the gang
+    IF NOT v_is_admin THEN
+        SELECT EXISTS (
+            SELECT 1
+            FROM gangs
+            WHERE id = v_gang_id AND user_id = in_user_id
+        ) INTO v_user_has_access;
+        
+        IF NOT v_user_has_access THEN
+            RAISE EXCEPTION 'User does not have permission to add effects to this fighter';
+        END IF;
+    END IF;
+    
+    -- Get the effect type details from fighter_effect_types
+    SELECT * INTO effect_type_record
+    FROM fighter_effect_types
+    WHERE id = in_injury_type_id;
+    
+    -- Validate that the effect type exists
+    IF effect_type_record.id IS NULL THEN
+        RAISE EXCEPTION 'The provided fighter effect type ID does not exist';
+    END IF;
+    
+    -- Validate that the effect type belongs to the injuries category
+    IF effect_type_record.fighter_effect_category_id != '1cc0f7d5-3c5b-4098-9892-bcd4843f69b6' THEN
+        RAISE EXCEPTION 'The provided fighter effect type is not an injury';
+    END IF;
+    
+    -- Check if this is "Partially Deafened"
+    is_partially_deafened := effect_type_record.effect_name = 'Partially Deafened';
+    
+    -- Count existing instances of this injury for the fighter
+    SELECT COUNT(*) INTO injury_count
+    FROM fighter_effects
+    WHERE fighter_id = in_fighter_id 
+    AND fighter_effect_type_id = in_injury_type_id;
+    
+    -- Insert the new fighter effect with user_id
+    INSERT INTO fighter_effects (
         fighter_id,
-        injury_id,
-        injury_name,
-        code_1,
-        characteristic_1,
-        code_2,
-        characteristic_2
+        fighter_effect_type_id,
+        effect_name,
+        type_specific_data,
+        user_id
     )
     VALUES (
-        input_fighter_id,
-        input_injury_id,
-        injury_record.injury_name,
-        injury_record.code_1,
-        injury_record.characteristic_1,
-        injury_record.code_2,
-        injury_record.characteristic_2
+        in_fighter_id,
+        in_injury_type_id,
+        effect_type_record.effect_name,
+        effect_type_record.type_specific_data,
+        in_user_id
     )
-    RETURNING id INTO new_injury_id;
-
-    -- If the injury has an associated skill, create fighter_skill
-    IF injury_record.skill_id IS NOT NULL THEN
-        -- Insert the fighter_skill
+    RETURNING id INTO new_effect_id;
+    
+    -- Create the modifiers associated with this effect type
+    -- For "Partially Deafened", only add the leadership modifier if this isn't the first instance
+    FOR modifier_record IN 
+        SELECT * FROM fighter_effect_type_modifiers
+        WHERE fighter_effect_type_id = in_injury_type_id
+    LOOP
+        -- Skip leadership modifier for first instance of Partially Deafened
+        IF NOT (is_partially_deafened AND injury_count = 0 AND modifier_record.stat_name = 'leadership') THEN
+            INSERT INTO fighter_effect_modifiers (
+                fighter_effect_id,
+                stat_name,
+                numeric_value
+            )
+            VALUES (
+                new_effect_id,
+                modifier_record.stat_name,
+                modifier_record.default_numeric_value
+            );
+        END IF;
+    END LOOP;
+    
+    -- Check if there's a skill_id in the type_specific_data and add the skill relation
+    IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
+        skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
+        
+        -- Add the skill to fighter_skills if it doesn't already exist
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            is_advance,
-            xp_cost,
-            credits_increase,
-            fighter_injury_id
+            user_id,
+            fighter_effect_skill_id
         )
-        VALUES (
-            input_fighter_id,
-            injury_record.skill_id,
-            false,
-            '0',
-            0,
-            new_injury_id
-        )
+        SELECT 
+            in_fighter_id,
+            skill_id_val,
+            in_user_id,
+            NULL  -- Initially NULL, will update after creating relation
+        WHERE 
+            NOT EXISTS (
+                SELECT 1 FROM fighter_skills 
+                WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
+            )
         RETURNING id INTO new_fighter_skill_id;
-
-        -- Update the fighter_injury with the fighter_skill_id
-        UPDATE fighter_injuries
-        SET fighter_skill_id = new_fighter_skill_id
-        WHERE id = new_injury_id;
+        
+        -- If the skill already exists, get its ID
+        IF new_fighter_skill_id IS NULL THEN
+            SELECT id INTO new_fighter_skill_id 
+            FROM fighter_skills
+            WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
+        END IF;
+        
+        -- Create the relation in fighter_effect_skills
+        IF new_fighter_skill_id IS NOT NULL THEN
+            INSERT INTO fighter_effect_skills (
+                fighter_effect_id,
+                fighter_skill_id
+            )
+            VALUES (
+                new_effect_id,
+                new_fighter_skill_id
+            )
+            RETURNING id INTO new_fighter_effect_skill_id;
+            
+            -- Update the fighter_skills record with the relation ID
+            UPDATE fighter_skills
+            SET fighter_effect_skill_id = new_fighter_effect_skill_id
+            WHERE id = new_fighter_skill_id;
+        END IF;
     END IF;
-
-    -- Return the newly created injury with related skill if present
+    
+    -- Return the newly created effect
     RETURN QUERY
     SELECT json_build_object(
-        'id', fi.id,
-        'created_at', fi.created_at,
-        'fighter_id', fi.fighter_id,
-        'injury_id', fi.injury_id,
-        'injury_name', fi.injury_name,
-        'code_1', fi.code_1,
-        'characteristic_1', fi.characteristic_1,
-        'code_2', fi.code_2,
-        'characteristic_2', fi.characteristic_2,
-        'related_skill', CASE 
-            WHEN fi.fighter_skill_id IS NOT NULL THEN (
-                SELECT json_build_object(
-                    'id', fs.id,
-                    'skill_id', fs.skill_id,
-                    'is_advance', fs.is_advance,
-                    'xp_cost', fs.xp_cost,
-                    'credits_increase', fs.credits_increase
+        'id', fe.id,
+        'created_at', fe.created_at,
+        'fighter_id', fe.fighter_id,
+        'user_id', fe.user_id,
+        'effect_name', fe.effect_name,
+        'effect_type', (
+            SELECT json_build_object(
+                'id', fet.id,
+                'effect_name', fet.effect_name,
+                'category', (
+                    SELECT json_build_object(
+                        'id', fec.id,
+                        'category_name', fec.category_name
+                    )
+                    FROM fighter_effect_categories fec
+                    WHERE fec.id = fet.fighter_effect_category_id
                 )
-                FROM fighter_skills fs
-                WHERE fs.id = fi.fighter_skill_id
             )
-            ELSE NULL
-        END
+            FROM fighter_effect_types fet
+            WHERE fet.id = fe.fighter_effect_type_id
+        ),
+        'type_specific_data', fe.type_specific_data,
+        'modifiers', (
+            SELECT json_agg(
+                json_build_object(
+                    'id', fem.id,
+                    'stat_name', fem.stat_name,
+                    'numeric_value', fem.numeric_value
+                )
+            )
+            FROM fighter_effect_modifiers fem
+            WHERE fem.fighter_effect_id = fe.id
+        ),
+        'related_skills', (
+            SELECT COALESCE(json_agg(
+                json_build_object(
+                    'fighter_skill_id', fs.id,
+                    'skill_id', fs.skill_id,
+                    'fighter_effect_skill_id', fs.fighter_effect_skill_id
+                )
+            ), '[]'::json)
+            FROM fighter_effect_skills fes
+            JOIN fighter_skills fs ON fes.fighter_skill_id = fs.id
+            WHERE fes.fighter_effect_id = fe.id
+        )
     ) as result
-    FROM fighter_injuries fi
-    WHERE fi.id = new_injury_id;
+    FROM fighter_effects fe
+    WHERE fe.id = new_effect_id;
 END;
 $$ 
 LANGUAGE plpgsql
 SECURITY DEFINER
-VOLATILE
-SET search_path = public;
+SET search_path = public, auth, private;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION add_fighter_injury(UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID) TO service_role;
+REVOKE ALL ON FUNCTION add_fighter_injury(UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID) TO service_role;

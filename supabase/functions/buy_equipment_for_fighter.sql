@@ -1,6 +1,7 @@
 -- Drop existing functions with their exact signatures
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN);
 
 -- Then create our new function with vehicle support and user_id
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
@@ -8,7 +9,8 @@ CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   equipment_id UUID DEFAULT NULL,
   gang_id UUID DEFAULT NULL,
   manual_cost INTEGER DEFAULT NULL,
-  vehicle_id UUID DEFAULT NULL
+  vehicle_id UUID DEFAULT NULL,
+  master_crafted BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB 
 SECURITY DEFINER
@@ -160,7 +162,8 @@ BEGIN
     purchase_cost,
     created_at,
     updated_at,
-    user_id
+    user_id,
+    is_master_crafted
   )
   VALUES (
     gen_random_uuid(),
@@ -171,7 +174,11 @@ BEGIN
     final_purchase_cost,
     now(),
     now(),
-    v_user_id
+    v_user_id,
+    CASE 
+      WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
+      ELSE FALSE
+    END
   )
   RETURNING id INTO v_new_equipment_id;
 
@@ -185,6 +192,7 @@ BEGIN
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
       'user_id', fe.user_id,
+      'is_master_crafted', fe.is_master_crafted,
       'default_profile', jsonb_build_object(
         'profile_name', default_profile.profile_name,
         'range_short', default_profile.range_short,
@@ -209,6 +217,7 @@ BEGIN
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
       'user_id', fe.user_id,
+      'is_master_crafted', fe.is_master_crafted,
       'wargear_details', jsonb_build_object(
         'name', e.equipment_name,
         'cost', e.cost
@@ -254,4 +263,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN) TO authenticated;

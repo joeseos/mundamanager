@@ -47,7 +47,8 @@ BEGIN
                             'equipment_name', e.equipment_name,
                             'equipment_type', e.equipment_type,
                             'purchase_cost', fe.purchase_cost,
-                            'original_cost', fe.original_cost
+                            'original_cost', fe.original_cost,
+                            'is_master_crafted', fe.is_master_crafted
                         )
                     ) FILTER (WHERE e.id IS NOT NULL)::text,
                     '[null]'
@@ -119,6 +120,7 @@ BEGIN
                                 'equipment_type', e.equipment_type,
                                 'purchase_cost', fe.purchase_cost,
                                 'original_cost', fe.original_cost,
+                                'is_master_crafted', fe.is_master_crafted,
                                 'vehicle_equipment_profiles', (
                                     SELECT COALESCE(json_agg(
                                         json_build_object(
@@ -288,6 +290,7 @@ BEGIN
                 'starved', f.starved,
                 'retired', f.retired,
                 'enslaved', f.enslaved,
+                'recovery', f.recovery,
                 'free_skill', f.free_skill,
                 'kills', f.kills,
                 -- Fixed approach using the new categorized_effects CTE
