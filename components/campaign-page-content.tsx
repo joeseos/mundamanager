@@ -420,6 +420,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    updated_at: string;
   }) => {
     setCampaignData(prev => ({
       ...prev,

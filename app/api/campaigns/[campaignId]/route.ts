@@ -46,6 +46,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ campaig
 
   try {
     const updates = await request.json();
+    
+    // Add the updated_at timestamp
+    updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('campaigns')
