@@ -31,6 +31,7 @@ interface CampaignProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    updated_at: string;
   }) => void;
 }
 
@@ -108,6 +109,8 @@ export default function Campaign({
 
   const handleSave = async () => {
     try {
+      const now = new Date().toISOString();
+      
       const { error } = await supabase
         .from('campaigns')
         .update({
@@ -115,6 +118,7 @@ export default function Campaign({
           has_meat: meatEnabled,
           has_exploration_points: explorationEnabled,
           has_scavenging_rolls: scavengingEnabled,
+          updated_at: now,
         })
         .eq('id', id);
 
@@ -125,6 +129,7 @@ export default function Campaign({
         has_meat: meatEnabled,
         has_exploration_points: explorationEnabled,
         has_scavenging_rolls: scavengingEnabled,
+        updated_at: now,
       });
       
       toast({
