@@ -104,14 +104,14 @@ export const signInAction = async (formData: FormData) => {
   }
   else {
     if (!turnstileToken) {
-      return redirect("/sign-in?error=" + encodeURIComponent("Please complete the Turnstile challenge"));
+      return { error: "Please complete the Turnstile challenge" };
     }
 
     // Verify Turnstile token
     const turnstileVerification = await verifyTurnstileToken(turnstileToken);
     if (!turnstileVerification.success) {
       console.error('Turnstile verification failed:', turnstileVerification);
-      return redirect("/sign-in?error=" + encodeURIComponent("Security check failed. Please try again."));
+      return { error: "Security check failed. Please try again." };
     }
   }
 
@@ -123,7 +123,7 @@ export const signInAction = async (formData: FormData) => {
   });
 
   if (error) {
-    return redirect("/sign-in?error=" + encodeURIComponent(error.message));
+    return { error: error.message };
   }
 
   const cookieStore = await cookies();
