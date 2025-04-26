@@ -1888,6 +1888,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
+            sub_type={fighterData.fighter?.fighter_sub_type || ''}
             credits={fighterData.fighter?.credits || 0}
             movement={fighterData.fighter?.movement || 0}
             weapon_skill={fighterData.fighter?.weapon_skill || 0}
@@ -1921,7 +1922,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           />
 
           {vehicle && (
-            <div className="mt-6 w-full">
+            <div className="w-full">
                <div className="flex items-center gap-1">
                  <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
                  <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.body_slots_occupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {vehicle.body_slots_occupied}/{vehicle.body_slots}</span>

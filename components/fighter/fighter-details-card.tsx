@@ -43,6 +43,10 @@ interface FighterDetailsCardProps {
   id: string;
   name: string;
   type: string;
+  sub_type?: {
+    fighter_sub_type: string;
+    fighter_sub_type_id: string;
+  };
   label?: string;
   credits: number;
   movement: number;
@@ -141,6 +145,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
   name,
   type,
+  sub_type,
   label,
   credits,
   movement,
@@ -178,6 +183,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id,
     fighter_name: name,
     fighter_type: type,
+    fighter_sub_type: sub_type,
     credits,
     movement,
     weapon_skill,
@@ -237,7 +243,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       intelligence
     }
   }), [
-    id, name, type, credits, movement, weapon_skill, ballistic_skill,
+    id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, xp, kills, advancements, effects,
     fighter_class
@@ -335,10 +341,11 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <p className="text-lg text-gray-600">
-          Kills: {kills}
-        </p>
+      <div className="flex flex-wrap justify-between items-center">
+        <div className="text-base text-gray-600">
+          {sub_type.fighter_sub_type && <div>Sub-type: {sub_type.fighter_sub_type}</div>}
+          <div>Kills: {kills}</div>
+        </div>
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
           <Button
             variant="secondary"
@@ -356,21 +363,20 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </Button>
         </div>
       </div>
-
-      <div className="space-y-2">
-        {fighter_class === 'Crew' && (
-          <p className="text-lg text-gray-600">
-            {vehicles?.[0]
-              ? vehicles[0].vehicle_name
-                ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
-                : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
-              : 'None'}
-          </p>
-        )}
-      </div>
       <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
+        <div className="mt-4">
+          {fighter_class === 'Crew' && (
+            <p className="text-base text-gray-600">
+              {vehicles?.[0]
+                ? vehicles[0].vehicle_name
+                  ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                  : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
+                : 'None'}
+            </p>
+          )}
+        </div>
     </div>
   );
 }); 
