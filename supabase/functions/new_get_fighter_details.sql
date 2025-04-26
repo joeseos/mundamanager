@@ -283,6 +283,11 @@ BEGIN
                     'fighter_type', ft.fighter_type,
                     'fighter_type_id', ft.id
                 ),
+                'fighter_sub_type', json_build_object(
+                    'fighter_sub_type', fst.sub_type_name,
+                    'fighter_sub_type_id', ft.fighter_sub_type_id
+                ),
+
                 'fighter_class', f.fighter_class,
                 'fighter_class_id', f.fighter_class_id,
                 'skills', fs.skills,
@@ -294,7 +299,7 @@ BEGIN
                 'free_skill', f.free_skill,
                 'kills', f.kills,
                 -- Fixed approach using the new categorized_effects CTE
-                'effects', CASE 
+                'effects', CASE
                     WHEN (SELECT COUNT(*) FROM categorized_effects) > 0 THEN
                         (SELECT json_object_agg(
                             COALESCE(ce.category_name, 'uncategorized'),
@@ -309,6 +314,7 @@ BEGIN
         ) as result
     FROM fighters f
     JOIN fighter_types ft ON f.fighter_type_id = ft.id
+    LEFT JOIN fighter_sub_types fst ON fst.id = ft.fighter_sub_type_id
     JOIN gangs g ON f.gang_id = g.id
     LEFT JOIN fighter_gear fg ON fg.fighter_id = f.id
     LEFT JOIN fighter_skills fs ON fs.fighter_id = f.id
