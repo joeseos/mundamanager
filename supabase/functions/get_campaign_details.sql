@@ -29,6 +29,39 @@ fighter_advancement_costs AS (
     LEFT JOIN fighter_skills fs ON fs.fighter_id = f.id
     GROUP BY f.id
 ),
+fighter_effects_credits AS (
+    SELECT
+        fe.fighter_id,
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN fe.type_specific_data->>'credits_increase' IS NOT NULL THEN 
+                        (fe.type_specific_data->>'credits_increase')::integer
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS total_effect_credits
+    FROM fighter_effects fe
+    INNER JOIN fighters f ON fe.fighter_id = f.id
+    INNER JOIN campaign_gangs_filtered cgf ON f.gang_id = cgf.gang_id
+    GROUP BY fe.fighter_id
+),
+fighter_vehicle_costs AS (
+    SELECT 
+        f.id as fighter_id,
+        COALESCE(
+            SUM(v.cost) + SUM(COALESCE(
+                (SELECT SUM(fe.purchase_cost) 
+                 FROM fighter_equipment fe 
+                 WHERE fe.vehicle_id = v.id), 0
+            )), 0
+        ) as total_vehicle_cost
+    FROM fighters f
+    INNER JOIN campaign_gangs_filtered cgf ON f.gang_id = cgf.gang_id
+    LEFT JOIN vehicles v ON v.fighter_id = f.id
+    GROUP BY f.id
+),
 fighter_details AS (
     SELECT 
         g.id as gang_id,
@@ -36,6 +69,8 @@ fighter_details AS (
             f.credits + 
             fec.equipment_cost +
             fac.advancement_cost +
+            COALESCE(fef.total_effect_credits, 0) +
+            COALESCE(fvc.total_vehicle_cost, 0) +
             COALESCE(f.cost_adjustment, 0)
         ), 0) as gang_rating
     FROM gangs g
@@ -43,6 +78,9 @@ fighter_details AS (
     LEFT JOIN fighters f ON f.gang_id = g.id
     LEFT JOIN fighter_equipment_costs fec ON fec.fighter_id = f.id
     LEFT JOIN fighter_advancement_costs fac ON fac.fighter_id = f.id
+    LEFT JOIN fighter_effects_credits fef ON fef.fighter_id = f.id
+    LEFT JOIN fighter_vehicle_costs fvc ON fvc.fighter_id = f.id
+    WHERE f.killed = FALSE AND f.retired = FALSE
     GROUP BY g.id
 )
 SELECT json_build_object(
