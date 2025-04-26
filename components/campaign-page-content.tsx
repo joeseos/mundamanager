@@ -10,28 +10,13 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import MemberSearchBar from "@/components/campaign-member-search-bar"
 import MembersTable from "@/components/campaign-members-table"
+import Link from "next/link";
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
 }
-
-interface GangResponse {
-  id: string;
-  name: string;
-  gang_type: string;
-  user: {
-    username: string;
-  } | null;
-}
-
-type GangWithUser = {
-  id: string;
-  name: string;
-  gang_type: string;
-  user: { username: string; } | undefined;
-};
 
 interface Member {
   user_id: string;
@@ -87,12 +72,15 @@ interface CampaignData {
     created_at: string;
     scenario_name: string;
     attacker?: {
+      gang_id?: string;
       gang_name: string;
     };
     defender?: {
+      gang_id?: string;
       gang_name: string;
     };
     winner?: {
+      gang_id?: string;
       gang_name: string;
     };
   }[];
@@ -118,12 +106,15 @@ interface CampaignPageContentProps {
       created_at: string;
       scenario_name: string;
       attacker?: {
+        gang_id?: string;
         gang_name: string;
       };
       defender?: {
+        gang_id?: string;
         gang_name: string;
       };
       winner?: {
+        gang_id?: string;
         gang_name: string;
       };
     }[];
@@ -571,7 +562,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                               key={gang.id}
                               className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                             >
-                              <span>{gang.name}</span>
+                              <Link 
+                                href={`/gang/${gang.id}`} 
+                                className="hover:text-gray-600 transition-colors"
+                              >
+                                {gang.name}
+                              </Link>
                               {isAdmin && (
                                 <button
                                   onClick={(e) => {
@@ -618,7 +614,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
           </div>
         </div>
 
-        {/* Update the Battle Logs section */}
+        {/* Battle Logs Section */}
         <div className="bg-white shadow-md rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Battle Logs</h2>
@@ -656,9 +652,48 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                         {formatDate(battle.created_at)}
                       </td>
                       <td className="px-4 py-2">{battle.scenario_name || 'N/A'}</td>
-                      <td className="px-4 py-2">{battle.attacker?.gang_name || 'Unknown'}</td>
-                      <td className="px-4 py-2">{battle.defender?.gang_name || 'Unknown'}</td>
-                      <td className="px-4 py-2">{battle.winner?.gang_name || 'Unknown'}</td>
+                      <td className="px-4 py-2">
+                        {battle.attacker?.gang_id ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <Link 
+                              href={`/gang/${battle.attacker.gang_id}`}
+                              className="hover:text-gray-600 transition-colors"
+                            >
+                              {battle.attacker.gang_name || 'Unknown'}
+                            </Link>
+                          </span>
+                        ) : (
+                          battle.attacker?.gang_name || 'Unknown'
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {battle.defender?.gang_id ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <Link 
+                              href={`/gang/${battle.defender.gang_id}`}
+                              className="hover:text-gray-600 transition-colors"
+                            >
+                              {battle.defender.gang_name || 'Unknown'}
+                            </Link>
+                          </span>
+                        ) : (
+                          battle.defender?.gang_name || 'Unknown'
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {battle.winner?.gang_id ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <Link 
+                              href={`/gang/${battle.winner.gang_id}`}
+                              className="hover:text-gray-600 transition-colors"
+                            >
+                              {battle.winner.gang_name || 'Unknown'}
+                            </Link>
+                          </span>
+                        ) : (
+                          battle.winner?.gang_name || 'Unknown'
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -704,7 +739,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
           />
         )}
 
-        {/* Add the new Battle Log Modal */}
+        {/* Battle Log Modal */}
         {showBattleModal && (
           <Modal
             title="Add Battle Log"

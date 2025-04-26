@@ -3,6 +3,7 @@
 import Modal from "@/components/modal"
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
+import Link from 'next/link'
 
 interface Gang {
   id: string;
@@ -80,23 +81,49 @@ export default function TerritoryGangModal({
       ) : availableGangs.length === 0 ? (
         <p className="text-sm text-gray-500">No gangs available in this campaign</p>
       ) : (
-        <select
-          value={selectedGang}
-          onChange={(e) => setSelectedGang(e.target.value)}
-          className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
-        >
-          <option value="">Select a gang</option>
-          {availableGangs.map((gang) => (
-            <option 
-              key={gang.id} 
-              value={gang.id}
-              disabled={existingGangId === gang.id}
-              className={existingGangId === gang.id ? "text-gray-400" : ""}
-            >
-              {gang.name} - {gang.gang_type} {existingGangId === gang.id ? '(Already assigned)' : ''}
-            </option>
-          ))}
-        </select>
+        <>
+          <select
+            value={selectedGang}
+            onChange={(e) => setSelectedGang(e.target.value)}
+            className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
+          >
+            <option value="">Select a gang</option>
+            {availableGangs.map((gang) => (
+              <option 
+                key={gang.id} 
+                value={gang.id}
+                disabled={existingGangId === gang.id}
+                className={existingGangId === gang.id ? "text-gray-400" : ""}
+              >
+                {gang.name} - {gang.gang_type} {existingGangId === gang.id ? '(Already assigned)' : ''}
+              </option>
+            ))}
+          </select>
+
+          {/* Gang list with links */}
+          <div className="mt-4 border-t pt-4">
+            <p className="text-sm font-medium mb-2">View gang details:</p>
+            <div className="max-h-40 overflow-y-auto">
+              <ul className="space-y-2">
+                {availableGangs.map((gang) => (
+                  <li key={gang.id} className="flex justify-between items-center">
+                    <span className="text-sm">
+                      {gang.name} - {gang.gang_type}
+                    </span>
+                    <Link 
+                      href={`/gang/${gang.id}`}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 px-2 py-1 rounded transition-colors"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
