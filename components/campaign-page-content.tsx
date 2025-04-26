@@ -439,7 +439,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         <Campaign 
           {...transformedData} 
           onRoleChange={setUserRole}
-          onUpdate={handleCampaignUpdate}
+          onUpdate={(updatedData) => {
+            handleCampaignUpdate(updatedData);
+            refreshData();
+          }}
         />
         
         {/* Campaign Members Section */}
