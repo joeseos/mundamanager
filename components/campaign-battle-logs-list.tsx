@@ -127,7 +127,11 @@ export default function CampaignBattleLogsList({
       if (!response.ok) throw new Error('Failed to fetch battle data');
       
       const data = await response.json();
-      setScenarios(data.scenarios);
+      // Sort scenarios alphabetically by scenario_name
+      const sortedScenarios = [...data.scenarios].sort((a, b) => 
+        a.scenario_name.localeCompare(b.scenario_name)
+      );
+      setScenarios(sortedScenarios);
       
       // Gangs are already set from members in the useEffect
     } catch (error) {
