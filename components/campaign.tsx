@@ -177,6 +177,17 @@ export default function Campaign({
     }
   };
 
+  // Utility function to get current campaign data for updates
+  const getCampaignUpdateData = () => {
+    return {
+      campaign_name: campaignName,
+      has_meat: meatEnabled,
+      has_exploration_points: explorationEnabled,
+      has_scavenging_rolls: scavengingEnabled,
+      updated_at: new Date().toISOString()
+    };
+  };
+
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
@@ -227,6 +238,15 @@ export default function Campaign({
                   isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'}
                   campaignId={id}
                   campaignTypeId={campaign_type_id}
+                  onTerritoryAdd={(territory) => {
+                    // Call the parent's onUpdate function to trigger a refresh
+                    if (onUpdate) {
+                      onUpdate({
+                        ...getCampaignUpdateData(),
+                        updated_at: new Date().toISOString()
+                      });
+                    }
+                  }}
                 />
               </div>
             </div>
