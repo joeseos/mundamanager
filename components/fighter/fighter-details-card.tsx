@@ -343,7 +343,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       <div className="flex flex-wrap justify-between items-center">
         <div className="text-base text-gray-600">
-          {sub_type.fighter_sub_type && <div>Sub-type: {sub_type.fighter_sub_type}</div>}
+          {sub_type?.fighter_sub_type && <div>Sub-type: {sub_type.fighter_sub_type}</div>}
           <div>Kills: {kills}</div>
         </div>
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
