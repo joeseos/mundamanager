@@ -139,7 +139,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
                   className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
                 />
                 <label htmlFor="master-crafted" className="text-sm text-gray-700">
-                  Buy master-crafted
+                  Master-crafted (+25%)
                 </label>
               </div>
             )}
