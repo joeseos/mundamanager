@@ -29,13 +29,18 @@ RETURNS TABLE(
 LANGUAGE plpgsql
 STABLE SECURITY DEFINER
 SET search_path TO 'public'
-AS $$
+AS $function$
 BEGIN
    RETURN QUERY
    WITH fighter_ids AS (
        SELECT f.id AS f_id
        FROM fighters f
        WHERE f.gang_id = p_gang_id
+   ),
+   vehicle_ids AS (
+       SELECT v.id AS v_id
+       FROM vehicles v
+       WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
    ),
    gang_fighters AS (
        SELECT
@@ -92,10 +97,30 @@ BEGIN
        )
        GROUP BY fem.fighter_effect_id
    ),
+   vehicle_effect_modifier_agg AS (
+       SELECT 
+           fem.fighter_effect_id,
+           json_agg(
+               json_build_object(
+                   'id', fem.id,
+                   'fighter_effect_id', fem.fighter_effect_id,
+                   'stat_name', fem.stat_name,
+                   'numeric_value', fem.numeric_value
+               )
+           ) as modifiers
+       FROM fighter_effect_modifiers fem
+       WHERE fem.fighter_effect_id IN (
+           SELECT fe.id 
+           FROM fighter_effects fe
+           WHERE fe.vehicle_id IN (SELECT v_id FROM vehicle_ids)
+       )
+       GROUP BY fem.fighter_effect_id
+   ),
    fighter_effects_raw AS (
        SELECT 
            fe.id,
            fe.fighter_id,
+           NULL::uuid as vehicle_id,
            fe.effect_name,
            fe.type_specific_data,
            fe.created_at,
@@ -111,11 +136,37 @@ BEGIN
        LEFT JOIN fighter_effect_modifier_agg fem ON fem.fighter_effect_id = fe.id
        WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
    ),
+   vehicle_effects_raw AS (
+       SELECT 
+           fe.id,
+           NULL::uuid as fighter_id,
+           fe.vehicle_id,
+           fe.effect_name,
+           fe.type_specific_data,
+           fe.created_at,
+           fe.updated_at,
+           fet.effect_name as effect_type_name,
+           fet.id as effect_type_id,
+           fec.category_name,
+           fec.id as category_id,
+           COALESCE(vem.modifiers, '[]'::json) as modifiers
+       FROM fighter_effects fe
+       LEFT JOIN fighter_effect_types fet ON fe.fighter_effect_type_id = fet.id
+       LEFT JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
+       LEFT JOIN vehicle_effect_modifier_agg vem ON vem.fighter_effect_id = fe.id
+       WHERE fe.vehicle_id IN (SELECT v_id FROM vehicle_ids)
+   ),
    fighter_effect_categories AS (
        SELECT DISTINCT 
            fer.fighter_id,
            COALESCE(fer.category_name, 'uncategorized') as category_name
        FROM fighter_effects_raw fer
+   ),
+   vehicle_effect_categories AS (
+       SELECT DISTINCT 
+           ver.vehicle_id,
+           COALESCE(ver.category_name, 'uncategorized') as category_name
+       FROM vehicle_effects_raw ver
    ),
    fighter_effects_by_category AS (
        SELECT 
@@ -134,6 +185,23 @@ BEGIN
        FROM fighter_effects_raw fer
        GROUP BY fer.fighter_id, COALESCE(fer.category_name, 'uncategorized')
    ),
+   vehicle_effects_by_category AS (
+       SELECT 
+           ver.vehicle_id,
+           COALESCE(ver.category_name, 'uncategorized') as category_name,
+           json_agg(
+               json_build_object(
+                   'id', ver.id,
+                   'effect_name', ver.effect_name,
+                   'type_specific_data', ver.type_specific_data,
+                   'created_at', ver.created_at,
+                   'updated_at', ver.updated_at,
+                   'fighter_effect_modifiers', ver.modifiers
+               )
+           ) as effects
+       FROM vehicle_effects_raw ver
+       GROUP BY ver.vehicle_id, COALESCE(ver.category_name, 'uncategorized')
+   ),
    fighter_effects AS (
        SELECT 
            fec.fighter_id,
@@ -150,6 +218,22 @@ BEGIN
        FROM fighter_effect_categories fec
        GROUP BY fec.fighter_id
    ),
+   vehicle_effects AS (
+       SELECT 
+           vec.vehicle_id,
+           json_object_agg(
+               vec.category_name,
+               COALESCE(
+                   (SELECT vebc.effects 
+                    FROM vehicle_effects_by_category vebc 
+                    WHERE vebc.vehicle_id = vec.vehicle_id 
+                    AND vebc.category_name = vec.category_name),
+                   '[]'::json
+               )
+           ) as effects
+       FROM vehicle_effect_categories vec
+       GROUP BY vec.vehicle_id
+   ),
    fighter_effects_credits AS (
        SELECT
            fer.fighter_id,
@@ -165,6 +249,22 @@ BEGIN
            )::numeric AS total_effect_credits
        FROM fighter_effects_raw fer
        GROUP BY fer.fighter_id
+   ),
+   vehicle_effects_credits AS (
+       SELECT
+           ver.vehicle_id,
+           COALESCE(
+               SUM(
+                   CASE
+                       WHEN ver.type_specific_data->>'credits_increase' IS NOT NULL THEN 
+                           (ver.type_specific_data->>'credits_increase')::integer
+                       ELSE 0
+                   END
+               ),
+               0
+           )::numeric AS total_effect_credits
+       FROM vehicle_effects_raw ver
+       GROUP BY ver.vehicle_id
    ),
    fighter_skills_agg AS (
        SELECT 
@@ -372,10 +472,14 @@ BEGIN
            v.vehicle_type_id,
            v.vehicle_type,
            COALESCE(vep.equipment, '[]'::json) as equipment,
-           COALESCE(vec.total_equipment_cost, 0)::numeric as total_equipment_cost
+           COALESCE(vec.total_equipment_cost, 0)::numeric as total_equipment_cost,
+           COALESCE(ve.effects, '{}'::json) as effects,
+           COALESCE(vec2.total_effect_credits, 0)::numeric as total_effect_credits
        FROM vehicles v
        LEFT JOIN vehicle_equipment_costs vec ON vec.vehicle_id = v.id
        LEFT JOIN vehicle_equipment_details vep ON vep.vehicle_id = v.id
+       LEFT JOIN vehicle_effects ve ON ve.vehicle_id = v.id
+       LEFT JOIN vehicle_effects_credits vec2 ON vec2.vehicle_id = v.id
        WHERE (v.fighter_id IN (SELECT f_id FROM fighter_ids) OR v.gang_id = p_gang_id)
    ),
    gang_owned_vehicles AS (
@@ -399,7 +503,9 @@ BEGIN
            vt.engine_slots,
            vt.special_rules,
            gv.equipment,
-           gv.total_equipment_cost
+           gv.total_equipment_cost,
+           gv.effects,
+           gv.total_effect_credits
        FROM gang_vehicles gv
        JOIN vehicle_types vt ON vt.id = gv.vehicle_type_id
        WHERE gv.gang_id = p_gang_id AND gv.fighter_id IS NULL
@@ -407,7 +513,7 @@ BEGIN
    fighter_vehicle_costs AS (
        SELECT
            gv.fighter_id,
-           (SUM(gv.cost) + SUM(COALESCE(gv.total_equipment_cost, 0)))::numeric as total_vehicle_cost
+           (SUM(gv.cost) + SUM(COALESCE(gv.total_equipment_cost, 0)) + SUM(COALESCE(gv.total_effect_credits, 0)))::numeric as total_vehicle_cost
        FROM gang_vehicles gv
        WHERE gv.fighter_id IN (SELECT f_id FROM fighter_ids)
        GROUP BY gv.fighter_id
@@ -438,7 +544,9 @@ BEGIN
                    'engine_slots_occupied', gv.engine_slots_occupied,
                    'special_rules', gv.special_rules,
                    'equipment', gv.equipment,
-                   'total_equipment_cost', gv.total_equipment_cost
+                   'total_equipment_cost', gv.total_equipment_cost,
+                   'effects', gv.effects,
+                   'total_effect_credits', gv.total_effect_credits
                )
            ) as vehicles
        FROM gang_vehicles gv
@@ -644,18 +752,17 @@ BEGIN
                'handling', v.handling,
                'save', v.save,
                'body_slots', v.body_slots,
-               'body_slots_occupied', v.body_slots_occupied,
                'drive_slots', v.drive_slots,
-               'drive_slots_occupied', v.drive_slots_occupied,
                'engine_slots', v.engine_slots,
-               'engine_slots_occupied', v.engine_slots_occupied,
                'special_rules', v.special_rules,
                'equipment', v.equipment,
-               'total_equipment_cost', v.total_equipment_cost
+               'total_equipment_cost', v.total_equipment_cost,
+               'effects', v.effects,
+               'total_effect_credits', v.total_effect_credits
            )
        ) as vehicles_json
-       FROM gang_vehicles v
-       WHERE v.gang_id = p_gang_id AND v.fighter_id IS NULL
+       FROM gang_owned_vehicles v
+       WHERE v.gang_id = p_gang_id
    )
    SELECT 
        g.id,
@@ -686,7 +793,7 @@ BEGIN
    LEFT JOIN alliances a ON a.id = g.alliance_id
    WHERE g.id = p_gang_id;
 END;
-$$;
+$function$;
 
 REVOKE ALL ON FUNCTION public.new_get_gang_details(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.new_get_gang_details(UUID) TO authenticated;

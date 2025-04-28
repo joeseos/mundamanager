@@ -128,6 +128,9 @@ export interface Vehicle {
   equipment: Array<BaseEquipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>;
+  effects?: {
+    [key: string]: FighterEffect[];
+  };
 }
 
 // Define a standard skills type that all components should use
