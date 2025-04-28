@@ -137,6 +137,24 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
       }
     });
   }
+  
+  // Apply modifiers from vehicle effects (lasting damages)
+  if (baseStats.effects && baseStats.effects["lasting damages"]) {
+    baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
+      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+        effect.fighter_effect_modifiers.forEach(modifier => {
+          // Convert stat_name to lowercase to match our stats object keys
+          const statName = modifier.stat_name.toLowerCase();
+          
+          // Only apply if the stat exists in our stats object
+          if (statName in stats) {
+            // Apply the numeric modifier to the appropriate stat
+            stats[statName as keyof typeof stats] += modifier.numeric_value;
+          }
+        });
+      }
+    });
+  }
 
   return stats;
 };

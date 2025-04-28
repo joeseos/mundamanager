@@ -25,6 +25,7 @@ import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
 import { Plus, Minus, X } from "lucide-react";
 import { Vehicle } from '@/types/fighter';
+import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
@@ -1840,6 +1841,54 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
     });
   };
 
+  const vehicle = fighterData.fighter?.vehicles?.[0];
+
+  // Instead, always use fighterData.fighter?.vehicles?.[0]?.effects?.["lasting damages"]
+  const [localGangCredits, setLocalGangCredits] = useState<number>(fighterData.gang?.credits || 0);
+
+  // Keep vehicleDamages and localGangCredits in sync with fighterData
+  useEffect(() => {
+    setLocalGangCredits(fighterData.gang?.credits || 0);
+  }, [fighterData.gang?.credits]);
+
+  // Handler for delete (could be used for error fallback)
+  const handleDeleteVehicleDamage = async (damageId: string) => {
+    // No-op: optimistic update is handled in VehicleDamagesList
+    return true;
+  };
+
+  // Handler for optimistic update when adding a lasting damage
+  const handleAddVehicleDamage = (newDamage: FighterEffect) => {
+    setFighterData(prev => {
+      if (!prev.fighter?.vehicles?.[0]) return prev;
+      const updatedVehicles = prev.fighter.vehicles.map((v, idx) => {
+        if (idx !== 0) return v;
+        return {
+          ...v,
+          effects: {
+            ...v.effects,
+            ["lasting damages"]: [...(v.effects?.["lasting damages"] || []), newDamage]
+          }
+        };
+      });
+      return {
+        ...prev,
+        fighter: {
+          ...prev.fighter,
+          vehicles: updatedVehicles
+        }
+      };
+    });
+  };
+
+  // Handler for updating gang credits after a repair
+  const handleGangCreditsChange = (newCredits: number) => {
+    setFighterData(prev => ({
+      ...prev,
+      gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
+    }));
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1859,8 +1908,6 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       </div>
     </main>
   );
-
-  const vehicle = fighterData.fighter?.vehicles?.[0];
 
   const getPillColor = (occupied: number | undefined, total: number | undefined) => {
     const occupiedValue = occupied || 0;
@@ -1955,6 +2002,44 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                 isLoading={uiState.isLoading}
               />
             </div>
+          )}
+
+          {vehicle && fighterData.fighter && (
+            <VehicleDamagesList
+              damages={vehicle?.effects?.["lasting damages"] || []}
+              setDamages={damagesUpdater => {
+                setFighterData(prev => {
+                  if (!prev.fighter?.vehicles?.[0]) return prev;
+                  const updatedVehicles = prev.fighter.vehicles.map((v, idx) => {
+                    if (idx !== 0) return v;
+                    return {
+                      ...v,
+                      effects: {
+                        ...v.effects,
+                        ["lasting damages"]: typeof damagesUpdater === 'function'
+                          ? damagesUpdater(v.effects?.["lasting damages"] || [])
+                          : damagesUpdater
+                      }
+                    };
+                  });
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      vehicles: updatedVehicles
+                    }
+                  };
+                });
+              }}
+              fighterId={params.id}
+              vehicleId={vehicle.id}
+              vehicle={vehicle}
+              onDeleteDamage={handleDeleteVehicleDamage}
+              gangCredits={fighterData.gang?.credits || 0}
+              setGangCredits={() => {}}
+              onDamageAdded={newDamage => handleAddVehicleDamage(newDamage)}
+              onGangCreditsChange={handleGangCreditsChange}
+            />
           )}
 
           <WeaponList

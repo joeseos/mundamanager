@@ -5,10 +5,11 @@ RETURNS TABLE (result JSON) AS $$
 BEGIN
     RETURN QUERY
     WITH fighter_effects_raw AS (
-        -- Direct query to get all effect data without categories
+        -- Direct query to get all effect data without categories - only for fighter-related effects
         SELECT 
             fe.id,
             fe.fighter_id,
+            NULL::UUID AS vehicle_id,
             fe.effect_name,
             fe.type_specific_data,
             fe.created_at,
@@ -28,11 +29,46 @@ BEGIN
                 ), '[]'::json)
                 FROM fighter_effect_modifiers fem
                 WHERE fem.fighter_effect_id = fe.id
-            ) as modifiers
+            ) as modifiers,
+            'fighter' as effect_target
         FROM fighter_effects fe
         LEFT JOIN fighter_effect_types fet ON fe.fighter_effect_type_id = fet.id
         LEFT JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
-        WHERE fe.fighter_id = input_fighter_id
+        WHERE fe.fighter_id = input_fighter_id AND fe.vehicle_id IS NULL
+        
+        UNION ALL
+        
+        -- Get vehicle-related effects
+        SELECT 
+            fe.id,
+            fe.fighter_id,
+            fe.vehicle_id,
+            fe.effect_name,
+            fe.type_specific_data,
+            fe.created_at,
+            fe.updated_at,
+            fet.effect_name as effect_type_name,
+            fet.id as effect_type_id,
+            fec.category_name,
+            fec.id as category_id,
+            (
+                SELECT COALESCE(json_agg(
+                    json_build_object(
+                        'id', fem.id,
+                        'fighter_effect_id', fem.fighter_effect_id,
+                        'stat_name', fem.stat_name,
+                        'numeric_value', fem.numeric_value
+                    )
+                ), '[]'::json)
+                FROM fighter_effect_modifiers fem
+                WHERE fem.fighter_effect_id = fe.id
+            ) as modifiers,
+            'vehicle' as effect_target
+        FROM fighter_effects fe
+        JOIN vehicles v ON fe.vehicle_id = v.id AND v.fighter_id = input_fighter_id
+        LEFT JOIN fighter_effect_types fet ON fe.fighter_effect_type_id = fet.id
+        LEFT JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
+        WHERE fe.vehicle_id IS NOT NULL
     ),
     fighter_gear AS (
         SELECT 
@@ -111,6 +147,34 @@ BEGIN
                     'vehicle_name', v.vehicle_name,
                     'vehicle_type', v.vehicle_type,
                     'cost', v.cost,
+                    -- Add vehicle effects to the vehicle object
+                    'effects', (
+                        WITH vehicle_categorized_effects AS (
+                            SELECT 
+                                category_name,
+                                json_agg(
+                                    json_build_object(
+                                        'id', fer.id,
+                                        'effect_name', fer.effect_name,
+                                        'type_specific_data', fer.type_specific_data,
+                                        'created_at', fer.created_at,
+                                        'updated_at', fer.updated_at,
+                                        'fighter_effect_modifiers', fer.modifiers
+                                    )
+                                ) AS effects_json
+                            FROM fighter_effects_raw fer
+                            WHERE fer.vehicle_id = v.id AND fer.effect_target = 'vehicle'
+                            GROUP BY category_name
+                        )
+                        SELECT CASE
+                            WHEN (SELECT COUNT(*) FROM vehicle_categorized_effects) > 0 THEN
+                                (SELECT json_object_agg(
+                                    COALESCE(vce.category_name, 'uncategorized'),
+                                    vce.effects_json
+                                ) FROM vehicle_categorized_effects vce)
+                            ELSE '{}'::json
+                        END
+                    ),
                     'equipment', (
                         SELECT COALESCE(json_agg(
                             json_build_object(
@@ -168,7 +232,7 @@ BEGIN
                         'created_at', fs.created_at,
                         'updated_at', fs.updated_at,
                         'credits_increase', fs.credits_increase,
-                        'xp_cost', fs.xp_cost, -- Using the actual column from the table
+                        'xp_cost', fs.xp_cost,
                         'is_advance', fs.is_advance,
                         'fighter_injury_id', fs.fighter_injury_id,
                         'acquired_at', fs.created_at
@@ -206,8 +270,8 @@ BEGIN
         WHERE f.id = input_fighter_id
         GROUP BY f.id
     ),
-    -- New CTE to properly categorize effects
-    categorized_effects AS (
+    -- Fighter-only effects categorized
+    fighter_categorized_effects AS (
         SELECT 
             category_name,
             json_agg(
@@ -221,10 +285,11 @@ BEGIN
                 )
             ) AS effects_json
         FROM fighter_effects_raw fer
+        WHERE fer.effect_target = 'fighter'
         GROUP BY category_name
     ),
-    -- New CTE to calculate the total credits from effects
-    effect_credits AS (
+    -- Calculate credits from fighter effects (vehicle effects do not add cost)
+    fighter_effect_credits AS (
         SELECT
             input_fighter_id AS fighter_id,
             COALESCE(
@@ -238,7 +303,7 @@ BEGIN
                 0
             ) AS total_effect_credits
         FROM fighter_effects fe
-        WHERE fe.fighter_id = input_fighter_id
+        WHERE fe.fighter_id = input_fighter_id AND fe.vehicle_id IS NULL
     )
     SELECT 
         json_build_object(
@@ -256,7 +321,7 @@ BEGIN
                     f.credits + 
                     COALESCE(fg.total_equipment_cost, 0) + 
                     COALESCE(fs.total_skills_credits, 0) +
-                    COALESCE(ec.total_effect_credits, 0) +
+                    COALESCE(fec.total_effect_credits, 0) +
                     COALESCE(f.cost_adjustment, 0) +
                     COALESCE(fv.total_vehicle_cost, 0) +
                     COALESCE(fv.total_vehicle_equipment_cost, 0)
@@ -277,7 +342,7 @@ BEGIN
                 'willpower', f.willpower,
                 'intelligence', f.intelligence,
                 'xp', f.xp,
-                'total_xp', f.xp,  -- Simplified calculation, may need to adjust based on your requirements
+                'total_xp', f.xp,
                 'special_rules', f.special_rules,
                 'fighter_type', json_build_object(
                     'fighter_type', ft.fighter_type,
@@ -287,7 +352,6 @@ BEGIN
                     'fighter_sub_type', fst.sub_type_name,
                     'fighter_sub_type_id', ft.fighter_sub_type_id
                 ),
-
                 'fighter_class', f.fighter_class,
                 'fighter_class_id', f.fighter_class_id,
                 'skills', fs.skills,
@@ -298,13 +362,13 @@ BEGIN
                 'recovery', f.recovery,
                 'free_skill', f.free_skill,
                 'kills', f.kills,
-                -- Fixed approach using the new categorized_effects CTE
+                -- Fighter effects only
                 'effects', CASE
-                    WHEN (SELECT COUNT(*) FROM categorized_effects) > 0 THEN
+                    WHEN (SELECT COUNT(*) FROM fighter_categorized_effects) > 0 THEN
                         (SELECT json_object_agg(
                             COALESCE(ce.category_name, 'uncategorized'),
                             ce.effects_json
-                        ) FROM categorized_effects ce)
+                        ) FROM fighter_categorized_effects ce)
                     ELSE '{}'::json
                 END,
                 'vehicles', COALESCE(fv.vehicles, '[]'::json),
@@ -320,7 +384,7 @@ BEGIN
     LEFT JOIN fighter_skills fs ON fs.fighter_id = f.id
     LEFT JOIN fighter_vehicles fv ON fv.fighter_id = f.id
     LEFT JOIN fighter_campaigns fc ON fc.fighter_id = f.id
-    LEFT JOIN effect_credits ec ON ec.fighter_id = f.id
+    LEFT JOIN fighter_effect_credits fec ON fec.fighter_id = f.id
     WHERE f.id = input_fighter_id;
 END;
 $$ 
