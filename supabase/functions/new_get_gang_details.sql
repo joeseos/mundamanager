@@ -50,6 +50,7 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_class,
+           f.fighter_sub_type_id,
            f.xp,
            f.kills,
            f.position,
@@ -501,6 +502,9 @@ BEGIN
            vt.body_slots,
            vt.drive_slots,
            vt.engine_slots,
+           gv.body_slots_occupied,
+           gv.drive_slots_occupied,
+           gv.engine_slots_occupied,
            vt.special_rules,
            gv.equipment,
            gv.total_equipment_cost,
@@ -560,6 +564,8 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_class,
+           f.fighter_sub_type_id,
+           fst.sub_type_name AS fighter_sub_type,
            f.xp,
            f.kills,
            f.position,
@@ -595,6 +601,7 @@ BEGIN
            COALESCE(fsk.skills, '{}'::json) as skills,
            COALESCE(fvj.vehicles, '[]'::json) as vehicles
        FROM gang_fighters f
+       LEFT JOIN fighter_sub_types fst ON fst.id = f.fighter_sub_type_id
        LEFT JOIN fighter_equipment_costs fec ON fec.fighter_id = f.f_id
        LEFT JOIN fighter_equipment_details fed ON fed.fighter_id = f.f_id
        LEFT JOIN fighter_skills fsk ON fsk.fighter_id = f.f_id
@@ -699,6 +706,8 @@ BEGIN
                'label', cf.label,
                'fighter_type', cf.fighter_type,
                'fighter_class', cf.fighter_class,
+               'fighter_sub_type_id', cf.fighter_sub_type_id,
+               'fighter_sub_type', cf.fighter_sub_type,
                'position', cf.position,
                'xp', cf.xp,
                'kills', cf.kills,
@@ -754,6 +763,9 @@ BEGIN
                'body_slots', v.body_slots,
                'drive_slots', v.drive_slots,
                'engine_slots', v.engine_slots,
+               'body_slots_occupied', v.body_slots_occupied,
+               'drive_slots_occupied', v.drive_slots_occupied,
+               'engine_slots_occupied', v.engine_slots_occupied,
                'special_rules', v.special_rules,
                'equipment', v.equipment,
                'total_equipment_cost', v.total_equipment_cost,
