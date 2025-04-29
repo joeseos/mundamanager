@@ -8,6 +8,7 @@ import { FighterType } from '@/types/fighter-type';
 import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { createClient } from '@/utils/supabase/client';
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface AddFighterProps {
   showModal: boolean;
@@ -436,19 +437,19 @@ export default function AddFighter({
                   <p className="text-gray-600 text-sm mb-2">{category}</p>
                   {categoryOptions.map((option) => (
                     <div key={option.id} className="mb-2 flex items-center">
-                      <input
-                        type={isSingle ? "radio" : "checkbox"}
-                        id={`equip-${option.id}`}
-                        name="equipment-selection"
-                        className="mr-2"
-                        checked={selectedEquipmentIds.includes(option.id)}
-                        onChange={(e) => {
-                          const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
-                          const baseCost = selectedType?.total_cost || 0;
-                          const optionCost = option.cost || 0;
-                          
-                          if (e.target.checked) {
-                            if (isSingle) {
+                      {isSingle ? (
+                        <input
+                          type="radio"
+                          id={`equip-${option.id}`}
+                          name="equipment-selection"
+                          className="mr-2"
+                          checked={selectedEquipmentIds.includes(option.id)}
+                          onChange={(e) => {
+                            const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+                            const baseCost = selectedType?.total_cost || 0;
+                            const optionCost = option.cost || 0;
+                            
+                            if (e.target.checked) {
                               // For single selection, remove any previous selection first
                               const prevSelectedId = selectedEquipmentIds[0];
                               let prevSelectedCost = 0;
@@ -464,18 +465,31 @@ export default function AddFighter({
                               
                               // Update cost: base cost - previous option cost + new option cost
                               setFighterCost(String(baseCost - prevSelectedCost + optionCost));
-                            } else {
+                            }
+                          }}
+                        />
+                      ) : (
+                        <Checkbox
+                          id={`equip-${option.id}`}
+                          className="mr-2"
+                          checked={selectedEquipmentIds.includes(option.id)}
+                          onCheckedChange={(checked) => {
+                            const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+                            const baseCost = selectedType?.total_cost || 0;
+                            const optionCost = option.cost || 0;
+                            
+                            if (checked === true) {
                               // For multiple selection, add to existing selections
                               setSelectedEquipmentIds(prev => [...prev, option.id]);
                               setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
+                            } else {
+                              // Remove this option
+                              setSelectedEquipmentIds(prev => prev.filter(id => id !== option.id));
+                              setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
                             }
-                          } else {
-                            // Remove this option
-                            setSelectedEquipmentIds(prev => prev.filter(id => id !== option.id));
-                            setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
-                          }
-                        }}
-                      />
+                          }}
+                        />
+                      )}
                       <label htmlFor={`equip-${option.id}`} className="text-sm">
                         {option.equipment_name} 
                         {option.cost > 0 && ` (+${option.cost} credits)`}
