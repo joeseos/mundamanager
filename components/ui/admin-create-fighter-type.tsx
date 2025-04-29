@@ -528,7 +528,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Sub-Type
+                  Fighter Sub-type
                 </label>
                 <Input
                   type="text"

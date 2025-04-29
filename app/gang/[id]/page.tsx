@@ -95,6 +95,7 @@ async function processGangData(gangData: any) {
       fighter_type_id: fighter.fighter_type_id,
       fighter_type: fighter.fighter_type,
       fighter_class: fighter.fighter_class,
+      fighter_sub_type: fighter.fighter_sub_type,
       label: fighter.label,
       credits: fighter.credits,
       movement: fighter.movement,
