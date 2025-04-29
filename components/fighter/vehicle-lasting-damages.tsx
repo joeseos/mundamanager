@@ -261,7 +261,7 @@ export function VehicleDamagesList({
   return (
     <div className="mt-6">
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">Lasting Damages</h2>
+        <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
         <div className="flex gap-2">
           <Button 
             onClick={() => setIsRepairModalOpen(true)}
@@ -293,7 +293,7 @@ export function VehicleDamagesList({
               {uniqueDamages.length === 0 ? (
                 <tr>
                   <td colSpan={2} className="text-gray-500 italic text-center">
-                    No lasting damages yet.
+                    No lasting damage yet.
                   </td>
                 </tr>
               ) : (
@@ -339,7 +339,7 @@ export function VehicleDamagesList({
             <div className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="damageSelect" className="text-sm font-medium">
-                  Lasting Damages
+                  Lasting Damage
                 </label>
                 <select
                   id="damageSelect"

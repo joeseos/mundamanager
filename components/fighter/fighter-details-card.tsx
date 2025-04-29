@@ -138,7 +138,7 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     });
   }
   
-  // Apply modifiers from vehicle effects (lasting damages)
+  // Apply modifiers from vehicle effects (lasting damage)
   if (baseStats.effects && baseStats.effects["lasting damages"]) {
     baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
       if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {

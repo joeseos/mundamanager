@@ -234,7 +234,7 @@ export default function GangInventory({
   return (
     <div className="container max-w-5xl w-full space-y-4 mx-auto">
       <div className="bg-white rounded-lg shadow-md p-4">
-        <h2 className="text-2xl font-bold mb-6">{title}</h2>
+        <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
         
         {stash.length === 0 ? (
           <p className="text-gray-500 italic text-center">No items in stash.</p>

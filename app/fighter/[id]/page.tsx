@@ -1986,7 +1986,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           {vehicle && (
             <div className="mt-6">
               <div className="flex flex-wrap justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold">Vehicle Equipment</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Vehicle Equipment</h2>
                 <Button
                   onClick={() => handleModalToggle('addVehicleEquipment', true)}
                   className="bg-black hover:bg-gray-800 text-white"

@@ -447,7 +447,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
         
         {/* Campaign Members Section */}
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-2xl font-bold mb-4">Campaign Members</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Members</h2>
           {isAdmin && (
             <MemberSearchBar
               campaignId={campaignData.id}
@@ -471,7 +471,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
         {/* Campaign Territories Section */}
         <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
-          <h2 className="text-2xl font-bold mb-4">Campaign Territories</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Territories</h2>
           <div className="rounded-md border overflow-x-auto">
             <table className="text-sm">
               <thead>

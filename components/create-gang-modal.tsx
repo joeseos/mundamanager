@@ -187,7 +187,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-2xl font-bold">Create a New Gang</h2>
+            <h2 className="text-xl md:text-2xl font-bold">Create a New Gang</h2>
             <p className="text-sm text-gray-500">Fields marked with * are required.</p>
           </div>
           <button 

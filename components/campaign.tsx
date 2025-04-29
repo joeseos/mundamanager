@@ -203,7 +203,7 @@ export default function Campaign({
           {/* 1st tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
             <div className="flex justify-between items-start mb-2">
-              <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+              <h1 className="text-xl md:text-2xl font-bold mb-2">{campaign_name}</h1>
               {(userRole === 'OWNER' || userRole === 'ARBITRATOR') && (
                 <Button
                   className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-black text-white hover:bg-gray-800"
@@ -228,7 +228,7 @@ export default function Campaign({
 
           {/* 2nd tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Territories</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Territories</h1>
             <div className="flex flex-col gap-6">
               <div>
                 <p className="text-gray-600">Add all the territories you want to include in your campaign. You can add each territory multiple times.</p>
@@ -254,20 +254,20 @@ export default function Campaign({
 
           {/* 3rd tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Battle Logs</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h1>
             <p className="text-gray-600">See the Campaign tab.</p>
           </div>
 
           {/* 4th tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Notes</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Notes</h1>
             <p className="text-gray-600">Notes content coming soon...</p>
           </div>
 
         </Tabs>
       ) : (
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+          <h1 className="text-xl md:text-2xl font-bold mb-2">{campaign_name}</h1>
           <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
           <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
             <div>
