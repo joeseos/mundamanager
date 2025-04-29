@@ -11,6 +11,7 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface GangAdditionsProps {
   showModal: boolean;
@@ -207,6 +208,100 @@ export default function GangAdditions({
             {sortedCategories.map(category => {
               const displayCategory = categorizedOptions[category][0].displayCategory;
               
+              if (isSingle || isOptional) {
+                return (
+                  <div key={category} className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">
+                      {displayCategory}
+                    </p>
+                    <div className="space-y-1.5">
+                      {(isSingle || isOptional) ? (
+                        <RadioGroup
+                          value={selectedEquipmentIds[0] || ''}
+                          onValueChange={(value: string) => {
+                            const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                            const baseCost = selectedType?.total_cost || 0;
+                            
+                            // Find the selected option among all options
+                            const option = weapons.options?.find((o: any) => o.id === value);
+                            const optionCost = option?.cost || 0;
+                            
+                            // For single or optional selection, replace previous selection
+                            const prevSelectedId = selectedEquipmentIds[0];
+                            let prevSelectedCost = 0;
+                            
+                            // Find cost of previously selected item if any
+                            if (prevSelectedId) {
+                              const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
+                              prevSelectedCost = prevOption?.cost || 0;
+                            }
+                            
+                            // Update IDs and cost
+                            setSelectedEquipmentIds([value]);
+                            setFighterCost(String(baseCost - prevSelectedCost + optionCost));
+                          }}
+                          className="space-y-1.5"
+                        >
+                          {categorizedOptions[category]
+                            .sort((a, b) => {
+                              // Sort alphabetically within category
+                              const nameA = a.equipment_name || '';
+                              const nameB = b.equipment_name || '';
+                              return nameA.localeCompare(nameB);
+                            })
+                            .map((option) => (
+                              <div key={option.id} className="flex items-center gap-2">
+                                <RadioGroupItem value={option.id} id={option.id} />
+                                <label htmlFor={option.id} className="text-sm">
+                                  {option.equipment_name || 'Loading...'}
+                                  {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                                </label>
+                              </div>
+                            ))}
+                        </RadioGroup>
+                      ) : (
+                        categorizedOptions[category]
+                          .sort((a, b) => {
+                            // Sort alphabetically within category
+                            const nameA = a.equipment_name || '';
+                            const nameB = b.equipment_name || '';
+                            return nameA.localeCompare(nameB);
+                          })
+                          .map((option) => (
+                            <div key={option.id} className="flex items-center gap-2">
+                              <Checkbox
+                                id={option.id}
+                                checked={selectedEquipmentIds.includes(option.id)}
+                                onCheckedChange={(checked) => {
+                                  const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                                  const baseCost = selectedType?.total_cost || 0;
+                                  
+                                  // Get the option's cost
+                                  const optionCost = option.cost || 0;
+                                  
+                                  if (checked === true) {
+                                    // For multiple selection, add to existing selections
+                                    setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                    setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
+                                  } else {
+                                    // Remove this option
+                                    setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                                    setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={option.id} className="text-sm">
+                                {option.equipment_name || 'Loading...'}
+                                {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                              </label>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              
               return (
                 <div key={category} className="mt-3">
                   <p className="text-xs text-gray-500 mb-1">
@@ -223,59 +318,27 @@ export default function GangAdditions({
                       })
                       .map((option) => (
                         <div key={option.id} className="flex items-center gap-2">
-                          {isSingle ? (
-                            <input
-                              type="radio"
-                              name="equipment-selection"
-                              id={option.id}
-                              checked={selectedEquipmentIds.includes(option.id)}
-                              onChange={(e) => {
-                                const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                                const baseCost = selectedType?.total_cost || 0;
-                                
-                                // Get the option's cost
-                                const optionCost = option.cost || 0;
-                                
-                                if (e.target.checked) {
-                                  // For single or optional selection, replace previous selection
-                                  const prevSelectedId = selectedEquipmentIds[0];
-                                  let prevSelectedCost = 0;
-                                  
-                                  // Find cost of previously selected item if any
-                                  if (prevSelectedId) {
-                                    const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
-                                    prevSelectedCost = prevOption?.cost || 0;
-                                  }
-                                  
-                                  // Update IDs and cost
-                                  setSelectedEquipmentIds([option.id]);
-                                  setFighterCost(String(baseCost - prevSelectedCost + optionCost));
-                                }
-                              }}
-                            />
-                          ) : (
-                            <Checkbox
-                              id={option.id}
-                              checked={selectedEquipmentIds.includes(option.id)}
-                              onCheckedChange={(checked) => {
-                                const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                                const baseCost = selectedType?.total_cost || 0;
-                                
-                                // Get the option's cost
-                                const optionCost = option.cost || 0;
-                                
-                                if (checked === true) {
-                                  // For multiple selection, add to existing selections
-                                  setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                                  setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
-                                } else {
-                                  // Remove this option
-                                  setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                                  setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
-                                }
-                              }}
-                            />
-                          )}
+                          <Checkbox
+                            id={option.id}
+                            checked={selectedEquipmentIds.includes(option.id)}
+                            onCheckedChange={(checked) => {
+                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                              const baseCost = selectedType?.total_cost || 0;
+                              
+                              // Get the option's cost
+                              const optionCost = option.cost || 0;
+                              
+                              if (checked === true) {
+                                // For multiple selection, add to existing selections
+                                setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
+                              } else {
+                                // Remove this option
+                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                                setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
+                              }
+                            }}
+                          />
                           <label htmlFor={option.id} className="text-sm">
                             {option.equipment_name || 'Loading...'}
                             {option.cost > 0 ? ` +${option.cost} credits` : ''}

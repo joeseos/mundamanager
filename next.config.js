@@ -25,6 +25,12 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   webpack: (config, { dev, isServer }) => {
+    // Fix for react-icons
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'react-icons': 'react-icons/lib',
+    };
+    
     if (!dev && !isServer) {
       Object.assign(config.optimization, {
         minimize: true,

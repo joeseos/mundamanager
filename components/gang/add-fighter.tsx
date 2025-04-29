@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface AddFighterProps {
   showModal: boolean;
@@ -435,40 +436,46 @@ export default function AddFighter({
               {Object.entries(categories).map(([category, categoryOptions]) => (
                 <div key={category}>
                   <p className="text-gray-600 text-sm mb-2">{category}</p>
-                  {categoryOptions.map((option) => (
-                    <div key={option.id} className="mb-2 flex items-center">
-                      {isSingle ? (
-                        <input
-                          type="radio"
-                          id={`equip-${option.id}`}
-                          name="equipment-selection"
-                          className="mr-2"
-                          checked={selectedEquipmentIds.includes(option.id)}
-                          onChange={(e) => {
-                            const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
-                            const baseCost = selectedType?.total_cost || 0;
-                            const optionCost = option.cost || 0;
-                            
-                            if (e.target.checked) {
-                              // For single selection, remove any previous selection first
-                              const prevSelectedId = selectedEquipmentIds[0];
-                              let prevSelectedCost = 0;
-                              
-                              // Find cost of previously selected item if any
-                              if (prevSelectedId) {
-                                const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
-                                prevSelectedCost = prevOption?.cost || 0;
-                              }
-                              
-                              // Update IDs
-                              setSelectedEquipmentIds([option.id]);
-                              
-                              // Update cost: base cost - previous option cost + new option cost
-                              setFighterCost(String(baseCost - prevSelectedCost + optionCost));
-                            }
-                          }}
-                        />
-                      ) : (
+                  {isSingle ? (
+                    <RadioGroup
+                      value={selectedEquipmentIds[0] || ''}
+                      onValueChange={(value: string) => {
+                        const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+                        const baseCost = selectedType?.total_cost || 0;
+                        const option = categoryOptions.find(opt => opt.id === value);
+                        const optionCost = option?.cost || 0;
+                        
+                        // For single selection, remove any previous selection first
+                        const prevSelectedId = selectedEquipmentIds[0];
+                        let prevSelectedCost = 0;
+                        
+                        // Find cost of previously selected item if any
+                        if (prevSelectedId) {
+                          const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
+                          prevSelectedCost = prevOption?.cost || 0;
+                        }
+                        
+                        // Update IDs
+                        setSelectedEquipmentIds([value]);
+                        
+                        // Update cost: base cost - previous option cost + new option cost
+                        setFighterCost(String(baseCost - prevSelectedCost + optionCost));
+                      }}
+                      className="space-y-2"
+                    >
+                      {categoryOptions.map((option) => (
+                        <div key={option.id} className="flex items-center space-x-2">
+                          <RadioGroupItem value={option.id} id={`equip-${option.id}`} />
+                          <label htmlFor={`equip-${option.id}`} className="text-sm">
+                            {option.equipment_name} 
+                            {option.cost > 0 && ` (+${option.cost} credits)`}
+                          </label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  ) : (
+                    categoryOptions.map((option) => (
+                      <div key={option.id} className="mb-2 flex items-center">
                         <Checkbox
                           id={`equip-${option.id}`}
                           className="mr-2"
@@ -489,13 +496,13 @@ export default function AddFighter({
                             }
                           }}
                         />
-                      )}
-                      <label htmlFor={`equip-${option.id}`} className="text-sm">
-                        {option.equipment_name} 
-                        {option.cost > 0 && ` (+${option.cost} credits)`}
-                      </label>
-                    </div>
-                  ))}
+                        <label htmlFor={`equip-${option.id}`} className="text-sm">
+                          {option.equipment_name} 
+                          {option.cost > 0 && ` (+${option.cost} credits)`}
+                        </label>
+                      </div>
+                    ))
+                  )}
                 </div>
               ))}
             </div>
