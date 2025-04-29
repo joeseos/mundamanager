@@ -367,27 +367,27 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setAvailableSubTypes(subTypeOptions);
       
       // Rule 1 & 2: If there's a default fighter (no sub-type), select it
-      if (defaultFighter) {
-        setSelectedSubTypeId("default");
-      } 
+      //if (defaultFighter) {
+      //  setSelectedSubTypeId("default");
+      //}
       // Rule 3: If there's no default but there are sub-types, select the first one
-      else if (subTypeOptions.length > 0) {
-        setSelectedSubTypeId(subTypeOptions[0].id);
-      }
+      //else if (subTypeOptions.length > 0) {
+      //  setSelectedSubTypeId(subTypeOptions[0].id);
+      //}
     } else {
       // No sub-types available
       setAvailableSubTypes([]);
       // Rule 1: If there's no sub-type, just show default
-      setSelectedSubTypeId("default");
+      //setSelectedSubTypeId("default");
     }
   }
 
   // Handle edge cases where no sub-type selection was made
-  useEffect(() => {
-    if (selectedFighterTypeId && !selectedSubTypeId) {
-      setSelectedSubTypeId("default");
-    }
-  }, [selectedFighterTypeId, selectedSubTypeId]);
+  //useEffect(() => {
+  //  if (selectedFighterTypeId && !selectedSubTypeId) {
+  //    setSelectedSubTypeId("default");
+  //  }
+  //}, [selectedFighterTypeId, selectedSubTypeId]);
 
   // Fetch fighter details when sub-type selection changes
   useEffect(() => {
@@ -520,11 +520,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setSelectedSubTypeId(subTypeId);
     
     if (!subTypeId) return; // If cleared, don't do anything else
-    
+
+    setIsLoading(true); // <-- ✅ set loading state before fetching
+
     if (subTypeId === "default") {
       // Load the main fighter type details
       if (selectedFighterTypeId) {
-        fetchFighterTypeDetails(selectedFighterTypeId);
+        fetchFighterTypeDetails(selectedFighterTypeId).finally(() => {
+          setIsLoading(false); // <-- ✅ clear loading after fetch
+        });
       }
       return;
     }
@@ -536,16 +540,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setSubTypeName(subType.sub_type_name);
       
       if ('fighterId' in subType) {
-      const subTypeFighter = fighterTypes.find(ft => ft.id === subType.fighterId);
-      if (subTypeFighter) {
-        // Don't change selectedFighterTypeId, which controls the dropdown selection
-        // Instead, update the form data to match the selected sub-type's fighter variant
-        setFighterType(subTypeFighter.fighter_type);
-        setSelectedFighterClass(subTypeFighter.fighter_class);
-        
-        // Fetch details for this specific sub-type variant
-        if (typeof subType.fighterId === 'string') {
-          fetchFighterTypeDetails(subType.fighterId);
+        const subTypeFighter = fighterTypes.find(ft => ft.id === subType.fighterId);
+        if (subTypeFighter) {
+          // Don't change selectedFighterTypeId, which controls the dropdown selection
+          // Instead, update the form data to match the selected sub-type's fighter variant
+          setFighterType(subTypeFighter.fighter_type);
+          setSelectedFighterClass(subTypeFighter.fighter_class);
+
+          // Fetch details for this specific sub-type variant
+          if (typeof subType.fighterId === 'string') {
+            fetchFighterTypeDetails(subType.fighterId).finally(() => {
+              setIsLoading(false); // <-- ✅ clear loading after fetch
+            });
           }
         }
       }
@@ -903,363 +909,414 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   className="w-full p-2 border rounded-md"
                   disabled={!selectedFighterTypeId}
                 >
-                  {!selectedFighterTypeId ? (
-                    <option value="">Select a fighter type first</option>
-                  ) : (
-                    <>
-                      {/* Only show "Default" option if there's a fighter without a sub-type */}
-                      {fighterTypes.some(ft => 
-                        ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type &&
-                        ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class &&
-                        (!ft.fighter_sub_type_id || ft.fighter_sub_type_id === null)
-                      ) && (
-                        <option value="default">Default</option>
-                      )}
+                  <option value="">Select a fighter type first</option>
+                  {/* Only show "Default" option if there's a fighter without a sub-type */}
+                  {fighterTypes.some(ft =>
+                    ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type &&
+                    ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class &&
+                    (!ft.fighter_sub_type_id || ft.fighter_sub_type_id === null)
+                  ) && (
+                    <option value="default">Default</option>
+                  )}
                   {availableSubTypes.map((subType) => (
                     <option key={subType.id} value={subType.id}>
                       {subType.sub_type_name}
                     </option>
                   ))}
-                    </>
-                  )}
                 </select>
               </div>
             </div>
 
             {/* Second row: Fighter Type name and Fighter Sub-type input */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fighter Type *
-              </label>
-              <Input
-                type="text"
-                value={fighterType}
-                onChange={(e) => setFighterType(e.target.value)}
-                placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
-                className="w-full"
-                disabled={!selectedFighterTypeId}
-              />
-              </div>
-
-              <div>
+            {selectedSubTypeId && !isLoading && (
+              <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Sub-type
+                  Fighter Type *
                 </label>
                 <Input
                   type="text"
-                  value={subTypeName}
-                  onChange={(e) => setSubTypeName(e.target.value)}
-                  placeholder="e.g. Natborn, Alpha, etc."
+                  value={fighterType}
+                  onChange={(e) => setFighterType(e.target.value)}
+                  placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
                   className="w-full"
                   disabled={!selectedFighterTypeId}
                 />
-              </div>
-            </div>
+                </div>
 
-            {/* Third row: Fighter Class and Base Cost */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Class *
-                </label>
-                <select
-                  value={selectedFighterClass}
-                  onChange={(e) => setSelectedFighterClass(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select fighter class</option>
-                  {fighterClasses.map((fighterClass) => (
-                    <option key={fighterClass.id} value={fighterClass.class_name}>
-                      {fighterClass.class_name}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fighter Sub-type
+                  </label>
+                  <Input
+                    type="text"
+                    value={subTypeName}
+                    onChange={(e) => setSubTypeName(e.target.value)}
+                    placeholder="e.g. Natborn, Alpha, etc."
+                    className="w-full"
+                    disabled={!selectedFighterTypeId}
+                  />
+                </div>
               </div>
 
+              {/* Third row: Fighter Class and Base Cost */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fighter Class *
+                  </label>
+                  <select
+                    value={selectedFighterClass}
+                    onChange={(e) => setSelectedFighterClass(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select fighter class</option>
+                    {fighterClasses.map((fighterClass) => (
+                      <option key={fighterClass.id} value={fighterClass.class_name}>
+                        {fighterClass.class_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Base Cost *
+                  </label>
+                  <Input
+                    type="number"
+                    value={baseCost}
+                    onChange={(e) => setBaseCost(e.target.value)}
+                    placeholder="Enter base cost"
+                    className="w-full"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    M *
+                  </label>
+                  <Input
+                    type="text"
+                    value={movement}
+                    onChange={(e) => setMovement(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    WS *
+                  </label>
+                  <Input
+                    type="text"
+                    value={weaponSkill}
+                    onChange={(e) => setWeaponSkill(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    BS *
+                  </label>
+                  <Input
+                    type="text"
+                    value={ballisticSkill}
+                    onChange={(e) => setBallisticSkill(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    S *
+                  </label>
+                  <Input
+                    type="text"
+                    value={strength}
+                    onChange={(e) => setStrength(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    T *
+                  </label>
+                  <Input
+                    type="text"
+                    value={toughness}
+                    onChange={(e) => setToughness(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    W *
+                  </label>
+                  <Input
+                    type="text"
+                    value={wounds}
+                    onChange={(e) => setWounds(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    I *
+                  </label>
+                  <Input
+                    type="text"
+                    value={initiative}
+                    onChange={(e) => setInitiative(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    A *
+                  </label>
+                  <Input
+                    type="text"
+                    value={attacks}
+                    onChange={(e) => setAttacks(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Ld *
+                  </label>
+                  <Input
+                    type="text"
+                    value={leadership}
+                    onChange={(e) => setLeadership(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Cl *
+                  </label>
+                  <Input
+                    type="text"
+                    value={cool}
+                    onChange={(e) => setCool(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Wil *
+                  </label>
+                  <Input
+                    type="text"
+                    value={willpower}
+                    onChange={(e) => setWillpower(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Int *
+                  </label>
+                  <Input
+                    type="text"
+                    value={intelligence}
+                    onChange={(e) => setIntelligence(e.target.value)}
+                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Base Cost *
+                  Special Rules
                 </label>
                 <Input
-                  type="number"
-                  value={baseCost}
-                  onChange={(e) => setBaseCost(e.target.value)}
-                  placeholder="Enter base cost"
+                  type="text"
+                  value={specialSkills}
+                  onChange={(e) => setSpecialSkills(e.target.value)}
+                  placeholder="Enter special rules (comma-separated)"
                   className="w-full"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  M *
-                </label>
-                <Input
-                  type="text"
-                  value={movement}
-                  onChange={(e) => setMovement(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  WS *
-                </label>
-                <Input
-                  type="text"
-                  value={weaponSkill}
-                  onChange={(e) => setWeaponSkill(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={freeSkill}
+                    onChange={(e) => setFreeSkill(e.target.checked)}
+                    className="h-4 w-4 text-primary border-gray-300 rounded"
+                  />
+                  <label className="ml-2 block text-sm text-gray-900">
+                    Free Skill
+                  </label>
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  BS *
-                </label>
-                <Input
-                  type="text"
-                  value={ballisticSkill}
-                  onChange={(e) => setBallisticSkill(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={isGangAddition}
+                    onChange={(e) => setIsGangAddition(e.target.checked)}
+                    className="h-4 w-4 text-primary border-gray-300 rounded"
+                  />
+                  <label className="ml-2 block text-sm text-gray-900">
+                    Gang Addition
+                  </label>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  S *
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Skills
                 </label>
-                <Input
-                  type="text"
-                  value={strength}
-                  onChange={(e) => setStrength(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+                <div className="space-y-2">
+                  <select
+                    value={selectedSkillType}
+                    onChange={(e) => setSelectedSkillType(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select a skill set</option>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  T *
-                </label>
-                <Input
-                  type="text"
-                  value={toughness}
-                  onChange={(e) => setToughness(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+                    {Object.entries(
+                      skillTypes
+                        .sort((a, b) => {
+                          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+                          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+                          return rankA - rankB;
+                        })
+                        .reduce((groups, type) => {
+                          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+                          let groupLabel = "Misc."; // Default category for unlisted skills
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  W *
-                </label>
-                <Input
-                  type="text"
-                  value={wounds}
-                  onChange={(e) => setWounds(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+                          if (rank <= 19) groupLabel = "Universal Skills";
+                          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+                          else if (rank <= 59) groupLabel = "Wyrd Powers";
+                          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+                          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+                          else if (rank <= 89) groupLabel = "Legendary Names";
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  I *
-                </label>
-                <Input
-                  type="text"
-                  value={initiative}
-                  onChange={(e) => setInitiative(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+                          if (!groups[groupLabel]) groups[groupLabel] = [];
+                          groups[groupLabel].push(type);
+                          return groups;
+                        }, {} as Record<string, typeof skillTypes>)
+                    ).map(([groupLabel, skillList]) => (
+                      <optgroup key={groupLabel} label={groupLabel}>
+                        {skillList.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.skill_type}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  A *
-                </label>
-                <Input
-                  type="text"
-                  value={attacks}
-                  onChange={(e) => setAttacks(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Ld *
-                </label>
-                <Input
-                  type="text"
-                  value={leadership}
-                  onChange={(e) => setLeadership(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Cl *
-                </label>
-                <Input
-                  type="text"
-                  value={cool}
-                  onChange={(e) => setCool(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Wil *
-                </label>
-                <Input
-                  type="text"
-                  value={willpower}
-                  onChange={(e) => setWillpower(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Int *
-                </label>
-                <Input
-                  type="text"
-                  value={intelligence}
-                  onChange={(e) => setIntelligence(e.target.value)}
-                  className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Special Rules
-              </label>
-              <Input
-                type="text"
-                value={specialSkills}
-                onChange={(e) => setSpecialSkills(e.target.value)}
-                placeholder="Enter special rules (comma-separated)"
-                className="w-full"
-              />
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={freeSkill}
-                  onChange={(e) => setFreeSkill(e.target.checked)}
-                  className="h-4 w-4 text-primary border-gray-300 rounded"
-                />
-                <label className="ml-2 block text-sm text-gray-900">
-                  Free Skill
-                </label>
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={isGangAddition}
-                  onChange={(e) => setIsGangAddition(e.target.checked)}
-                  className="h-4 w-4 text-primary border-gray-300 rounded"
-                />
-                <label className="ml-2 block text-sm text-gray-900">
-                  Gang Addition
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Default Skills
-              </label>
-              <div className="space-y-2">
-                <select
-                  value={selectedSkillType}
-                  onChange={(e) => setSelectedSkillType(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select a skill set</option>
-
-                  {Object.entries(
-                    skillTypes
-                      .sort((a, b) => {
-                        const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                        const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-                        return rankA - rankB;
-                      })
-                      .reduce((groups, type) => {
-                        const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                        let groupLabel = "Misc."; // Default category for unlisted skills
-
-                        if (rank <= 19) groupLabel = "Universal Skills";
-                        else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                        else if (rank <= 59) groupLabel = "Wyrd Powers";
-                        else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                        else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                        else if (rank <= 89) groupLabel = "Legendary Names";
-
-                        if (!groups[groupLabel]) groups[groupLabel] = [];
-                        groups[groupLabel].push(type);
-                        return groups;
-                      }, {} as Record<string, typeof skillTypes>)
-                  ).map(([groupLabel, skillList]) => (
-                    <optgroup key={groupLabel} label={groupLabel}>
-                      {skillList.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.skill_type}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value && !selectedSkills.includes(value)) {
+                        setSelectedSkills([...selectedSkills, value]);
+                      }
+                      e.target.value = "";
+                    }}
+                    className="w-full p-2 border rounded-md"
+                    disabled={!selectedSkillType || !selectedFighterTypeId}
+                  >
+                    <option value="">Select a skill to add</option>
+                    {skills
+                      .filter(skill => !selectedSkills.includes(skill.id))
+                      .map((skill) => (
+                        <option key={skill.id} value={skill.id}>
+                          {skill.skill_name}
                         </option>
                       ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  </select>
 
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedSkills.map((skillId) => {
+                      const skill = skills.find(s => s.id === skillId);
+                      if (!skill) return null;
+
+                      return (
+                        <div
+                          key={skill.id}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
+                            selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
+                          }`}
+                        >
+                          <span>{skill.skill_name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                            className="hover:text-red-500 focus:outline-none"
+                            disabled={!selectedFighterTypeId}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Equipment
+                </label>
                 <select
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedSkills.includes(value)) {
-                      setSelectedSkills([...selectedSkills, value]);
+                    if (value && !selectedEquipment.includes(value)) {
+                      setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
                   }}
                   className="w-full p-2 border rounded-md"
-                  disabled={!selectedSkillType || !selectedFighterTypeId}
+                  disabled={!selectedFighterTypeId}
                 >
-                  <option value="">Select a skill to add</option>
-                  {skills
-                    .filter(skill => !selectedSkills.includes(skill.id))
-                    .map((skill) => (
-                      <option key={skill.id} value={skill.id}>
-                        {skill.skill_name}
+                  <option value="">Select equipment to add</option>
+                  {equipment
+                    .filter(item => !selectedEquipment.includes(item.id))
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.equipment_name}
                       </option>
                     ))}
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedSkills.map((skillId) => {
-                    const skill = skills.find(s => s.id === skillId);
-                    if (!skill) return null;
-                    
+                  {selectedEquipment.map((equipId) => {
+                    const item = equipment.find(e => e.id === equipId);
+                    if (!item) return null;
+
                     return (
-                      <div 
-                        key={skill.id}
+                      <div
+                        key={item.id}
                         className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
                           selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
                         }`}
                       >
-                        <span>{skill.skill_name}</span>
+                        <span>{item.equipment_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
                           className="hover:text-red-500 focus:outline-none"
                           disabled={!selectedFighterTypeId}
                         >
@@ -1270,212 +1327,471 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   })}
                 </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Default Equipment
-              </label>
-              <select
-                value=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value && !selectedEquipment.includes(value)) {
-                    setSelectedEquipment([...selectedEquipment, value]);
-                  }
-                  e.target.value = "";
-                }}
-                className="w-full p-2 border rounded-md"
-                disabled={!selectedFighterTypeId}
-              >
-                <option value="">Select equipment to add</option>
-                {equipment
-                  .filter(item => !selectedEquipment.includes(item.id))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name}
-                    </option>
-                  ))}
-              </select>
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedEquipment.map((equipId) => {
-                  const item = equipment.find(e => e.id === equipId);
-                  if (!item) return null;
-                  
-                  return (
-                    <div 
-                      key={item.id}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                        selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
-                      }`}
-                    >
-                      <span>{item.equipment_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
-                        className="hover:text-red-500 focus:outline-none"
-                        disabled={!selectedFighterTypeId}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fighter's Equipment List
-              </label>
-              <select
-                value=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value && !equipmentListSelections.includes(value)) {
-                    setEquipmentListSelections([...equipmentListSelections, value]);
-                  }
-                  e.target.value = "";
-                }}
-                className="w-full p-2 border rounded-md"
-                disabled={!selectedFighterTypeId}
-              >
-                <option value="">Available equipment</option>
-                {equipment
-                  .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name} ({item.equipment_category})
-                    </option>
-                  ))}
-              </select>
-
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {Object.entries(
-                  equipmentListSelections
-                    .map(equipId => equipment.find(e => e.id === equipId))
-                    .filter(item => item !== undefined) // Remove null values
-                    .sort((a, b) => {
-                      if (!a || !b) return 0; // Handle undefined items
-                      
-                      const rankA = equipmentCategoryRank[(a!.equipment_category || '').toLowerCase()] ?? Infinity;
-                      const rankB = equipmentCategoryRank[(b!.equipment_category || '').toLowerCase()] ?? Infinity;
-
-                      // First, sort by equipment category rank
-                      if (rankA !== rankB) return rankA - rankB;
-
-                      // If same category, sort alphabetically by equipment name
-                      return a!.equipment_name.localeCompare(b!.equipment_name);
-                    })
-                    .reduce((groups, item) => {
-                      if (!item || !item.equipment_category) return groups; // Ensure item is defined and has a category
-
-                      const category = item.equipment_category;
-                      if (!groups[category]) groups[category] = []; // Initialize category group if not present
-                      groups[category].push(item);
-
-                      return groups;
-                    }, {} as Record<string, EquipmentWithId[]>)
-                ).map(([category, items]) => (
-                  <div key={category} className="flex flex-col gap-1 p-1">
-                    {/* Category Title */}
-                    <div className="text-sm font-bold text-gray-700">{category}</div>
-
-                    {/* Items under this category */}
-                    {items.map(item => (
-                      <div
-                        key={item!.id}
-                        className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
-                      >
-                        <span>{item!.equipment_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
-                          className="hover:text-red-500 focus:outline-none"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Discounts
-              </label>
-              <Button
-                onClick={() => setShowDiscountDialog(true)}
-                variant="outline"
-                size="sm"
-                className="mb-2"
-                disabled={!gangTypeFilter || !selectedFighterTypeId}
-              >
-                Add Equipment Discount
-              </Button>
-              {(!gangTypeFilter || !selectedFighterTypeId) && (
-                <p className="text-sm text-gray-500 mb-2">
-                  Select a gang type and fighter type to add equipment discounts
-                </p>
-              )}
-
-              {equipmentDiscounts.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {equipmentDiscounts.map((discount) => {
-                    const item = equipment.find(e => e.id === discount.equipment_id);
-                    if (!item) return null;
-                    
-                    return (
-                      <div 
-                        key={discount.equipment_id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                      >
-                        <span>{item.equipment_name} (-{discount.discount} credits)</span>
-                        <button
-                          onClick={() => setEquipmentDiscounts(prev => 
-                            prev.filter(d => d.equipment_id !== discount.equipment_id)
-                          )}
-                          className="hover:text-red-500 focus:outline-none"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {showDiscountDialog && (
-                <div 
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                      setShowDiscountDialog(false);
-                      setSelectedDiscountEquipment("");
-                      setDiscountAmount("");
+              <div className="mt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fighter's Equipment List
+                </label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !equipmentListSelections.includes(value)) {
+                      setEquipmentListSelections([...equipmentListSelections, value]);
                     }
+                    e.target.value = "";
                   }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedFighterTypeId}
                 >
-                  <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                    <h3 className="text-xl font-bold mb-4">Equipment Discount Menu</h3>
-                    <p className="text-sm text-gray-500 mb-4">Select equipment and enter a discount</p>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Equipment</label>
-                        <select
-                          value={selectedDiscountEquipment}
-                          onChange={(e) => setSelectedDiscountEquipment(e.target.value)}
-                          className="w-full p-2 border rounded-md"
+                  <option value="">Available equipment</option>
+                  {equipment
+                    .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.equipment_name} ({item.equipment_category})
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Object.entries(
+                    equipmentListSelections
+                      .map(equipId => equipment.find(e => e.id === equipId))
+                      .filter(item => item !== undefined) // Remove null values
+                      .sort((a, b) => {
+                        if (!a || !b) return 0; // Handle undefined items
+
+                        const rankA = equipmentCategoryRank[(a!.equipment_category || '').toLowerCase()] ?? Infinity;
+                        const rankB = equipmentCategoryRank[(b!.equipment_category || '').toLowerCase()] ?? Infinity;
+
+                        // First, sort by equipment category rank
+                        if (rankA !== rankB) return rankA - rankB;
+
+                        // If same category, sort alphabetically by equipment name
+                        return a!.equipment_name.localeCompare(b!.equipment_name);
+                      })
+                      .reduce((groups, item) => {
+                        if (!item || !item.equipment_category) return groups; // Ensure item is defined and has a category
+
+                        const category = item.equipment_category;
+                        if (!groups[category]) groups[category] = []; // Initialize category group if not present
+                        groups[category].push(item);
+
+                        return groups;
+                      }, {} as Record<string, EquipmentWithId[]>)
+                  ).map(([category, items]) => (
+                    <div key={category} className="flex flex-col gap-1 p-1">
+                      {/* Category Title */}
+                      <div className="text-sm font-bold text-gray-700">{category}</div>
+
+                      {/* Items under this category */}
+                      {items.map(item => (
+                        <div
+                          key={item!.id}
+                          className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
                         >
-                          <option value="">Select equipment</option>
+                          <span>{item!.equipment_name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
+                            className="hover:text-red-500 focus:outline-none"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipment Discounts
+                </label>
+                <Button
+                  onClick={() => setShowDiscountDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  disabled={!gangTypeFilter || !selectedFighterTypeId}
+                >
+                  Add Equipment Discount
+                </Button>
+                {(!gangTypeFilter || !selectedFighterTypeId) && (
+                  <p className="text-sm text-gray-500 mb-2">
+                    Select a gang type and fighter type to add equipment discounts
+                  </p>
+                )}
+
+                {equipmentDiscounts.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {equipmentDiscounts.map((discount) => {
+                      const item = equipment.find(e => e.id === discount.equipment_id);
+                      if (!item) return null;
+
+                      return (
+                        <div
+                          key={discount.equipment_id}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        >
+                          <span>{item.equipment_name} (-{discount.discount} credits)</span>
+                          <button
+                            onClick={() => setEquipmentDiscounts(prev =>
+                              prev.filter(d => d.equipment_id !== discount.equipment_id)
+                            )}
+                            className="hover:text-red-500 focus:outline-none"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showDiscountDialog && (
+                  <div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
+                        setShowDiscountDialog(false);
+                        setSelectedDiscountEquipment("");
+                        setDiscountAmount("");
+                      }
+                    }}
+                  >
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <h3 className="text-xl font-bold mb-4">Equipment Discount Menu</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select equipment and enter a discount</p>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Equipment</label>
+                          <select
+                            value={selectedDiscountEquipment}
+                            onChange={(e) => setSelectedDiscountEquipment(e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                          >
+                            <option value="">Select equipment</option>
+                            {equipment
+                              .filter(item => !equipmentDiscounts.some(
+                                discount => discount.equipment_id === item.id
+                              ))
+                              .map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.equipment_name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Discount (credits)</label>
+                          <Input
+                            type="number"
+                            value={discountAmount}
+                            onChange={(e) => setDiscountAmount(e.target.value)}
+                            placeholder="Enter discount in credits"
+                            min="0"
+                            onKeyDown={(e) => {
+                              if (e.key === '-') {
+                                e.preventDefault();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex gap-2 justify-end mt-6">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowDiscountDialog(false);
+                              setSelectedDiscountEquipment("");
+                              setDiscountAmount("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (selectedDiscountEquipment && discountAmount) {
+                                const discount = parseInt(discountAmount);
+                                if (discount >= 0) {
+                                  setEquipmentDiscounts(prev => [
+                                    ...prev,
+                                    {
+                                      equipment_id: selectedDiscountEquipment,
+                                      discount
+                                    }
+                                  ]);
+                                  setShowDiscountDialog(false);
+                                  setSelectedDiscountEquipment("");
+                                  setDiscountAmount("");
+                                }
+                              }
+                            }}
+                            disabled={!selectedDiscountEquipment || !discountAmount || parseInt(discountAmount) < 0}
+                            className="bg-black hover:bg-gray-800 text-white"
+                          >
+                            Save Discount
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Trading Post
+                </label>
+                <Button
+                  onClick={() => {
+                    setShowTradingPostDialog(true);
+                    fetchEquipmentByCategory();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  disabled={!gangTypeFilter || !selectedFighterTypeId}
+                >
+                  Open Trading Post Menu
+                </Button>
+                {(!gangTypeFilter || !selectedFighterTypeId) && (
+                  <p className="text-sm text-gray-500 mb-2">
+                    Select a gang type and fighter type to configure trading post options
+                  </p>
+                )}
+
+                {showTradingPostDialog && (
+                  <div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
+                        setShowTradingPostDialog(false);
+                      }
+                    }}
+                  >
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
+                      <h3 className="text-xl font-bold mb-4">Trading Post Options</h3>
+                      <p className="text-sm text-gray-500 mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
+
+                      <div className="border rounded-lg overflow-hidden">
+                        {/* Table header */}
+                        <div className="bg-gray-50 border-b px-4 py-2 font-medium">
+                          Equipment
+                        </div>
+
+                        {/* Equipment categories and list */}
+                        <div className="max-h-[50vh] overflow-y-auto">
+                          {Object.keys(equipmentByCategory).length === 0 ? (
+                            <div className="p-4 text-center text-gray-500">Loading equipment categories...</div>
+                          ) : (
+                            Object.entries(equipmentByCategory)
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([category, items]) => {
+                                // Check if all items in category are selected
+                                const allSelected = items.every(item =>
+                                  tradingPostEquipment.includes(item.id)
+                                );
+
+                                // Check if some items in category are selected
+                                const someSelected = items.some(item =>
+                                  tradingPostEquipment.includes(item.id)
+                                );
+
+                                return (
+                                  <div key={category} className="border-b last:border-b-0">
+                                    {/* Category header with checkbox */}
+                                    <div
+                                      className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                                      onClick={() => setExpandedCategory(
+                                        expandedCategory === category ? null : category
+                                      )}
+                                    >
+                                      <div className="flex items-center">
+                                        <input
+                                          type="checkbox"
+                                          id={`category-${category}`}
+                                          checked={allSelected}
+                                          className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            const itemIds = items.map(item => item.id);
+
+                                            if (e.target.checked) {
+                                              // Add all items in category
+                                              setTradingPostEquipment(prev =>
+                                                Array.from(new Set([...prev, ...itemIds]))
+                                              );
+                                            } else {
+                                              // Remove all items in category
+                                              setTradingPostEquipment(prev =>
+                                                prev.filter(id => !itemIds.includes(id))
+                                              );
+                                            }
+                                          }}
+                                        />
+                                        <label
+                                          htmlFor={`category-${category}`}
+                                          className="ml-2 text-sm font-medium"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {category} ({items.length})
+                                        </label>
+                                      </div>
+                                      <div className="flex items-center">
+                                        {someSelected && !allSelected && (
+                                          <span className="text-xs mr-2 text-gray-500">
+                                            {items.filter(item => tradingPostEquipment.includes(item.id)).length} selected
+                                          </span>
+                                        )}
+                                        <svg
+                                          className={`h-5 w-5 transition-transform ${expandedCategory === category ? 'rotate-90' : ''}`}
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded equipment list */}
+                                    {expandedCategory === category && (
+                                      <div>
+                                        {items.map(item => (
+                                          <div
+                                            key={item.id}
+                                            className="border-t px-4 py-2 flex items-center justify-between"
+                                          >
+                                            <div className="flex items-center flex-1">
+                                              <input
+                                                type="checkbox"
+                                                id={`trading-post-${item.id}`}
+                                                className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                                checked={tradingPostEquipment.includes(item.id)}
+                                                onChange={(e) => {
+                                                  if (e.target.checked) {
+                                                    setTradingPostEquipment([...tradingPostEquipment, item.id]);
+                                                  } else {
+                                                    setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
+                                                  }
+                                                }}
+                                              />
+                                              <label htmlFor={`trading-post-${item.id}`} className="ml-2 block text-sm">
+                                                {item.equipment_name}
+                                              </label>
+                                            </div>
+
+                                            {/* Use type assertion for availability */}
+                                            {item.availability && (
+                                              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                                <span className="text-[10px] font-medium">{item.availability}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 justify-end mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowTradingPostDialog(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setShowTradingPostDialog(false);
+                            // Trading post options are already saved in state
+                            toast({
+                              description: "Trading Post options saved. Remember to update the fighter type to apply changes.",
+                              variant: "default"
+                            });
+                          }}
+                          className="bg-black hover:bg-gray-800 text-white"
+                        >
+                          Save Options
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipment Selection
+                </label>
+                <div className="space-y-4 border rounded-lg p-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selection Type
+                    </label>
+                    <select
+                      value={equipmentSelection?.weapons?.select_type || ''}
+                      onChange={(e) => {
+                        const value = e.target.value as 'optional' | 'single' | 'multiple';
+                        setEquipmentSelection(prev => ({
+                          weapons: {
+                            select_type: value,
+                            default: value === 'optional' ? [] : undefined,
+                            options: []
+                          }
+                        }));
+                      }}
+                      className="w-full p-2 border rounded-md"
+                      disabled={!selectedFighterTypeId}
+                    >
+                      <option value="">Select type</option>
+                      <option value="optional">Optional (Replace Default)</option>
+                      <option value="single">Single Selection</option>
+                      <option value="multiple">Multiple Selection</option>
+                    </select>
+                  </div>
+
+                  {equipmentSelection?.weapons?.select_type === 'optional' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Default Equipment
+                      </label>
+                      <div className="flex gap-2 mb-2">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (!value) return;
+
+                            setEquipmentSelection(prev => ({
+                              weapons: {
+                                ...prev.weapons!,
+                                default: [
+                                  ...(prev.weapons?.default || []),
+                                  { id: value, quantity: 1 }
+                                ]
+                              }
+                            }));
+                            e.target.value = "";
+                          }}
+                          className="flex-grow p-2 border rounded-md"
+                          disabled={!selectedFighterTypeId}
+                        >
+                          <option value="">Add default equipment</option>
                           {equipment
-                            .filter(item => !equipmentDiscounts.some(
-                              discount => discount.equipment_id === item.id
-                            ))
+                            .filter(item => !equipmentSelection?.weapons?.default?.some(d => d.id === item.id))
                             .map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.equipment_name}
@@ -1483,473 +1799,162 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             ))}
                         </select>
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Discount (credits)</label>
-                        <Input
-                          type="number"
-                          value={discountAmount}
-                          onChange={(e) => setDiscountAmount(e.target.value)}
-                          placeholder="Enter discount in credits"
-                          min="0"
-                          onKeyDown={(e) => {
-                            if (e.key === '-') {
-                              e.preventDefault();
-                            }
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex gap-2 justify-end mt-6">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setShowDiscountDialog(false);
-                            setSelectedDiscountEquipment("");
-                            setDiscountAmount("");
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            if (selectedDiscountEquipment && discountAmount) {
-                              const discount = parseInt(discountAmount);
-                              if (discount >= 0) {
-                                setEquipmentDiscounts(prev => [
-                                  ...prev,
-                                  {
-                                    equipment_id: selectedDiscountEquipment,
-                                    discount
-                                  }
-                                ]);
-                                setShowDiscountDialog(false);
-                                setSelectedDiscountEquipment("");
-                                setDiscountAmount("");
-                              }
-                            }
-                          }}
-                          disabled={!selectedDiscountEquipment || !discountAmount || parseInt(discountAmount) < 0}
-                          className="bg-black hover:bg-gray-800 text-white"
-                        >
-                          Save Discount
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Trading Post
-              </label>
-              <Button
-                onClick={() => {
-                  setShowTradingPostDialog(true);
-                  fetchEquipmentByCategory();
-                }}
-                variant="outline"
-                size="sm"
-                className="mb-2"
-                disabled={!gangTypeFilter || !selectedFighterTypeId}
-              >
-                Open Trading Post Menu
-              </Button>
-              {(!gangTypeFilter || !selectedFighterTypeId) && (
-                <p className="text-sm text-gray-500 mb-2">
-                  Select a gang type and fighter type to configure trading post options
-                </p>
-              )}
-
-              {showTradingPostDialog && (
-                <div 
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                      setShowTradingPostDialog(false);
-                    }
-                  }}
-                >
-                  <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
-                    <h3 className="text-xl font-bold mb-4">Trading Post Options</h3>
-                    <p className="text-sm text-gray-500 mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
-                    
-                    <div className="border rounded-lg overflow-hidden">
-                      {/* Table header */}
-                      <div className="bg-gray-50 border-b px-4 py-2 font-medium">
-                        Equipment
-                      </div>
-                      
-                      {/* Equipment categories and list */}
-                      <div className="max-h-[50vh] overflow-y-auto">
-                        {Object.keys(equipmentByCategory).length === 0 ? (
-                          <div className="p-4 text-center text-gray-500">Loading equipment categories...</div>
-                        ) : (
-                          Object.entries(equipmentByCategory)
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([category, items]) => {
-                              // Check if all items in category are selected
-                              const allSelected = items.every(item => 
-                                tradingPostEquipment.includes(item.id)
-                              );
-                              
-                              // Check if some items in category are selected
-                              const someSelected = items.some(item => 
-                                tradingPostEquipment.includes(item.id)
-                              );
-
-                              return (
-                                <div key={category} className="border-b last:border-b-0">
-                                  {/* Category header with checkbox */}
-                                  <div 
-                                    className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
-                                    onClick={() => setExpandedCategory(
-                                      expandedCategory === category ? null : category
-                                    )}
-                                  >
-                                    <div className="flex items-center">
-                                      <input
-                                        type="checkbox"
-                                        id={`category-${category}`}
-                                        checked={allSelected}
-                                        className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
-                                        onChange={(e) => {
-                                          e.stopPropagation();
-                                          const itemIds = items.map(item => item.id);
-                                          
-                                          if (e.target.checked) {
-                                            // Add all items in category
-                                            setTradingPostEquipment(prev => 
-                                              Array.from(new Set([...prev, ...itemIds]))
-                                            );
-                                          } else {
-                                            // Remove all items in category
-                                            setTradingPostEquipment(prev => 
-                                              prev.filter(id => !itemIds.includes(id))
-                                            );
-                                          }
-                                        }}
-                                      />
-                                      <label 
-                                        htmlFor={`category-${category}`} 
-                                        className="ml-2 text-sm font-medium"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {category} ({items.length})
-                                      </label>
-                                    </div>
-                                    <div className="flex items-center">
-                                      {someSelected && !allSelected && (
-                                        <span className="text-xs mr-2 text-gray-500">
-                                          {items.filter(item => tradingPostEquipment.includes(item.id)).length} selected
-                                        </span>
-                                      )}
-                                      <svg 
-                                        className={`h-5 w-5 transition-transform ${expandedCategory === category ? 'rotate-90' : ''}`} 
-                                        fill="none" 
-                                        viewBox="0 0 24 24" 
-                                        stroke="currentColor"
-                                      >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Expanded equipment list */}
-                                  {expandedCategory === category && (
-                                    <div>
-                                      {items.map(item => (
-                                        <div 
-                                          key={item.id} 
-                                          className="border-t px-4 py-2 flex items-center justify-between"
-                                        >
-                                          <div className="flex items-center flex-1">
-                                            <input
-                                              type="checkbox"
-                                              id={`trading-post-${item.id}`}
-                                              className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
-                                              checked={tradingPostEquipment.includes(item.id)}
-                                              onChange={(e) => {
-                                                if (e.target.checked) {
-                                                  setTradingPostEquipment([...tradingPostEquipment, item.id]);
-                                                } else {
-                                                  setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
-                                                }
-                                              }}
-                                            />
-                                            <label htmlFor={`trading-post-${item.id}`} className="ml-2 block text-sm">
-                                              {item.equipment_name}
-                                            </label>
-                                          </div>
-                                          
-                                          {/* Use type assertion for availability */}
-                                          {item.availability && (
-                                            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
-                                              <span className="text-[10px] font-medium">{item.availability}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                      <div className="space-y-2">
+                        {equipmentSelection?.weapons?.default?.map((item, index) => {
+                          const equip = equipment.find(e => e.id === item.id);
+                          return (
+                            <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                              <div className="flex items-center gap-2">
+                                <div>
+                                  <label className="block text-xs text-gray-500">Number</label>
+                                  <input
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const quantity = parseInt(e.target.value) || 1;
+                                      setEquipmentSelection(prev => ({
+                                        weapons: {
+                                          ...prev.weapons!,
+                                          default: prev.weapons?.default?.map((d, i) =>
+                                            i === index ? { ...d, quantity } : d
+                                          )
+                                        }
+                                      }));
+                                    }}
+                                    min="1"
+                                    className="w-16 p-1 border rounded"
+                                  />
                                 </div>
-                              );
-                            })
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 justify-end mt-6">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setShowTradingPostDialog(false);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setShowTradingPostDialog(false);
-                          // Trading post options are already saved in state
-                          toast({
-                            description: "Trading Post options saved. Remember to update the fighter type to apply changes.",
-                            variant: "default"
-                          });
-                        }}
-                        className="bg-black hover:bg-gray-800 text-white"
-                      >
-                        Save Options
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Selection
-              </label>
-              <div className="space-y-4 border rounded-lg p-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Selection Type
-                  </label>
-                  <select
-                    value={equipmentSelection?.weapons?.select_type || ''}
-                    onChange={(e) => {
-                      const value = e.target.value as 'optional' | 'single' | 'multiple';
-                      setEquipmentSelection(prev => ({
-                        weapons: {
-                          select_type: value,
-                          default: value === 'optional' ? [] : undefined,
-                          options: []
-                        }
-                      }));
-                    }}
-                    className="w-full p-2 border rounded-md"
-                    disabled={!selectedFighterTypeId}
-                  >
-                    <option value="">Select type</option>
-                    <option value="optional">Optional (Replace Default)</option>
-                    <option value="single">Single Selection</option>
-                    <option value="multiple">Multiple Selection</option>
-                  </select>
-                </div>
-
-                {equipmentSelection?.weapons?.select_type === 'optional' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Default Equipment
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (!value) return;
-                          
-                          setEquipmentSelection(prev => ({
-                            weapons: {
-                              ...prev.weapons!,
-                              default: [
-                                ...(prev.weapons?.default || []),
-                                { id: value, quantity: 1 }
-                              ]
-                            }
-                          }));
-                          e.target.value = "";
-                        }}
-                        className="flex-grow p-2 border rounded-md"
-                        disabled={!selectedFighterTypeId}
-                      >
-                        <option value="">Add default equipment</option>
-                        {equipment
-                          .filter(item => !equipmentSelection?.weapons?.default?.some(d => d.id === item.id))
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.equipment_name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      {equipmentSelection?.weapons?.default?.map((item, index) => {
-                        const equip = equipment.find(e => e.id === item.id);
-                        return (
-                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                            <div className="flex items-center gap-2">
-                              <div>
-                                <label className="block text-xs text-gray-500">Number</label>
-                                <input
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const quantity = parseInt(e.target.value) || 1;
-                                    setEquipmentSelection(prev => ({
-                                      weapons: {
-                                        ...prev.weapons!,
-                                        default: prev.weapons?.default?.map((d, i) => 
-                                          i === index ? { ...d, quantity } : d
-                                        )
-                                      }
-                                    }));
-                                  }}
-                                  min="1"
-                                  className="w-16 p-1 border rounded"
-                                />
-                              </div>
-                              <span>x {equip?.equipment_name}</span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setEquipmentSelection(prev => ({
-                                  weapons: {
-                                    ...prev.weapons!,
-                                    default: prev.weapons?.default?.filter((_, i) => i !== index)
-                                  }
-                                }));
-                              }}
-                              className="ml-auto hover:bg-gray-100 p-1 rounded"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {equipmentSelection?.weapons?.select_type && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {equipmentSelection.weapons.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (!value) return;
-                          
-                          setEquipmentSelection(prev => ({
-                            weapons: {
-                              ...prev.weapons!,
-                              options: [
-                                ...(prev?.weapons?.options || []),
-                                { id: value, cost: 0, max_quantity: 1 }
-                              ]
-                            }
-                          }));
-                          e.target.value = "";
-                        }}
-                        className="flex-grow p-2 border rounded-md"
-                        disabled={!selectedFighterTypeId}
-                      >
-                        <option value="">Add equipment option</option>
-                        {equipment
-                          .filter(item => !equipmentSelection?.weapons?.options?.some(o => o.id === item.id))
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.equipment_name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      {equipmentSelection?.weapons?.options?.map((item, index) => {
-                        const equip = equipment.find(e => e.id === item.id);
-                        return (
-                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                            <span>{equip?.equipment_name}</span>
-                            <div className="ml-auto flex items-center gap-4">
-                              <div>
-                                <label className="block text-xs text-gray-500">Cost</label>
-                                <input
-                                  type="number"
-                                  value={item.cost}
-                                  onChange={(e) => {
-                                    const cost = parseInt(e.target.value) || 0;
-                                    setEquipmentSelection(prev => ({
-                                      weapons: {
-                                        ...prev.weapons!,
-                                        options: prev?.weapons?.options?.map((o, i) => 
-                                          i === index ? { ...o, cost } : o
-                                        )
-                                      }
-                                    }));
-                                  }}
-                                  placeholder="Cost"
-                                  className="w-20 p-1 border rounded"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500">Max Number</label>
-                                <input
-                                  type="number"
-                                  value={item.max_quantity}
-                                  onChange={(e) => {
-                                    const max_quantity = parseInt(e.target.value) || 1;
-                                    setEquipmentSelection(prev => ({
-                                      weapons: {
-                                        ...prev.weapons!,
-                                        options: prev?.weapons?.options?.map((o, i) => 
-                                          i === index ? { ...o, max_quantity } : o
-                                        )
-                                      }
-                                    }));
-                                  }}
-                                  placeholder="Max"
-                                  min="1"
-                                  className="w-16 p-1 border rounded"
-                                />
+                                <span>x {equip?.equipment_name}</span>
                               </div>
                               <button
                                 onClick={() => {
                                   setEquipmentSelection(prev => ({
                                     weapons: {
                                       ...prev.weapons!,
-                                      options: prev?.weapons?.options?.filter((_, i) => i !== index)
+                                      default: prev.weapons?.default?.filter((_, i) => i !== index)
                                     }
                                   }));
                                 }}
-                                className="hover:bg-gray-100 p-1 rounded self-end"
+                                className="ml-auto hover:bg-gray-100 p-1 rounded"
                               >
                                 <X className="h-4 w-4" />
                               </button>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {equipmentSelection?.weapons?.select_type && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {equipmentSelection.weapons.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
+                      </label>
+                      <div className="flex gap-2 mb-2">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (!value) return;
+
+                            setEquipmentSelection(prev => ({
+                              weapons: {
+                                ...prev.weapons!,
+                                options: [
+                                  ...(prev?.weapons?.options || []),
+                                  { id: value, cost: 0, max_quantity: 1 }
+                                ]
+                              }
+                            }));
+                            e.target.value = "";
+                          }}
+                          className="flex-grow p-2 border rounded-md"
+                          disabled={!selectedFighterTypeId}
+                        >
+                          <option value="">Add equipment option</option>
+                          {equipment
+                            .filter(item => !equipmentSelection?.weapons?.options?.some(o => o.id === item.id))
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.equipment_name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        {equipmentSelection?.weapons?.options?.map((item, index) => {
+                          const equip = equipment.find(e => e.id === item.id);
+                          return (
+                            <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                              <span>{equip?.equipment_name}</span>
+                              <div className="ml-auto flex items-center gap-4">
+                                <div>
+                                  <label className="block text-xs text-gray-500">Cost</label>
+                                  <input
+                                    type="number"
+                                    value={item.cost}
+                                    onChange={(e) => {
+                                      const cost = parseInt(e.target.value) || 0;
+                                      setEquipmentSelection(prev => ({
+                                        weapons: {
+                                          ...prev.weapons!,
+                                          options: prev?.weapons?.options?.map((o, i) =>
+                                            i === index ? { ...o, cost } : o
+                                          )
+                                        }
+                                      }));
+                                    }}
+                                    placeholder="Cost"
+                                    className="w-20 p-1 border rounded"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-500">Max Number</label>
+                                  <input
+                                    type="number"
+                                    value={item.max_quantity}
+                                    onChange={(e) => {
+                                      const max_quantity = parseInt(e.target.value) || 1;
+                                      setEquipmentSelection(prev => ({
+                                        weapons: {
+                                          ...prev.weapons!,
+                                          options: prev?.weapons?.options?.map((o, i) =>
+                                            i === index ? { ...o, max_quantity } : o
+                                          )
+                                        }
+                                      }));
+                                    }}
+                                    placeholder="Max"
+                                    min="1"
+                                    className="w-16 p-1 border rounded"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setEquipmentSelection(prev => ({
+                                      weapons: {
+                                        ...prev.weapons!,
+                                        options: prev?.weapons?.options?.filter((_, i) => i !== index)
+                                      }
+                                    }));
+                                  }}
+                                  className="hover:bg-gray-100 p-1 rounded self-end"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
+          )}
           </div>
         </div>
 
