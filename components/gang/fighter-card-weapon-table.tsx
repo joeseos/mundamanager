@@ -140,52 +140,62 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
               ...specialRows.map((p) => ({ profile: p, duplicate: 1 })),
             ];
 
-            const bg = blockIdx % 2 ? 'bg-black/[0.07]' : '';
+            return rows.map(({ profile, duplicate }, rowIdx) => {
+              const traitsList: string[] = [];
 
-            return rows.map(({ profile, duplicate }, rowIdx) => (
-              <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>
-                <td className="text-left p-1 align-top">
-                  <div className="table-weapons-truncate">
-                    {rowIdx === 0 && !profile.profile_name.startsWith('-') ? (
-                      <>
-                        {weaponName}
-                        {isMasterCrafted && ` (MC)`}
-                        {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
-                      </>
-                    ) : (
-                      profile.profile_name
-                    )}
-                  </div>
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatValue(profile.range_short)}
-                </td>
-                <td className="text-center p-1 whitespace-nowrap align-top">
-                  {formatters.formatValue(profile.range_long)}
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatAccuracy(profile.acc_short)}
-                </td>
-                <td className="text-center p-1 whitespace-nowrap align-top">
-                  {formatters.formatAccuracy(profile.acc_long)}
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatStrength(profile.strength)}
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatAp(profile.ap)}
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatValue(profile.damage)}
-                </td>
-                <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
-                  {formatters.formatAmmo(profile.ammo)}
-                </td>
-                <td className="text-left p-1 border-l border-black whitespace-normal align-top">
-                  {isMasterCrafted && profile.traits ? `${profile.traits}, Master-crafted` : profile.traits}
-                </td>
-              </tr>
-            ));
+              if (entity === 'crew') traitsList.push('Arc (Front)');
+              if (profile.traits) traitsList.push(profile.traits);
+              if (isMasterCrafted) traitsList.push('Master-crafted');
+
+              traitsList.sort((a, b) => a.localeCompare(b));
+
+              const bg = blockIdx % 2 ? 'bg-black/[0.07]' : '';
+
+              return (
+                <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>
+                  <td className="text-left p-1 align-top">
+                    <div className="table-weapons-truncate">
+                      {rowIdx === 0 && !profile.profile_name.startsWith('-') ? (
+                        <>
+                          {weaponName}
+                          {isMasterCrafted && ` (MC)`}
+                          {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
+                        </>
+                      ) : (
+                        profile.profile_name
+                      )}
+                    </div>
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.range_short)}
+                  </td>
+                  <td className="text-center p-1 whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.range_long)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAccuracy(profile.acc_short)}
+                  </td>
+                  <td className="text-center p-1 whitespace-nowrap align-top">
+                    {formatters.formatAccuracy(profile.acc_long)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatStrength(profile.strength)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAp(profile.ap)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatValue(profile.damage)}
+                  </td>
+                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                    {formatters.formatAmmo(profile.ammo)}
+                  </td>
+                  <td className="text-left p-1 border-l border-black whitespace-normal align-top">
+                    {traitsList.join(', ')}
+                  </td>
+                </tr>
+              );
+            });
           })}
         </tbody>
       </table>
