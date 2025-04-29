@@ -87,6 +87,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
+  const [isFighterTypesLoading, setIsFighterTypesLoading] = useState(false);
+  const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
+  const [isGangTypesLoading, setIsGangTypesLoading] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
     profile_name: '',
     range_short: '',
@@ -205,6 +209,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentAvailabilities([]);
         return;
       }
+
+      setIsEquipmentDetailsLoading(true); // ✅ Start loading
 
       try {
         const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`);
@@ -329,6 +335,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           description: 'Failed to load equipment details',
           variant: "destructive"
         });
+      } finally {
+        setIsEquipmentDetailsLoading(false); // ✅ End loading after all operations
       }
     };
 
@@ -343,6 +351,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setSelectedFighterTypes([]);
         return;
       }
+
+      setIsFighterTypesLoading(true); // ✅ Start loading
 
       try {
         // First get all fighter types for the dropdown
@@ -368,6 +378,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           description: 'Failed to load fighter types',
           variant: "destructive"
         });
+      } finally {
+        setIsFighterTypesLoading(false); // ✅ End loading after all operations
       }
     };
 
@@ -377,6 +389,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   // Add useEffect to fetch weapons
   useEffect(() => {
     const fetchWeapons = async () => {
+      setIsWeaponsLoading(true);
       try {
         const response = await fetch('/api/admin/equipment?equipment_type=weapon');
         if (!response.ok) throw new Error('Failed to fetch weapons');
@@ -388,6 +401,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           description: 'Failed to load weapons',
           variant: "destructive"
         });
+      } finally {
+      setIsWeaponsLoading(false);
       }
     };
 
@@ -398,6 +413,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   useEffect(() => {
     const fetchGangTypes = async () => {
       if (showDiscountDialog || showAvailabilityDialog) {
+        setIsGangTypesLoading(true);
         try {
           const response = await fetch('/api/admin/gang-types');
           if (!response.ok) throw new Error('Failed to fetch gang types');
@@ -409,12 +425,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             description: 'Failed to load gang types',
             variant: "destructive"
           });
+        } finally {
+          setIsGangTypesLoading(false);
         }
       }
     };
 
     fetchGangTypes();
   }, [showDiscountDialog, showAvailabilityDialog, toast]);
+
+  useEffect(() => {
+    setIsLoading(
+      isEquipmentDetailsLoading ||
+      isFighterTypesLoading ||
+      isWeaponsLoading ||
+      isGangTypesLoading
+    );
+  }, [
+    isEquipmentDetailsLoading,
+    isFighterTypesLoading,
+    isWeaponsLoading,
+    isGangTypesLoading
+  ]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
@@ -637,801 +669,805 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Name *
-              </label>
-              <Input
-                type="text"
-                value={equipmentName}
-                onChange={(e) => setEquipmentName(e.target.value)}
-                placeholder="E.g. Bolt pistol, Combat knife"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Category *
-              </label>
-              <select
-                value={equipmentCategory}
-                onChange={(e) => setEquipmentCategory(e.target.value)}
-                className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                disabled={!selectedEquipmentId}
-              >
-                <option value="">Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.category_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Type *
-              </label>
-              <select
-                value={equipmentType}
-                onChange={(e) => {
-                  const newType = e.target.value as EquipmentType;
-                  setEquipmentType(newType);
-                }}
-                className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                disabled={!selectedEquipmentId}
-              >
-                <option value="">Select equipment type</option>
-                {EQUIPMENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type === 'vehicle_upgrade'
-                      ? 'Vehicle Upgrade'
-                      : type.charAt(0).toUpperCase() + type.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cost (TP default) *
-              </label>
-              <Input
-                type="number"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="E.g. 130"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Availability (TP default) *
-              </label>
-              <Input
-                type="text"
-                value={availability}
-                onChange={(e) => setAvailability(e.target.value)}
-                placeholder="E.g. E, C, R9, I13"
-                disabled={!selectedEquipmentId}
-              />
-            </div>
-
-            {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
-                <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={coreEquipment}
-                    onChange={(e) => setCoreEquipment(e.target.checked)}
-                    className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Exclusive to a single Fighter</span>
-                    <p className="text-sm text-gray-500 mt-1">
-                      I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
-                    </p>
-                  </div>
-                </label>
-              </div>
-            )}
-
-            {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
+            {selectedEquipmentId && !isLoading && (
+              <>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cost per Gang
+                  Equipment Name *
                 </label>
-                <Button
-                  onClick={() => setShowDiscountDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
+                <Input
+                  type="text"
+                  value={equipmentName}
+                  onChange={(e) => setEquipmentName(e.target.value)}
+                  placeholder="E.g. Bolt pistol, Combat knife"
+                  disabled={!selectedEquipmentId}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipment Category *
+                </label>
+                <select
+                  value={equipmentCategory}
+                  onChange={(e) => setEquipmentCategory(e.target.value)}
+                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  disabled={!selectedEquipmentId}
                 >
-                  Add Gang
-                </Button>
+                  <option value="">Select category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                {gangDiscounts.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {gangDiscounts.map((discount, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                      >
-                        <span>{discount.gang_type} (-{discount.discount} credits)</span>
-                        <button
-                          onClick={() => setGangDiscounts(prev => 
-                            prev.filter((_, i) => i !== index)
-                          )}
-                          className="hover:text-red-500 focus:outline-none"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipment Type *
+                </label>
+                <select
+                  value={equipmentType}
+                  onChange={(e) => {
+                    const newType = e.target.value as EquipmentType;
+                    setEquipmentType(newType);
+                  }}
+                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  disabled={!selectedEquipmentId}
+                >
+                  <option value="">Select equipment type</option>
+                  {EQUIPMENT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type === 'vehicle_upgrade'
+                        ? 'Vehicle Upgrade'
+                        : type.charAt(0).toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                {showDiscountDialog && (
-                  <div 
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      // Only close if clicking the backdrop (not the dialog itself)
-                      if (e.target === e.currentTarget) {
-                        setShowDiscountDialog(false);
-                        setSelectedGangType("");
-                        setDiscountValue("");
-                      }
-                    }}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cost (TP default) *
+                </label>
+                <Input
+                  type="number"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  placeholder="E.g. 130"
+                  disabled={!selectedEquipmentId}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Availability (TP default) *
+                </label>
+                <Input
+                  type="text"
+                  value={availability}
+                  onChange={(e) => setAvailability(e.target.value)}
+                  placeholder="E.g. E, C, R9, I13"
+                  disabled={!selectedEquipmentId}
+                />
+              </div>
+
+              {equipmentType !== 'vehicle_upgrade' && (
+                <div className="col-span-1">
+                  <label className="flex items-start space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={coreEquipment}
+                      onChange={(e) => setCoreEquipment(e.target.checked)}
+                      className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Exclusive to a single Fighter</span>
+                      <p className="text-sm text-gray-500 mt-1">
+                        I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {equipmentType !== 'vehicle_upgrade' && (
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cost per Gang
+                  </label>
+                  <Button
+                    onClick={() => setShowDiscountDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
                   >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter the discounted cost</p>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
-                          <select
-                            value={selectedGangType}
-                            onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
-                              if (selected) {
-                                setSelectedGangType(e.target.value);
-                              }
-                            }}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option key="default" value="">Select a Gang Type</option>
-                            {gangTypeOptions.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                {gang.gang_type}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                    Add Gang
+                  </Button>
 
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Discounted Cost</label>
-                          <Input
-                            type="number"
-                            value={discountValue}
-                            onChange={(e) => setDiscountValue(e.target.value)}
-                            placeholder="E.g. 120"
-                            min="0"
-                            onKeyDown={(e) => {
-                              if (e.key === '-') {
-                                e.preventDefault();
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowDiscountDialog(false);
-                              setSelectedGangType("");
-                              setDiscountValue("");
-                            }}
+                  {gangDiscounts.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {gangDiscounts.map((discount, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        >
+                          <span>{discount.gang_type} (-{discount.discount} credits)</span>
+                          <button
+                            onClick={() => setGangDiscounts(prev =>
+                              prev.filter((_, i) => i !== index)
+                            )}
+                            className="hover:text-red-500 focus:outline-none"
                           >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (selectedGangType && discountValue) {
-                                const discount = parseInt(discountValue);
-                                if (discount >= 0) {
-                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showDiscountDialog && (
+                    <div
+                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                      onClick={(e) => {
+                        // Only close if clicking the backdrop (not the dialog itself)
+                        if (e.target === e.currentTarget) {
+                          setShowDiscountDialog(false);
+                          setSelectedGangType("");
+                          setDiscountValue("");
+                        }
+                      }}
+                    >
+                      <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                        <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
+                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter the discounted cost</p>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Gang Type</label>
+                            <select
+                              value={selectedGangType}
+                              onChange={(e) => {
+                                const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                if (selected) {
+                                  setSelectedGangType(e.target.value);
+                                }
+                              }}
+                              className="w-full p-2 border rounded-md"
+                            >
+                              <option key="default" value="">Select a Gang Type</option>
+                              {gangTypeOptions.map((gang) => (
+                                <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                  {gang.gang_type}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Discounted Cost</label>
+                            <Input
+                              type="number"
+                              value={discountValue}
+                              onChange={(e) => setDiscountValue(e.target.value)}
+                              placeholder="E.g. 120"
+                              min="0"
+                              onKeyDown={(e) => {
+                                if (e.key === '-') {
+                                  e.preventDefault();
+                                }
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex gap-2 justify-end mt-6">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowDiscountDialog(false);
+                                setSelectedGangType("");
+                                setDiscountValue("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                if (selectedGangType && discountValue) {
+                                  const discount = parseInt(discountValue);
+                                  if (discount >= 0) {
+                                    const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                    if (selectedGang) {
+                                      setGangDiscounts(prev => [
+                                        ...prev,
+                                        {
+                                          gang_type: selectedGang.gang_type,
+                                          gang_type_id: selectedGang.gang_type_id,
+                                          discount
+                                        }
+                                      ]);
+                                      setShowDiscountDialog(false);
+                                      setSelectedGangType("");
+                                      setDiscountValue("");
+                                    }
+                                  }
+                                }
+                              }}
+                              disabled={!selectedGangType || !discountValue || parseInt(discountValue) < 0}
+                            >
+                              Save Discount
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {equipmentType !== 'vehicle_upgrade' && (
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Availability per Gang
+                  </label>
+                  <Button
+                    onClick={() => setShowAvailabilityDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                  >
+                    Add Gang
+                  </Button>
+
+                  {equipmentAvailabilities.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {equipmentAvailabilities.map((avail, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        >
+                          <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                          <button
+                            onClick={() => setEquipmentAvailabilities(prev =>
+                              prev.filter((_, i) => i !== index)
+                            )}
+                            className="hover:text-red-500 focus:outline-none"
+                            disabled={!selectedEquipmentId}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showAvailabilityDialog && (
+                    <div
+                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                          setShowAvailabilityDialog(false);
+                          setSelectedAvailabilityGangType("");
+                          setAvailabilityValue("");
+                        }
+                      }}
+                    >
+                      <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                        <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
+                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Gang Type</label>
+                            <select
+                              value={selectedAvailabilityGangType}
+                              onChange={(e) => {
+                                const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                if (selected) {
+                                  setSelectedAvailabilityGangType(e.target.value);
+                                }
+                              }}
+                              className="w-full p-2 border rounded-md"
+                            >
+                              <option key="default" value="">Select a Gang Type</option>
+                              {gangTypeOptions.map((gang) => (
+                                <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                  {gang.gang_type}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Availability</label>
+                            <Input
+                              type="text"
+                              value={availabilityValue}
+                              onChange={(e) => setAvailabilityValue(e.target.value)}
+                              placeholder="E.g. R9, C, E"
+                            />
+                          </div>
+
+                          <div className="flex gap-2 justify-end mt-6">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowAvailabilityDialog(false);
+                                setSelectedAvailabilityGangType("");
+                                setAvailabilityValue("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                if (selectedAvailabilityGangType && availabilityValue) {
+                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
                                   if (selectedGang) {
-                                    setGangDiscounts(prev => [
+                                    setEquipmentAvailabilities(prev => [
                                       ...prev,
                                       {
                                         gang_type: selectedGang.gang_type,
                                         gang_type_id: selectedGang.gang_type_id,
-                                        discount
+                                        availability: availabilityValue
                                       }
                                     ]);
-                                    setShowDiscountDialog(false);
-                                    setSelectedGangType("");
-                                    setDiscountValue("");
+                                    setShowAvailabilityDialog(false);
+                                    setSelectedAvailabilityGangType("");
+                                    setAvailabilityValue("");
                                   }
                                 }
-                              }
-                            }}
-                            disabled={!selectedGangType || !discountValue || parseInt(discountValue) < 0}
-                          >
-                            Save Discount
-                          </Button>
+                              }}
+                              disabled={!selectedAvailabilityGangType || !availabilityValue}
+                            >
+                              Save Availability
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Availability per Gang
-                </label>
-                <Button
-                  onClick={() => setShowAvailabilityDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                >
-                  Add Gang
-                </Button>
-
-                {equipmentAvailabilities.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {equipmentAvailabilities.map((avail, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                      >
-                        <span>{avail.gang_type} (Availability: {avail.availability})</span>
-                        <button
-                          onClick={() => setEquipmentAvailabilities(prev => 
-                            prev.filter((_, i) => i !== index)
-                          )}
-                          className="hover:text-red-500 focus:outline-none"
-                          disabled={!selectedEquipmentId}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {showAvailabilityDialog && (
-                  <div 
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      if (e.target === e.currentTarget) {
-                        setShowAvailabilityDialog(false);
-                        setSelectedAvailabilityGangType("");
-                        setAvailabilityValue("");
-                      }
-                    }}
-                  >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
-                          <select
-                            value={selectedAvailabilityGangType}
-                            onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
-                              if (selected) {
-                                setSelectedAvailabilityGangType(e.target.value);
-                              }
-                            }}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option key="default" value="">Select a Gang Type</option>
-                            {gangTypeOptions.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                {gang.gang_type}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Availability</label>
-                          <Input
-                            type="text"
-                            value={availabilityValue}
-                            onChange={(e) => setAvailabilityValue(e.target.value)}
-                            placeholder="E.g. R9, C, E"
-                          />
-                        </div>
-
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowAvailabilityDialog(false);
-                              setSelectedAvailabilityGangType("");
-                              setAvailabilityValue("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (selectedAvailabilityGangType && availabilityValue) {
-                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
-                                if (selectedGang) {
-                                  setEquipmentAvailabilities(prev => [
-                                    ...prev,
-                                    {
-                                      gang_type: selectedGang.gang_type,
-                                      gang_type_id: selectedGang.gang_type_id,
-                                      availability: availabilityValue
-                                    }
-                                  ]);
-                                  setShowAvailabilityDialog(false);
-                                  setSelectedAvailabilityGangType("");
-                                  setAvailabilityValue("");
-                                }
-                              }
-                            }}
-                            disabled={!selectedAvailabilityGangType || !availabilityValue}
-                          >
-                            Save Availability
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-
-            {equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Types with this Equipment
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !selectedFighterTypes.includes(value)) {
-                      setSelectedFighterTypes([...selectedFighterTypes, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedEquipmentId}
-                >
-                  <option value="">Select fighter type to add</option>
-                  {fighterTypes
-                    .filter(ft => !selectedFighterTypes.includes(ft.id))
-                    .sort((a, b) => {
-                      // First sort by gang type
-                      const gangCompare = a.gang_type.localeCompare(b.gang_type);
-                      if (gangCompare !== 0) return gangCompare;
-                      // Then by fighter class priority
-                      const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
-                        - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
-                      if (classCompare !== 0) return classCompare;
-                      // Finally by fighter type name
-                      return a.fighter_type.localeCompare(b.fighter_type);
-                    })
-                    .map((ft) => (
-                      <option key={ft.id} value={ft.id}>
-                        {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedFighterTypes.map((ftId) => {
-                    const ft = fighterTypes.find(f => f.id === ftId);
-                    if (!ft) return null;
-
-                    return (
-                      <div
-                        key={ft.id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                      >
-                        <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
-                          className="hover:text-red-500 focus:outline-none"
-                          disabled={!selectedEquipmentId}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Weapon Profiles Section */}
-            {equipmentType === 'weapon' && (
-              <div className="col-span-3 space-y-4">
-                <div className="flex justify-between items-center sticky top-0 bg-white py-2">
-                  <h4 className="text-lg font-semibold">Weapon Profiles</h4>
-                  <Button
-                    onClick={addProfile}
-                    variant="outline"
-                    size="sm"
+
+              {equipmentType !== 'vehicle_upgrade' && (
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fighter Types with this Equipment
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value && !selectedFighterTypes.includes(value)) {
+                        setSelectedFighterTypes([...selectedFighterTypes, value]);
+                      }
+                      e.target.value = "";
+                    }}
+                    className="w-full p-2 border rounded-md"
                     disabled={!selectedEquipmentId}
                   >
-                    Add Profile
-                  </Button>
-                </div>
+                    <option value="">Select fighter type to add</option>
+                    {fighterTypes
+                      .filter(ft => !selectedFighterTypes.includes(ft.id))
+                      .sort((a, b) => {
+                        // First sort by gang type
+                        const gangCompare = a.gang_type.localeCompare(b.gang_type);
+                        if (gangCompare !== 0) return gangCompare;
+                        // Then by fighter class priority
+                        const classCompare = (fighterClassRank[a.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity)
+                          - (fighterClassRank[b.fighter_class?.toLowerCase() as keyof typeof fighterClassRank] || Infinity);
+                        if (classCompare !== 0) return classCompare;
+                        // Finally by fighter type name
+                        return a.fighter_type.localeCompare(b.fighter_type);
+                      })
+                      .map((ft) => (
+                        <option key={ft.id} value={ft.id}>
+                          {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
+                        </option>
+                      ))}
+                  </select>
 
-                <div className="space-y-4 rounded-lg border border-gray-200 p-4">
-                  {weaponProfiles.map((profile, index) => (
-                    <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
-                      <div className="flex justify-between items-center">
-                        <h5 className="font-medium">Profile {index + 1}</h5>
-                        {index > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedFighterTypes.map((ftId) => {
+                      const ft = fighterTypes.find(f => f.id === ftId);
+                      if (!ft) return null;
+
+                      return (
+                        <div
+                          key={ft.id}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        >
+                          <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
                           <button
-                            onClick={() => removeProfile(index)}
-                            className="text-red-500 hover:text-red-700"
+                            type="button"
+                            onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
+                            className="hover:text-red-500 focus:outline-none"
                             disabled={!selectedEquipmentId}
                           >
-                            Remove
+                            <X className="h-4 w-4" />
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Profile Name
-                          </label>
-                          <Input
-                            value={profile.profile_name}
-                            onChange={(e) => handleProfileChange(index, 'profile_name', e.target.value)}
-                            placeholder="e.g. Standard, Rapid Fire"
-                            disabled={!selectedEquipmentId}
-                          />
+              {/* Weapon Profiles Section */}
+              {equipmentType === 'weapon' && (
+                <div className="col-span-3 space-y-4">
+                  <div className="flex justify-between items-center sticky top-0 bg-white py-2">
+                    <h4 className="text-lg font-semibold">Weapon Profiles</h4>
+                    <Button
+                      onClick={addProfile}
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedEquipmentId}
+                    >
+                      Add Profile
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border border-gray-200 p-4">
+                    {weaponProfiles.map((profile, index) => (
+                      <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
+                        <div className="flex justify-between items-center">
+                          <h5 className="font-medium">Profile {index + 1}</h5>
+                          {index > 0 && (
+                            <button
+                              onClick={() => removeProfile(index)}
+                              className="text-red-500 hover:text-red-700"
+                              disabled={!selectedEquipmentId}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Short Range
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.range_short}
-                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                            placeholder="Enter short range"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Long Range
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.range_long}
-                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                            placeholder="Enter long range"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Short Acc
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                            placeholder="Enter short accuracy"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Long Acc
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                            placeholder="Enter long accuracy"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                            placeholder="e.g. 3, S+1"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            AP
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                            placeholder="e.g. -1, -"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Damage
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                            placeholder="e.g. 1, D3, 2D6"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Ammo
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder="Enter ammo"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Traits
-                          </label>
-                          <Input
-                            value={profile.traits}
-                            onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
-                            placeholder="Comma-separated list of traits"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div className="col-span-3">
-                          <label className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={profile.is_default_profile}
-                              onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Profile Name
+                            </label>
+                            <Input
+                              value={profile.profile_name}
+                              onChange={(e) => handleProfileChange(index, 'profile_name', e.target.value)}
+                              placeholder="e.g. Standard, Rapid Fire"
                               disabled={!selectedEquipmentId}
                             />
-                            <span className="text-sm font-medium text-gray-700">Default Profile</span>
-                          </label>
-                        </div>
+                          </div>
 
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Weapon Group
-                          </label>
-                          <select
-                            value={profile.weapon_group_id || ''}
-                            onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                            disabled={!selectedEquipmentId}
-                          >
-                            <option value="">Use This Weapon (Default)</option>
-                            {weapons
-                              .filter(w => w.id !== selectedEquipmentId)
-                              .map((weapon) => (
-                                <option key={weapon.id} value={weapon.id}>
-                                  {weapon.equipment_name}
-                                </option>
-                            ))}
-                          </select>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Select a weapon to share profiles with, or leave empty to use this weapon.
-                          </p>
-                        </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Short Range
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.range_short}
+                              onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
+                              placeholder="Enter short range"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div className="col-span-1 w-24">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Sort Order
-                          </label>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={profile.sort_order || ''}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9]/g, '');
-                              handleProfileChange(index, 'sort_order', parseInt(value) || 0);
-                            }}
-                            placeholder="#"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Long Range
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.range_long}
+                              onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
+                              placeholder="Enter long range"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-            {equipmentType === 'vehicle_upgrade' && (
-              <div className="col-span-3 space-y-4">
-                <div className="flex justify-between items-center sticky top-0 bg-white py-2">
-                  <h4 className="text-lg font-semibold">Vehicle Profiles</h4>
-                  <Button
-                    onClick={addVehicleProfile}
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedEquipmentId}
-                  >
-                    Add Profile
-                  </Button>
-                </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Short Acc
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.acc_short}
+                              onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
+                              placeholder="Enter short accuracy"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                <div className="space-y-4 rounded-lg border border-gray-200 p-4">
-                  {vehicleProfiles.map((profile, index) => (
-                    <div key={`vehicle-profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
-                      <div className="flex justify-between items-center">
-                        <h5 className="font-medium">Profile {index + 1}</h5>
-                        {index > 0 && (
-                          <button
-                            onClick={() => removeVehicleProfile(index)}
-                            className="text-red-500 hover:text-red-700"
-                            disabled={!selectedEquipmentId}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Long Acc
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.acc_long}
+                              onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
+                              placeholder="Enter long accuracy"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Profile Name
-                          </label>
-                          <Input
-                            value={profile.profile_name}
-                            onChange={(e) => handleVehicleProfileChange(index, 'profile_name', e.target.value)}
-                            placeholder="e.g. Standard, Enhanced"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Strength
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.strength}
+                              onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
+                              placeholder="e.g. 3, S+1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Movement
-                          </label>
-                          <Input
-                            value={profile.movement}
-                            onChange={(e) => handleVehicleProfileChange(index, 'movement', e.target.value)}
-                            placeholder="Enter movement value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              AP
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.ap}
+                              onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
+                              placeholder="e.g. -1, -"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Front Armor
-                          </label>
-                          <Input
-                            value={profile.front}
-                            onChange={(e) => handleVehicleProfileChange(index, 'front', e.target.value)}
-                            placeholder="Enter front armor value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Damage
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.damage}
+                              onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
+                              placeholder="e.g. 1, D3, 2D6"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Side Armor
-                          </label>
-                          <Input
-                            value={profile.side}
-                            onChange={(e) => handleVehicleProfileChange(index, 'side', e.target.value)}
-                            placeholder="Enter side armor value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Ammo
+                            </label>
+                            <Input
+                              type="text"
+                              value={profile.ammo}
+                              onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
+                              placeholder="Enter ammo"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Rear Armor
-                          </label>
-                          <Input
-                            value={profile.rear}
-                            onChange={(e) => handleVehicleProfileChange(index, 'rear', e.target.value)}
-                            placeholder="Enter rear armor value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div className="col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Traits
+                            </label>
+                            <Input
+                              value={profile.traits}
+                              onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
+                              placeholder="Comma-separated list of traits"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Hull Points
-                          </label>
-                          <Input
-                            value={profile.hull_points}
-                            onChange={(e) => handleVehicleProfileChange(index, 'hull_points', e.target.value)}
-                            placeholder="Enter hull points value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div className="col-span-3">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={profile.is_default_profile}
+                                onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                disabled={!selectedEquipmentId}
+                              />
+                              <span className="text-sm font-medium text-gray-700">Default Profile</span>
+                            </label>
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Save
-                          </label>
-                          <Input
-                            value={profile.save}
-                            onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
-                            placeholder="Enter save value"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
+                          <div className="col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Weapon Group
+                            </label>
+                            <select
+                              value={profile.weapon_group_id || ''}
+                              onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
+                              className="w-full p-2 border rounded-md"
+                              disabled={!selectedEquipmentId}
+                            >
+                              <option value="">Use This Weapon (Default)</option>
+                              {weapons
+                                .filter(w => w.id !== selectedEquipmentId)
+                                .map((weapon) => (
+                                  <option key={weapon.id} value={weapon.id}>
+                                    {weapon.equipment_name}
+                                  </option>
+                              ))}
+                            </select>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Select a weapon to share profiles with, or leave empty to use this weapon.
+                            </p>
+                          </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Handling
-                          </label>
-                          <Input
-                            value={profile.handling}
-                            onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
-                            placeholder="Enter handling modifier"
-                            disabled={!selectedEquipmentId}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Upgrade Type
-                          </label>
-                          <select
-                            value={profile.upgrade_type || ''}
-                            onChange={(e) => handleVehicleProfileChange(index, 'upgrade_type', e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                            disabled={!selectedEquipmentId}
-                          >
-                            <option value="">Select upgrade type</option>
-                            <option value="body">Body</option>
-                            <option value="drive">Drive</option>
-                            <option value="engine">Engine</option>
-                          </select>
+                          <div className="col-span-1 w-24">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Sort Order
+                            </label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={profile.sort_order || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                handleProfileChange(index, 'sort_order', parseInt(value) || 0);
+                              }}
+                              placeholder="#"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {equipmentType === 'vehicle_upgrade' && (
+                <div className="col-span-3 space-y-4">
+                  <div className="flex justify-between items-center sticky top-0 bg-white py-2">
+                    <h4 className="text-lg font-semibold">Vehicle Profiles</h4>
+                    <Button
+                      onClick={addVehicleProfile}
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedEquipmentId}
+                    >
+                      Add Profile
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border border-gray-200 p-4">
+                    {vehicleProfiles.map((profile, index) => (
+                      <div key={`vehicle-profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
+                        <div className="flex justify-between items-center">
+                          <h5 className="font-medium">Profile {index + 1}</h5>
+                          {index > 0 && (
+                            <button
+                              onClick={() => removeVehicleProfile(index)}
+                              className="text-red-500 hover:text-red-700"
+                              disabled={!selectedEquipmentId}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Profile Name
+                            </label>
+                            <Input
+                              value={profile.profile_name}
+                              onChange={(e) => handleVehicleProfileChange(index, 'profile_name', e.target.value)}
+                              placeholder="e.g. Standard, Enhanced"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Movement
+                            </label>
+                            <Input
+                              value={profile.movement}
+                              onChange={(e) => handleVehicleProfileChange(index, 'movement', e.target.value)}
+                              placeholder="Enter movement value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Front Armor
+                            </label>
+                            <Input
+                              value={profile.front}
+                              onChange={(e) => handleVehicleProfileChange(index, 'front', e.target.value)}
+                              placeholder="Enter front armor value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Side Armor
+                            </label>
+                            <Input
+                              value={profile.side}
+                              onChange={(e) => handleVehicleProfileChange(index, 'side', e.target.value)}
+                              placeholder="Enter side armor value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Rear Armor
+                            </label>
+                            <Input
+                              value={profile.rear}
+                              onChange={(e) => handleVehicleProfileChange(index, 'rear', e.target.value)}
+                              placeholder="Enter rear armor value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Hull Points
+                            </label>
+                            <Input
+                              value={profile.hull_points}
+                              onChange={(e) => handleVehicleProfileChange(index, 'hull_points', e.target.value)}
+                              placeholder="Enter hull points value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Save
+                            </label>
+                            <Input
+                              value={profile.save}
+                              onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
+                              placeholder="Enter save value"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Handling
+                            </label>
+                            <Input
+                              value={profile.handling}
+                              onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
+                              placeholder="Enter handling modifier"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Upgrade Type
+                            </label>
+                            <select
+                              value={profile.upgrade_type || ''}
+                              onChange={(e) => handleVehicleProfileChange(index, 'upgrade_type', e.target.value)}
+                              className="w-full p-2 border rounded-md"
+                              disabled={!selectedEquipmentId}
+                            >
+                              <option value="">Select upgrade type</option>
+                              <option value="body">Body</option>
+                              <option value="drive">Drive</option>
+                              <option value="engine">Engine</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           </div>
         </div>
 
