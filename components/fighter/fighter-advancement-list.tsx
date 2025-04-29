@@ -553,7 +553,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-2xl font-bold text-gray-900">Advancements</h3>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900">Advancements</h3>
           <div className="flex items-center">
             <span className="mr-2 text-sm text-gray-600">Current XP</span>
             <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
@@ -976,7 +976,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
   return (
     <div className="mt-6">
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">Advancements</h2>
+        <h2 className="text-xl md:text-2xl font-bold">Advancements</h2>
         <Button 
           onClick={() => setIsAdvancementModalOpen(true)}
           className="bg-black hover:bg-gray-800 text-white"

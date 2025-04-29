@@ -348,7 +348,7 @@ function CharacterStatsModal({
       <div className="fixed inset-0 bg-black bg-opacity-50" onClick={isSaving ? undefined : onClose}></div>
       <div className="bg-white rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-2xl font-bold">Adjust Characteristics</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Adjust Characteristics</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-xl"

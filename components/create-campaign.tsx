@@ -62,7 +62,7 @@ export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignP
 
   return (
     <div className="bg-white shadow-md rounded-lg p-4">
-      <h2 className="text-2xl font-bold mb-4">Create a New Campaign</h2>
+      <h2 className="text-xl md:text-2xl font-bold mb-4">Create a New Campaign</h2>
       <div className="space-y-4">
         <div>
           <label htmlFor="campaign-name" className="block text-sm font-medium text-gray-700 mb-1">

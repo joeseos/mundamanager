@@ -1515,7 +1515,7 @@ const handleAlignmentChange = (value: string) => {
           {/* Right Section: Content */}
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold">{name}</h2>
+              <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2">
                 {/* View Mode Dropdown */}
                 <div className="w-full print:hidden">

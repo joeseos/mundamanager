@@ -195,7 +195,7 @@ export default function CampaignBattleLogsList({
   return (
     <div className="bg-white shadow-md rounded-lg p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Battle Logs</h2>
+        <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
         {isAdmin && (
           <Button
             onClick={() => {

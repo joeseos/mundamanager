@@ -251,7 +251,7 @@ export default function AdminPage() {
         <main className="flex min-h-screen flex-col items-center">
           <div className="container mx-auto max-w-4xl w-full space-y-4">
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-              <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+              <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {adminSections.map((section) => (
@@ -263,7 +263,7 @@ export default function AdminPage() {
                     <div className="flex items-start space-x-3">
                       <section.icon className="h-6 w-6 text-gray-500 shrink-0" />
                       <div>
-                        <h2 className="text-xl font-semibold mb-2">
+                        <h2 className="text-lg md:text-xl font-semibold mb-2">
                           {section.title}
                         </h2>
                         <p className="text-gray-600">{section.description}</p>
