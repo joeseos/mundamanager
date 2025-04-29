@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -110,6 +110,35 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a new state variable to track the sub-type name
   const [subTypeName, setSubTypeName] = useState('');
 
+  // IMPORTANT: We use uncontrolled inputs with refs for text fields to completely bypass React's
+  // rendering cycle during typing, which dramatically improves performance. This prevents the
+  // severe lag (1000ms+ per keystroke) that was happening with controlled inputs.
+  // The main state is only updated on blur, significantly reducing unnecessary re-renders.
+
+  // Add refs for the problematic input fields
+  const fighterTypeInputRef = useRef<HTMLInputElement>(null);
+  const subTypeNameInputRef = useRef<HTMLInputElement>(null);
+  const specialSkillsInputRef = useRef<HTMLInputElement>(null);
+
+  // When fighter type or subtype values change from API, update the refs
+  useEffect(() => {
+    if (fighterTypeInputRef.current) {
+      fighterTypeInputRef.current.value = fighterType;
+    }
+  }, [fighterType]);
+
+  useEffect(() => {
+    if (subTypeNameInputRef.current) {
+      subTypeNameInputRef.current.value = subTypeName;
+    }
+  }, [subTypeName]);
+
+  useEffect(() => {
+    if (specialSkillsInputRef.current) {
+      specialSkillsInputRef.current.value = specialSkills;
+    }
+  }, [specialSkills]);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -177,8 +206,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchEquipment();
   }, [toast]);
 
+  // Add a flag ref to prevent duplicate fetches
+  const isFetchingFighterClassesRef = useRef(false);
+
+  // Then update the fetchFighterClasses effect:
   useEffect(() => {
     const fetchFighterClasses = async () => {
+      // Prevent duplicate fetches
+      if (isFetchingFighterClassesRef.current) {
+        return;
+      }
+      
+      isFetchingFighterClassesRef.current = true;
       console.log('Fetching fighter classes...');
       try {
         const response = await fetch('/api/admin/fighter-classes', {
@@ -214,6 +253,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           description: `Failed to load fighter classes: ${error instanceof Error ? error.message : 'Unknown error'}`,
           variant: "destructive"
         });
+      } finally {
+        isFetchingFighterClassesRef.current = false;
       }
     };
 
@@ -308,6 +349,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchFighterSubTypes();
   }, [toast]);
 
+  // Add another ref flag for fighter type details fetch
+  const isFetchingFighterTypeDetailsRef = useRef(false);
+
   const handleFighterTypeChange = (typeId: string) => {
     // Always update the selected fighter type ID for the dropdown
     setSelectedFighterTypeId(typeId);
@@ -391,37 +435,47 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Fetch fighter details when sub-type selection changes
   useEffect(() => {
-    if (selectedFighterTypeId && selectedSubTypeId) {
-      if (selectedSubTypeId === "default") {
-        // For the default option, find the fighter with no sub-type
-        const relatedFighters = fighterTypes.filter(ft => 
-          ft.id === selectedFighterTypeId || 
-          (ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type && 
-           ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class)
-        );
-        
-        const defaultFighter = relatedFighters.find(ft => 
-          !ft.fighter_sub_type_id || ft.fighter_sub_type_id === null
-        );
-        
-        if (defaultFighter) {
-          fetchFighterTypeDetails(defaultFighter.id);
-        } else {
-          // If no default version exists, use the selected fighter type
-          fetchFighterTypeDetails(selectedFighterTypeId);
-        }
+    // Skip if we're already loading or already have a request in flight
+    if (isLoading || isFetchingFighterTypeDetailsRef.current || !selectedFighterTypeId || !selectedSubTypeId) {
+      return;
+    }
+
+    if (selectedSubTypeId === "default") {
+      // For the default option, find the fighter with no sub-type
+      const relatedFighters = fighterTypes.filter(ft => 
+        ft.id === selectedFighterTypeId || 
+        (ft.fighter_type === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_type && 
+         ft.fighter_class === fighterTypes.find(f => f.id === selectedFighterTypeId)?.fighter_class)
+      );
+      
+      const defaultFighter = relatedFighters.find(ft => 
+        !ft.fighter_sub_type_id || ft.fighter_sub_type_id === null
+      );
+      
+      if (defaultFighter) {
+        fetchFighterTypeDetails(defaultFighter.id);
       } else {
-        // For a specific sub-type, find its fighter ID
-        const subType = availableSubTypes.find(st => st.id === selectedSubTypeId);
-        if (subType && subType.fighterId) {
-          fetchFighterTypeDetails(subType.fighterId);
-        }
+        // If no default version exists, use the selected fighter type
+        fetchFighterTypeDetails(selectedFighterTypeId);
+      }
+    } else {
+      // For a specific sub-type, find its fighter ID
+      const subType = availableSubTypes.find(st => st.id === selectedSubTypeId);
+      if (subType && subType.fighterId) {
+        fetchFighterTypeDetails(subType.fighterId);
       }
     }
-  }, [selectedFighterTypeId, selectedSubTypeId, availableSubTypes, fighterTypes]);
+  }, [selectedFighterTypeId, selectedSubTypeId, availableSubTypes, fighterTypes, isLoading]);
 
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
+    
+    // Prevent duplicate fetches
+    if (isFetchingFighterTypeDetailsRef.current) {
+      return;
+    }
+    
+    isFetchingFighterTypeDetailsRef.current = true;
 
     try {
       console.log('Fetching fighter type details for ID:', fighterId);
@@ -443,9 +497,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         throw new Error('No data received from server');
       }
 
-      // Set the form data - but don't change the selection state
-      // This allows us to keep the dropdown showing the currently selected fighter type
-      // while loading the details for the specific sub-type variant
+      // Set the form data
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
       setSelectedFighterClass(data.fighter_class || '');
@@ -513,6 +565,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
         variant: "destructive",
       });
+    } finally {
+      isFetchingFighterTypeDetailsRef.current = false;
     }
   };
 
@@ -520,6 +574,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setSelectedSubTypeId(subTypeId);
     
     if (!subTypeId) return; // If cleared, don't do anything else
+    
+    // If we're already loading or fetching data, don't start another request
+    if (isLoading || isFetchingFighterTypeDetailsRef.current) {
+      return;
+    }
 
     setIsLoading(true); // <-- ✅ set loading state before fetching
 
@@ -529,6 +588,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fetchFighterTypeDetails(selectedFighterTypeId).finally(() => {
           setIsLoading(false); // <-- ✅ clear loading after fetch
         });
+      } else {
+        setIsLoading(false); // Make sure to reset loading state if no fetch happens
       }
       return;
     }
@@ -539,7 +600,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Set the sub-type name
       setSubTypeName(subType.sub_type_name);
       
-      if ('fighterId' in subType) {
+      if ('fighterId' in subType && subType.fighterId) {
         const subTypeFighter = fighterTypes.find(ft => ft.id === subType.fighterId);
         if (subTypeFighter) {
           // Don't change selectedFighterTypeId, which controls the dropdown selection
@@ -548,13 +609,17 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           setSelectedFighterClass(subTypeFighter.fighter_class);
 
           // Fetch details for this specific sub-type variant
-          if (typeof subType.fighterId === 'string') {
-            fetchFighterTypeDetails(subType.fighterId).finally(() => {
-              setIsLoading(false); // <-- ✅ clear loading after fetch
-            });
-          }
+          fetchFighterTypeDetails(subType.fighterId).finally(() => {
+            setIsLoading(false); // <-- ✅ clear loading after fetch
+          });
+        } else {
+          setIsLoading(false); // Reset loading if fighter not found
         }
+      } else {
+        setIsLoading(false); // Reset loading if no fighterId
       }
+    } else {
+      setIsLoading(false); // Reset loading if subType not found
     }
   };
 
@@ -821,6 +886,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
+  // Add this function at the component level
+  const handleInputTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // This function exists just to satisfy the React onChange prop
+    // The actual value is read from the ref on blur
+    // This is deliberately empty to avoid any performance overhead
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
@@ -936,9 +1008,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   Fighter Type *
                 </label>
                 <Input
+                  ref={fighterTypeInputRef}
                   type="text"
-                  value={fighterType}
-                  onChange={(e) => setFighterType(e.target.value)}
+                  defaultValue={fighterType}
+                  onChange={handleInputTyping}
+                  onBlur={(e) => setFighterType(e.target.value)}
                   placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
                   className="w-full"
                   disabled={!selectedFighterTypeId}
@@ -950,9 +1024,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     Fighter Sub-type
                   </label>
                   <Input
+                    ref={subTypeNameInputRef}
                     type="text"
-                    value={subTypeName}
-                    onChange={(e) => setSubTypeName(e.target.value)}
+                    defaultValue={subTypeName}
+                    onChange={handleInputTyping}
+                    onBlur={(e) => setSubTypeName(e.target.value)}
                     placeholder="e.g. Natborn, Alpha, etc."
                     className="w-full"
                     disabled={!selectedFighterTypeId}
@@ -1146,9 +1222,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   Special Rules
                 </label>
                 <Input
+                  ref={specialSkillsInputRef}
                   type="text"
-                  value={specialSkills}
-                  onChange={(e) => setSpecialSkills(e.target.value)}
+                  defaultValue={specialSkills}
+                  onChange={handleInputTyping}
+                  onBlur={(e) => setSpecialSkills(e.target.value)}
                   placeholder="Enter special rules (comma-separated)"
                   className="w-full"
                 />
