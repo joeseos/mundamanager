@@ -341,6 +341,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                   {type}
                   {fighter_class && ` (${fighter_class})`}
+                  {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
                 </div>
               </div>
             </div>
@@ -361,7 +362,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       <div className="flex flex-wrap justify-between items-center">
         <div className="text-base text-gray-600">
-          {sub_type?.fighter_sub_type && <div>Sub-type: {sub_type.fighter_sub_type}</div>}
           <div>Kills: {kills}</div>
         </div>
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">

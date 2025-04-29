@@ -859,7 +859,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </select>
             </div>
 
-            {/* First row: Fighter Type selection and Sub-Type selection */}
+            {/* First row: Fighter Type selection and Sub-type selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -895,7 +895,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Fighter Sub-Type to Edit
+                  Select Fighter Sub-type to Edit
                 </label>
                 <select
                   value={selectedSubTypeId}
@@ -926,7 +926,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
             </div>
 
-            {/* Second row: Fighter Type name and Fighter Sub-Type input */}
+            {/* Second row: Fighter Type name and Fighter Sub-type input */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -944,7 +944,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Sub-Type
+                  Fighter Sub-type
                 </label>
                 <Input
                   type="text"

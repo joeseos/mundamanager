@@ -516,6 +516,7 @@ const handleAlignmentChange = (value: string) => {
         fighter_type_id: selectedFighterTypeId,
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
+        fighter_sub_type: data.fighter_sub_type,
         credits: actualCost,
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
@@ -971,7 +972,7 @@ const handleAlignmentChange = (value: string) => {
       {availableSubTypes.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
-            Fighter Sub-Type
+            Fighter Sub-type
           </label>
           <select
             value={selectedSubTypeId}
