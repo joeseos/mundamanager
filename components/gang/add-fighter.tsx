@@ -7,6 +7,7 @@ import Modal from '@/components/modal';
 import { FighterType } from '@/types/fighter-type';
 import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { createClient } from '@/utils/supabase/client';
 
 interface AddFighterProps {
   showModal: boolean;
@@ -32,6 +33,7 @@ export default function AddFighter({
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
   const [fighterCost, setFighterCost] = useState('');
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   
   // Automatically select Default or Vatborn sub-type if available
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function AddFighter({
     const typeId = e.target.value;
     setSelectedFighterTypeId(typeId);
     setSelectedSubTypeId(''); // Reset sub-type selection
+    setSelectedEquipmentIds([]); // Reset equipment selections when type changes
     
     if (typeId) {
       // Get all fighters with this fighter_type name to check for sub-types
@@ -91,6 +94,7 @@ export default function AddFighter({
   const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const subTypeId = e.target.value;
     setSelectedSubTypeId(subTypeId);
+    setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
     
     if (subTypeId) {
       // Set the fighter type ID to match the sub-type's ID
@@ -110,6 +114,15 @@ export default function AddFighter({
     }
 
     try {
+      // Get the current authenticated user's ID
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setFetchError('You must be logged in to add a fighter');
+        return false;
+      }
+
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
         {
@@ -123,7 +136,8 @@ export default function AddFighter({
             p_fighter_type_id: selectedFighterTypeId,
             p_fighter_name: fighterName,
             p_cost: parseInt(fighterCost),
-            p_selected_equipment_ids: []
+            p_selected_equipment_ids: selectedEquipmentIds,
+            p_user_id: user.id  // Use the current user's ID from auth
           })
         }
       );
@@ -261,6 +275,7 @@ export default function AddFighter({
     setSelectedSubTypeId('');
     setAvailableSubTypes([]);
     setFighterCost('');
+    setSelectedEquipmentIds([]);
     setFetchError(null);
   };
 
@@ -388,6 +403,93 @@ export default function AddFighter({
           </p>
         )}
       </div>
+
+      {/* Equipment selection */}
+      {selectedFighterTypeId && (() => {
+        // Get the selected fighter type
+        const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+        
+        // Check if it has equipment selection options
+        if (selectedType?.equipment_selection?.weapons?.options && 
+            selectedType.equipment_selection.weapons.options.length > 0) {
+          const weapons = selectedType.equipment_selection.weapons;
+          const isSingle = weapons.select_type === 'single';
+          const options = weapons.options || [];
+          
+          // Group options by category if available
+          const categories: Record<string, any[]> = {};
+          
+          options.forEach(option => {
+            const category = (option as any).equipment_category || 'Spyrer Equipment';
+            if (!categories[category]) {
+              categories[category] = [];
+            }
+            categories[category].push(option);
+          });
+          
+          return (
+            <div className="mt-6">
+              <h3 className="font-medium mb-3 text-sm">Select Equipment</h3>
+              
+              {Object.entries(categories).map(([category, categoryOptions]) => (
+                <div key={category}>
+                  <p className="text-gray-600 text-sm mb-2">{category}</p>
+                  {categoryOptions.map((option) => (
+                    <div key={option.id} className="mb-2 flex items-center">
+                      <input
+                        type={isSingle ? "radio" : "checkbox"}
+                        id={`equip-${option.id}`}
+                        name="equipment-selection"
+                        className="mr-2"
+                        checked={selectedEquipmentIds.includes(option.id)}
+                        onChange={(e) => {
+                          const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+                          const baseCost = selectedType?.total_cost || 0;
+                          const optionCost = option.cost || 0;
+                          
+                          if (e.target.checked) {
+                            if (isSingle) {
+                              // For single selection, remove any previous selection first
+                              const prevSelectedId = selectedEquipmentIds[0];
+                              let prevSelectedCost = 0;
+                              
+                              // Find cost of previously selected item if any
+                              if (prevSelectedId) {
+                                const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
+                                prevSelectedCost = prevOption?.cost || 0;
+                              }
+                              
+                              // Update IDs
+                              setSelectedEquipmentIds([option.id]);
+                              
+                              // Update cost: base cost - previous option cost + new option cost
+                              setFighterCost(String(baseCost - prevSelectedCost + optionCost));
+                            } else {
+                              // For multiple selection, add to existing selections
+                              setSelectedEquipmentIds(prev => [...prev, option.id]);
+                              setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
+                            }
+                          } else {
+                            // Remove this option
+                            setSelectedEquipmentIds(prev => prev.filter(id => id !== option.id));
+                            setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`equip-${option.id}`} className="text-sm">
+                        {option.equipment_name} 
+                        {option.cost > 0 && ` (+${option.cost} credits)`}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          );
+        }
+        
+        return null;
+      })()}
 
       {fetchError && <p className="text-red-500">{fetchError}</p>}
     </div>

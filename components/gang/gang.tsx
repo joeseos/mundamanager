@@ -371,6 +371,9 @@ const handleAlignmentChange = (value: string) => {
           fighter_sub_type_id: type.fighter_sub_type_id,
           cost: type.cost,
           total_cost: type.total_cost,
+          equipment_selection: type.equipment_selection,
+          default_equipment: type.default_equipment || [],
+          special_rules: type.special_rules || []
         }))
         .sort((a: FighterType, b: FighterType) => {
           const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
