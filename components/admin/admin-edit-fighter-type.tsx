@@ -1013,7 +1013,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   defaultValue={fighterType}
                   onChange={handleInputTyping}
                   onBlur={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
+                  placeholder="e.g. Stimmer"
                   className="w-full"
                   disabled={!selectedFighterTypeId}
                 />
@@ -1029,7 +1029,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     defaultValue={subTypeName}
                     onChange={handleInputTyping}
                     onBlur={(e) => setSubTypeName(e.target.value)}
-                    placeholder="e.g. Natborn, Alpha, etc."
+                    placeholder="e.g. Vatborn"
                     className="w-full"
                     disabled={!selectedFighterTypeId}
                   />
@@ -1064,7 +1064,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     type="number"
                     value={baseCost}
                     onChange={(e) => setBaseCost(e.target.value)}
-                    placeholder="Enter base cost"
+                    placeholder="e.g. 125"
                     className="w-full"
                     min="0"
                   />
