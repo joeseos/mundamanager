@@ -1117,18 +1117,19 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         <div className="flex justify-between items-center">
                           <h5 className="font-medium">Profile {index + 1}</h5>
                           {index > 0 && (
-                            <button
+                            <Button
+                              variant="destructive"
                               onClick={() => removeProfile(index)}
-                              className="text-red-500 hover:text-red-700"
                               disabled={!selectedEquipmentId}
                             >
                               Remove
-                            </button>
+                            </Button>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
+                        {/* Profile Name and Sorting */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                          <div className="col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Profile Name
                             </label>
@@ -1139,55 +1140,117 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               disabled={!selectedEquipmentId}
                             />
                           </div>
-
+                          <div className="col-span-1">
+                            <label className="flex items-start space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={profile.is_default_profile}
+                                onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                                disabled={!selectedEquipmentId}
+                              />
+                              <div>
+                                <span className="text-sm font-medium text-gray-700">Default Profile</span>
+                                <p className="text-sm text-gray-500 mt-1">
+                                  I.e. available by default with this weapon.
+                                </p>
+                              </div>
+                            </label>
+                          </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Short Range
+                              Sort Order
+                            </label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={profile.sort_order || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                handleProfileChange(index, 'sort_order', parseInt(value) || 0);
+                              }}
+                              placeholder="#"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Weapon Group */}
+                        <div className="col-span-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Weapon Group
+                          </label>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Attach this profile to an existing weapon, or leave it as is to use with this weapon.
+                          </p>
+                          <select
+                            value={profile.weapon_group_id || ''}
+                            onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
+                            className="w-full p-2 border rounded-md"
+                            disabled={!selectedEquipmentId}
+                          >
+                            <option value="">Use This Weapon (Default)</option>
+                            {weapons
+                              .filter(w => w.id !== selectedEquipmentId)
+                              .map((weapon) => (
+                                <option key={weapon.id} value={weapon.id}>
+                                  {weapon.equipment_name}
+                                </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Weapon Characteristics */}
+                        <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Rng S
                             </label>
                             <Input
                               type="text"
                               value={profile.range_short}
                               onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                              placeholder="Enter short range"
+                              placeholder='e.g. 4", -'
                               disabled={!selectedEquipmentId}
                             />
                           </div>
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Long Range
+                              Rng L
                             </label>
                             <Input
                               type="text"
                               value={profile.range_long}
                               onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                              placeholder="Enter long range"
+                              placeholder='e.g. 8", E'
                               disabled={!selectedEquipmentId}
                             />
                           </div>
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Short Acc
+                              Acc S
                             </label>
                             <Input
                               type="text"
                               value={profile.acc_short}
                               onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                              placeholder="Enter short accuracy"
+                              placeholder='e.g. +1, -'
                               disabled={!selectedEquipmentId}
                             />
                           </div>
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Long Acc
+                              Acc L
                             </label>
                             <Input
                               type="text"
                               value={profile.acc_long}
                               onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                              placeholder="Enter long accuracy"
+                              placeholder='e.g. -1, -'
                               disabled={!selectedEquipmentId}
                             />
                           </div>
@@ -1226,24 +1289,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               type="text"
                               value={profile.damage}
                               onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                              placeholder="e.g. 1, D3, 2D6"
+                              placeholder="e.g. 1, D3"
                               disabled={!selectedEquipmentId}
                             />
                           </div>
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Ammo
+                              Am
                             </label>
                             <Input
                               type="text"
                               value={profile.ammo}
                               onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                              placeholder="Enter ammo"
+                              placeholder='e.g. 5+'
                               disabled={!selectedEquipmentId}
                             />
                           </div>
-
+                        </div>
+                        <div>
                           <div className="col-span-3">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Traits
@@ -1252,61 +1316,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               value={profile.traits}
                               onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
                               placeholder="Comma-separated list of traits"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div className="col-span-3">
-                            <label className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                checked={profile.is_default_profile}
-                                onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                disabled={!selectedEquipmentId}
-                              />
-                              <span className="text-sm font-medium text-gray-700">Default Profile</span>
-                            </label>
-                          </div>
-
-                          <div className="col-span-3">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Weapon Group
-                            </label>
-                            <select
-                              value={profile.weapon_group_id || ''}
-                              onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
-                              className="w-full p-2 border rounded-md"
-                              disabled={!selectedEquipmentId}
-                            >
-                              <option value="">Use This Weapon (Default)</option>
-                              {weapons
-                                .filter(w => w.id !== selectedEquipmentId)
-                                .map((weapon) => (
-                                  <option key={weapon.id} value={weapon.id}>
-                                    {weapon.equipment_name}
-                                  </option>
-                              ))}
-                            </select>
-                            <p className="text-sm text-gray-500 mt-1">
-                              Select a weapon to share profiles with, or leave empty to use this weapon.
-                            </p>
-                          </div>
-
-                          <div className="col-span-1 w-24">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Sort Order
-                            </label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={profile.sort_order || ''}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/[^0-9]/g, '');
-                                handleProfileChange(index, 'sort_order', parseInt(value) || 0);
-                              }}
-                              placeholder="#"
                               disabled={!selectedEquipmentId}
                             />
                           </div>
@@ -1337,17 +1346,17 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         <div className="flex justify-between items-center">
                           <h5 className="font-medium">Profile {index + 1}</h5>
                           {index > 0 && (
-                            <button
+                            <Button
+                              variant="destructive"
                               onClick={() => removeVehicleProfile(index)}
-                              className="text-red-500 hover:text-red-700"
                               disabled={!selectedEquipmentId}
                             >
                               Remove
-                            </button>
+                            </Button>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-2 md:gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Profile Name
@@ -1359,91 +1368,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               disabled={!selectedEquipmentId}
                             />
                           </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Movement
-                            </label>
-                            <Input
-                              value={profile.movement}
-                              onChange={(e) => handleVehicleProfileChange(index, 'movement', e.target.value)}
-                              placeholder="Enter movement value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Front Armor
-                            </label>
-                            <Input
-                              value={profile.front}
-                              onChange={(e) => handleVehicleProfileChange(index, 'front', e.target.value)}
-                              placeholder="Enter front armor value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Side Armor
-                            </label>
-                            <Input
-                              value={profile.side}
-                              onChange={(e) => handleVehicleProfileChange(index, 'side', e.target.value)}
-                              placeholder="Enter side armor value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Rear Armor
-                            </label>
-                            <Input
-                              value={profile.rear}
-                              onChange={(e) => handleVehicleProfileChange(index, 'rear', e.target.value)}
-                              placeholder="Enter rear armor value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Hull Points
-                            </label>
-                            <Input
-                              value={profile.hull_points}
-                              onChange={(e) => handleVehicleProfileChange(index, 'hull_points', e.target.value)}
-                              placeholder="Enter hull points value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Save
-                            </label>
-                            <Input
-                              value={profile.save}
-                              onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
-                              placeholder="Enter save value"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Handling
-                            </label>
-                            <Input
-                              value={profile.handling}
-                              onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
-                              placeholder="Enter handling modifier"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Upgrade Type
@@ -1459,6 +1383,96 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               <option value="drive">Drive</option>
                               <option value="engine">Engine</option>
                             </select>
+                          </div>
+                        </div>
+
+                        {/* Vehicle Upgrade Effects */}
+                        <div className="block text-sm font-medium text-gray-700 mb-1">
+                          Adjust Characteristics
+                        </div>
+                        <div className="grid grid-cols-4 md:grid-cols-7 gap-2 md:gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              M
+                            </label>
+                            <Input
+                              value={profile.movement}
+                              onChange={(e) => handleVehicleProfileChange(index, 'movement', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              T. Front
+                            </label>
+                            <Input
+                              value={profile.front}
+                              onChange={(e) => handleVehicleProfileChange(index, 'front', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              T. Side
+                            </label>
+                            <Input
+                              value={profile.side}
+                              onChange={(e) => handleVehicleProfileChange(index, 'side', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              T. Rear
+                            </label>
+                            <Input
+                              value={profile.rear}
+                              onChange={(e) => handleVehicleProfileChange(index, 'rear', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              HP
+                            </label>
+                            <Input
+                              value={profile.hull_points}
+                              onChange={(e) => handleVehicleProfileChange(index, 'hull_points', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Hnd
+                            </label>
+                            <Input
+                              value={profile.handling}
+                              onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Sv
+                            </label>
+                            <Input
+                              value={profile.save}
+                              onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
+                              placeholder="e.g. 1, -1"
+                              disabled={!selectedEquipmentId}
+                            />
                           </div>
                         </div>
                       </div>

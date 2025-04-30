@@ -498,7 +498,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   type="text"
                   value={fighterType}
                   onChange={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Van Saar Prime, Goliath Stimmer, etc."
+                  placeholder="e.g. Stimmer"
                   className="w-full"
                 />
               </div>
@@ -534,7 +534,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   type="text"
                   value={subTypeName}
                   onChange={(e) => setSubTypeName(e.target.value)}
-                  placeholder="e.g. Natborn, Unborn, etc."
+                  placeholder="e.g. Vatborn"
                   className="w-full"
                 />
               </div>
@@ -547,7 +547,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   type="number"
                   value={baseCost}
                   onChange={(e) => setBaseCost(e.target.value)}
-                  placeholder="Enter base cost"
+                  placeholder="e.g. 125"
                   className="w-full"
                   min="0"
                 />
@@ -708,7 +708,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 type="text"
                 value={specialSkills}
                 onChange={(e) => setSpecialSkills(e.target.value)}
-                placeholder="e.g. Tools of the Trade, Gang Leader, Group Activation (2)"
+                placeholder="e.g. Gang Hierarchy (Champion), Tools of the Trade, Combat Chems Stash"
                 className="w-full"
               />
               <p className="text-sm text-gray-500 mt-1">

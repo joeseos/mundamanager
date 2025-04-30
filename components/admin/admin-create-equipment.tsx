@@ -704,17 +704,18 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       <div className="flex justify-between items-center">
                         <h5 className="font-medium">Profile {index + 1}</h5>
                         {index > 0 && (
-                          <button
+                          <Button
+                            variant="destructive"
                             onClick={() => removeProfile(index)}
-                            className="text-red-500 hover:text-red-700"
                           >
                             Remove
-                          </button>
+                          </Button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
+                      {/* Profile Name and Sorting */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                        <div className="col-span-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Profile Name *
                           </label>
@@ -725,134 +726,23 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             required
                           />
                         </div>
-
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Short Range
-                          </label>
-                          <Input
-                            value={profile.range_short}
-                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Long Range
-                          </label>
-                          <Input
-                            value={profile.range_long}
-                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Short Acc
-                          </label>
-                          <Input
-                            value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Long Acc
-                          </label>
-                          <Input
-                            value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Strength
-                          </label>
-                          <Input
-                            value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            AP
-                          </label>
-                          <Input
-                            value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Damage
-                          </label>
-                          <Input
-                            type="text"
-                            value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
-                            placeholder="e.g. 1, D3, 2D6"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Ammo
-                          </label>
-                          <Input
-                            value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                          />
-                        </div>
-
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Traits
-                          </label>
-                          <Input
-                            value={profile.traits}
-                            onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
-                            placeholder="Comma-separated list of traits"
-                          />
-                        </div>
-
-                        <div className="col-span-3">
-                          <label className="flex items-center space-x-2">
+                          <label className="flex items-start space-x-2">
                             <input
                               type="checkbox"
                               checked={profile.is_default_profile}
                               onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                              className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
                             />
-                            <span className="text-sm font-medium text-gray-700">Default Profile</span>
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Default Profile</span>
+                              <p className="text-sm text-gray-500 mt-1">
+                                I.e. available by default with this weapon.
+                              </p>
+                            </div>
                           </label>
                         </div>
-
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Weapon Group
-                          </label>
-                          <select
-                            value={profile.weapon_group_id || ''}
-                            onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option value="">Use This Weapon (Default)</option>
-                            {weapons.map((weapon) => (
-                              <option key={weapon.id} value={weapon.id}>
-                                {weapon.equipment_name}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Select a weapon to share profiles with, or leave empty to use this weapon.
-                          </p>
-                        </div>
-
-                        <div className="col-span-1 w-24">
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Sort Order
                           </label>
@@ -866,6 +756,132 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                               handleProfileChange(index, 'sort_order', parseInt(value) || 0);
                             }}
                             placeholder="#"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Weapon Group */}
+                      <div className="col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Weapon Group
+                        </label>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Attach this profile to an existing weapon, or leave it as is to use with this weapon.
+                        </p>
+                        <select
+                          value={profile.weapon_group_id || ''}
+                          onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="">Use This Weapon (Default)</option>
+                          {weapons.map((weapon) => (
+                            <option key={weapon.id} value={weapon.id}>
+                              {weapon.equipment_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Weapon Characteristics */}
+                      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Rng S
+                          </label>
+                          <Input
+                            value={profile.range_short}
+                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
+                            placeholder='e.g. 4", -'
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Rng L
+                          </label>
+                          <Input
+                            value={profile.range_long}
+                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
+                            placeholder='e.g. 8", E'
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Acc S
+                          </label>
+                          <Input
+                            value={profile.acc_short}
+                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
+                            placeholder='e.g. +1, -'
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Acc L
+                          </label>
+                          <Input
+                            value={profile.acc_long}
+                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
+                            placeholder='e.g. -1, -'
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Strength
+                          </label>
+                          <Input
+                            value={profile.strength}
+                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
+                            placeholder="e.g. 3, S+1"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            AP
+                          </label>
+                          <Input
+                            value={profile.ap}
+                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
+                            placeholder='e.g. -1, -'
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Damage
+                          </label>
+                          <Input
+                            type="text"
+                            value={profile.damage}
+                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
+                            placeholder="e.g. 1, D3"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Am
+                          </label>
+                          <Input
+                            value={profile.ammo}
+                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
+                            placeholder='e.g. 5+'
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="col-span-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Traits
+                          </label>
+                          <Input
+                            value={profile.traits}
+                            onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
+                            placeholder="Comma-separated list of traits"
                           />
                         </div>
                       </div>
@@ -883,7 +899,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                 <div className="rounded-lg border border-gray-200 p-4">
                   <div className="border p-4 rounded-lg space-y-4 bg-white">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-2 md:gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Profile Name
@@ -894,84 +910,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           placeholder="e.g. Standard"
                         />
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Movement
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].movement}
-                          onChange={(e) => handleVehicleProfileChange(0, 'movement', e.target.value)}
-                          placeholder="Enter movement value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Front Armor
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].front}
-                          onChange={(e) => handleVehicleProfileChange(0, 'front', e.target.value)}
-                          placeholder="Enter front armor value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Side Armor
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].side}
-                          onChange={(e) => handleVehicleProfileChange(0, 'side', e.target.value)}
-                          placeholder="Enter side armor value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Rear Armor
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].rear}
-                          onChange={(e) => handleVehicleProfileChange(0, 'rear', e.target.value)}
-                          placeholder="Enter rear armor value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Hull Points
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].hull_points}
-                          onChange={(e) => handleVehicleProfileChange(0, 'hull_points', e.target.value)}
-                          placeholder="Enter hull points value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Save
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].save}
-                          onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
-                          placeholder="Enter save value"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Handling
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].handling}
-                          onChange={(e) => handleVehicleProfileChange(0, 'handling', e.target.value)}
-                          placeholder="Enter handling modifier"
-                        />
-                      </div>
-
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Upgrade Type
@@ -986,6 +924,89 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <option value="drive">Drive</option>
                           <option value="engine">Engine</option>
                         </select>
+                      </div>
+                    </div>
+
+                    {/* Vehicle Upgrade Effects */}
+                    <div className="block text-sm font-medium text-gray-700 mb-1">
+                      Adjust Characteristics
+                    </div>
+                    <div className="grid grid-cols-4 md:grid-cols-7 gap-2 md:gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          M
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].movement}
+                          onChange={(e) => handleVehicleProfileChange(0, 'movement', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          T. Front
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].front}
+                          onChange={(e) => handleVehicleProfileChange(0, 'front', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          T. Side
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].side}
+                          onChange={(e) => handleVehicleProfileChange(0, 'side', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          T. Rear
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].rear}
+                          onChange={(e) => handleVehicleProfileChange(0, 'rear', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          HP
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].hull_points}
+                          onChange={(e) => handleVehicleProfileChange(0, 'hull_points', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Hnd
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].handling}
+                          onChange={(e) => handleVehicleProfileChange(0, 'handling', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sv
+                        </label>
+                        <Input
+                          value={vehicleProfiles[0].save}
+                          onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
+                          placeholder="e.g. 1, -1"
+                        />
                       </div>
                     </div>
                   </div>
