@@ -422,7 +422,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
 
       if (advancementType === 'characteristic') {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_add_fighter_advancement`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_advancement`,
           {
             method: 'POST',
             headers: {

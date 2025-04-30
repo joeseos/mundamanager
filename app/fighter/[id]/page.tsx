@@ -286,7 +286,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
     }
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_get_fighter_details`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
         {
           method: 'POST',
           headers: {
