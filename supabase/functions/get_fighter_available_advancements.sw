@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.new_get_fighter_available_advancements(
+CREATE OR REPLACE FUNCTION public.get_fighter_available_advancements(
   fighter_id UUID
 )
 RETURNS jsonb
@@ -14,10 +14,10 @@ BEGIN
   -- Get fighter's current XP
   SELECT xp INTO v_fighter_xp
   FROM fighters f
-  WHERE f.id = new_get_fighter_available_advancements.fighter_id;
+  WHERE f.id = get_fighter_available_advancements.fighter_id;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Fighter not found with ID %', new_get_fighter_available_advancements.fighter_id;
+    RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
   
   -- Get the advancements category ID
@@ -47,7 +47,7 @@ BEGIN
       COUNT(*) as times_increased
     FROM fighter_effects fe
     JOIN fighter_effect_types fet ON fet.id = fe.fighter_effect_type_id
-    WHERE fe.fighter_id = new_get_fighter_available_advancements.fighter_id
+    WHERE fe.fighter_id = get_fighter_available_advancements.fighter_id
     AND fet.fighter_effect_category_id = v_advancements_category_id
     GROUP BY fe.fighter_effect_type_id
   ),
@@ -57,7 +57,7 @@ BEGIN
       ft.*
     FROM fighters f
     JOIN fighter_types ft ON ft.id = f.fighter_type_id
-    WHERE f.id = new_get_fighter_available_advancements.fighter_id
+    WHERE f.id = get_fighter_available_advancements.fighter_id
   ),
   available_advancements AS (
     -- Get all possible characteristic improvements and determine availability
@@ -99,7 +99,7 @@ BEGIN
     FROM available_advancements
   )
   SELECT jsonb_build_object(
-    'fighter_id', new_get_fighter_available_advancements.fighter_id,
+    'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
     'characteristics', COALESCE(
       (SELECT jsonb_object_agg(
