@@ -480,7 +480,7 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
     const fetchGangData = async () => {
       try {
         const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_get_gang_details',
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
           {
             method: 'POST',
             headers: {
