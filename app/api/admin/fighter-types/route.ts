@@ -278,7 +278,8 @@ export async function PUT(request: Request) {
         intelligence: data.intelligence,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        is_gang_addition: data.is_gang_addition
+        is_gang_addition: data.is_gang_addition,
+        updated_at: data.updated_at
       })
       .eq('id', id);
 
