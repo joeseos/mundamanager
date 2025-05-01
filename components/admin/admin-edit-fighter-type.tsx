@@ -761,7 +761,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               max_replace: option.max_replace
             }))
           }
-        } : null
+        } : null,
+        updated_at: new Date().toISOString()
       };
 
       console.log('Sending update data:', updateData);
