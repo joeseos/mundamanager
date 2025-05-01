@@ -361,22 +361,21 @@ export default function GangAdditions({
             p_fighter_name: fighterName,
             p_cost: parseInt(fighterCost),
             p_selected_equipment_ids: equipmentIds,
-            p_user_id: user.id  // Use the current user's ID from auth
+            p_user_id: user.id
           })
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.message?.includes('Not enough credits')) {
-          throw new Error('Not enough credits to add this fighter');
-        }
-        throw new Error('Failed to add fighter');
-      }
-
       const data = await response.json();
+      console.error('Server response:', data); // Keep this for debugging
 
-      if (!data?.fighter_id) {
+      // Check for the specific "Not enough credits" error first
+      if (data.error?.includes('Not enough credits')) {
+        throw new Error('Not enough credits');
+      }
+      
+      // For all other errors
+      if (data.error || !data?.fighter_id) {
         throw new Error('Failed to add fighter');
       }
 
