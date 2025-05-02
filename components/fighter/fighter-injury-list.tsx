@@ -290,16 +290,20 @@ export function InjuriesList({
                   disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
                 >
                   <option value="">
-                    {isLoadingInjuries && localAvailableInjuries.length === 0 
-                      ? "Loading injuries..." 
+                    {isLoadingInjuries && localAvailableInjuries.length === 0
+                      ? "Loading injuries..."
                       : "Select a Lasting Injury"
                     }
                   </option>
-                  {localAvailableInjuries.map((injury) => (
-                    <option key={injury.id} value={injury.id}>
-                      {injury.effect_name}
-                    </option>
-                  ))}
+                  {localAvailableInjuries
+                    .slice() // avoid mutating the original array
+                    .sort((a, b) => a.effect_name.localeCompare(b.effect_name))
+                    .map((injury) => (
+                      <option key={injury.id} value={injury.id}>
+                        {injury.effect_name}
+                      </option>
+                    ))
+                  }
                 </select>
               </div>
             </div>
