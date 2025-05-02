@@ -336,6 +336,18 @@ const FighterCard = memo(function FighterCard({
 
   const isInactive = killed || retired;
 
+  // Determine a unique and valid id for the fighter card based on its status.
+  // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
+  const fighterCardId =
+    isInactive && recovery
+      ? 'is_inactive_and_recovery' // If both `isInactive` and `recovery` are true, the id will be 'is_inactive_and_recovery'.
+      : isInactive
+      ? 'is_inactive' // If only `isInactive` is true, the id will be 'is_inactive'.
+      : recovery
+      ? 'is_recovery' // If only `recovery` is true, the id will be 'is_recovery'.
+      : undefined;
+
+
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
@@ -371,6 +383,7 @@ const FighterCard = memo(function FighterCard({
 
   const cardContent = (
     <div
+      id={fighterCardId}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black p-4 print:hover:scale-[1] print:print-fighter-card print:inline-block
       ${viewMode !== 'normal' ? `${sizeStyles[viewMode]} flex-shrink-0` : ''}`}
         style={{
@@ -379,7 +392,6 @@ const FighterCard = memo(function FighterCard({
           backgroundPosition: 'center',
           fontSize: 'calc(10px + 0.2vmin)'
         }}
-        {...(isInactive ? { id: "is_inactive" } : {})}
       >
         <div className="flex mb-2">
           <div className="flex w-full">
