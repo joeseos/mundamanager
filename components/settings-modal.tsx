@@ -35,11 +35,13 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
     includeGangCard: true,
     includeAdditionalDetails: true,
     includeInactiveFighters: true,
+    includeRecoveryFighters: true,
   });
 
   const printModalContent = (
     <div className="space-y-4">
-      <div className="block text-sm font-medium text-gray-700">Included features</div>
+      <div className="block text-sm font-medium text-gray-700">Include the following:</div>
+
       <div className="flex items-center space-x-2">
         <input
           type="checkbox"
@@ -64,7 +66,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           }
         />
         <label htmlFor="includeAdditionalDetails" className="text-sm">
-          Gang Additional Details
+          Additional Details (Territories, Stash, Notes)
         </label>
       </div>
 
@@ -79,6 +81,20 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
         />
         <label htmlFor="includeInactiveFighters" className="text-sm">
           Inactive Fighters
+        </label>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="includeRecoveryFighters"
+          checked={printOptions.includeRecoveryFighters}
+          onChange={(e) =>
+            setPrintOptions(prev => ({ ...prev, includeRecoveryFighters: e.target.checked }))
+          }
+        />
+        <label htmlFor="includeRecoveryFighters" className="text-sm">
+          Fighters in Recovery
         </label>
       </div>
     </div>
@@ -130,12 +146,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align="end" 
-        className="w-56"
-        sideOffset={8}
-        collisionPadding={20}
-      >
+      <DropdownMenuContent align="end" className="w-56" sideOffset={8} collisionPadding={20}>
         <div className="px-2 py-1.5 text-sm text-gray-500">
           Signed in as:<br />
           <span className="font-medium text-gray-900">{user.email}</span>
@@ -202,7 +213,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={handleLogout}
           className="text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900 dark:hover:text-red-400"
         >
@@ -222,12 +233,17 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
 
             const gangCard = document.getElementById('gang_card');
             const details = document.getElementById('gang_card_additional_details');
-            const inactiveFighters = document.querySelectorAll('#is_inactive');
+            const inactiveFighters = document.querySelectorAll('[id^="is_inactive"]');
+            const recoveryFighters = document.querySelectorAll('[id^="is_recovery"]');
 
             if (gangCard) gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
             if (details) details.style.display = printOptions.includeAdditionalDetails ? '' : 'none';
+
             inactiveFighters.forEach(el => {
               (el as HTMLElement).style.display = printOptions.includeInactiveFighters ? '' : 'none';
+            });
+            recoveryFighters.forEach(el => {
+              (el as HTMLElement).style.display = printOptions.includeRecoveryFighters ? '' : 'none';
             });
 
             disableLinksForPrint();
@@ -238,10 +254,13 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
 
               restoreLinksAfterPrint();
 
-              // Reset visibility after print
+              // Reset visibility after printing
               if (gangCard) gangCard.style.display = '';
               if (details) details.style.display = '';
               inactiveFighters.forEach(el => {
+                (el as HTMLElement).style.display = '';
+              });
+              recoveryFighters.forEach(el => {
                 (el as HTMLElement).style.display = '';
               });
             }, 100);
@@ -249,7 +268,6 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           confirmText="Print"
         />
       )}
-
     </DropdownMenu>
   );
-} 
+}
