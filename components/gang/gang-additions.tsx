@@ -359,7 +359,7 @@ export default function GangAdditions({
             p_gang_id: gangId,
             p_fighter_type_id: selectedGangAdditionTypeId,
             p_fighter_name: fighterName,
-            p_cost: parseInt(fighterCost),
+            p_cost: gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.cost || 0,
             p_selected_equipment_ids: equipmentIds,
             p_user_id: user.id
           })
@@ -367,7 +367,7 @@ export default function GangAdditions({
       );
 
       const data = await response.json();
-      console.error('Server response:', data); // Keep this for debugging
+      console.log('Server response:', data); // Keep this for debugging
 
       // Check for the specific "Not enough credits" error first
       if (data.error?.includes('Not enough credits')) {

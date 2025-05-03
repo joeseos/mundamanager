@@ -285,6 +285,7 @@ BEGIN
     FROM skill_details;
 
     -- Calculate total cost (fighter cost plus selected equipment cost)
+    -- Here v_fighter_cost is set from p_cost (if provided) or from ft.cost (if not)
     v_total_cost := v_fighter_cost + COALESCE(v_total_equipment_cost, 0);
 
     -- Check credits and update gang in one step
