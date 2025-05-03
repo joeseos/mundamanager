@@ -71,6 +71,7 @@ interface CampaignData {
   battles: {
     id: string;
     created_at: string;
+    scenario_number: number;
     scenario_name: string;
     attacker?: {
       gang_id?: string;
@@ -105,6 +106,7 @@ interface CampaignPageContentProps {
     battles: {
       id: string;
       created_at: string;
+      scenario_number: number;
       scenario_name: string;
       attacker?: {
         gang_id?: string;
@@ -122,13 +124,10 @@ interface CampaignPageContentProps {
   };
 }
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
 export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {

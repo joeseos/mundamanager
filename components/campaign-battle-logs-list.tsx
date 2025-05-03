@@ -32,6 +32,7 @@ interface Member {
 interface Battle {
   id: string;
   created_at: string;
+  scenario_number: number;
   scenario_name: string;
   attacker?: {
     gang_id?: string;
@@ -50,6 +51,7 @@ interface Battle {
 interface Scenario {
   id: string;
   scenario_name: string;
+  scenario_number: number | null;
 }
 
 interface CampaignGang {
@@ -65,13 +67,10 @@ interface CampaignBattleLogsListProps {
   members: Member[];
 }
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
 export default function CampaignBattleLogsList({ 
@@ -128,8 +127,8 @@ export default function CampaignBattleLogsList({
       
       const data = await response.json();
       // Sort scenarios alphabetically by scenario_name
-      const sortedScenarios = [...data.scenarios].sort((a, b) => 
-        a.scenario_name.localeCompare(b.scenario_name)
+      const sortedScenarios = [...data.scenarios].sort((a, b) =>
+        a.scenario_number - b.scenario_number
       );
       setScenarios(sortedScenarios);
       
@@ -232,7 +231,9 @@ export default function CampaignBattleLogsList({
                   <td className="px-4 py-2">
                     {formatDate(battle.created_at)}
                   </td>
-                  <td className="px-4 py-2">{battle.scenario_name || 'N/A'}</td>
+                  <td className="px-4 py-2">
+                    {battle.scenario_number ? `${battle.scenario_name} (#${battle.scenario_number})` : battle.scenario_name || 'N/A'}
+                  </td>
                   <td className="px-4 py-2">
                     {battle.attacker?.gang_id ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -301,7 +302,7 @@ export default function CampaignBattleLogsList({
                   <option value="">Select scenario</option>
                   {scenarios.map(scenario => (
                     <option key={scenario.id} value={scenario.id}>
-                      {scenario.scenario_name}
+                      {scenario.scenario_number}. {scenario.scenario_name}
                     </option>
                   ))}
                 </select>

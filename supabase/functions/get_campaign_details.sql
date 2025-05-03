@@ -101,6 +101,7 @@ SELECT json_build_object(
             'attacker_id', cb.attacker_id,
             'defender_id', cb.defender_id,
             'scenario_id', cb.scenario_id,
+            'scenario_number', s.scenario_number,
             'scenario_name', s.scenario_name,
             'note', cb.note,
             'winner_id', cb.winner_id,
