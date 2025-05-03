@@ -6,12 +6,10 @@ import { useCampaigns } from '@/contexts/CampaignsContext'
 export default function MyCampaigns() {
   const { campaigns, isLoading, error } = useCampaigns();
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
 
   if (isLoading) return <div className="text-center text-white">Loading campaigns...</div>

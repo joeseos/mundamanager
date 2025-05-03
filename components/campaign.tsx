@@ -61,14 +61,9 @@ export default function Campaign({
   const [scavengingEnabled, setScavengingEnabled] = useState(has_scavenging_rolls);
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Not yet updated';
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: 'UTC'
-    });
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
 
   useEffect(() => {
