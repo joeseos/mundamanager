@@ -38,6 +38,7 @@ export default function GangAdditions({
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
 
   // Fetch gang addition types if needed when component mounts
   useEffect(() => {
@@ -94,6 +95,17 @@ export default function GangAdditions({
     } else {
       setGangAdditionCost('');
       setFighterCost('');
+    }
+  };
+
+  // Handle cost input changes
+  const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newCost = e.target.value;
+    setFighterCost(newCost);
+    
+    // If cost is 0, automatically set useBaseCostForRating to true
+    if (newCost === '0') {
+      setUseBaseCostForRating(true);
     }
   };
 
@@ -292,8 +304,62 @@ export default function GangAdditions({
     );
   };
 
+  // Replace the calculateTotalCostWithEquipment function with a corrected version
+  const calculateTotalCostWithEquipment = () => {
+    // Get manually entered cost
+    const manualCost = parseInt(fighterCost || '0');
+    
+    // Calculate equipment cost
+    let equipmentCost = 0;
+    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    
+    if (selectedType?.equipment_selection?.weapons) {
+      const { weapons } = selectedType.equipment_selection;
+      
+      // Add cost for selected equipment
+      selectedEquipmentIds.forEach(id => {
+        const option = weapons.options?.find((opt: any) => opt.id === id);
+        if (option) {
+          equipmentCost += (option.cost || 0);
+        }
+      });
+    }
+    
+    return {
+      manualCost,
+      equipmentCost,
+      totalCost: manualCost + equipmentCost
+    };
+  };
+
+  // Function to calculate total selected equipment cost directly for display purposes
+  const getSelectedEquipmentCost = () => {
+    let total = 0;
+    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    
+    if (selectedType?.equipment_selection?.weapons?.options) {
+      const options = selectedType.equipment_selection.weapons.options;
+      
+      // Calculate costs from selected equipment IDs
+      selectedEquipmentIds.forEach(id => {
+        const option = options.find((opt: any) => opt.id === id);
+        if (option && option.cost) {
+          total += option.cost;
+        }
+      });
+    }
+    
+    return total;
+  };
+
+  // Add helper method to get the base cost
+  const getBaseCost = () => {
+    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    return selectedType?.cost || 0;
+  };
+
   const handleAddFighter = async () => {
-    if (!selectedGangAdditionTypeId || !fighterName || !fighterCost) {
+    if (!selectedGangAdditionTypeId || !fighterName || fighterCost === '') {
       setFetchError('Please fill in all fields');
       return false;
     }
@@ -307,8 +373,12 @@ export default function GangAdditions({
         setFetchError('You must be logged in to add a fighter');
         return false;
       }
-      
+
+      // Get the base fighter type cost
       const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+      const baseCost = selectedType?.cost || 0;
+      const enteredCost = parseInt(fighterCost);
+      
       const weapons = selectedType?.equipment_selection?.weapons;
       
       let equipmentIds: string[] = [];
@@ -344,11 +414,21 @@ export default function GangAdditions({
         equipmentIds = [...selectedEquipmentIds];
       }
 
-      // Debug log to verify equipment IDs are being sent
+      // Parse the fighter cost, defaulting to 0 if it's empty or NaN
+      const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
+      
+      // Get total costs for logging
+      const { totalCost } = calculateTotalCostWithEquipment();
+      
+      // Debug log to verify equipment IDs and costs are being sent
       console.log('Sending equipment IDs:', equipmentIds);
+      console.log('Entered cost:', parsedCost);
+      console.log('Base cost:', baseCost);
+      console.log('Total cost with equipment:', totalCost);
+      console.log('Using base cost for rating:', useBaseCostForRating);
 
       const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
         {
           method: 'POST',
           headers: {
@@ -359,9 +439,10 @@ export default function GangAdditions({
             p_gang_id: gangId,
             p_fighter_type_id: selectedGangAdditionTypeId,
             p_fighter_name: fighterName,
-            p_cost: gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.cost || 0,
+            p_cost: parsedCost,
             p_selected_equipment_ids: equipmentIds,
-            p_user_id: user.id
+            p_user_id: user.id,
+            p_use_base_cost_for_rating: useBaseCostForRating
           })
         }
       );
@@ -379,7 +460,7 @@ export default function GangAdditions({
         throw new Error('Failed to add fighter');
       }
 
-      const actualCost = parseInt(fighterCost);
+      const actualCost = parsedCost;
 
       const newFighter = {
         id: data.fighter_id,
@@ -388,7 +469,7 @@ export default function GangAdditions({
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
         fighter_sub_type: data.fighter_sub_type,
-        credits: actualCost,
+        credits: data.rating_cost || parseInt(fighterCost),
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
         ballistic_skill: data.stats.ballistic_skill,
@@ -498,6 +579,7 @@ export default function GangAdditions({
     setSelectedGangAdditionClass('');
     setFighterCost('');
     setSelectedEquipmentIds([]);
+    setUseBaseCostForRating(true);
     setFetchError(null);
   };
 
@@ -615,15 +697,38 @@ export default function GangAdditions({
         <Input
           type="number"
           value={fighterCost}
-          onChange={(e) => setFighterCost(e.target.value)}
+          onChange={handleCostChange}
           className="w-full"
           min={0}
         />
         {selectedGangAdditionTypeId && (
           <p className="text-sm text-gray-500">
-            Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
+            Base cost: {getBaseCost()} credits
+            {getSelectedEquipmentCost() > 0 && (
+              <> | Equipment cost: {getSelectedEquipmentCost()} credits</>
+            )}
           </p>
         )}
+      </div>
+
+      <div className="flex items-center space-x-2 mb-4 mt-2">
+        <Checkbox 
+          id="use-base-cost-for-rating"
+          checked={useBaseCostForRating}
+          onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+        />
+        <label 
+          htmlFor="use-base-cost-for-rating" 
+          className="text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          Use base cost for Fighter Rating
+        </label>
+        <div className="relative group">
+          <span className="cursor-help text-gray-500">ⓘ</span>
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            When checked, the fighter will cost what you enter above, but its rating will be calculated using the base cost plus equipment cost. When unchecked, the fighter's rating will be based on what you paid.
+          </div>
+        </div>
       </div>
 
       {renderEquipmentSelection()}
