@@ -40,6 +40,7 @@ DECLARE
   v_is_admin BOOLEAN;
   v_user_has_access BOOLEAN;
   v_rating_cost INTEGER;
+  v_expected_cost INTEGER;
 BEGIN
   -- Check if user_id parameter exists, use auth.uid() if not provided
   IF p_user_id IS NULL THEN
@@ -114,7 +115,53 @@ BEGIN
 
   -- Insert fighter and get equipment in a single transaction
   BEGIN
-    -- Insert the fighter
+    -- Drop temp table if it exists from a previous run
+    DROP TABLE IF EXISTS temp_equipment;
+    
+    -- Log all inputs for debugging
+    RAISE NOTICE 'INPUTS: fighter_type_id: %, gang_id: %, cost: %, equipment_ids: %, use_base_cost: %', 
+      p_fighter_type_id, p_gang_id, p_cost, p_selected_equipment_ids, p_use_base_cost_for_rating;
+    
+    -- Query and log the base cost directly
+    SELECT cost INTO v_fighter_base_cost 
+    FROM fighter_types 
+    WHERE id = p_fighter_type_id;
+    
+    RAISE NOTICE 'Base cost from database: %', v_fighter_base_cost;
+    
+    -- Calculate cost of ONLY SELECTED equipment (no default equipment)
+    -- Use the costs from fighter_equipment_selections instead of equipment table
+    SELECT COALESCE(SUM(option_cost), 0)
+    INTO v_total_equipment_cost
+    FROM (
+      -- Get selected equipment with costs from fighter_equipment_selections
+      SELECT DISTINCT 
+        e.id, 
+        COALESCE(
+          (
+            SELECT (opt->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+                 jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
+            WHERE fes.fighter_type_id = p_fighter_type_id
+            AND opt->>'id' = e.id::text
+            LIMIT 1
+          ),
+          e.cost
+        ) AS option_cost,
+        e.equipment_name
+      FROM unnest(p_selected_equipment_ids) AS equip_id
+      JOIN equipment e ON e.id = equip_id
+    ) e;
+    
+    RAISE NOTICE 'Selected equipment cost from fighter_equipment_selections: %', v_total_equipment_cost;
+    
+    -- Calculate total expected cost for fighter
+    v_expected_cost := v_fighter_base_cost + v_total_equipment_cost;
+    
+    RAISE NOTICE 'COST BREAKDOWN: Base cost: %, Equipment cost: %, Expected total: %', 
+      v_fighter_base_cost, v_total_equipment_cost, v_expected_cost;
+    
+    -- Insert the fighter - when checkbox is checked, use base + equipment cost
     INSERT INTO fighters (
       fighter_name, 
       gang_id, 
@@ -151,7 +198,10 @@ BEGIN
       ft.fighter_type,
       fc.class_name as fighter_class,
       ft.free_skill,
-      v_fighter_cost, -- Store the rating cost in credits field (used for rating calculations)
+      CASE 
+        WHEN p_use_base_cost_for_rating THEN v_expected_cost  -- Use the explicitly calculated value
+        ELSE p_cost
+      END as credits,  -- Make sure we use p_cost, not fighterCost
       ft.movement,
       ft.weapon_skill,
       ft.ballistic_skill,
@@ -175,95 +225,88 @@ BEGIN
 
     v_fighter_id := v_inserted_fighter.id;
 
-    -- Handle default equipment and selected equipment in a single step
-    WITH default_equipment_insert AS (
-      INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
-      SELECT 
-        v_fighter_id, 
-        fd.equipment_id,
-        e.cost as original_cost,
-        0 as purchase_cost
-      FROM fighter_defaults fd
-      JOIN equipment e ON e.id = fd.equipment_id
-      WHERE fd.fighter_type_id = p_fighter_type_id
-      AND fd.equipment_id IS NOT NULL
-      RETURNING id as fighter_equipment_id, equipment_id, original_cost, purchase_cost
+    -- Insert equipment with cost=0 (simpler query)
+    WITH all_equipment_ids AS (
+      -- Default equipment
+      SELECT DISTINCT equipment_id
+      FROM fighter_defaults
+      WHERE fighter_type_id = p_fighter_type_id
+      AND equipment_id IS NOT NULL
+      
+      UNION
+      
+      -- Selected equipment
+      SELECT DISTINCT unnest AS equipment_id
+      FROM unnest(p_selected_equipment_ids)
     ),
-    selected_equipment_insert AS (
+    -- Get the costs from fighter_equipment_selections for selected equipment
+    equipment_costs AS (
+      SELECT 
+        ae.equipment_id,
+        CASE 
+          WHEN ae.equipment_id = ANY(p_selected_equipment_ids) THEN
+            COALESCE(
+              (
+                SELECT (opt->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                     jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
+                WHERE fes.fighter_type_id = p_fighter_type_id
+                AND opt->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              e.cost
+            )
+          ELSE e.cost
+        END AS original_cost
+      FROM all_equipment_ids ae
+      JOIN equipment e ON e.id = ae.equipment_id
+    ),
+    inserted_equipment AS (
       INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
       SELECT 
         v_fighter_id,
-        e.id,
-        e.cost as original_cost,
-        COALESCE(
-          (
-            SELECT (opt->>'cost')::integer
-            FROM fighter_equipment_selections fes,
-            jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
-            WHERE fes.fighter_type_id = p_fighter_type_id
-            AND opt->>'id' = e.id::text
-            LIMIT 1
-          ),
-          e.cost
-        ) as purchase_cost
-      FROM unnest(p_selected_equipment_ids) as equipment_id
-      JOIN equipment e ON e.id = equipment_id
-      RETURNING id as fighter_equipment_id, equipment_id, original_cost, purchase_cost
-    ),
-    all_equipment AS (
-      SELECT * FROM default_equipment_insert
-      UNION ALL
-      SELECT * FROM selected_equipment_insert
-      WHERE selected_equipment_insert.equipment_id IS NOT NULL
-    ),
-    equipment_details AS (
-      SELECT 
-        ae.fighter_equipment_id,
-        e.id as equipment_id,
-        e.equipment_name,
-        e.equipment_type,
-        ae.purchase_cost,
-        COALESCE(
-          (SELECT jsonb_agg(
-            jsonb_build_object(
-              'id', wp.id,
-              'profile_name', wp.profile_name,
-              'range_short', wp.range_short,
-              'range_long', wp.range_long,
-              'acc_short', wp.acc_short,
-              'acc_long', wp.acc_long,
-              'strength', wp.strength,
-              'damage', wp.damage,
-              'ap', wp.ap,
-              'ammo', wp.ammo,
-              'traits', wp.traits,
-              'is_default_profile', wp.is_default_profile,
-              'weapon_group_id', wp.weapon_group_id,
-              'sort_order', wp.sort_order
-            )
-          )
-          FROM weapon_profiles wp
-          WHERE wp.weapon_id = e.id
-        ), '[]'::jsonb) as weapon_profiles
-      FROM all_equipment ae
-      JOIN equipment e ON e.id = ae.equipment_id
+        ec.equipment_id,
+        ec.original_cost, -- Store the cost from fighter_equipment_selections
+        0      -- Always 0 purchase cost
+      FROM equipment_costs ec
+      RETURNING id, equipment_id, original_cost
     )
     SELECT 
       jsonb_agg(
         jsonb_build_object(
-          'fighter_equipment_id', fighter_equipment_id,
-          'equipment_id', equipment_id,
-          'equipment_name', equipment_name,
-          'equipment_type', equipment_type,
-          'cost', purchase_cost,
-          'weapon_profiles', weapon_profiles
+          'fighter_equipment_id', fe.id,
+          'equipment_id', e.id,
+          'equipment_name', e.equipment_name,
+          'equipment_type', e.equipment_type,
+          'cost', 0,
+          'original_cost', fe.original_cost, -- Add this to help with debugging
+          'weapon_profiles', COALESCE(
+            (SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', wp.id,
+                'profile_name', wp.profile_name,
+                'range_short', wp.range_short,
+                'range_long', wp.range_long,
+                'acc_short', wp.acc_short,
+                'acc_long', wp.acc_long,
+                'strength', wp.strength,
+                'damage', wp.damage,
+                'ap', wp.ap,
+                'ammo', wp.ammo,
+                'traits', wp.traits,
+                'is_default_profile', wp.is_default_profile,
+                'weapon_group_id', wp.weapon_group_id,
+                'sort_order', wp.sort_order
+              )
+            )
+            FROM weapon_profiles wp
+            WHERE wp.weapon_id = e.id
+          ), '[]'::jsonb)
         )
-      ),
-      SUM(purchase_cost)
-    INTO 
-      v_equipment_info,
-      v_total_equipment_cost
-    FROM equipment_details;
+      )
+    INTO v_equipment_info
+    FROM inserted_equipment fe
+    JOIN equipment e ON e.id = fe.equipment_id;
 
     -- Insert default skills and get skill info
     WITH skill_insert AS (
@@ -294,28 +337,28 @@ BEGIN
     INTO v_skills_info
     FROM skill_details;
 
-    -- IMPORTANT: Use exactly the cost provided from frontend (v_fighter_cost)
-    -- WITHOUT adding equipment costs to it
-    v_total_cost := v_fighter_cost;
+    -- Always use the entered cost for payment
+    v_total_cost := p_cost;  -- Use p_cost directly, not v_fighter_cost
 
-    -- Set the appropriate cost for rating calculations based on checkbox
+    -- For the fighter's cost attribute (used for rating):
+    -- If checkbox is checked: use base cost + equipment cost (equipment cost is on the fighter)
+    -- If checkbox is unchecked: use the entered cost value (what the user paid)
     IF p_use_base_cost_for_rating THEN
-      v_rating_cost := v_fighter_base_cost + COALESCE(v_total_equipment_cost, 0);
+      v_rating_cost := v_expected_cost;  -- Use the same value we calculated above
     ELSE
-      v_rating_cost := v_fighter_cost + COALESCE(v_total_equipment_cost, 0);
+      v_rating_cost := p_cost;  -- Use p_cost, not v_fighter_cost
     END IF;
 
     -- Debug information for troubleshooting
-    RAISE NOTICE 'v_fighter_cost: %, v_fighter_base_cost: %, v_total_equipment_cost: %, v_total_cost: %, v_gang_credits: %, rating_cost: %', 
-      v_fighter_cost, v_fighter_base_cost, v_total_equipment_cost, v_total_cost, v_gang_credits, v_rating_cost;
+    RAISE NOTICE 'FINAL VALUES: p_cost: %, v_total_cost: %, v_rating_cost: %, fighter credits: %', 
+      p_cost, v_total_cost, v_rating_cost, v_inserted_fighter.credits;
 
-    -- Check credits and update gang in one step
-    -- Special handling for zero cost: if total cost is zero, don't check credits
+    -- Check if gang has enough credits for the payment
     IF v_total_cost > 0 AND v_gang_credits < v_total_cost THEN
       RAISE EXCEPTION 'Not enough credits to add this fighter (Cost: %, Available: %)', v_total_cost, v_gang_credits;
     END IF;
 
-    -- Only subtract credits if the total cost is greater than zero
+    -- Update gang credits - subtract the entered cost value
     IF v_total_cost > 0 THEN
       UPDATE gangs
       SET 
@@ -339,9 +382,11 @@ BEGIN
       'fighter_class_id', v_fighter_class_id,
       'fighter_sub_type_id', v_fighter_sub_type_id,
       'free_skill', v_free_skill,
-      'cost', v_fighter_cost,
+      'cost', p_cost,  -- Use p_cost here, not v_fighter_cost
       'base_cost', v_fighter_base_cost,
-      'rating_cost', v_rating_cost,
+      'equipment_cost', v_total_equipment_cost,
+      'expected_total', v_expected_cost,  -- Add this for clarity
+      'rating_cost', v_rating_cost, 
       'total_cost', v_total_cost,
       'stats', jsonb_build_object(
         'movement', v_inserted_fighter.movement,

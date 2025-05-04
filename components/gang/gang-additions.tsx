@@ -692,7 +692,7 @@ export default function GangAdditions({
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Payment Cost (credits)
+          Cost (credits)
         </label>
         <Input
           type="number"
@@ -705,7 +705,7 @@ export default function GangAdditions({
           <p className="text-sm text-gray-500">
             Base cost: {getBaseCost()} credits
             {getSelectedEquipmentCost() > 0 && (
-              <> | Equipment cost: {getSelectedEquipmentCost()} credits | Original total: {getBaseCost() + getSelectedEquipmentCost()} credits</>
+              <> | Equipment cost: {getSelectedEquipmentCost()} credits</>
             )}
           </p>
         )}
@@ -726,7 +726,7 @@ export default function GangAdditions({
         <div className="relative group">
           <span className="cursor-help text-gray-500">ⓘ</span>
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When checked, the fighter will cost exactly what you entered in "Payment Cost", but its contribution to gang rating will be based on the original base cost plus equipment.
+            When checked, the fighter will cost what you enter above, but its rating will be calculated using the base cost plus equipment cost. When unchecked, the fighter's rating will be based on what you paid.
           </div>
         </div>
       </div>
