@@ -118,6 +118,9 @@ export default function GangInventory({
         throw new Error(`Failed to move item from stash: ${errorText}`);
       }
 
+      // Get the response data
+      const responseData = await response.json();
+      
       // Update local stash state
       const newStash = stash.filter((_, index) => index !== selectedItem);
       setStash(newStash);
@@ -125,6 +128,11 @@ export default function GangInventory({
       // Update fighter/vehicle state optimistically
       const targetFighter = fighters.find(f => f.id === targetId);
       if (targetFighter && !isVehicleTarget) {
+        // Check if any weapon profile has master-crafted flag
+        const hasMasterCrafted = (responseData.weapon_profiles || []).some(
+          (profile: any) => profile.is_master_crafted
+        );
+        
         const updatedFighter: FighterProps = {
           ...targetFighter,
           credits: targetFighter.credits + (stashItem.cost || 0),
@@ -135,8 +143,9 @@ export default function GangInventory({
                   weapon_name: stashItem.equipment_name || '',
                   weapon_id: stashItem.id,
                   cost: stashItem.cost || 0,
-                  fighter_weapon_id: stashItem.id,
-                  weapon_profiles: [] // Initialize with empty profiles
+                  fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                  weapon_profiles: responseData.weapon_profiles || [],
+                  is_master_crafted: hasMasterCrafted
                 }
               ]
             : targetFighter.weapons || [],
@@ -147,7 +156,8 @@ export default function GangInventory({
                   wargear_name: stashItem.equipment_name || '',
                   wargear_id: stashItem.id,
                   cost: stashItem.cost || 0,
-                  fighter_weapon_id: stashItem.id
+                  fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                  is_master_crafted: hasMasterCrafted
                 }
               ]
             : targetFighter.wargear || []
