@@ -4,10 +4,10 @@ import { Equipment as BaseEquipment } from '@/types/equipment';
 export interface FighterType {
   id: string;
   fighter_type: string;
-  gang_type_id: string;
-  gang_type: string;
   fighter_class: string;
   fighter_class_id?: string;
+  gang_type_id: string;
+  gang_type: string;
   fighter_sub_type: string;
   fighter_sub_type_id?: string;
   cost: number;
