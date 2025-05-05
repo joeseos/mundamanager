@@ -491,7 +491,7 @@ BEGIN
            gv.vehicle_type_id,
            gv.vehicle_type,
            gv.cost,
-           vt.vehicle_type as vehicle_name,
+           gv.vehicle_name,
            vt.movement,
            vt.front,
            vt.side,
