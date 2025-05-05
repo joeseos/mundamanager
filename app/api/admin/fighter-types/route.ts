@@ -250,7 +250,7 @@ export async function GET(request: Request) {
         .map(ft => ft.fighter_sub_type_id)
         .filter(id => id !== null && id !== undefined) as string[];
       
-      let subTypes = [];
+      let subTypes: { id: string; sub_type_name: string; }[] = [];
       if (subTypeIds.length > 0) {
         const { data: subTypeData, error: subTypeError } = await supabase
           .from('fighter_sub_types')
