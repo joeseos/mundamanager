@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
+import AddVehicle from './add-vehicle';
 
 interface VehicleType {
   id: string;
@@ -162,11 +163,6 @@ export default function Gang({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
-  const [vehicleError, setVehicleError] = useState<string | null>(null);
-  const [vehicleCost, setVehicleCost] = useState('');
-  const [vehicleName, setVehicleName] = useState('');
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
@@ -689,106 +685,17 @@ const handleAlignmentChange = (value: string) => {
     </div>
   );
 
-  const handleAddVehicleModalOpen = async () => {
-    // Only fetch if we haven't already loaded the vehicle types
-    if (vehicleTypes.length === 0) {
-      try {
-        const response = await fetch(`/api/gangs/${id}/vehicles`);
-        if (!response.ok) throw new Error('Failed to fetch vehicle types');
-        const data = await response.json();
-        setVehicleTypes(data);
-      } catch (error) {
-        console.error('Error fetching vehicle types:', error);
-        setVehicleError('Failed to load vehicle types');
-        return; // Don't open modal if fetch failed
-      }
-    }
+  const handleAddVehicleModalOpen = () => {
     setShowAddVehicleModal(true);
   };
 
-  const handleAddVehicle = async () => {
-    if (!selectedVehicleTypeId) {
-      setVehicleError('Please select a vehicle type');
-      return false;
-    }
-
-    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
-    if (!selectedVehicleType) {
-      throw new Error('Vehicle type not found');
-    }
-
-    const cost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
-    const name = vehicleName || selectedVehicleType.vehicle_type;
-
-    try {
-      // Optimistically update credits
-      const newCredits = credits - cost;
-      setCredits(newCredits);
-
-      const response = await fetch(`/api/gangs/${id}/vehicles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vehicleTypeId: selectedVehicleTypeId,
-          cost: cost,
-          vehicleName: name,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Revert credits on error
-        setCredits(credits);
-        throw new Error(data.error || 'Failed to add vehicle');
-      }
-
-      // After successful API response, call onVehicleAdd with the new vehicle
-      if (onVehicleAdd) {
-        const newVehicle: VehicleProps = {
-          id: data.id,
-          vehicle_name: name,
-          cost: cost,
-          vehicle_type: selectedVehicleType.vehicle_type,
-          gang_id: id,
-          fighter_id: null,
-          movement: selectedVehicleType.movement,
-          front: selectedVehicleType.front,
-          side: selectedVehicleType.side,
-          rear: selectedVehicleType.rear,
-          hull_points: selectedVehicleType.hull_points,
-          handling: selectedVehicleType.handling,
-          save: selectedVehicleType.save,
-          body_slots: selectedVehicleType.body_slots,
-          body_slots_occupied: 0,
-          drive_slots: selectedVehicleType.drive_slots,
-          drive_slots_occupied: 0,
-          engine_slots: selectedVehicleType.engine_slots,
-          engine_slots_occupied: 0,
-          special_rules: selectedVehicleType.special_rules || [],
-          created_at: new Date().toISOString(),
-          equipment: []
-        };
-        onVehicleAdd(newVehicle);
-      }
-
-      toast({
-        description: `${name} added to gang successfully`,
-        variant: "default"
-      });
-
-      setShowAddVehicleModal(false);
-      setSelectedVehicleTypeId('');
-      setVehicleCost('');
-      setVehicleName('');
-      setVehicleError(null);
-      return true;
-    } catch (error) {
-      console.error('Error details:', error);
-      setVehicleError(error instanceof Error ? error.message : 'Failed to add vehicle');
-      return false;
+  const handleVehicleAdded = (newVehicle: VehicleProps) => {
+    // Update credits using payment_cost (what the user actually paid) instead of cost (the rating value)
+    setCredits(prev => prev - (newVehicle.payment_cost || newVehicle.cost));
+    
+    // Pass the new vehicle up to the parent
+    if (onVehicleAdd) {
+      onVehicleAdd(newVehicle);
     }
   };
 
@@ -1058,86 +965,12 @@ const handleAlignmentChange = (value: string) => {
           )}
 
           {showAddVehicleModal && (
-            <Modal
-              title="Add Vehicle"
-              headerContent={
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Gang Credits</span>
-                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                    {initialCredits}
-                  </span>
-                </div>
-              }
-              content={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Vehicle Name
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Enter vehicle name"
-                      value={vehicleName}
-                      onChange={(e) => setVehicleName(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Vehicle Type
-                    </label>
-                    <select
-                      value={selectedVehicleTypeId}
-                      onChange={(e) => {
-                        setSelectedVehicleTypeId(e.target.value);
-                        const vehicle = vehicleTypes.find(v => v.id === e.target.value);
-                        if (vehicle) {
-                          setVehicleCost(vehicle.cost.toString());
-                        }
-                      }}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select vehicle type</option>
-                      {vehicleTypes.map((type: VehicleType) => (
-                        <option key={type.id} value={type.id}>
-                          {type.vehicle_type} - {type.cost} credits
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Cost (credits)
-                    </label>
-                    <Input
-                      type="number"
-                      value={vehicleCost}
-                      onChange={(e) => setVehicleCost(e.target.value)}
-                      className="w-full"
-                      min={0}
-                    />
-                    {selectedVehicleTypeId && (
-                      <p className="text-sm text-gray-500">
-                        Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
-                      </p>
-                    )}
-                  </div>
-
-                  {vehicleError && <p className="text-red-500">{vehicleError}</p>}
-                </div>
-              }
-              onClose={() => {
-                setShowAddVehicleModal(false);
-                setSelectedVehicleTypeId('');
-                setVehicleCost('');
-                setVehicleName('');
-                setVehicleError(null);
-              }}
-              onConfirm={handleAddVehicle}
-              confirmText="Add Vehicle"
-              confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
+            <AddVehicle
+              showModal={showAddVehicleModal}
+              setShowModal={setShowAddVehicleModal}
+              gangId={id}
+              initialCredits={credits}
+              onVehicleAdd={handleVehicleAdded}
             />
           )}
 

@@ -17,6 +17,7 @@ import { StashItem } from '@/types/gang';
 import GangVehicles from "@/components/gang/vehicles-tab";
 import { VehicleProps } from '@/types/vehicle';
 import { toast } from "@/components/ui/use-toast";
+import AddFighter from "@/components/gang/add-fighter";
 
 // Tab icons
 import { FaBox, FaUsers } from "react-icons/fa6";
@@ -573,6 +574,17 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
           initialNote={gangData.processedData.note || ''}
         />
       </Tabs>
+      
+      {showAddFighterModal && (
+        <AddFighter
+          showModal={showAddFighterModal}
+          setShowModal={setShowAddFighterModal}
+          fighterTypes={fighterTypes}
+          gangId={params.id}
+          initialCredits={gangData.processedData.credits}
+          onFighterAdded={handleFighterUpdate}
+        />
+      )}
     </div>
   );
 }

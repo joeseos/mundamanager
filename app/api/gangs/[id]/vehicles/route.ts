@@ -77,7 +77,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     // Check if gang has enough credits
-    const vehicleCost = cost || vehicleType.cost;
+    const vehicleCost = cost === 0 ? 0 : (cost || vehicleType.cost);
     if (gang.credits < vehicleCost) {
       return NextResponse.json(
         { error: 'Not enough credits' },
