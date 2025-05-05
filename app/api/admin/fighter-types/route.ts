@@ -8,6 +8,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const equipment_id = searchParams.get('equipment_id');
+  const fighter_type = searchParams.get('fighter_type');
+  const fighter_class = searchParams.get('fighter_class');
+  const gang_type_id = searchParams.get('gang_type_id');
+  const filter_by_gang = searchParams.get('filter_by_gang') === 'true';
 
   // Check admin authorization
   const isAdmin = await checkAdmin(supabase);
@@ -189,8 +193,196 @@ export async function GET(request: Request) {
       return NextResponse.json(formattedFighterType);
     }
 
-    // Default case - fetch all fighter types
-    const { data: fighterTypes, error } = await supabase
+    // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
+    if (fighter_type && fighter_class) {
+      console.log(`Direct search by fighter_type=${fighter_type} and fighter_class=${fighter_class}`);
+      
+      // Find all fighters with matching type and class with all details
+      const { data: relatedFighterTypes, error: relatedError } = await supabase
+        .from('fighter_types')
+        .select(`
+          id,
+          fighter_type,
+          gang_type_id,
+          gang_type,
+          fighter_class,
+          fighter_sub_type_id,
+          cost,
+          movement,
+          weapon_skill,
+          ballistic_skill,
+          strength, 
+          toughness,
+          wounds,
+          initiative,
+          leadership,
+          cool,
+          willpower,
+          intelligence,
+          attacks,
+          special_rules,
+          free_skill,
+          is_gang_addition,
+          equipment_discounts:equipment_discounts(
+            equipment_id,
+            discount
+          )
+        `)
+        .eq('fighter_type', fighter_type)
+        .eq('fighter_class', fighter_class);
+
+      if (relatedError) {
+        console.error('Error fetching related fighter types:', relatedError);
+        throw relatedError;
+      }
+
+      console.log('Found fighters by name and class:', relatedFighterTypes?.length);
+      
+      if (!relatedFighterTypes || relatedFighterTypes.length === 0) {
+        return NextResponse.json(
+          { error: 'No fighter types found matching those criteria' },
+          { status: 404 }
+        );
+      }
+      
+      // Get the fighter sub-types for these fighters
+      const subTypeIds = relatedFighterTypes
+        .map(ft => ft.fighter_sub_type_id)
+        .filter(id => id !== null && id !== undefined) as string[];
+      
+      let subTypes: { id: string; sub_type_name: string; }[] = [];
+      if (subTypeIds.length > 0) {
+        const { data: subTypeData, error: subTypeError } = await supabase
+          .from('fighter_sub_types')
+          .select('*')
+          .in('id', subTypeIds);
+
+        if (subTypeError) {
+          console.error('Error fetching sub-types:', subTypeError);
+          throw subTypeError;
+        } else {
+          subTypes = subTypeData || [];
+        }
+      }
+      
+      // Get the complete data for each fighter
+      const fighterDetails = await Promise.all(
+        relatedFighterTypes.map(async (fighter: any) => {
+          try {
+            // Fetch default equipment
+            const { data: defaultEquipment, error: equipmentError } = await supabase
+              .from('fighter_defaults')
+              .select('equipment_id')
+              .eq('fighter_type_id', fighter.id)
+              .not('equipment_id', 'is', null);
+
+            if (equipmentError) {
+              console.error('Error fetching default equipment:', equipmentError);
+              throw equipmentError;
+            }
+
+            // Fetch default skills
+            const { data: defaultSkills, error: skillsError } = await supabase
+              .from('fighter_defaults')
+              .select('skill_id')
+              .eq('fighter_type_id', fighter.id)
+              .not('skill_id', 'is', null);
+
+            if (skillsError) {
+              console.error('Error fetching default skills:', skillsError);
+              throw skillsError;
+            }
+
+            // Fetch equipment list
+            const { data: equipmentList, error: equipmentListError } = await supabase
+              .from('fighter_type_equipment')
+              .select('equipment_id')
+              .eq('fighter_type_id', fighter.id);
+
+            if (equipmentListError) {
+              console.error('Error fetching equipment list:', equipmentListError);
+              throw equipmentListError;
+            }
+
+            // Fetch equipment selection
+            const { data: equipmentSelectionData, error: equipmentSelectionError } = await supabase
+              .from('fighter_equipment_selections')
+              .select('equipment_selection')
+              .eq('fighter_type_id', fighter.id)
+              .single();
+
+            // Ignore not found error for equipment selection
+            if (equipmentSelectionError && equipmentSelectionError.code !== 'PGRST116') {
+              console.error('Error fetching equipment selection:', equipmentSelectionError);
+              throw equipmentSelectionError;
+            }
+
+            // Fetch trading post equipment
+            const { data: tradingPostData, error: tradingPostError } = await supabase
+              .from('fighter_equipment_tradingpost')
+              .select('equipment_tradingpost')
+              .eq('fighter_type_id', fighter.id)
+              .single();
+
+            // Ignore not found error for trading post
+            if (tradingPostError && tradingPostError.code !== 'PGRST116') {
+              console.error('Error fetching trading post equipment:', tradingPostError);
+              throw tradingPostError;
+            }
+
+            return {
+              ...fighter,
+              default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
+              default_skills: defaultSkills?.map(d => d.skill_id) || [],
+              equipment_list: equipmentList?.map(e => e.equipment_id) || [],
+              equipment_discounts: fighter.equipment_discounts?.map((d: any) => ({
+                equipment_id: d.equipment_id,
+                discount: d.discount
+              })) || [],
+              equipment_selection: equipmentSelectionData?.equipment_selection || null,
+              trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
+              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+            };
+          } catch (error) {
+            console.error(`Error getting details for fighter ${fighter.id}:`, error);
+            // Return basic fighter data if there's an error
+            return {
+              ...fighter,
+              default_equipment: [],
+              default_skills: [],
+              equipment_list: [],
+              equipment_discounts: [],
+              equipment_selection: null,
+              trading_post_equipment: [],
+              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+            };
+          }
+        })
+      );
+      
+      // Sort fighters: Default first, then by sub-type name
+      fighterDetails.sort((a, b) => {
+        if (a.is_default && !b.is_default) return -1;
+        if (!a.is_default && b.is_default) return 1;
+        
+        const aSubType = subTypes.find(st => st.id === a.fighter_sub_type_id);
+        const bSubType = subTypes.find(st => st.id === b.fighter_sub_type_id);
+        
+        return (aSubType?.sub_type_name || '').localeCompare(bSubType?.sub_type_name || '');
+      });
+      
+      console.log(`Returning ${fighterDetails.length} fighter details with ${subTypes.length} sub-types`);
+      
+      return NextResponse.json({
+        fighter_type,
+        fighter_class,
+        fighters: fighterDetails,
+        sub_types: subTypes
+      });
+    }
+
+    // Default case - fetch all fighter types, with optional gang filtering
+    let query = supabase
       .from('fighter_types')
       .select(`
         id,
@@ -198,6 +390,7 @@ export async function GET(request: Request) {
         gang_type_id,
         gang_type,
         fighter_class,
+        fighter_class_id,
         fighter_sub_type_id,
         cost,
         movement,
@@ -222,6 +415,14 @@ export async function GET(request: Request) {
       `)
       .order('gang_type', { ascending: true })
       .order('fighter_type', { ascending: true });
+    
+    // Add gang type filter if requested and gang_type_id is provided
+    if (filter_by_gang && gang_type_id) {
+      console.log(`Filtering fighters by gang_type_id: ${gang_type_id}`);
+      query = query.eq('gang_type_id', gang_type_id);
+    }
+
+    const { data: fighterTypes, error } = await query;
 
     if (error) throw error;
     return NextResponse.json(fighterTypes);
@@ -264,6 +465,7 @@ export async function PUT(request: Request) {
         fighter_class: data.fighter_class,
         fighter_class_id: data.fighter_class_id,
         fighter_sub_type_id: data.fighter_sub_type_id,
+        fighter_sub_type: data.fighter_sub_type,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -490,6 +692,7 @@ export async function POST(request: Request) {
         fighter_class: data.fighterClass,
         fighter_class_id: data.fighterClassId,
         fighter_sub_type_id: data.fighterSubTypeId,
+        fighter_sub_type: data.fighterSubType,
         cost: data.baseCost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,

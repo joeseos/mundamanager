@@ -183,10 +183,6 @@ export default function AdminPage() {
     setEquipmentListSelections([]);
   };
 
-  useEffect(() => {
-    fetchEquipment();
-  }, [toast]);
-
   const adminSections = [
     {
       title: "Add Fighter Type",
@@ -228,6 +224,8 @@ export default function AdminPage() {
         setShowEditVehicle(true);
         fetchVehicleTypes();
         fetchGangTypes();
+        // Only fetch equipment when editing vehicle types
+        fetchEquipment();
       },
       icon: Edit
     },
