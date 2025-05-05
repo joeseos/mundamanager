@@ -21,6 +21,7 @@ export interface VehicleProps {
   engine_slots_occupied: number;
   special_rules: string[];
   cost: number;
+  payment_cost?: number; // Actual cost paid (may differ from rating cost)
   created_at: string;
   fighter_id?: string | null;
   equipment: Array<Equipment & Partial<VehicleEquipment> & {
