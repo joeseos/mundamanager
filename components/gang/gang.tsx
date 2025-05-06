@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
@@ -25,6 +25,9 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import AddFighter from './add-fighter';
+import GangAdditions from './gang-additions';
+import AddVehicle from './add-vehicle';
 
 interface VehicleType {
   id: string;
@@ -102,6 +105,7 @@ interface GangProps {
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
+  vehicles?: VehicleProps[];
 }
 
 export default function Gang({ 
@@ -132,6 +136,7 @@ export default function Gang({
   onVehicleAdd,
   positioning,
   gang_variants,
+  vehicles,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -149,9 +154,6 @@ export default function Gang({
   const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
   const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
-  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
-  const [fighterName, setFighterName] = useState('');
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [alignment, setAlignment] = useState(initialAlignment);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [editedAllianceId, setEditedAllianceId] = useState(initialAllianceId);
@@ -162,24 +164,10 @@ export default function Gang({
   const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
-  const [fighterCost, setFighterCost] = useState('');
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
-  const [vehicleError, setVehicleError] = useState<string | null>(null);
-  const [vehicleCost, setVehicleCost] = useState('');
-  const [vehicleName, setVehicleName] = useState('');
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
-  const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
-  const [gangAdditionCost, setGangAdditionCost] = useState('');
-  const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
-  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
-  const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
-  const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
-  const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
-  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
@@ -191,6 +179,12 @@ export default function Gang({
     return 'normal';
   });
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+
+  // Calculate the total value of unassigned vehicles
+  const unassignedVehiclesValue = useMemo(() => {
+    if (!vehicles || vehicles.length === 0) return 0;
+    return vehicles.reduce((total, vehicle) => total + (vehicle.cost || 0), 0);
+  }, [vehicles]);
 
   // view mode
   useEffect(() => {
@@ -209,20 +203,6 @@ export default function Gang({
     // Persist view mode in localStorage
     localStorage.setItem('gang_view_mode', viewMode);
   }, [viewMode]);
-
-  // Automatically select Default or Vatborn sub-type if available
-  useEffect(() => {
-    if (availableSubTypes.length > 0 && !selectedSubTypeId) {
-      const defaultSubType = availableSubTypes.find(
-        (sub) =>
-          sub.sub_type_name.toLowerCase() === "default" ||
-          sub.sub_type_name.toLowerCase() === "vatborn"
-      );
-      if (defaultSubType) {
-        setSelectedSubTypeId(defaultSubType.id);
-      }
-    }
-  }, [availableSubTypes, selectedSubTypeId]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
@@ -359,120 +339,17 @@ const handleAlignmentChange = (value: string) => {
     }
   };
 
-  const handleFighterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const typeId = e.target.value;
-    setSelectedFighterTypeId(typeId);
-    setSelectedSubTypeId(''); // Reset sub-type selection
-    
-    if (typeId) {
-      // Get all fighters with this fighter_type name to check for sub-types
-      const selectedType = fighterTypes.find(t => t.id === typeId);
-      const fighterTypeGroup = fighterTypes.filter(t => 
-        t.fighter_type === selectedType?.fighter_type
-      );
-      
-      // If we have multiple entries with the same fighter_type, they have sub-types
-      if (fighterTypeGroup.length > 1) {
-        const subTypes = fighterTypeGroup.map(ft => ({
-          id: ft.id,
-          sub_type_name: ft.sub_type?.sub_type_name || 'Default',
-          cost: ft.total_cost
-        }));
-        
-        setAvailableSubTypes(subTypes);
-        
-        // Set cost to the lowest cost option initially
-        const lowestCostType = fighterTypeGroup.reduce(
-          (lowest, current) => 
-            current.total_cost < lowest.total_cost ? current : lowest, 
-          fighterTypeGroup[0]
-        );
-        
-        setFighterCost(lowestCostType.total_cost.toString() || '');
-      } else {
-        // No sub-types, just set the cost directly
-        setFighterCost(selectedType?.total_cost.toString() || '');
-        setAvailableSubTypes([]);
-      }
-    } else {
-      setFighterCost('');
-      setAvailableSubTypes([]);
+  const handleAddFighterClick = () => {
+    if (fighterTypes.length === 0) {
+      fetchFighterTypes();
     }
+    setShowAddFighterModal(true);
   };
 
-  const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const subTypeId = e.target.value;
-    setSelectedSubTypeId(subTypeId);
-    
-    if (subTypeId) {
-      // Set the fighter type ID to match the sub-type's ID
-      setSelectedFighterTypeId(subTypeId);
-      
-      const selectedType = fighterTypes.find(t => t.id === subTypeId);
-      if (selectedType) {
-        setFighterCost(selectedType.total_cost.toString() || '');
-      }
-    }
-  };
-
-  const handleGangAdditionClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedGangAdditionClass(e.target.value);
-    setSelectedGangAdditionTypeId(''); // Reset Gang Addition type when class changes
-  };
-
-  const filteredGangAdditionTypes = selectedGangAdditionClass
-    ? gangAdditionTypes.filter(type => type.fighter_class === selectedGangAdditionClass)
-    : gangAdditionTypes;
-
-  const handleAddFighter = async () => {
-    if (!selectedFighterTypeId || !fighterName || !fighterCost) {
-      setFetchError('Please fill in all fields');
-      return false;
-    }
-
+  const fetchFighterTypes = async () => {
     try {
-      // Get the current authenticated user's ID
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setFetchError('You must be logged in to add a fighter');
-        return false;
-      }
-      
-      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-      const weapons = selectedType?.equipment_selection?.weapons;
-      
-      let equipmentIds: string[] = [];
-      
-      if (weapons) {
-        if (weapons.default) {
-          // Add all default equipment first
-          weapons.default.forEach(item => {
-            // Add the item multiple times based on quantity
-            for (let i = 0; i < item.quantity; i++) {
-              equipmentIds.push(item.id);
-            }
-          });
-          
-          // If optional equipment is selected, replace ONE instance of the first default item
-          if (weapons.select_type === 'optional' && selectedEquipmentIds.length > 0) {
-            // Remove only one instance of the first default item
-            const firstDefaultId = weapons.default[0].id;
-            const indexToRemove = equipmentIds.indexOf(firstDefaultId);
-            if (indexToRemove !== -1) {
-              equipmentIds.splice(indexToRemove, 1);
-            }
-            // Add the optional equipment
-            equipmentIds.push(selectedEquipmentIds[0]);
-          }
-        } else if (weapons.select_type === 'single' || weapons.select_type === 'multiple') {
-          equipmentIds = selectedEquipmentIds;
-        }
-      }
-
       const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
         {
           method: 'POST',
           headers: {
@@ -480,148 +357,54 @@ const handleAlignmentChange = (value: string) => {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
           body: JSON.stringify({
-            p_gang_id: id,
-            p_fighter_type_id: selectedFighterTypeId,
-            p_fighter_name: fighterName,
-            p_cost: parseInt(fighterCost),
-            p_selected_equipment_ids: equipmentIds,
-            p_user_id: user.id  // Use the current user's ID from auth
+            "p_gang_type_id": gang_type_id
           })
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.message?.includes('Not enough credits')) {
-          throw new Error('Not enough credits to add this fighter');
-        }
-        throw new Error('Failed to add fighter');
-      }
-
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      
       const data = await response.json();
+      const processedTypes = data
+        .map((type: any) => ({
+          id: type.id,
+          fighter_type_id: type.id,
+          fighter_type: type.fighter_type,
+          fighter_class: type.fighter_class,
+          sub_type: type.sub_type,
+          fighter_sub_type_id: type.fighter_sub_type_id,
+          cost: type.cost,
+          total_cost: type.total_cost,
+          equipment_selection: type.equipment_selection,
+          default_equipment: type.default_equipment || [],
+          special_rules: type.special_rules || []
+        }))
+        .sort((a: FighterType, b: FighterType) => {
+          const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+          const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+          if (rankA !== rankB) return rankA - rankB;
+          return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+        });
 
-      if (!data?.fighter_id) {
-        throw new Error('Failed to add fighter');
-      }
-
-      const actualCost = parseInt(fighterCost);
-      const newGangCredits = credits - actualCost;
-      const newRating = rating + actualCost;
-      setCredits(newGangCredits);
-      setRating(newRating);
-
-      const newFighter = {
-        id: data.fighter_id,
-        fighter_name: fighterName,
-        fighter_type_id: selectedFighterTypeId,
-        fighter_type: data.fighter_type,
-        fighter_class: data.fighter_class,
-        credits: actualCost,
-        movement: data.stats.movement,
-        weapon_skill: data.stats.weapon_skill,
-        ballistic_skill: data.stats.ballistic_skill,
-        strength: data.stats.strength,
-        toughness: data.stats.toughness,
-        wounds: data.stats.wounds,
-        initiative: data.stats.initiative,
-        attacks: data.stats.attacks,
-        leadership: data.stats.leadership,
-        cool: data.stats.cool,
-        willpower: data.stats.willpower,
-        intelligence: data.stats.intelligence,
-        xp: data.stats.xp,
-        kills: 0,
-        weapons: data.equipment
-          .filter((item: any) => item.equipment_type === 'weapon')
-          .map((item: any) => ({
-            weapon_name: item.equipment_name,
-            weapon_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id,
-            weapon_profiles: item.weapon_profiles || []
-          })),
-        wargear: data.equipment
-          .filter((item: any) => item.equipment_type === 'wargear')
-          .map((item: any) => ({
-            wargear_name: item.equipment_name,
-            wargear_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id
-          })),
-        special_rules: data.special_rules || [],
-        skills: data.skills ? data.skills.reduce((acc: FighterSkills, skill: any) => {
-          acc[skill.skill_name] = {
-            id: skill.skill_id,
-            credits_increase: 0,
-            xp_cost: 0,
-            is_advance: false,
-            acquired_at: new Date().toISOString(),
-            fighter_injury_id: null
-          };
-          return acc;
-        }, {}) : {},
-        advancements: {
-          characteristics: {},
-          skills: {}
-        },
-        injuries: [],
-        free_skill: data.free_skill || false,
-        effects: {
-          injuries: [] as FighterEffect[],
-          advancements: [] as FighterEffect[],
-          bionics: [] as FighterEffect[],
-          cybernetics: [] as FighterEffect[],
-          user: [] as FighterEffect[]
-        },
-        base_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        },
-        current_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        }
-      } as FighterProps;
-
-      setFighters(prev => [...prev, newFighter]);
-      setShowGangAdditionsModal(false);
-      setFighterName('');
-      setSelectedGangAdditionTypeId('');
-      setFighterCost('');
-      setSelectedEquipmentIds([]);
-      setFetchError(null);
-
-      toast({
-        description: `${fighterName} added successfully`,
-        variant: "default"
-      });
-
-      return true;
+      setFighterTypes(processedTypes);
     } catch (error) {
-      console.error('Error adding fighter:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
-      return false;
+      console.error('Error fetching fighter types:', error);
+      toast({
+        description: "Failed to load fighter types",
+        variant: "destructive"
+      });
     }
+  };
+
+  const handleGangAdditionsModalOpen = () => {
+    setShowGangAdditionsModal(true);
+  };
+
+  // Add the handler for when a fighter is added
+  const handleFighterAdded = (newFighter: FighterProps, cost: number) => {
+    setFighters(prev => [...prev, newFighter]);
+    setCredits(prev => prev - cost);
+    setRating(prev => prev + cost);
   };
 
   const handleDeleteFighter = async (fighterId: string) => {
@@ -910,474 +693,22 @@ const handleAlignmentChange = (value: string) => {
     </div>
   );
 
-  const addFighterModalContent = (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          Fighter Name
-        </label>
-        <Input
-          type="text"
-          placeholder="Fighter name"
-          value={fighterName}
-          onChange={(e) => setFighterName(e.target.value)}
-          className="w-full"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          Fighter Type
-        </label>
-        <select
-          value={selectedFighterTypeId}
-          onChange={handleFighterTypeChange}
-          className="w-full p-2 border rounded"
-        >
-          <option value="">Select fighter type</option>
-          {/* Modified dropdown options to properly handle sub-types */}
-          {Array.from(new Set(fighterTypes.map(type => type.fighter_type))).map(uniqueType => {
-            const matchingFighters = fighterTypes.filter(ft => ft.fighter_type === uniqueType);
-
-            // Find the selected sub-type if it matches this fighter type
-            const selectedSubType = selectedSubTypeId
-              ? matchingFighters.find(t => t.id === selectedSubTypeId)
-              : null;
-
-            // Find the cheapest fighter for this type
-            const lowestCostFighter = matchingFighters.reduce((lowest, current) =>
-              current.total_cost < lowest.total_cost ? current : lowest
-            );
-
-            // Show the selected sub-type if available; otherwise, fall back to the cheapest option for this fighter type
-            if (selectedSubType) {
-              return (
-                <option key={selectedSubType.id} value={selectedSubType.id}>
-                  {uniqueType} ({selectedSubType.fighter_class}) - {lowestCostFighter.total_cost} credits
-                </option>
-              );
-            } else {
-              return (
-                <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
-                  {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
-                </option>
-              );
-            }
-          })}
-        </select>
-      </div>
-
-      {/* Conditionally show sub-type dropdown if there are available sub-types */}
-      {availableSubTypes.length > 0 && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Fighter Sub-Type
-          </label>
-          <select
-            value={selectedSubTypeId}
-            onChange={handleSubTypeChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Select fighter sub-type</option>
-            {[...availableSubTypes]
-              .sort((a, b) => {
-                const aName = a.sub_type_name.toLowerCase();
-                const bName = b.sub_type_name.toLowerCase();
-
-                // Always keep "Default" or "Vatborn" first
-                const isAFirst = aName === 'default' || aName === 'vatborn';
-                const isBFirst = bName === 'default' || bName === 'vatborn';
-                if (isAFirst && !isBFirst) return -1;
-                if (!isAFirst && isBFirst) return 1;
-
-                // Otherwise sort by cost, then name
-                const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
-                const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
-                if (aCost !== bCost) return aCost - bCost;
-
-                return aName.localeCompare(bName);
-              })
-              .map((subType) => {
-                const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
-                const lowestSubTypeCost = Math.min(
-                  ...availableSubTypes.map(sub =>
-                    fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
-                  )
-                );
-                const diff = subTypeCost - lowestSubTypeCost;
-                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
-
-                return (
-                  <option key={subType.id} value={subType.id}>
-                    {subType.sub_type_name} {costLabel}
-                  </option>
-                );
-              })}
-          </select>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          Cost (credits)
-        </label>
-        <Input
-          type="number"
-          value={fighterCost}
-          onChange={(e) => setFighterCost(e.target.value)}
-          className="w-full"
-          min={0}
-        />
-        {selectedFighterTypeId && (
-          <p className="text-sm text-gray-500">
-            Base cost: {fighterTypes.find(t => t.id === selectedFighterTypeId)?.total_cost} credits
-          </p>
-        )}
-      </div>
-
-      {fetchError && <p className="text-red-500">{fetchError}</p>}
-    </div>
-  );
-
-  const handleGangAdditionsModalOpen = async () => {
-    // Only fetch if we haven't already loaded the gang addition types
-    if (gangAdditionTypes.length === 0) {
-      try {
-        const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
-            body: JSON.stringify({
-              "p_is_gang_addition": true
-            })
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch gang addition types');
-        const data = await response.json();
-        
-        setGangAdditionTypes(data);
-      } catch (error) {
-        console.error('Error fetching gang addition types:', error);
-        toast({
-          description: "Failed to load gang additions",
-          variant: "destructive"
-        });
-        return; // Don't open modal if fetch failed
-      }
-    }
-    setShowGangAdditionsModal(true);
-  };
-
-  const renderEquipmentSelection = () => {
-    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-    if (!selectedType?.equipment_selection?.weapons) return null;
-
-    const { weapons } = selectedType.equipment_selection;
-    const isOptional = weapons.select_type === 'optional';
-    const isSingle = weapons.select_type === 'single';
-    
-    // Group equipment options by category
-    const categorizedOptions: Record<string, any[]> = {};
-    
-    // Check if options exists before attempting to iterate over it
-    if (weapons.options && Array.isArray(weapons.options)) {
-      console.log('Equipment options:', weapons.options);
-      
-      weapons.options.forEach(option => {
-        const optionAny = option as any;
-        
-        // Get category name, ensure it has a value or use a default
-        const categoryName = optionAny.equipment_category || inferCategoryFromEquipmentName(optionAny.equipment_name || '');
-        const categoryKey = categoryName.toLowerCase();
-        
-        console.log(`Item: ${optionAny.equipment_name}, Category: ${categoryName}, Key: ${categoryKey}`);
-        
-        // Initialize category array if it doesn't exist
-        if (!categorizedOptions[categoryKey]) {
-          categorizedOptions[categoryKey] = [];
-        }
-        
-        // Add option to the appropriate category
-        categorizedOptions[categoryKey].push({
-          ...option,
-          displayCategory: categoryName  // Keep original case for display
-        });
-      });
-    }
-    
-    console.log('Categorized options:', categorizedOptions);
-
-    // Sort categories according to equipmentCategoryRank
-    const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
-      const rankA = equipmentCategoryRank[a] ?? Infinity;
-      const rankB = equipmentCategoryRank[b] ?? Infinity;
-      return rankA - rankB;
-    });
-    
-    console.log('Sorted categories:', sortedCategories);
-
-    return (
-      <div className="space-y-3">
-        {weapons.default && weapons.default.length > 0 && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Default Equipment
-            </label>
-            <div className="space-y-1.5">
-              {weapons.default.map((item, index) => {
-                // Access equipment_name with type assertion for safety
-                const defaultItem = item as any;
-                const equipmentName = defaultItem.equipment_name || "Tunnelling claw (Ambot)";
-                
-                return (
-                  <div key={`${item.id}-${index}`} className="flex items-center gap-2">
-                    <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
-                      {item.quantity}x {equipmentName}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {weapons.options && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
-            </label>
-            
-            {sortedCategories.map(category => {
-              const displayCategory = categorizedOptions[category][0].displayCategory;
-              
-              return (
-                <div key={category} className="mt-3">
-                  <p className="text-xs text-gray-500 mb-1">
-                    {displayCategory}
-                  </p>
-                  
-                  <div className="space-y-1.5">
-                    {categorizedOptions[category]
-                      .sort((a, b) => {
-                        // Sort alphabetically within category
-                        const nameA = a.equipment_name || '';
-                        const nameB = b.equipment_name || '';
-                        return nameA.localeCompare(nameB);
-                      })
-                      .map((option) => (
-                        <div key={option.id} className="flex items-center gap-2">
-                          <input
-                            type={isSingle ? 'radio' : 'checkbox'}
-                            name="equipment-selection"
-                            id={option.id}
-                            checked={selectedEquipmentIds.includes(option.id)}
-                            onChange={(e) => {
-                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                              const baseCost = selectedType?.total_cost || 0;
-                              
-                              // Get the option's cost
-                              const optionCost = option.cost || 0;
-                              
-                              if (e.target.checked) {
-                                // Add this option
-                                if (isSingle || isOptional) {
-                                  // For single or optional selection, replace previous selection
-                                  const prevSelectedId = selectedEquipmentIds[0];
-                                  let prevSelectedCost = 0;
-                                  
-                                  // Find cost of previously selected item if any
-                                  if (prevSelectedId) {
-                                    const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
-                                    prevSelectedCost = prevOption?.cost || 0;
-                                  }
-                                  
-                                  // Update IDs and cost
-                                  setSelectedEquipmentIds([option.id]);
-                                  setFighterCost(String(baseCost - prevSelectedCost + optionCost));
-                                } else {
-                                  // For multiple selection, add to existing selections
-                                  setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                                  setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
-                                }
-                              } else {
-                                // Remove this option
-                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                                setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
-                              }
-                            }}
-                          />
-                          <label htmlFor={option.id} className="text-sm">
-                            {option.equipment_name || 'Loading...'}
-                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
-                          </label>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const handleAddFighterClick = async () => {
-    if (fighterTypes.length === 0) {
-      try {
-        const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
-            body: JSON.stringify({
-              "p_gang_type_id": gang_type_id
-            })
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch fighter types');
-        
-        const data = await response.json();
-        const processedTypes = data
-          .map((type: any) => ({
-            id: type.id,
-            fighter_type_id: type.id,
-            fighter_type: type.fighter_type,
-            fighter_class: type.fighter_class,
-            sub_type: type.sub_type,
-            fighter_sub_type_id: type.fighter_sub_type_id,
-            cost: type.cost,
-            total_cost: type.total_cost,
-          }))
-          .sort((a: FighterType, b: FighterType) => {
-            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-            if (rankA !== rankB) return rankA - rankB;
-            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
-          });
-
-        setFighterTypes(processedTypes);
-      } catch (error) {
-        console.error('Error fetching fighter types:', error);
-        toast({
-          description: "Failed to load fighter types",
-          variant: "destructive"
-        });
-        return; // Don't open modal if fetch failed
-      }
-    }
-    setShowAddFighterModal(true);
-  };
-
-  const handleAddVehicleModalOpen = async () => {
-    // Only fetch if we haven't already loaded the vehicle types
-    if (vehicleTypes.length === 0) {
-      try {
-        const response = await fetch(`/api/gangs/${id}/vehicles`);
-        if (!response.ok) throw new Error('Failed to fetch vehicle types');
-        const data = await response.json();
-        setVehicleTypes(data);
-      } catch (error) {
-        console.error('Error fetching vehicle types:', error);
-        setVehicleError('Failed to load vehicle types');
-        return; // Don't open modal if fetch failed
-      }
-    }
+  const handleAddVehicleModalOpen = () => {
     setShowAddVehicleModal(true);
   };
 
-  const handleAddVehicle = async () => {
-    if (!selectedVehicleTypeId) {
-      setVehicleError('Please select a vehicle type');
-      return false;
-    }
-
-    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
-    if (!selectedVehicleType) {
-      throw new Error('Vehicle type not found');
-    }
-
-    const cost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
-    const name = vehicleName || selectedVehicleType.vehicle_type;
-
-    try {
-      // Optimistically update credits
-      const newCredits = credits - cost;
-      setCredits(newCredits);
-
-      const response = await fetch(`/api/gangs/${id}/vehicles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vehicleTypeId: selectedVehicleTypeId,
-          cost: cost,
-          vehicleName: name,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Revert credits on error
-        setCredits(credits);
-        throw new Error(data.error || 'Failed to add vehicle');
-      }
-
-      // After successful API response, call onVehicleAdd with the new vehicle
-      if (onVehicleAdd) {
-        const newVehicle: VehicleProps = {
-          id: data.id,
-          vehicle_name: name,
-          cost: cost,
-          vehicle_type: selectedVehicleType.vehicle_type,
-          gang_id: id,
-          fighter_id: null,
-          movement: selectedVehicleType.movement,
-          front: selectedVehicleType.front,
-          side: selectedVehicleType.side,
-          rear: selectedVehicleType.rear,
-          hull_points: selectedVehicleType.hull_points,
-          handling: selectedVehicleType.handling,
-          save: selectedVehicleType.save,
-          body_slots: selectedVehicleType.body_slots,
-          body_slots_occupied: 0,
-          drive_slots: selectedVehicleType.drive_slots,
-          drive_slots_occupied: 0,
-          engine_slots: selectedVehicleType.engine_slots,
-          engine_slots_occupied: 0,
-          special_rules: selectedVehicleType.special_rules || [],
-          created_at: new Date().toISOString(),
-          equipment: []
-        };
-        onVehicleAdd(newVehicle);
-      }
-
-      toast({
-        description: `${name} added to gang successfully`,
-        variant: "default"
-      });
-
-      setShowAddVehicleModal(false);
-      setSelectedVehicleTypeId('');
-      setVehicleCost('');
-      setVehicleName('');
-      setVehicleError(null);
-      return true;
-    } catch (error) {
-      console.error('Error details:', error);
-      setVehicleError(error instanceof Error ? error.message : 'Failed to add vehicle');
-      return false;
+  const handleVehicleAdded = (newVehicle: VehicleProps) => {
+    // Update credits using payment_cost (what the user actually paid)
+    const paymentCost = newVehicle.payment_cost !== undefined ? newVehicle.payment_cost : newVehicle.cost;
+    setCredits(prev => prev - paymentCost);
+    
+    // Note: Unassigned vehicles don't contribute to gang rating yet
+    // They'll contribute to the rating when assigned to a fighter
+    // No need to update the rating here
+    
+    // Pass the new vehicle up to the parent
+    if (onVehicleAdd) {
+      onVehicleAdd(newVehicle);
     }
   };
 
@@ -1431,52 +762,6 @@ const handleAlignmentChange = (value: string) => {
     setFighters(newFighters);
   };
 
-  const handleGangAdditionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const typeId = e.target.value;
-    setSelectedGangAdditionTypeId(typeId);
-    setSelectedFighterTypeId(typeId);
-    if (typeId) {
-      const selectedType = gangAdditionTypes.find(t => t.id === typeId);
-      setGangAdditionCost(selectedType?.total_cost.toString() || '');
-      setFighterCost(selectedType?.total_cost.toString() || '');
-    } else {
-      setGangAdditionCost('');
-      setFighterCost('');
-    }
-  };
-
-  // Simple helper function to infer category from name when API doesn't provide it
-  const inferCategoryFromEquipmentName = (name: string): string => {
-    const lowerName = name.toLowerCase();
-    
-    if (lowerName.includes('claw') || 
-        lowerName.includes('baton') || 
-        lowerName.includes('sword') || 
-        lowerName.includes('hammer') ||
-        lowerName.includes('fist') ||
-        lowerName.includes('knife') ||
-        lowerName.includes('blade')) {
-      return 'Close Combat Weapons';
-    }
-    
-    if (lowerName.includes('gun') || 
-        lowerName.includes('pistol') || 
-        lowerName.includes('shotgun') ||
-        lowerName.includes('rifle') ||
-        lowerName.includes('lasgun') ||
-        lowerName.includes('blaster')) {
-      return 'Special Weapons';
-    }
-    
-    if (lowerName.includes('armour') || 
-        lowerName.includes('armor') || 
-        lowerName.includes('carapace')) {
-      return 'Armour';
-    }
-    
-    return 'Other Equipment';
-  };
-
   return (
     <div className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}>
 
@@ -1514,7 +799,7 @@ const handleAlignmentChange = (value: string) => {
           {/* Right Section: Content */}
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold">{name}</h2>
+              <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2">
                 {/* View Mode Dropdown */}
                 <div className="w-full print:hidden">
@@ -1609,7 +894,7 @@ const handleAlignmentChange = (value: string) => {
               />
               <StatItem
                 label="Wealth"
-                value={rating + credits}
+                value={rating + credits + unassignedVehiclesValue}
                 isEditing={false}
                 editedValue={typeof rating === 'number' ? rating.toString() : '0'}
                 onChange={() => {}}
@@ -1682,275 +967,33 @@ const handleAlignmentChange = (value: string) => {
           )}
 
           {showAddFighterModal && (
-            <Modal
-              title="Add Fighter"
-              headerContent={
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Gang Credits</span>
-                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                    {initialCredits}
-                  </span>
-                </div>
-              }
-              content={addFighterModalContent}
-              onClose={() => {
-                setShowAddFighterModal(false);
-                // Reset all form fields
-                setFighterName('');
-                setSelectedFighterTypeId('');
-                setSelectedSubTypeId(''); // Reset sub-type selection
-                setAvailableSubTypes([]); // Clear available sub-types
-                setFighterCost('');
-                setFetchError(null);
-              }}
-              onConfirm={handleAddFighter}
-              confirmText="Add Fighter"
-              confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost || 
-                (availableSubTypes.length > 0 && !selectedSubTypeId)}
+            <AddFighter
+              showModal={showAddFighterModal}
+              setShowModal={setShowAddFighterModal}
+              fighterTypes={fighterTypes}
+              gangId={id}
+              initialCredits={credits}
+              onFighterAdded={handleFighterAdded}
             />
           )}
 
           {showAddVehicleModal && (
-            <Modal
-              title="Add Vehicle"
-              headerContent={
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Gang Credits</span>
-                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                    {initialCredits}
-                  </span>
-                </div>
-              }
-              content={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Vehicle Name
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Enter vehicle name"
-                      value={vehicleName}
-                      onChange={(e) => setVehicleName(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Vehicle Type
-                    </label>
-                    <select
-                      value={selectedVehicleTypeId}
-                      onChange={(e) => {
-                        setSelectedVehicleTypeId(e.target.value);
-                        const vehicle = vehicleTypes.find(v => v.id === e.target.value);
-                        if (vehicle) {
-                          setVehicleCost(vehicle.cost.toString());
-                        }
-                      }}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select vehicle type</option>
-                      {vehicleTypes.map((type: VehicleType) => (
-                        <option key={type.id} value={type.id}>
-                          {type.vehicle_type} - {type.cost} credits
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Cost (credits)
-                    </label>
-                    <Input
-                      type="number"
-                      value={vehicleCost}
-                      onChange={(e) => setVehicleCost(e.target.value)}
-                      className="w-full"
-                      min={0}
-                    />
-                    {selectedVehicleTypeId && (
-                      <p className="text-sm text-gray-500">
-                        Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
-                      </p>
-                    )}
-                  </div>
-
-                  {vehicleError && <p className="text-red-500">{vehicleError}</p>}
-                </div>
-              }
-              onClose={() => {
-                setShowAddVehicleModal(false);
-                setSelectedVehicleTypeId('');
-                setVehicleCost('');
-                setVehicleName('');
-                setVehicleError(null);
-              }}
-              onConfirm={handleAddVehicle}
-              confirmText="Add Vehicle"
-              confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
+            <AddVehicle
+              showModal={showAddVehicleModal}
+              setShowModal={setShowAddVehicleModal}
+              gangId={id}
+              initialCredits={credits}
+              onVehicleAdd={handleVehicleAdded}
             />
           )}
 
           {showGangAdditionsModal && (
-            <Modal
-              title="Gang Additions"
-              headerContent={
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Gang Credits</span>
-                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                    {initialCredits}
-                  </span>
-                </div>
-              }
-              content={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Fighter Name
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Fighter name"
-                      value={fighterName}
-                      onChange={(e) => setFighterName(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Fighter Class
-                    </label>
-                    <select
-                      value={selectedGangAdditionClass}
-                      onChange={handleGangAdditionClassChange}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select Fighter Class</option>
-
-                      {Object.entries(
-                        Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
-                          .sort((a, b) => {
-                            const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
-                            const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
-                            return rankA - rankB;
-                          })
-                          .reduce((groups, classType) => {
-                            const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
-                            let groupLabel = "Misc."; // Default category for unlisted fighter classes
-
-                            if (rank <= 2) groupLabel = "Hangers-on & Brutes";
-                            else if (rank <= 10) groupLabel = "Vehicle Crews";
-                            else if (rank <= 29) groupLabel = "Hired Guns";
-                            else if (rank <= 39) groupLabel = "Equipment";
-                            else if (rank <= 49) groupLabel = "Alliances: Criminal Organisations";
-                            else if (rank <= 59) groupLabel = "Alliances: Merchant Guilds";
-                            else if (rank <= 69) groupLabel = "Alliances: Noble Houses";
-
-                            if (!groups[groupLabel]) groups[groupLabel] = [];
-                            groups[groupLabel].push(classType);
-                            return groups;
-                          }, {} as Record<string, string[]>)
-                      ).map(([groupLabel, classList]) => (
-                        <optgroup key={groupLabel} label={groupLabel}>
-                          {classList.map(classType => (
-                            <option key={classType} value={classType}>
-                              {classType}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Fighter Type
-                    </label>
-                    <select
-                      value={selectedGangAdditionTypeId}
-                      onChange={handleGangAdditionTypeChange}
-                      className="w-full p-2 border rounded"
-                      disabled={!selectedGangAdditionClass}
-                    >
-                      <option value="">Select Fighter Type</option>
-
-                      {Object.entries(
-                        filteredGangAdditionTypes
-                          .slice() // Create a shallow copy to avoid mutating the original array
-                          .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
-                          .reduce((groups, type) => {
-                            const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
-
-                            if (!groups[groupLabel]) groups[groupLabel] = [];
-                            groups[groupLabel].push(type);
-                            return groups;
-                          }, {} as Record<string, typeof filteredGangAdditionTypes>)
-                      )
-                        // Sort optgroup labels by predefined priority
-                        .sort(([groupA], [groupB]) => {
-                          const alignmentOrder: Record<string, number> = {
-                            "law abiding": 1,
-                            "outlaw": 2,
-                            "unaligned": 3,
-                          };
-
-                          return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
-                        })
-                        .map(([groupLabel, fighterList]) => (
-                          <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
-                            {fighterList.map(type => (
-                              <option key={type.id} value={type.id}>
-                                {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Cost (credits)
-                    </label>
-                    <Input
-                      type="number"
-                      value={fighterCost}
-                      onChange={(e) => setFighterCost(e.target.value)}
-                      className="w-full"
-                      min={0}
-                    />
-                    {selectedGangAdditionTypeId && (
-                      <p className="text-sm text-gray-500">
-                        Base cost: {gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)?.total_cost} credits
-                      </p>
-                    )}
-                  </div>
-
-                  {renderEquipmentSelection()}
-
-                  {fetchError && <p className="text-red-500">{fetchError}</p>}
-                </div>
-              }
-              onClose={() => {
-                setShowGangAdditionsModal(false);
-                setFighterName('');
-                setSelectedGangAdditionTypeId('');
-                setFighterCost('');
-                setSelectedEquipmentIds([]);
-                setFetchError(null);
-              }}
-              onConfirm={handleAddFighter}
-              confirmText="Add Fighter"
-              confirmDisabled={!selectedGangAdditionTypeId || !fighterName || !fighterCost ||
-                (gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
-                  ?.equipment_selection?.weapons?.select_type === 'single' &&
-                  !selectedEquipmentIds.length &&
-                  !gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId)
-                    ?.equipment_selection?.weapons?.default)}
+            <GangAdditions
+              showModal={showGangAdditionsModal}
+              setShowModal={setShowGangAdditionsModal}
+              gangId={id}
+              initialCredits={credits}
+              onFighterAdded={handleFighterAdded}
             />
           )}
         </div>

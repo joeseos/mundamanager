@@ -209,7 +209,7 @@ export function InjuriesList({
   return (
     <div className="mt-6">
       <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">Lasting Injuries</h2>
+        <h2 className="text-xl md:text-2xl font-bold">Lasting Injuries</h2>
         <Button 
           onClick={handleOpenModal}
           className="bg-black hover:bg-gray-800 text-white"
@@ -290,16 +290,20 @@ export function InjuriesList({
                   disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
                 >
                   <option value="">
-                    {isLoadingInjuries && localAvailableInjuries.length === 0 
-                      ? "Loading injuries..." 
+                    {isLoadingInjuries && localAvailableInjuries.length === 0
+                      ? "Loading injuries..."
                       : "Select a Lasting Injury"
                     }
                   </option>
-                  {localAvailableInjuries.map((injury) => (
-                    <option key={injury.id} value={injury.id}>
-                      {injury.effect_name}
-                    </option>
-                  ))}
+                  {localAvailableInjuries
+                    .slice() // avoid mutating the original array
+                    .sort((a, b) => a.effect_name.localeCompare(b.effect_name))
+                    .map((injury) => (
+                      <option key={injury.id} value={injury.id}>
+                        {injury.effect_name}
+                      </option>
+                    ))
+                  }
                 </select>
               </div>
             </div>
@@ -325,7 +329,7 @@ export function InjuriesList({
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
             <div className="border-b px-[10px] py-2 flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-bold text-gray-900">Send ganger into recovery?</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Send ganger into recovery?</h3>
               </div>
               <div className="flex items-center gap-3">
                 <button

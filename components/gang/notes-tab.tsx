@@ -78,7 +78,7 @@ export function GangNotes({ gangId, initialNote = '' }: GangNotesProps) {
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold mb-6">Gang Notes</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-6">Gang Notes</h2>
             <div className="flex items-center gap-2">
               {isEditing && (
                 <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>

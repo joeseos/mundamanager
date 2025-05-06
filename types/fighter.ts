@@ -4,10 +4,11 @@ import { Equipment as BaseEquipment } from '@/types/equipment';
 export interface FighterType {
   id: string;
   fighter_type: string;
-  gang_type_id: string;
-  gang_type: string;
   fighter_class: string;
   fighter_class_id?: string;
+  gang_type_id: string;
+  gang_type: string;
+  fighter_sub_type: string;
   fighter_sub_type_id?: string;
   cost: number;
   movement: number;
@@ -32,6 +33,7 @@ export interface WargearItem {
   wargear_id: string;
   wargear_name: string;
   cost: number;
+  is_master_crafted?: boolean;
 }
 
 export interface WeaponProps {
@@ -40,6 +42,7 @@ export interface WeaponProps {
   weapon_name: string;
   cost: number;
   weapon_profiles: any[];
+  is_master_crafted?: boolean;
 }
 
 export interface FighterEffectCategory {
@@ -128,6 +131,9 @@ export interface Vehicle {
   equipment: Array<BaseEquipment & Partial<VehicleEquipment> & {
     vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   }>;
+  effects?: {
+    [key: string]: FighterEffect[];
+  };
 }
 
 // Define a standard skills type that all components should use

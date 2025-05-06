@@ -5,10 +5,11 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $function$
 DECLARE
   v_result jsonb;
   v_fighter_xp integer;
+  v_advancements_category_id UUID;
 BEGIN
   -- Get fighter's current XP
   SELECT xp INTO v_fighter_xp
@@ -18,23 +19,40 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
+  
+  -- Get the advancements category ID
+  SELECT id INTO v_advancements_category_id
+  FROM fighter_effect_categories
+  WHERE category_name = 'advancements';
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Advancements category not found';
+  END IF;
 
   -- Build the final result as JSON
-  WITH current_values AS (
-    -- Get the current values for each characteristic
+  WITH effect_type_costs AS (
+    -- Get base costs from fighter_effect_types table
     SELECT 
-      fc.fighter_id,
-      fc.characteristic_id,
-      c.name as characteristic_name,
-      fc.times_increased,
-      c.xp_cost as base_xp_cost,
-      c.credits_increase
-    FROM fighter_characteristics fc
-    JOIN characteristics c ON c.id = fc.characteristic_id
-    WHERE fc.fighter_id = get_fighter_available_advancements.fighter_id
+      fet.id AS fighter_effect_type_id,
+      fet.effect_name,
+      COALESCE((fet.type_specific_data->>'xp_cost')::integer, 5) AS base_xp_cost,
+      COALESCE((fet.type_specific_data->>'credits_increase')::integer, 10) AS base_credits_increase
+    FROM fighter_effect_types fet
+    WHERE fet.fighter_effect_category_id = v_advancements_category_id
+  ),
+  advancement_counts AS (
+    -- Count how many times each fighter has advanced each characteristic
+    SELECT 
+      fe.fighter_effect_type_id,
+      COUNT(*) as times_increased
+    FROM fighter_effects fe
+    JOIN fighter_effect_types fet ON fet.id = fe.fighter_effect_type_id
+    WHERE fe.fighter_id = get_fighter_available_advancements.fighter_id
+    AND fet.fighter_effect_category_id = v_advancements_category_id
+    GROUP BY fe.fighter_effect_type_id
   ),
   fighter_type_info AS (
-    -- Get fighter type information for base values
+    -- Get fighter type information
     SELECT 
       ft.*
     FROM fighters f
@@ -44,25 +62,25 @@ BEGIN
   available_advancements AS (
     -- Get all possible characteristic improvements and determine availability
     SELECT 
-      c.id,
-      c.name as characteristic_name,
-      c.code as characteristic_code,
-      c.xp_cost as base_xp_cost,
-      -- Updated XP cost calculation: base_xp_cost + (2 * times_increased)
+      etc.fighter_effect_type_id as id,
+      etc.effect_name as characteristic_name,
+      LOWER(REPLACE(etc.effect_name, ' ', '_')) as characteristic_code,
+      etc.base_xp_cost,
+      -- Calculate XP cost based on base cost and times increased
       CASE 
-        WHEN COALESCE(cv.times_increased, 0) = 0 THEN c.xp_cost
-        ELSE c.xp_cost + (2 * COALESCE(cv.times_increased, 0))
+        WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
+        ELSE etc.base_xp_cost + (2 * ac.times_increased)
       END as xp_cost,
-      c.credits_increase,
-      COALESCE(cv.times_increased, 0) as times_increased,
+      etc.base_credits_increase as credits_increase,
+      COALESCE(ac.times_increased, 0) as times_increased,
       true as is_available,
       CASE 
-        WHEN COALESCE(cv.times_increased, 0) = 0 THEN v_fighter_xp >= c.xp_cost
-        ELSE v_fighter_xp >= (c.xp_cost + (2 * COALESCE(cv.times_increased, 0)))
+        WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
+        ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
-    FROM characteristics c
+    FROM effect_type_costs etc
     CROSS JOIN fighter_type_info fti
-    LEFT JOIN current_values cv ON cv.characteristic_id = c.id
+    LEFT JOIN advancement_counts ac ON ac.fighter_effect_type_id = etc.fighter_effect_type_id
   ),
   categorized_advancements AS (
     SELECT
@@ -96,4 +114,4 @@ BEGIN
 
   RETURN v_result;
 END;
-$$;
+$function$;

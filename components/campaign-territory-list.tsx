@@ -25,9 +25,10 @@ interface TerritoryListProps {
   isAdmin: boolean;
   campaignId: string;
   campaignTypeId: string;
+  onTerritoryAdd?: (territory: CampaignTerritory) => void;
 }
 
-export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: TerritoryListProps) {
+export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onTerritoryAdd }: TerritoryListProps) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
@@ -126,11 +127,19 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId }: T
 
       if (error) throw error;
 
-      // Update local state
-      setCampaignTerritories(prev => [...prev, {
+      // Create new territory object
+      const newTerritory = {
         territory_id: territoryId,
         territory_name: territoryName
-      }]);
+      };
+
+      // Update local state
+      setCampaignTerritories(prev => [...prev, newTerritory]);
+
+      // Notify parent component
+      if (onTerritoryAdd) {
+        onTerritoryAdd(newTerritory);
+      }
 
       toast({
         description: `Added ${territoryName} to campaign`

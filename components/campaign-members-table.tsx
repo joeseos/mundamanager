@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from "@/components/modal"
+import Link from 'next/link'
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -414,7 +415,12 @@ export default function MembersTable({
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {member.gangs[0].gang_name}
+                        <Link 
+                          href={`/gang/${member.gangs[0].gang_id}`} 
+                          className="hover:text-gray-600 transition-colors"
+                        >
+                          {member.gangs[0].gang_name}
+                        </Link>
                         {(currentUserId === member.user_id || isAdmin) && (
                           <button
                             onClick={() => {
@@ -516,7 +522,12 @@ export default function MembersTable({
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {member.gangs[0].gang_name}
+                        <Link 
+                          href={`/gang/${member.gangs[0].gang_id}`} 
+                          className="hover:text-gray-600 transition-colors"
+                        >
+                          {member.gangs[0].gang_name}
+                        </Link>
                         {(currentUserId === member.user_id || isAdmin) && (
                           <button
                             onClick={() => {

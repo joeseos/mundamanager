@@ -43,6 +43,10 @@ interface FighterDetailsCardProps {
   id: string;
   name: string;
   type: string;
+  sub_type?: {
+    fighter_sub_type: string;
+    fighter_sub_type_id: string;
+  };
   label?: string;
   credits: number;
   movement: number;
@@ -133,6 +137,24 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
       }
     });
   }
+  
+  // Apply modifiers from vehicle effects (lasting damage)
+  if (baseStats.effects && baseStats.effects["lasting damages"]) {
+    baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
+      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+        effect.fighter_effect_modifiers.forEach(modifier => {
+          // Convert stat_name to lowercase to match our stats object keys
+          const statName = modifier.stat_name.toLowerCase();
+          
+          // Only apply if the stat exists in our stats object
+          if (statName in stats) {
+            // Apply the numeric modifier to the appropriate stat
+            stats[statName as keyof typeof stats] += modifier.numeric_value;
+          }
+        });
+      }
+    });
+  }
 
   return stats;
 };
@@ -141,6 +163,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
   name,
   type,
+  sub_type,
   label,
   credits,
   movement,
@@ -178,6 +201,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     id,
     fighter_name: name,
     fighter_type: type,
+    fighter_sub_type: sub_type,
     credits,
     movement,
     weapon_skill,
@@ -237,7 +261,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       intelligence
     }
   }), [
-    id, name, type, credits, movement, weapon_skill, ballistic_skill,
+    id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
     strength, toughness, wounds, initiative, attacks, leadership,
     cool, willpower, intelligence, xp, kills, advancements, effects,
     fighter_class
@@ -317,6 +341,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                   {type}
                   {fighter_class && ` (${fighter_class})`}
+                  {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
                 </div>
               </div>
             </div>
@@ -335,10 +360,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <p className="text-lg text-gray-600">
-          Kills: {kills}
-        </p>
+      <div className="flex flex-wrap justify-between items-center">
+        <div className="text-base text-gray-600">
+          <div>Kills: {kills}</div>
+        </div>
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
           <Button
             variant="secondary"
@@ -356,21 +381,20 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </Button>
         </div>
       </div>
-
-      <div className="space-y-2">
-        {fighter_class === 'Crew' && (
-          <p className="text-lg text-gray-600">
-            {vehicles?.[0]
-              ? vehicles[0].vehicle_name
-                ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
-                : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
-              : 'None'}
-          </p>
-        )}
-      </div>
       <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
+        <div className="mt-4">
+          {fighter_class === 'Crew' && (
+            <p className="text-base text-gray-600">
+              {vehicles?.[0]
+                ? vehicles[0].vehicle_name
+                  ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                  : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
+                : 'None'}
+            </p>
+          )}
+        </div>
     </div>
   );
 }); 

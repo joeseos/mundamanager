@@ -10,28 +10,14 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import MemberSearchBar from "@/components/campaign-member-search-bar"
 import MembersTable from "@/components/campaign-members-table"
+import Link from "next/link";
+import CampaignBattleLogsList from "@/components/campaign-battle-logs-list";
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
 }
-
-interface GangResponse {
-  id: string;
-  name: string;
-  gang_type: string;
-  user: {
-    username: string;
-  } | null;
-}
-
-type GangWithUser = {
-  id: string;
-  name: string;
-  gang_type: string;
-  user: { username: string; } | undefined;
-};
 
 interface Member {
   user_id: string;
@@ -85,14 +71,18 @@ interface CampaignData {
   battles: {
     id: string;
     created_at: string;
+    scenario_number: number;
     scenario_name: string;
     attacker?: {
+      gang_id?: string;
       gang_name: string;
     };
     defender?: {
+      gang_id?: string;
       gang_name: string;
     };
     winner?: {
+      gang_id?: string;
       gang_name: string;
     };
   }[];
@@ -116,37 +106,28 @@ interface CampaignPageContentProps {
     battles: {
       id: string;
       created_at: string;
+      scenario_number: number;
       scenario_name: string;
       attacker?: {
+        gang_id?: string;
         gang_name: string;
       };
       defender?: {
+        gang_id?: string;
         gang_name: string;
       };
       winner?: {
+        gang_id?: string;
         gang_name: string;
       };
     }[];
   };
 }
 
-interface Scenario {
-  id: string;
-  scenario_name: string;
-}
-
-interface CampaignGang {
-  id: string;
-  name: string;
-}
-
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
 export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {
@@ -156,16 +137,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const [showGangModal, setShowGangModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
-  const [showBattleModal, setShowBattleModal] = useState(false);
   const { toast } = useToast();
   const supabase = createClient();
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
-  const [selectedScenario, setSelectedScenario] = useState('');
-  const [selectedAttacker, setSelectedAttacker] = useState('');
-  const [selectedDefender, setSelectedDefender] = useState('');
-  const [selectedWinner, setSelectedWinner] = useState('');
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const isLoadingRef = useRef(false);
 
   // Fetch user data once and determine role
@@ -420,6 +393,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    updated_at: string;
   }) => {
     setCampaignData(prev => ({
       ...prev,
@@ -458,61 +432,21 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     }
   };
 
-  const loadBattleData = async () => {
-    setIsLoadingBattleData(true);
-    try {
-      // Use existing data for gangs
-      const campaignGangs = campaignData.members.reduce<CampaignGang[]>((acc, member) => {
-        member.gangs.forEach((gang: Member['gangs'][0]) => {
-          acc.push({
-            id: gang.gang_id,
-            name: gang.gang_name
-          });
-        });
-        return acc;
-      }, []);
-      
-      // Only fetch scenarios if needed
-      const response = await fetch('/api/campaigns/battles', {
-        headers: {
-          'X-Campaign-Id': campaignData.id
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch battle data');
-      
-      const data = await response.json();
-      setScenarios(data.scenarios);
-      setAvailableGangs(campaignGangs); // Use local data instead
-    } catch (error) {
-      console.error('Error loading battle data:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to load battle data"
-      });
-    } finally {
-      setIsLoadingBattleData(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showBattleModal) {
-      loadBattleData();
-    }
-  }, [showBattleModal]);
-
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <Campaign 
           {...transformedData} 
           onRoleChange={setUserRole}
-          onUpdate={handleCampaignUpdate}
+          onUpdate={(updatedData) => {
+            handleCampaignUpdate(updatedData);
+            refreshData();
+          }}
         />
         
         {/* Campaign Members Section */}
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-2xl font-bold mb-4">Campaign Members</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Members</h2>
           {isAdmin && (
             <MemberSearchBar
               campaignId={campaignData.id}
@@ -536,7 +470,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
         {/* Campaign Territories Section */}
         <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
-          <h2 className="text-2xl font-bold mb-4">Campaign Territories</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Territories</h2>
           <div className="rounded-md border overflow-x-auto">
             <table className="text-sm">
               <thead>
@@ -570,7 +504,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
                               key={gang.id}
                               className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                             >
-                              <span>{gang.name}</span>
+                              <Link 
+                                href={`/gang/${gang.id}`} 
+                                className="hover:text-gray-600 transition-colors"
+                              >
+                                {gang.name}
+                              </Link>
                               {isAdmin && (
                                 <button
                                   onClick={(e) => {
@@ -617,54 +556,14 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
           </div>
         </div>
 
-        {/* Update the Battle Logs section */}
-        <div className="bg-white shadow-md rounded-lg p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Battle Logs</h2>
-            {isAdmin && (
-              <Button
-                onClick={() => setShowBattleModal(true)}
-                className="bg-black hover:bg-gray-800 text-white"
-              >
-                Add
-              </Button>
-            )}
-          </div>
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="px-4 py-2 text-left font-medium">Date</th>
-                  <th className="px-4 py-2 text-left font-medium">Scenario</th>
-                  <th className="px-4 py-2 text-left font-medium">Attacker</th>
-                  <th className="px-4 py-2 text-left font-medium">Defender</th>
-                  <th className="px-4 py-2 text-left font-medium">Winner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaignData.battles?.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-gray-500 italic text-center">
-                      No battles recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  campaignData.battles?.map((battle) => (
-                    <tr key={battle.id} className="border-b">
-                      <td className="px-4 py-2">
-                        {formatDate(battle.created_at)}
-                      </td>
-                      <td className="px-4 py-2">{battle.scenario_name || 'N/A'}</td>
-                      <td className="px-4 py-2">{battle.attacker?.gang_name || 'Unknown'}</td>
-                      <td className="px-4 py-2">{battle.defender?.gang_name || 'Unknown'}</td>
-                      <td className="px-4 py-2">{battle.winner?.gang_name || 'Unknown'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Battle Logs Section */}
+        <CampaignBattleLogsList
+          campaignId={campaignData.id}
+          battles={campaignData.battles || []}
+          isAdmin={isAdmin}
+          onBattleAdd={refreshData}
+          members={campaignData.members}
+        />
 
         {showGangModal && selectedTerritory && (
           <TerritoryGangModal
@@ -700,138 +599,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
               }
             }}
             confirmText="Delete"
-          />
-        )}
-
-        {/* Add the new Battle Log Modal */}
-        {showBattleModal && (
-          <Modal
-            title="Add Battle Log"
-            content={
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Scenario
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 rounded-md border border-gray-300"
-                    value={selectedScenario}
-                    onChange={(e) => setSelectedScenario(e.target.value)}
-                    disabled={isLoadingBattleData}
-                  >
-                    <option value="">Select scenario</option>
-                    {scenarios.map(scenario => (
-                      <option key={scenario.id} value={scenario.id}>
-                        {scenario.scenario_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Attacker
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 rounded-md border border-gray-300"
-                    value={selectedAttacker}
-                    onChange={(e) => setSelectedAttacker(e.target.value)}
-                    disabled={isLoadingBattleData}
-                  >
-                    <option value="">Select gang</option>
-                    {availableGangs.map(gang => (
-                      <option key={gang.id} value={gang.id}>
-                        {gang.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Defender
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 rounded-md border border-gray-300"
-                    value={selectedDefender}
-                    onChange={(e) => setSelectedDefender(e.target.value)}
-                    disabled={isLoadingBattleData}
-                  >
-                    <option value="">Select gang</option>
-                    {availableGangs.map(gang => (
-                      <option key={gang.id} value={gang.id}>
-                        {gang.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Winner
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 rounded-md border border-gray-300"
-                    value={selectedWinner}
-                    onChange={(e) => setSelectedWinner(e.target.value)}
-                    disabled={isLoadingBattleData}
-                  >
-                    <option value="">Select gang</option>
-                    {availableGangs.map(gang => (
-                      <option key={gang.id} value={gang.id}>
-                        {gang.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            }
-            onClose={() => {
-              setShowBattleModal(false);
-              setSelectedScenario('');
-              setSelectedAttacker('');
-              setSelectedDefender('');
-              setSelectedWinner('');
-            }}
-            onConfirm={async () => {
-              if (!selectedScenario || !selectedAttacker || !selectedDefender || !selectedWinner) {
-                toast({
-                  variant: "destructive",
-                  description: "Please fill in all fields"
-                });
-                return false;
-              }
-
-              try {
-                const response = await fetch('/api/campaigns/battles', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-Campaign-Id': campaignData.id
-                  },
-                  body: JSON.stringify({
-                    scenario_id: selectedScenario,
-                    attacker_id: selectedAttacker,
-                    defender_id: selectedDefender,
-                    winner_id: selectedWinner
-                  }),
-                });
-
-                if (!response.ok) throw new Error('Failed to create battle log');
-
-                await refreshData();
-                toast({
-                  description: "Battle log added successfully"
-                });
-                setShowBattleModal(false);  // Close modal after success
-                return false;  // Don't indicate pending async response
-              } catch (error) {
-                console.error('Error creating battle log:', error);
-                toast({
-                  variant: "destructive",
-                  description: "Failed to create battle log"
-                });
-                return false;
-              }
-            }}
-            confirmText="Save"
           />
         )}
       </div>

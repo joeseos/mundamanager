@@ -25,6 +25,7 @@ import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { FighterProps } from '@/types/fighter';
 import { Plus, Minus, X } from "lucide-react";
 import { Vehicle } from '@/types/fighter';
+import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
@@ -63,6 +64,10 @@ interface Fighter {
   fighter_type: {
     fighter_type: string;
     fighter_type_id: string;
+  };
+  fighter_sub_type?: {
+    fighter_sub_type: string;
+    fighter_sub_type_id: string;
   };
   fighter_class?: string;
   label?: string;
@@ -281,7 +286,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
     }
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/new_get_fighter_details`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
         {
           method: 'POST',
           headers: {
@@ -1836,6 +1841,54 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
     });
   };
 
+  const vehicle = fighterData.fighter?.vehicles?.[0];
+
+  // Instead, always use fighterData.fighter?.vehicles?.[0]?.effects?.["lasting damages"]
+  const [localGangCredits, setLocalGangCredits] = useState<number>(fighterData.gang?.credits || 0);
+
+  // Keep vehicleDamages and localGangCredits in sync with fighterData
+  useEffect(() => {
+    setLocalGangCredits(fighterData.gang?.credits || 0);
+  }, [fighterData.gang?.credits]);
+
+  // Handler for delete (could be used for error fallback)
+  const handleDeleteVehicleDamage = async (damageId: string) => {
+    // No-op: optimistic update is handled in VehicleDamagesList
+    return true;
+  };
+
+  // Handler for optimistic update when adding a lasting damage
+  const handleAddVehicleDamage = (newDamage: FighterEffect) => {
+    setFighterData(prev => {
+      if (!prev.fighter?.vehicles?.[0]) return prev;
+      const updatedVehicles = prev.fighter.vehicles.map((v, idx) => {
+        if (idx !== 0) return v;
+        return {
+          ...v,
+          effects: {
+            ...v.effects,
+            ["lasting damages"]: [...(v.effects?.["lasting damages"] || []), newDamage]
+          }
+        };
+      });
+      return {
+        ...prev,
+        fighter: {
+          ...prev.fighter,
+          vehicles: updatedVehicles
+        }
+      };
+    });
+  };
+
+  // Handler for updating gang credits after a repair
+  const handleGangCreditsChange = (newCredits: number) => {
+    setFighterData(prev => ({
+      ...prev,
+      gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
+    }));
+  };
+
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -1855,8 +1908,6 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       </div>
     </main>
   );
-
-  const vehicle = fighterData.fighter?.vehicles?.[0];
 
   const getPillColor = (occupied: number | undefined, total: number | undefined) => {
     const occupiedValue = occupied || 0;
@@ -1888,6 +1939,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
+            sub_type={fighterData.fighter?.fighter_sub_type}
             credits={fighterData.fighter?.credits || 0}
             movement={fighterData.fighter?.movement || 0}
             weapon_skill={fighterData.fighter?.weapon_skill || 0}
@@ -1921,7 +1973,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           />
 
           {vehicle && (
-            <div className="mt-6 w-full">
+            <div className="w-full">
                <div className="flex items-center gap-1">
                  <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
                  <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.body_slots_occupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {vehicle.body_slots_occupied}/{vehicle.body_slots}</span>
@@ -1934,7 +1986,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           {vehicle && (
             <div className="mt-6">
               <div className="flex flex-wrap justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold">Vehicle Equipment</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Vehicle Equipment</h2>
                 <Button
                   onClick={() => handleModalToggle('addVehicleEquipment', true)}
                   className="bg-black hover:bg-gray-800 text-white"
@@ -1950,6 +2002,44 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                 isLoading={uiState.isLoading}
               />
             </div>
+          )}
+
+          {vehicle && fighterData.fighter && (
+            <VehicleDamagesList
+              damages={vehicle?.effects?.["lasting damages"] || []}
+              setDamages={damagesUpdater => {
+                setFighterData(prev => {
+                  if (!prev.fighter?.vehicles?.[0]) return prev;
+                  const updatedVehicles = prev.fighter.vehicles.map((v, idx) => {
+                    if (idx !== 0) return v;
+                    return {
+                      ...v,
+                      effects: {
+                        ...v.effects,
+                        ["lasting damages"]: typeof damagesUpdater === 'function'
+                          ? damagesUpdater(v.effects?.["lasting damages"] || [])
+                          : damagesUpdater
+                      }
+                    };
+                  });
+                  return {
+                    ...prev,
+                    fighter: {
+                      ...prev.fighter,
+                      vehicles: updatedVehicles
+                    }
+                  };
+                });
+              }}
+              fighterId={params.id}
+              vehicleId={vehicle.id}
+              vehicle={vehicle}
+              onDeleteDamage={handleDeleteVehicleDamage}
+              gangCredits={fighterData.gang?.credits || 0}
+              setGangCredits={() => {}}
+              onDamageAdded={newDamage => handleAddVehicleDamage(newDamage)}
+              onGangCreditsChange={handleGangCreditsChange}
+            />
           )}
 
           <WeaponList

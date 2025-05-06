@@ -19,6 +19,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   type: string;  // maps to fighter_type
   label?: string;
   fighter_class?: string;
+  fighter_sub_type?: string;
   killed?: boolean;
   retired?: boolean;
   enslaved?: boolean;
@@ -93,6 +94,24 @@ const calculateVehicleStats = (
       });
     }
   });
+  
+  // Apply modifiers from vehicle effects (lasting damages)
+  if (baseStats.effects && baseStats.effects["lasting damages"]) {
+    baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
+      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+        effect.fighter_effect_modifiers.forEach(modifier => {
+          // Convert stat_name to lowercase to match our stats object keys
+          const statName = modifier.stat_name.toLowerCase();
+          
+          // Only apply if the stat exists in our stats object
+          if (statName in stats) {
+            // Apply the numeric modifier to the appropriate stat
+            stats[statName as keyof typeof stats] += modifier.numeric_value;
+          }
+        });
+      }
+    });
+  }
 
   return stats;
 };
@@ -103,6 +122,7 @@ const FighterCard = memo(function FighterCard({
   type,
   label,
   fighter_class,
+  fighter_sub_type,
   credits,
   movement,
   weapon_skill,
@@ -207,6 +227,7 @@ const FighterCard = memo(function FighterCard({
       fighter_name: name,
       fighter_type: type,
       fighter_class,
+      fighter_sub_type,
       credits,
       movement,
       weapon_skill,
@@ -267,7 +288,7 @@ const FighterCard = memo(function FighterCard({
       }
     };
   }, [
-    id, name, type, fighter_class, credits, movement, weapon_skill,
+    id, name, type, fighter_class, fighter_sub_type, credits, movement, weapon_skill,
     ballistic_skill, strength, toughness, wounds, initiative,
     attacks, leadership, cool, willpower, intelligence, xp,
     kills, advancements, weapons, wargear, special_rules, effects, skills
@@ -315,6 +336,18 @@ const FighterCard = memo(function FighterCard({
 
   const isInactive = killed || retired;
 
+  // Determine a unique and valid id for the fighter card based on its status.
+  // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
+  const fighterCardId =
+    isInactive && recovery
+      ? 'is_inactive_and_recovery' // If both `isInactive` and `recovery` are true, the id will be 'is_inactive_and_recovery'.
+      : isInactive
+      ? 'is_inactive' // If only `isInactive` is true, the id will be 'is_inactive'.
+      : recovery
+      ? 'is_recovery' // If only `recovery` is true, the id will be 'is_recovery'.
+      : undefined;
+
+
   useEffect(() => {
     const checkHeight = () => {
       if (contentRef.current) {
@@ -350,6 +383,7 @@ const FighterCard = memo(function FighterCard({
 
   const cardContent = (
     <div
+      id={fighterCardId}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black p-4 print:hover:scale-[1] print:print-fighter-card print:inline-block
       ${viewMode !== 'normal' ? `${sizeStyles[viewMode]} flex-shrink-0` : ''}`}
         style={{
@@ -358,7 +392,6 @@ const FighterCard = memo(function FighterCard({
           backgroundPosition: 'center',
           fontSize: 'calc(10px + 0.2vmin)'
         }}
-        {...(isInactive ? { id: "is_inactive" } : {})}
       >
         <div className="flex mb-2">
           <div className="flex w-full">
@@ -384,6 +417,7 @@ const FighterCard = memo(function FighterCard({
                   <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                     {type}
                     {fighter_class && ` (${fighter_class})`}
+                    {fighter_sub_type && `, ${fighter_sub_type}`}
                   </div>
                 </div>
               </div>

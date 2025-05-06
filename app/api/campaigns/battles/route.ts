@@ -18,20 +18,14 @@ export async function GET(
     // Get scenarios
     const { data: scenarios, error: scenariosError } = await supabase
       .from('scenarios')
-      .select('id, scenario_name');
+      .select('id, scenario_name, scenario_number');
 
     if (scenariosError) throw scenariosError;
 
     // Get gangs in the campaign with their names
     const { data: campaignGangs, error: gangsError } = await supabase
       .from('campaign_gangs')
-      .select(`
-        gang_id,
-        gangs:gang_id (
-          id,
-          name
-        )
-      `)
+      .select(`gang_id, gangs:gang_id ( id, name )`)
       .eq('campaign_id', campaignId);
 
     if (gangsError) throw gangsError;
@@ -131,4 +125,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

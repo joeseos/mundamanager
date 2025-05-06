@@ -1,8 +1,6 @@
 # Munda Manager
 
-A comprehensive gang management tool for Necromunda tabletop game, built with Next.js 14 and Supabase.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A comprehensive gang management tool for Necromunda tabletop game, built with Next.js 15.3.1 and Supabase.
 
 ## Overview
 
@@ -15,7 +13,7 @@ Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns wi
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js 15.3.1 (App Router)
 - **Database:** Supabase
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
@@ -53,6 +51,7 @@ The fighter effects system manages all modifications to fighter statistics throu
 - Advancements
 - Bionics
 - Cybernetics
+- Vehicle Lasting Damages
 - User modifications
 
 ### Data Structure
@@ -76,6 +75,7 @@ interface Fighter {
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cybernetics: FighterEffect[];
+    vehicle_damages: FighterEffect[];
     user: FighterEffect[];
   }
 }
@@ -84,7 +84,7 @@ interface Fighter {
 ### How It Works
 
 1. **Effect Categories**
-   - Each effect belongs to a specific category (injury, advancement, etc.)
+   - Each effect belongs to a specific category (injury, advancement, vehicle damage, etc.)
    - Categories are stored in the `fighter_effect_categories` table
    - Each category can have different business rules and UI treatments
 
@@ -102,7 +102,7 @@ interface Fighter {
      const adjustedStats = { ...fighter.base_stats };
 
      // Process all effect categories
-     ['injuries', 'advancements', 'bionics', 'cybernetics', 'user'].forEach(category => {
+     ['injuries', 'advancements', 'bionics', 'cybernetics', 'vehicle_damages', 'user'].forEach(category => {
        fighter.effects[category]?.forEach(effect => {
          effect.fighter_effect_modifiers?.forEach(modifier => {
            const statName = modifier.stat_name.toLowerCase();
@@ -129,6 +129,7 @@ interface Fighter {
    CREATE TABLE fighter_effects (
      id UUID PRIMARY KEY,
      fighter_id UUID REFERENCES fighters(id),
+     vehicle_id UUID REFERENCES vehicles(id),
      effect_name TEXT NOT NULL,
      category_id UUID REFERENCES fighter_effect_categories(id),
      created_at TIMESTAMPTZ DEFAULT NOW()
@@ -169,7 +170,20 @@ interface Fighter {
    fighter.effects.bionics.push(bionic);
    ```
 
-3. **User Modification**
+3. **Adding a Vehicle Lasting Damage**
+   ```typescript
+   const vehicleDamage: FighterEffect = {
+     effect_name: "Loss of Power",
+     vehicle_id: "vehicle-uuid",
+     fighter_effect_modifiers: [{
+       stat_name: "movement",
+       numeric_value: -1
+     }]
+   };
+   fighter.effects.vehicle_damages.push(vehicleDamage);
+   ```
+
+4. **User Modification**
    ```typescript
    const userMod: FighterEffect = {
      effect_name: "Custom Bonus",

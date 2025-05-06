@@ -126,15 +126,38 @@ BEGIN
        'fighter_id', p_fighter_id,
        'vehicle_id', p_vehicle_id,
        'equipment_id', v_equipment_id,
-       'cost', v_cost,
-       'is_master_crafted', v_is_master_crafted
+       'cost', v_cost
    );
 
-   -- Check for weapon profiles
-   SELECT COALESCE(json_agg(wp), '[]'::json)
+   -- For weapon profiles, include the is_master_crafted flag in each profile
+   SELECT json_agg(
+       jsonb_build_object(
+           'id', wp.id,
+           'profile_name', wp.profile_name,
+           'range_short', wp.range_short,
+           'range_long', wp.range_long,
+           'acc_short', wp.acc_short,
+           'acc_long', wp.acc_long,
+           'strength', wp.strength,
+           'damage', wp.damage,
+           'ap', wp.ap,
+           'ammo', wp.ammo,
+           'traits', wp.traits,
+           'weapon_id', wp.weapon_id,
+           'created_at', wp.created_at,
+           'weapon_group_id', wp.weapon_group_id,
+           'is_default_profile', wp.is_default_profile,
+           'is_master_crafted', v_is_master_crafted
+       )
+   )
    INTO v_weapon_profiles
    FROM weapon_profiles wp
    WHERE wp.weapon_id = v_equipment_id;
+
+   -- If no weapon profiles exist, set to empty array
+   IF v_weapon_profiles IS NULL THEN
+       v_weapon_profiles := '[]'::json;
+   END IF;
 
    -- Check for vehicle equipment profiles
    SELECT COALESCE(json_agg(vep), '[]'::json)

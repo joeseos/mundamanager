@@ -27,6 +27,24 @@ BEGIN
                 0
             ) AS advancement_cost,
             COALESCE(
+                (SELECT SUM(fs.credits_increase)
+                FROM fighter_skills fs
+                WHERE fs.fighter_id = f.id),
+                0
+            ) AS skills_cost,
+            COALESCE(
+                (SELECT SUM(
+                    CASE
+                        WHEN fe.type_specific_data->>'credits_increase' IS NOT NULL THEN 
+                            (fe.type_specific_data->>'credits_increase')::integer
+                        ELSE 0
+                    END
+                )
+                FROM fighter_effects fe
+                WHERE fe.fighter_id = f.id),
+                0
+            ) AS effects_cost,
+            COALESCE(
                 (SELECT SUM(v.cost + COALESCE(
                     (SELECT SUM(fe.purchase_cost)
                     FROM fighter_equipment fe
@@ -39,11 +57,13 @@ BEGIN
             ) AS vehicle_cost
         FROM fighters f
         WHERE f.gang_id IN (SELECT g.id FROM gangs g WHERE g.user_id = get_user_gangs.user_id)
+        AND f.killed = FALSE
+        AND f.retired = FALSE
     ),
     gang_ratings AS (
         SELECT 
             gang_id,
-            SUM(base_cost + equipment_cost + advancement_cost + vehicle_cost) AS total_rating
+            SUM(base_cost + equipment_cost + advancement_cost + skills_cost + effects_cost + vehicle_cost) AS total_rating
         FROM fighter_costs
         GROUP BY gang_id
     )

@@ -53,7 +53,7 @@ BEGIN
       ft.fighter_type,
       fc.class_name as fighter_class,
       fc.id as fighter_class_id,
-      ft.fighter_sub_type_id, -- Add fighter_sub_type_id to the query
+      ft.fighter_sub_type_id,
       ft.free_skill,
       COALESCE(p_cost, ft.cost) as fighter_cost,
       g.credits as gang_credits,
@@ -68,7 +68,7 @@ BEGIN
     fighter_type,
     fighter_class,
     fighter_class_id,
-    fighter_sub_type_id, -- Add fighter_sub_type_id to the SELECT list
+    fighter_sub_type_id,
     free_skill,
     fighter_cost,
     gang_credits,
@@ -77,7 +77,7 @@ BEGIN
     v_fighter_type,
     v_fighter_class,
     v_fighter_class_id,
-    v_fighter_sub_type_id, -- Store fighter_sub_type_id
+    v_fighter_sub_type_id,
     v_free_skill,
     v_fighter_cost,
     v_gang_credits,
@@ -109,7 +109,7 @@ BEGIN
       gang_id, 
       fighter_type_id,
       fighter_class_id,
-      fighter_sub_type_id, -- Add fighter_sub_type_id column to the INSERT
+      fighter_sub_type_id,
       fighter_type,
       fighter_class,
       free_skill,
@@ -129,14 +129,14 @@ BEGIN
       xp,
       kills,
       special_rules,
-      user_id  -- Always use the gang owner's user_id
+      user_id
     )
     SELECT 
       p_fighter_name,
       p_gang_id,
       p_fighter_type_id,
       fc.id as fighter_class_id,
-      ft.fighter_sub_type_id, -- Add fighter_sub_type_id to the SELECT
+      ft.fighter_sub_type_id,
       ft.fighter_type,
       fc.class_name as fighter_class,
       ft.free_skill,
@@ -156,7 +156,7 @@ BEGIN
       0,
       0,
       ft.special_rules,
-      v_gang_owner_id  -- Using gang owner's user_id
+      v_gang_owner_id
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     WHERE ft.id = p_fighter_type_id
@@ -255,11 +255,13 @@ BEGIN
     FROM equipment_details;
 
     -- Insert default skills and get skill info
+    -- MODIFIED: Added user_id to the INSERT statement to fix the issue
     WITH skill_insert AS (
-      INSERT INTO fighter_skills (fighter_id, skill_id)
+      INSERT INTO fighter_skills (fighter_id, skill_id, user_id)
       SELECT 
         v_fighter_id,
-        fd.skill_id
+        fd.skill_id,
+        v_gang_owner_id
       FROM fighter_defaults fd
       WHERE fd.fighter_type_id = p_fighter_type_id
       AND fd.skill_id IS NOT NULL
@@ -283,6 +285,7 @@ BEGIN
     FROM skill_details;
 
     -- Calculate total cost (fighter cost plus selected equipment cost)
+    -- Here v_fighter_cost is set from p_cost (if provided) or from ft.cost (if not)
     v_total_cost := v_fighter_cost + COALESCE(v_total_equipment_cost, 0);
 
     -- Check credits and update gang in one step
@@ -303,7 +306,7 @@ BEGIN
       'fighter_type', v_fighter_type,
       'fighter_class', v_fighter_class,
       'fighter_class_id', v_fighter_class_id,
-      'fighter_sub_type_id', v_fighter_sub_type_id, -- Return the fighter_sub_type_id in the JSON response
+      'fighter_sub_type_id', v_fighter_sub_type_id,
       'free_skill', v_free_skill,
       'cost', v_fighter_cost,
       'total_cost', v_total_cost,

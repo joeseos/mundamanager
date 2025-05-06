@@ -31,6 +31,7 @@ interface CampaignProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    updated_at: string;
   }) => void;
 }
 
@@ -60,14 +61,9 @@ export default function Campaign({
   const [scavengingEnabled, setScavengingEnabled] = useState(has_scavenging_rolls);
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Not yet updated';
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: 'UTC'
-    });
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -108,6 +104,8 @@ export default function Campaign({
 
   const handleSave = async () => {
     try {
+      const now = new Date().toISOString();
+      
       const { error } = await supabase
         .from('campaigns')
         .update({
@@ -115,6 +113,7 @@ export default function Campaign({
           has_meat: meatEnabled,
           has_exploration_points: explorationEnabled,
           has_scavenging_rolls: scavengingEnabled,
+          updated_at: now,
         })
         .eq('id', id);
 
@@ -125,6 +124,7 @@ export default function Campaign({
         has_meat: meatEnabled,
         has_exploration_points: explorationEnabled,
         has_scavenging_rolls: scavengingEnabled,
+        updated_at: now,
       });
       
       toast({
@@ -172,6 +172,17 @@ export default function Campaign({
     }
   };
 
+  // Utility function to get current campaign data for updates
+  const getCampaignUpdateData = () => {
+    return {
+      campaign_name: campaignName,
+      has_meat: meatEnabled,
+      has_exploration_points: explorationEnabled,
+      has_scavenging_rolls: scavengingEnabled,
+      updated_at: new Date().toISOString()
+    };
+  };
+
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
@@ -187,7 +198,7 @@ export default function Campaign({
           {/* 1st tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
             <div className="flex justify-between items-start mb-2">
-              <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+              <h1 className="text-xl md:text-2xl font-bold mb-2">{campaign_name}</h1>
               {(userRole === 'OWNER' || userRole === 'ARBITRATOR') && (
                 <Button
                   className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-black text-white hover:bg-gray-800"
@@ -212,7 +223,7 @@ export default function Campaign({
 
           {/* 2nd tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Territories</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Territories</h1>
             <div className="flex flex-col gap-6">
               <div>
                 <p className="text-gray-600">Add all the territories you want to include in your campaign. You can add each territory multiple times.</p>
@@ -222,6 +233,15 @@ export default function Campaign({
                   isAdmin={userRole === 'OWNER' || userRole === 'ARBITRATOR'}
                   campaignId={id}
                   campaignTypeId={campaign_type_id}
+                  onTerritoryAdd={(territory) => {
+                    // Call the parent's onUpdate function to trigger a refresh
+                    if (onUpdate) {
+                      onUpdate({
+                        ...getCampaignUpdateData(),
+                        updated_at: new Date().toISOString()
+                      });
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -229,20 +249,20 @@ export default function Campaign({
 
           {/* 3rd tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Battle Logs</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h1>
             <p className="text-gray-600">See the Campaign tab.</p>
           </div>
 
           {/* 4th tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-2xl font-bold mb-4">Notes</h1>
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Notes</h1>
             <p className="text-gray-600">Notes content coming soon...</p>
           </div>
 
         </Tabs>
       ) : (
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h1 className="text-2xl font-bold mb-2">{campaign_name}</h1>
+          <h1 className="text-xl md:text-2xl font-bold mb-2">{campaign_name}</h1>
           <h2 className="text-gray-600 text-lg mb-4">{campaign_type}</h2>
           <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
             <div>

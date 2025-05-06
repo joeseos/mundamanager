@@ -17,6 +17,7 @@ import { StashItem } from '@/types/gang';
 import GangVehicles from "@/components/gang/vehicles-tab";
 import { VehicleProps } from '@/types/vehicle';
 import { toast } from "@/components/ui/use-toast";
+import AddFighter from "@/components/gang/add-fighter";
 
 // Tab icons
 import { FaBox, FaUsers } from "react-icons/fa6";
@@ -95,6 +96,7 @@ async function processGangData(gangData: any) {
       fighter_type_id: fighter.fighter_type_id,
       fighter_type: fighter.fighter_type,
       fighter_class: fighter.fighter_class,
+      fighter_sub_type: fighter.fighter_sub_type,
       label: fighter.label,
       credits: fighter.credits,
       movement: fighter.movement,
@@ -380,13 +382,51 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
     setGangData((prev: GangDataState | null) => {
       if (!prev) return null;
+      
+      // Find the previous version of this fighter to compare
+      const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
+      
+      // Calculate rating change from vehicle updates
+      let ratingChange = 0;
+      
+      // If fighter now has a vehicle that it didn't have before
+      if (updatedFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
+        // Add the vehicle's cost to the rating - we know it's a VehicleProps
+        const vehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange += vehicleCost;
+        console.log(`Adding vehicle cost ${vehicleCost} to rating`);
+      } 
+      // If fighter had a vehicle but no longer does
+      else if ((!updatedFighter.vehicles || updatedFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
+        // Subtract the vehicle's cost from the rating
+        const vehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange -= vehicleCost;
+        console.log(`Removing vehicle cost ${vehicleCost} from rating`);
+      }
+      // If fighter had a vehicle and still has one, but it's different
+      else if (updatedFighter.vehicles?.length && prevFighter?.vehicles?.length && 
+               updatedFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
+        // Remove old vehicle cost and add new vehicle cost
+        const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const newVehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange -= prevVehicleCost;
+        ratingChange += newVehicleCost;
+        console.log(`Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`);
+      }
+
+      // Calculate the new rating
+      const newRating = prev.processedData.rating + ratingChange;
+      console.log(`Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`);
+
       return {
         ...prev,
         processedData: {
           ...prev.processedData,
           fighters: prev.processedData.fighters.map(fighter =>
             fighter.id === updatedFighter.id ? updatedFighter : fighter
-          )
+          ),
+          // Update the rating based on vehicle changes
+          rating: newRating
         }
       };
     });
@@ -435,6 +475,9 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
             fighter_sub_type_id: type.fighter_sub_type_id,
             cost: type.cost,
             total_cost: type.total_cost,
+            equipment_selection: type.equipment_selection,
+            default_equipment: type.default_equipment || [],
+            special_rules: type.special_rules || []
           }))
           .sort((a: FighterType, b: FighterType) => {
             const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
@@ -476,7 +519,7 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
     const fetchGangData = async () => {
       try {
         const response = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_get_gang_details',
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_gang_details',
           {
             method: 'POST',
             headers: {
@@ -558,7 +601,7 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
           onFighterUpdate={handleFighterUpdate}
         />
         <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-2xl font-bold mb-4">Campaign</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
           <GangTerritories 
             gangId={params.id} 
             campaigns={gangData.processedData.campaigns || []} 
@@ -569,6 +612,17 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
           initialNote={gangData.processedData.note || ''}
         />
       </Tabs>
+      
+      {showAddFighterModal && (
+        <AddFighter
+          showModal={showAddFighterModal}
+          setShowModal={setShowAddFighterModal}
+          fighterTypes={fighterTypes}
+          gangId={params.id}
+          initialCredits={gangData.processedData.credits}
+          onFighterAdded={handleFighterUpdate}
+        />
+      )}
     </div>
   );
 }

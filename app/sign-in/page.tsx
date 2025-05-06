@@ -1,43 +1,59 @@
+'use client';
+
 import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
-import { cookies } from 'next/headers';
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
+import { createClient } from "@/utils/supabase/client";
 
-export default async function SignIn(props: {
-  searchParams: Promise<{ message?: string; success?: string; error?: string }>;
-}) {
-  const searchParams = await props.searchParams;
+export default function SignIn() {
+  const searchParams = useSearchParams();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
   
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    const cookieStore = await cookies();
-    const redirectPath = cookieStore.get('redirectPath');
-    if (redirectPath) {
-      cookieStore.delete('redirectPath');
+  useEffect(() => {
+    // Check if user is already authenticated and redirect if needed
+    async function checkAuth() {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        router.push('/');
+      }
     }
-    redirect(redirectPath?.value || "/");
+    
+    checkAuth();
+    
+    // Extract error message from URL params on initial load
+    const error = searchParams.get('error');
+    if (error) {
+      setErrorMessage(error);
+    }
+  }, [searchParams, router, supabase.auth]);
+
+  // Create the appropriate message object based on searchParams
+  let topMessage: Message | null = null;
+  const success = searchParams.get('success');
+  const message = searchParams.get('message');
+  
+  if (success) {
+    topMessage = { success };
+  } else if (message) {
+    topMessage = { message };
   }
 
-  // Extract error message from searchParams (query string)
-  const errorMessage = searchParams.error || null;
-
-  // Create the appropriate message object based on what's in searchParams
-  let topMessage: Message | null = null;
-  if (searchParams.success) {
-    topMessage = { success: searchParams.success };
-  } else if (searchParams.message) {
-    topMessage = { message: searchParams.message };
+  async function clientAction(formData: FormData) {
+    const result = await signInAction(formData);
+    
+    // If we get a non-redirect result with an error, display it
+    if (result && 'error' in result) {
+      setErrorMessage(result.error);
+    }
+    // No return value needed here (void)
   }
 
   return (
@@ -50,7 +66,7 @@ export default async function SignIn(props: {
         )}
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
-          action={signInAction}
+          action={clientAction}
         >
           <h1 className="text-2xl font-medium text-white mb-2">Sign in</h1>
           <p className="text-sm text-white mb-8">

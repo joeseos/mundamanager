@@ -1,0 +1,43 @@
+name: Deploy Updated SQL Functions to Supabase
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/functions/*.sql'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+      
+      - name: Deploy only changed SQL files via psql
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_FUNCTIONS_PATH: "supabase/functions/*.sql"
+        run: |
+          echo "Looking for changes in: $SUPABASE_FUNCTIONS_PATH"
+
+          # Use git diff to get changed SQL files in the given path
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- $SUPABASE_FUNCTIONS_PATH)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No SQL files changed. Skipping deployment."
+            exit 0
+          fi
+
+          echo "Changed SQL files:"
+          echo "$CHANGED_FILES"
+
+          for f in $CHANGED_FILES; do
+            echo "Deploying $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
