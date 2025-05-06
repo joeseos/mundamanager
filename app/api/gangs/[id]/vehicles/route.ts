@@ -45,7 +45,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { vehicleTypeId, cost, vehicleName } = await request.json();
+    const { vehicleTypeId, cost, vehicleName, baseCost } = await request.json();
     const gangId = params.id;
 
     // Get gang details to check credits
@@ -85,6 +85,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
 
+    // Use the baseCost for the vehicle's cost property if it's provided, otherwise use the payment cost
+    const vehicleBaseCost = baseCost !== undefined ? baseCost : vehicleCost;
+
     // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
@@ -105,7 +108,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         drive_slots_occupied: 0,
         engine_slots_occupied: 0,
         vehicle_type_id: vehicleTypeId,
-        cost: vehicleCost,
+        cost: vehicleBaseCost,
         vehicle_type: vehicleType.vehicle_type,
         gang_id: gangId
       })
@@ -139,7 +142,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     return NextResponse.json({
       ...vehicle,
-      gang_credits: gang.credits - vehicleCost
+      gang_credits: gang.credits - vehicleCost,
+      payment_cost: vehicleCost,
+      base_cost: vehicleBaseCost
     });
   } catch (error) {
     console.error('Detailed error:', error);

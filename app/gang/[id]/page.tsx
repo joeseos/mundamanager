@@ -382,13 +382,51 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
     setGangData((prev: GangDataState | null) => {
       if (!prev) return null;
+      
+      // Find the previous version of this fighter to compare
+      const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
+      
+      // Calculate rating change from vehicle updates
+      let ratingChange = 0;
+      
+      // If fighter now has a vehicle that it didn't have before
+      if (updatedFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
+        // Add the vehicle's cost to the rating - we know it's a VehicleProps
+        const vehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange += vehicleCost;
+        console.log(`Adding vehicle cost ${vehicleCost} to rating`);
+      } 
+      // If fighter had a vehicle but no longer does
+      else if ((!updatedFighter.vehicles || updatedFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
+        // Subtract the vehicle's cost from the rating
+        const vehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange -= vehicleCost;
+        console.log(`Removing vehicle cost ${vehicleCost} from rating`);
+      }
+      // If fighter had a vehicle and still has one, but it's different
+      else if (updatedFighter.vehicles?.length && prevFighter?.vehicles?.length && 
+               updatedFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
+        // Remove old vehicle cost and add new vehicle cost
+        const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const newVehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        ratingChange -= prevVehicleCost;
+        ratingChange += newVehicleCost;
+        console.log(`Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`);
+      }
+
+      // Calculate the new rating
+      const newRating = prev.processedData.rating + ratingChange;
+      console.log(`Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`);
+
       return {
         ...prev,
         processedData: {
           ...prev.processedData,
           fighters: prev.processedData.fighters.map(fighter =>
             fighter.id === updatedFighter.id ? updatedFighter : fighter
-          )
+          ),
+          // Update the rating based on vehicle changes
+          rating: newRating
         }
       };
     });

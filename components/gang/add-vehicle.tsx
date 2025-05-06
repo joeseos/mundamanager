@@ -43,7 +43,7 @@ export default function AddVehicle({
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
-  const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
+  const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
   
   // Fetch vehicle types when component mounts
   useEffect(() => {
@@ -71,9 +71,9 @@ export default function AddVehicle({
     const newCost = e.target.value;
     setVehicleCost(newCost);
     
-    // If cost is 0, automatically set useBaseCostForRating to true
+    // If cost is 0, automatically set useBaseCost to true
     if (newCost === '0') {
-      setUseBaseCostForRating(true);
+      setUseBaseCost(true);
     }
   };
 
@@ -98,7 +98,7 @@ export default function AddVehicle({
     const name = vehicleName || selectedVehicleType.vehicle_type;
     
     // The cost for gang rating purposes
-    const ratingCost = useBaseCostForRating ? selectedVehicleType.cost : paymentCost;
+    const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;
 
     try {
       const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
@@ -108,9 +108,9 @@ export default function AddVehicle({
         },
         body: JSON.stringify({
           vehicleTypeId: selectedVehicleTypeId,
-          cost: paymentCost,
+          cost: paymentCost, // This is what the user pays in credits
           vehicleName: name,
-          baseCost: ratingCost // Send the rating cost separately
+          baseCost: ratingCost // The vehicle's base cost for display and when equipped
         }),
       });
 
@@ -119,15 +119,12 @@ export default function AddVehicle({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to add vehicle');
       }
-
-      // Check the API response and ensure the correct cost is used
-      // API may return the payment cost in the cost field, not the rating cost
       
       // Create the new vehicle object from the response
       const newVehicle: VehicleProps = {
         id: data.id,
         vehicle_name: name,
-        // Use the rating cost for the cost property, which is used for gang rating
+        // Use the actual cost determined above
         cost: ratingCost,
         vehicle_type: selectedVehicleType.vehicle_type,
         gang_id: gangId,
@@ -156,8 +153,8 @@ export default function AddVehicle({
 
       // Create a more informative success message when base cost is different from payment
       let successMessage = `${name} added to gang successfully`;
-      if (useBaseCostForRating && paymentCost !== ratingCost) {
-        successMessage = `${name} added for ${paymentCost} credits (rating value: ${ratingCost} credits)`;
+      if (useBaseCost && paymentCost !== ratingCost) {
+        successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
       }
       
       toast({
@@ -181,7 +178,7 @@ export default function AddVehicle({
     setVehicleCost('');
     setVehicleName('');
     setVehicleError(null);
-    setUseBaseCostForRating(true);
+    setUseBaseCost(true);
   };
 
   return (
@@ -254,21 +251,22 @@ export default function AddVehicle({
 
           <div className="flex items-center space-x-2 mb-4 mt-2">
             <Checkbox 
-              id="baseCostRating" 
-              checked={useBaseCostForRating}
-              onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+              id="baseCostCheckbox" 
+              checked={useBaseCost}
+              onCheckedChange={(checked) => setUseBaseCost(checked as boolean)}
             />
             <label 
-              htmlFor="baseCostRating" 
+              htmlFor="baseCostCheckbox" 
               className="text-sm font-medium text-gray-700 cursor-pointer"
             >
-              Use base cost for Vehicle Rating
+              Use base cost for vehicle value
             </label>
             <div className="relative group">
               <span className="cursor-help text-gray-500">ⓘ</span>
               <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                When checked, the vehicle will contribute its base cost to the gang's rating
-                regardless of how much you actually pay for it.
+                When checked, the vehicle will use its base cost as its value
+                regardless of how much you actually pay for it. This base cost will be used
+                when the vehicle is equipped on a fighter.
               </div>
             </div>
           </div>
