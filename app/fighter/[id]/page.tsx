@@ -2438,7 +2438,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                       ? 0 
                       : Number(values.costAdjustment),
                     special_rules: values.special_rules || fighterData.fighter?.special_rules
-                  };
+                  } as any; // Use type assertion to avoid TypeScript errors
 
                   // If fighter type was changed, update those properties
                   const currentFighterTypeId = fighterData.fighter && typeof fighterData.fighter.fighter_type === 'object' 
