@@ -68,13 +68,12 @@ export default function GangVehicles({
           ...vehicle,
           assigned_to: fighter.fighter_name,
           gang_id: gangId,
-          cost: 0,
-          body_slots: 0,
-          body_slots_occupied: 0,
-          drive_slots: 0,
-          drive_slots_occupied: 0,
-          engine_slots: 0,
-          engine_slots_occupied: 0,
+          body_slots: vehicle.body_slots || 0,
+          body_slots_occupied: vehicle.body_slots_occupied || 0,
+          drive_slots: vehicle.drive_slots || 0,
+          drive_slots_occupied: vehicle.drive_slots_occupied || 0,
+          engine_slots: vehicle.engine_slots || 0,
+          engine_slots_occupied: vehicle.engine_slots_occupied || 0,
           special_rules: vehicle.special_rules || [],
           equipment: vehicle.equipment || []
         } as CombinedVehicleProps)));
@@ -300,6 +299,32 @@ export default function GangVehicles({
         throw new Error('No authenticated session found');
       }
       
+      // Check if this is an unassigned vehicle (for logging purposes)
+      const isUnassigned = !deletingVehicle.assigned_to;
+      
+      // Optimistically update the UI
+      // For unassigned vehicles, removing from the vehicles list will update the wealth
+      // For assigned vehicles, updating the fighter will update the rating
+      
+      // First, update the local vehicles list
+      if (onVehicleUpdate) {
+        const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
+        onVehicleUpdate(updatedVehicles);
+      }
+      
+      // Then update the fighter if the vehicle was assigned
+      if (!isUnassigned && onFighterUpdate) {
+        const updatedFighter = fighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
+        if (updatedFighter) {
+          const fighterWithoutVehicle = {
+            ...updatedFighter,
+            vehicles: (updatedFighter.vehicles || []).filter(v => v.id !== deletingVehicle.id)
+          };
+          onFighterUpdate(fighterWithoutVehicle);
+        }
+      }
+      
+      // Now make the API call to actually delete the vehicle
       const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
         method: 'DELETE',
         headers: {
@@ -314,25 +339,6 @@ export default function GangVehicles({
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to delete vehicle');
-      }
-
-      // Update local state
-      if (onVehicleUpdate) {
-        // Update both unassigned vehicles and fighter vehicles
-        const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
-        onVehicleUpdate(updatedVehicles);
-      }
-
-      // Update fighter's vehicles if needed
-      if (onFighterUpdate && deletingVehicle.assigned_to) {
-        const updatedFighter = fighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
-        if (updatedFighter) {
-          const fighterWithoutVehicle = {
-            ...updatedFighter,
-            vehicles: (updatedFighter.vehicles || []).filter(v => v.id !== deletingVehicle.id)
-          };
-          onFighterUpdate(fighterWithoutVehicle);
-        }
       }
 
       toast({
