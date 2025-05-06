@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
@@ -105,6 +105,7 @@ interface GangProps {
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
+  vehicles?: VehicleProps[];
 }
 
 export default function Gang({ 
@@ -135,6 +136,7 @@ export default function Gang({
   onVehicleAdd,
   positioning,
   gang_variants,
+  vehicles,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -177,6 +179,12 @@ export default function Gang({
     return 'normal';
   });
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+
+  // Calculate the total value of unassigned vehicles
+  const unassignedVehiclesValue = useMemo(() => {
+    if (!vehicles || vehicles.length === 0) return 0;
+    return vehicles.reduce((total, vehicle) => total + (vehicle.cost || 0), 0);
+  }, [vehicles]);
 
   // view mode
   useEffect(() => {
@@ -690,8 +698,13 @@ const handleAlignmentChange = (value: string) => {
   };
 
   const handleVehicleAdded = (newVehicle: VehicleProps) => {
-    // Update credits using payment_cost (what the user actually paid) instead of cost (the rating value)
-    setCredits(prev => prev - (newVehicle.payment_cost || newVehicle.cost));
+    // Update credits using payment_cost (what the user actually paid)
+    const paymentCost = newVehicle.payment_cost !== undefined ? newVehicle.payment_cost : newVehicle.cost;
+    setCredits(prev => prev - paymentCost);
+    
+    // Note: Unassigned vehicles don't contribute to gang rating yet
+    // They'll contribute to the rating when assigned to a fighter
+    // No need to update the rating here
     
     // Pass the new vehicle up to the parent
     if (onVehicleAdd) {
@@ -881,7 +894,7 @@ const handleAlignmentChange = (value: string) => {
               />
               <StatItem
                 label="Wealth"
-                value={rating + credits}
+                value={rating + credits + unassignedVehiclesValue}
                 isEditing={false}
                 editedValue={typeof rating === 'number' ? rating.toString() : '0'}
                 onChange={() => {}}
