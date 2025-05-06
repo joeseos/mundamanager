@@ -2410,7 +2410,11 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                 // Convert fighter_type from object to string if needed
                 fighter_type: typeof fighterData.fighter.fighter_type === 'object' 
                   ? fighterData.fighter.fighter_type.fighter_type 
-                  : fighterData.fighter.fighter_type
+                  : fighterData.fighter.fighter_type,
+                // Add fighter_type_id correctly based on structure
+                fighter_type_id: typeof fighterData.fighter.fighter_type === 'object'
+                  ? fighterData.fighter.fighter_type.fighter_type_id
+                  : (fighterData.fighter as any).fighter_type_id
               } as any}
               isOpen={uiState.modals.editFighter}
               initialValues={{
@@ -2437,9 +2441,11 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                   };
 
                   // If fighter type was changed, update those properties
-                  if (values.fighter_type_id && fighterData.fighter && values.fighter_type_id !== (typeof fighterData.fighter.fighter_type === 'object' 
+                  const currentFighterTypeId = fighterData.fighter && typeof fighterData.fighter.fighter_type === 'object' 
                       ? fighterData.fighter.fighter_type.fighter_type_id 
-                      : fighterData.fighter.fighter_type_id)) {
+                      : (fighterData.fighter as any)?.fighter_type_id;
+                      
+                  if (values.fighter_type_id && fighterData.fighter && values.fighter_type_id !== currentFighterTypeId) {
                     updatedFighter.fighter_type = {
                       fighter_type: values.fighter_type,
                       fighter_type_id: values.fighter_type_id
