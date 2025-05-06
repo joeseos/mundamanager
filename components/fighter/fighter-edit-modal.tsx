@@ -539,7 +539,7 @@ export function EditFighterModal({
     stats: {} as Record<string, number>
   });
   
-  // Add state for fighter types
+  // Update fighter types state
   const [fighterTypes, setFighterTypes] = useState<Array<{
     id: string;
     fighter_type: string;
@@ -547,6 +547,8 @@ export function EditFighterModal({
     fighter_class_id?: string;
     special_rules?: string[];
     gang_type_id: string;
+    fighter_sub_type_id?: string;
+    fighter_sub_type?: string;
   }>>([]);
   
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
@@ -566,6 +568,20 @@ export function EditFighterModal({
   // Add state for temporary selected fighter type
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(fighter.fighter_type_id || '');
 
+  // Add state for sub-types
+  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{
+    id: string, 
+    sub_type_name: string
+  }>>([]);
+
+  // Add state for selected sub-type
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>((fighter as any).fighter_sub_type_id || '');
+
+  // Add handleSubTypeChange function
+  const handleSubTypeChange = (subTypeId: string) => {
+    setSelectedSubTypeId(subTypeId);
+  };
+
   // Update the useEffect for fighter types loading
   useEffect(() => {
     const loadFighterTypes = async () => {
@@ -583,7 +599,7 @@ export function EditFighterModal({
         const gangTypeId = (fighter as any).gang_type_id;
         
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_types?gang_type_id=eq.${gangTypeId}&select=id,fighter_type,fighter_class,fighter_class_id,special_rules`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_types?gang_type_id=eq.${gangTypeId}&select=id,fighter_type,fighter_class,fighter_class_id,special_rules,fighter_sub_type_id,fighter_sub_type`,
           {
             headers: {
               'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
@@ -639,6 +655,30 @@ export function EditFighterModal({
   // Update the handleFighterTypeChange function
   const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
+    setSelectedSubTypeId(''); // Reset sub-type selection
+    
+    if (fighterTypeId) {
+      // Get all fighters with this fighter_type name and fighter_class to check for sub-types
+      const selectedType = fighterTypes.find(t => t.id === fighterTypeId);
+      const fighterTypeGroup = fighterTypes.filter(t => 
+        t.fighter_type === selectedType?.fighter_type &&
+        t.fighter_class === selectedType?.fighter_class
+      );
+      
+      // If we have multiple entries with the same fighter_type + class, they have sub-types
+      if (fighterTypeGroup.length > 1) {
+        const subTypes = fighterTypeGroup.map(ft => ({
+          id: ft.id,
+          sub_type_name: ft.fighter_sub_type || 'Default'
+        }));
+        
+        setAvailableSubTypes(subTypes);
+      } else {
+        setAvailableSubTypes([]);
+      }
+    } else {
+      setAvailableSubTypes([]);
+    }
   };
 
   // Add handler for adding a special rule
@@ -743,44 +783,13 @@ export function EditFighterModal({
   // Update the handleConfirm function
   const handleConfirm = async () => {
     try {
+      // Determine which fighter type ID to use
+      const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
+      
       // Get the selected fighter type details
-      const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+      const selectedFighterType = fighterTypes.find(ft => ft.id === fighterTypeIdToUse);
       
-      // First, get the session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Make the PATCH request to update the fighter
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?id=eq.${fighter.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            fighter_name: formValues.name,
-            label: formValues.label,
-            kills: formValues.kills,
-            cost_adjustment: parseInt(formValues.costAdjustment) || 0,
-            special_rules: formValues.special_rules,
-            ...(selectedFighterType && {
-              fighter_type: selectedFighterType.fighter_type,
-              fighter_type_id: selectedFighterType.id,
-              fighter_class: selectedFighterType.fighter_class,
-              fighter_class_id: selectedFighterType.fighter_class_id,
-            }),
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to update fighter');
-      }
-
-      // Call the original onSubmit for any additional processing
+      // Call the onSubmit function passed from the parent component
       const success = await onSubmit({
         name: formValues.name,
         label: formValues.label,
@@ -792,6 +801,8 @@ export function EditFighterModal({
           fighter_type_id: selectedFighterType.id,
           fighter_class: selectedFighterType.fighter_class,
           fighter_class_id: selectedFighterType.fighter_class_id,
+          fighter_sub_type: selectedFighterType.fighter_sub_type || null,
+          fighter_sub_type_id: selectedFighterType.fighter_sub_type_id || null,
         }),
       });
       
@@ -813,6 +824,41 @@ export function EditFighterModal({
       return false;
     }
   };
+
+  // Add a useMemo to group fighter types by type+class
+  const groupedFighterTypes = useMemo(() => {
+    const typeClassMap = new Map();
+    
+    fighterTypes.forEach(fighter => {
+      const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
+      
+      if (!typeClassMap.has(key)) {
+        typeClassMap.set(key, fighter);
+      } else {
+        const current = typeClassMap.get(key);
+        
+        // If this fighter has no sub-type, prefer it as default
+        if (!fighter.fighter_sub_type && current.fighter_sub_type) {
+          typeClassMap.set(key, fighter);
+        }
+      }
+    });
+    
+    // Convert the map values to an array and sort by fighter class rank
+    return Array.from(typeClassMap.entries())
+      .map(([key, fighter]) => fighter)
+      .sort((a, b) => {
+        // Sort by fighter type first
+        if (a.fighter_type !== b.fighter_type) {
+          return a.fighter_type.localeCompare(b.fighter_type);
+        }
+        
+        // Then sort by class rank
+        const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
+        const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+        return rankA - rankB;
+      });
+  }, [fighterTypes]);
 
   // Don't render if modal isn't open
   if (!isOpen) return null;
@@ -896,18 +942,11 @@ export function EditFighterModal({
                     {isLoadingFighterTypes ? "Loading fighter types..." : "Select a fighter type"}
                   </option>
                 )}
-                {fighterTypes
-                  .sort((a, b) => {
-                    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-                    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-                    if (rankA !== rankB) return rankA - rankB;
-                    return (a.fighter_type || "").localeCompare(b.fighter_type || "");
-                  })
-                  .map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
-                    </option>
-                  ))}
+                {groupedFighterTypes.map((fighter) => (
+                  <option key={fighter.id} value={fighter.id}>
+                    {`${fighter.fighter_type} (${fighter.fighter_class || "Unknown Class"})`}
+                  </option>
+                ))}
               </select>
               {fighter.fighter_type && (
                 <div className="mt-1 text-sm text-gray-500">
@@ -915,6 +954,37 @@ export function EditFighterModal({
                 </div>
               )}
             </div>
+            
+            {/* Fighter Sub-Type Dropdown */}
+            {availableSubTypes.length > 0 && (
+              <div>
+                <label htmlFor="fighter_sub_type_id" className="block text-sm font-medium mb-1">
+                  Fighter Sub-type
+                </label>
+                <select
+                  id="fighter_sub_type_id"
+                  value={selectedSubTypeId}
+                  onChange={(e) => handleSubTypeChange(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select fighter sub-type</option>
+                  {[...availableSubTypes]
+                    .sort((a, b) => {
+                      // Always keep "Default" first
+                      if (a.sub_type_name.toLowerCase() === 'default') return -1;
+                      if (b.sub_type_name.toLowerCase() === 'default') return 1;
+                      
+                      // Otherwise sort alphabetically
+                      return a.sub_type_name.localeCompare(b.sub_type_name);
+                    })
+                    .map((subType) => (
+                      <option key={subType.id} value={subType.id}>
+                        {subType.sub_type_name || 'Default'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
             
             {/* Special Rules Section */}
             <div>
