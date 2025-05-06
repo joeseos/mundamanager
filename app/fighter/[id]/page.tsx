@@ -2437,7 +2437,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                   };
 
                   // If fighter type was changed, update those properties
-                  if (values.fighter_type_id && values.fighter_type_id !== (typeof fighterData.fighter.fighter_type === 'object' 
+                  if (values.fighter_type_id && fighterData.fighter && values.fighter_type_id !== (typeof fighterData.fighter.fighter_type === 'object' 
                       ? fighterData.fighter.fighter_type.fighter_type_id 
                       : fighterData.fighter.fighter_type_id)) {
                     updatedFighter.fighter_type = {
