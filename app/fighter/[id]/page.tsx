@@ -2454,10 +2454,10 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                     updatedFighter.fighter_class_id = values.fighter_class_id || '';
                     
                     // Handle sub-type if provided
-                    if (values.fighter_sub_type) {
+                    if ((values as any).fighter_sub_type) {
                       updatedFighter.fighter_sub_type = {
-                        fighter_sub_type: values.fighter_sub_type || '',
-                        fighter_sub_type_id: values.fighter_sub_type_id || ''
+                        fighter_sub_type: (values as any).fighter_sub_type || '',
+                        fighter_sub_type_id: (values as any).fighter_sub_type_id || ''
                       };
                     } else {
                       // Clear sub-type if not provided
@@ -2491,8 +2491,8 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                       fighter_class_id: values.fighter_class_id,
                       fighter_type: values.fighter_type,
                       fighter_type_id: values.fighter_type_id,
-                      fighter_sub_type: values.fighter_sub_type,
-                      fighter_sub_type_id: values.fighter_sub_type_id,
+                      fighter_sub_type: (values as any).fighter_sub_type,
+                      fighter_sub_type_id: (values as any).fighter_sub_type_id,
                       special_rules: values.special_rules
                     }),
                   });
