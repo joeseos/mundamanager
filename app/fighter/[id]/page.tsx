@@ -2424,6 +2424,49 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
               }}
               onSubmit={async (values) => {
                 try {
+                  // First, create an optimistically updated fighter object
+                  const updatedFighter = {
+                    ...fighterData.fighter,
+                    fighter_name: values.name,
+                    label: values.label,
+                    kills: values.kills,
+                    cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
+                      ? 0 
+                      : Number(values.costAdjustment),
+                    special_rules: values.special_rules || fighterData.fighter?.special_rules
+                  };
+
+                  // If fighter type was changed, update those properties
+                  if (values.fighter_type_id && values.fighter_type_id !== fighterData.fighter?.fighter_type_id) {
+                    updatedFighter.fighter_type = {
+                      fighter_type: values.fighter_type,
+                      fighter_type_id: values.fighter_type_id
+                    };
+                    updatedFighter.fighter_class = values.fighter_class;
+                    updatedFighter.fighter_class_id = values.fighter_class_id;
+                    
+                    // Handle sub-type if provided
+                    if (values.fighter_sub_type) {
+                      updatedFighter.fighter_sub_type = {
+                        fighter_sub_type: values.fighter_sub_type,
+                        fighter_sub_type_id: values.fighter_sub_type_id
+                      };
+                    } else {
+                      // Clear sub-type if not provided
+                      updatedFighter.fighter_sub_type = undefined;
+                    }
+                  }
+
+                  // Apply optimistic update to the UI
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: updatedFighter
+                  }));
+
+                  // Update page title for optimistic name update
+                  handleNameUpdate(values.name);
+
+                  // Now make the actual API call
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
                     headers: {
@@ -2440,16 +2483,17 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                       fighter_class_id: values.fighter_class_id,
                       fighter_type: values.fighter_type,
                       fighter_type_id: values.fighter_type_id,
+                      fighter_sub_type: values.fighter_sub_type,
+                      fighter_sub_type_id: values.fighter_sub_type_id,
                       special_rules: values.special_rules
                     }),
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter');
-
-                  handleNameUpdate(values.name);
-                  
-                  // Refresh fighter data to get the updated type information
-                  await fetchFighterData();
+                  if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error:', errorText);
+                    throw new Error('Failed to update fighter');
+                  }
                   
                   toast({
                     description: "Fighter updated successfully",
@@ -2459,6 +2503,10 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
+                  
+                  // Revert the optimistic update by fetching the real data
+                  fetchFighterData();
+                  
                   toast({
                     description: 'Failed to update fighter',
                     variant: "destructive"
