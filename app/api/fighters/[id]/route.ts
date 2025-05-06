@@ -73,6 +73,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     kills, 
     cost_adjustment, 
     fighter_class,
+    fighter_class_id,
+    fighter_type,
+    fighter_type_id,
+    fighter_sub_type,
+    fighter_sub_type_id,
     xp_to_add, 
     operation, 
     note, 
@@ -111,7 +116,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         .from("fighters")
         .update({ 
           xp: newXp,
-          total_xp: newTotalXp
+          total_xp: newTotalXp,
+          updated_at: new Date().toISOString()
         })
         .eq('id', params.id)
         .select()
@@ -123,7 +129,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // If updating fighter status (killed, retired, enslaved, starved)
     if (killed !== undefined || retired !== undefined || enslaved !== undefined || starved !== undefined || recovery !== undefined) {
-      const updateData: Record<string, boolean> = {};
+      const updateData: Record<string, any> = {
+        updated_at: new Date().toISOString()
+      };
       
       if (killed !== undefined) updateData.killed = killed;
       if (retired !== undefined) updateData.retired = retired;
@@ -142,21 +150,41 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json(updatedFighter);
     }
 
-    // If updating fighter name/label/kills/cost_adjustment/note/fighter_class/special_rules
+    // If updating fighter data including type, sub-type, etc.
     if (fighter_name !== undefined || label !== undefined || kills !== undefined || 
         cost_adjustment !== undefined || note !== undefined || fighter_class !== undefined ||
-        special_rules !== undefined) {
+        special_rules !== undefined || fighter_type !== undefined || fighter_type_id !== undefined ||
+        fighter_sub_type !== undefined || fighter_sub_type_id !== undefined) {
+      
+      const updateData: Record<string, any> = {
+        updated_at: new Date().toISOString()
+      };
+      
+      if (fighter_name !== undefined) updateData.fighter_name = fighter_name;
+      if (label !== undefined) updateData.label = label;
+      if (kills !== undefined) updateData.kills = kills;
+      if (cost_adjustment !== undefined) updateData.cost_adjustment = cost_adjustment;
+      if (note !== undefined) updateData.note = note;
+      if (fighter_class !== undefined) updateData.fighter_class = fighter_class;
+      if (special_rules !== undefined) updateData.special_rules = special_rules;
+      if (fighter_type !== undefined) updateData.fighter_type = fighter_type;
+      
+      // Handle UUID fields - convert empty strings to null to avoid UUID validation errors
+      if (fighter_type_id !== undefined) {
+        updateData.fighter_type_id = fighter_type_id === "" ? null : fighter_type_id;
+      }
+      if (fighter_sub_type_id !== undefined) {
+        updateData.fighter_sub_type_id = fighter_sub_type_id === "" ? null : fighter_sub_type_id;
+      }
+      if (fighter_class_id !== undefined) {
+        updateData.fighter_class_id = fighter_class_id === "" ? null : fighter_class_id;
+      }
+      
+      if (fighter_sub_type !== undefined) updateData.fighter_sub_type = fighter_sub_type;
+
       const { data: updatedFighter, error: fighterUpdateError } = await supabase
         .from("fighters")
-        .update({ 
-          fighter_name,
-          label,
-          kills: kills !== undefined ? kills : undefined,
-          cost_adjustment: cost_adjustment !== undefined ? cost_adjustment : undefined,
-          note: note !== undefined ? note : undefined,
-          fighter_class: fighter_class !== undefined ? fighter_class : undefined,
-          special_rules: special_rules !== undefined ? special_rules : undefined
-        })
+        .update(updateData)
         .eq('id', params.id)
         .select()
         .single();

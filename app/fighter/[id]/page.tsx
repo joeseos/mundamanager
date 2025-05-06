@@ -2410,7 +2410,23 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                 // Convert fighter_type from object to string if needed
                 fighter_type: typeof fighterData.fighter.fighter_type === 'object' 
                   ? fighterData.fighter.fighter_type.fighter_type 
-                  : fighterData.fighter.fighter_type
+                  : fighterData.fighter.fighter_type,
+                
+                // Extract fighter_type_id if it's an object
+                fighter_type_id: typeof fighterData.fighter.fighter_type === 'object'
+                  ? (fighterData.fighter.fighter_type as any).fighter_type_id
+                  : (fighterData.fighter as any).fighter_type_id,
+                
+                // Convert fighter_sub_type from object to string if needed
+                ...(fighterData.fighter.fighter_sub_type && {
+                  fighter_sub_type: typeof fighterData.fighter.fighter_sub_type === 'object'
+                    ? ((fighterData.fighter.fighter_sub_type as any).sub_type_name || (fighterData.fighter.fighter_sub_type as any).fighter_sub_type)
+                    : fighterData.fighter.fighter_sub_type,
+                    
+                  fighter_sub_type_id: typeof fighterData.fighter.fighter_sub_type === 'object'
+                    ? ((fighterData.fighter.fighter_sub_type as any).fighter_sub_type_id || (fighterData.fighter.fighter_sub_type as any).id)
+                    : (fighterData.fighter as any).fighter_sub_type_id
+                })
               } as any}
               isOpen={uiState.modals.editFighter}
               initialValues={{
