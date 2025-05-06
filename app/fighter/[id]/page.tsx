@@ -2447,17 +2447,17 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                       
                   if (values.fighter_type_id && fighterData.fighter && values.fighter_type_id !== currentFighterTypeId) {
                     updatedFighter.fighter_type = {
-                      fighter_type: values.fighter_type,
-                      fighter_type_id: values.fighter_type_id
+                      fighter_type: values.fighter_type || '',
+                      fighter_type_id: values.fighter_type_id || ''
                     };
-                    updatedFighter.fighter_class = values.fighter_class;
-                    updatedFighter.fighter_class_id = values.fighter_class_id;
+                    updatedFighter.fighter_class = values.fighter_class || '';
+                    updatedFighter.fighter_class_id = values.fighter_class_id || '';
                     
                     // Handle sub-type if provided
                     if (values.fighter_sub_type) {
                       updatedFighter.fighter_sub_type = {
-                        fighter_sub_type: values.fighter_sub_type,
-                        fighter_sub_type_id: values.fighter_sub_type_id
+                        fighter_sub_type: values.fighter_sub_type || '',
+                        fighter_sub_type_id: values.fighter_sub_type_id || ''
                       };
                     } else {
                       // Clear sub-type if not provided
