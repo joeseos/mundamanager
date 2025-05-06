@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: {
+    unoptimized: true,
     domains: ['res.cloudinary.com'],
     minimumCacheTTL: 3600,
     formats: ['image/avif', 'image/webp'],
