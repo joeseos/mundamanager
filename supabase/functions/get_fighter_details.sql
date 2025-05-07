@@ -349,8 +349,8 @@ BEGIN
                     'fighter_type_id', ft.id
                 ),
                 'fighter_sub_type', json_build_object(
-                    'fighter_sub_type', fst.sub_type_name,
-                    'fighter_sub_type_id', ft.fighter_sub_type_id
+                    'fighter_sub_type', fsub.sub_type_name,
+                    'fighter_sub_type_id', fsub.id
                 ),
                 'fighter_class', f.fighter_class,
                 'fighter_class_id', f.fighter_class_id,
@@ -378,7 +378,7 @@ BEGIN
         ) as result
     FROM fighters f
     JOIN fighter_types ft ON f.fighter_type_id = ft.id
-    LEFT JOIN fighter_sub_types fst ON fst.id = ft.fighter_sub_type_id
+    LEFT JOIN fighter_sub_types fsub ON fsub.id = f.fighter_sub_type_id
     JOIN gangs g ON f.gang_id = g.id
     LEFT JOIN fighter_gear fg ON fg.fighter_id = f.id
     LEFT JOIN fighter_skills fs ON fs.fighter_id = f.id

@@ -564,8 +564,10 @@ BEGIN
            f.label,
            f.fighter_type,
            f.fighter_class,
-           f.fighter_sub_type_id,
-           fst.sub_type_name AS fighter_sub_type,
+           json_build_object(
+             'fighter_sub_type', fst.sub_type_name,
+             'fighter_sub_type_id', fst.id
+           ) AS fighter_sub_type,
            f.xp,
            f.kills,
            f.position,
@@ -706,7 +708,6 @@ BEGIN
                'label', cf.label,
                'fighter_type', cf.fighter_type,
                'fighter_class', cf.fighter_class,
-               'fighter_sub_type_id', cf.fighter_sub_type_id,
                'fighter_sub_type', cf.fighter_sub_type,
                'position', cf.position,
                'xp', cf.xp,

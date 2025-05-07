@@ -182,6 +182,7 @@ export interface FighterProps {
   recovery?: boolean;
   free_skill?: boolean;
   fighter_class?: string;
+  fighter_class_id?: string;
   note?: string;
   effects: {
     injuries: FighterEffect[];
@@ -225,6 +226,11 @@ export interface FighterProps {
   };
 
   skills?: FighterSkills; // Use the standardized type
+
+  fighter_sub_type?: {
+    fighter_sub_type: string;
+    fighter_sub_type_id: string;
+  } | null;
 }
 
 export interface WeaponProfile {

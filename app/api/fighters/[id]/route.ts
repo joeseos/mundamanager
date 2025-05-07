@@ -190,7 +190,29 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         .single();
 
       if (fighterUpdateError) throw fighterUpdateError;
-      return NextResponse.json(updatedFighter);
+
+      // Fetch the joined sub_type for nested response
+      const { data: joinedFighter, error: joinError } = await supabase
+        .from('fighters')
+        .select(`*, fighter_sub_types: fighter_sub_type_id (id, sub_type_name)`)
+        .eq('id', params.id)
+        .single();
+
+      if (joinError) throw joinError;
+
+      // Normalize the sub_type as nested
+      const nestedFighter = {
+        ...joinedFighter,
+        fighter_sub_type: joinedFighter.fighter_sub_types
+          ? {
+              fighter_sub_type: joinedFighter.fighter_sub_types.sub_type_name,
+              fighter_sub_type_id: joinedFighter.fighter_sub_types.id
+            }
+          : null
+      };
+      delete nestedFighter.fighter_sub_types;
+
+      return NextResponse.json(nestedFighter);
     }
 
     return NextResponse.json({ message: 'No changes to make' });
