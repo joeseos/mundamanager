@@ -240,7 +240,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
           <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Type *
+                Skill Set *
               </label>
               <select
                 value={skillType}
@@ -270,7 +270,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     })
                     .reduce((groups, type) => {
                       const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted skill types
+                      let groupLabel = "Misc."; // Default category for unlisted skill sets
 
                       if (rank <= 19) groupLabel = "Universal Skills";
                       else if (rank <= 39) groupLabel = "Gang-specific Skills";
@@ -322,7 +322,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
             <div>
               {skillName == ''  && (
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Rename Skill Type
+                Rename Skill Set
               </label>
               )}
               {skillName !== '' && (
@@ -376,14 +376,14 @@ const handleSubmitSkill = async (operation: OperationType) => {
             disabled={ !!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Loading...' : 'Rename Skill Type'}
+            {isLoading ? 'Loading...' : 'Rename Skill Set'}
           </Button>
           <Button
             onClick={() => handleSubmitType(OperationType.DELETE) }
             disabled={!!skillName || skillTypeName == '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Loading...' : 'Delete Skill Type'}
+            {isLoading ? 'Loading...' : 'Delete Skill Set'}
           </Button>
         </div>
       </div>
