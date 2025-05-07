@@ -764,7 +764,7 @@ export function EditFighterModal({
   // Update the currentFighter useEffect
   useEffect(() => {
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId(fighter.fighter_type_id || '');
+    setSelectedFighterTypeId(''); // Always start with no selection
     setSelectedSubTypeId((fighter as any).fighter_sub_type_id || '');
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
@@ -1081,10 +1081,11 @@ export function EditFighterModal({
                 <div className="mt-1 text-sm text-gray-500">
                   Current: {typeof (fighter as any).fighter_type === 'object' 
                     ? (fighter as any).fighter_type.fighter_type 
-                    : fighter.fighter_type} 
-                  ({typeof fighter.fighter_class === 'object'
-                    ? (fighter.fighter_class as any).class_name || 'Unknown Class'
-                    : fighter.fighter_class || 'Unknown Class'})
+                    : fighter.fighter_type}
+                  {` `}
+                  {typeof fighter.fighter_class === 'object'
+                    ? `(${(fighter.fighter_class as any).class_name || 'Unknown Class'})`
+                    : `(${fighter.fighter_class || 'Unknown Class'})`}
                 </div>
               )}
             </div>
