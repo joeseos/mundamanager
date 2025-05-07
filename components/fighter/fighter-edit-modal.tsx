@@ -1081,10 +1081,11 @@ export function EditFighterModal({
                 <div className="mt-1 text-sm text-gray-500">
                   Current: {typeof (fighter as any).fighter_type === 'object' 
                     ? (fighter as any).fighter_type.fighter_type 
-                    : fighter.fighter_type} 
-                  ({typeof fighter.fighter_class === 'object'
-                    ? (fighter.fighter_class as any).class_name || 'Unknown Class'
-                    : fighter.fighter_class || 'Unknown Class'})
+                    : fighter.fighter_type}
+                  {` `}
+                  {typeof fighter.fighter_class === 'object'
+                    ? `(${(fighter.fighter_class as any).class_name || 'Unknown Class'})`
+                    : `(${fighter.fighter_class || 'Unknown Class'})`}
                 </div>
               )}
             </div>
