@@ -19,7 +19,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   type: string;  // maps to fighter_type
   label?: string;
   fighter_class?: string;
-  fighter_sub_type?: string;
+  fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
   killed?: boolean;
   retired?: boolean;
   enslaved?: boolean;
@@ -417,7 +417,7 @@ const FighterCard = memo(function FighterCard({
                   <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                     {type}
                     {fighter_class && ` (${fighter_class})`}
-                    {fighter_sub_type && `, ${fighter_sub_type}`}
+                    {fighter_sub_type && fighter_sub_type.fighter_sub_type ? `, ${fighter_sub_type.fighter_sub_type}` : ''}
                   </div>
                 </div>
               </div>
