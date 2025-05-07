@@ -380,7 +380,18 @@ BEGIN
       'fighter_type', v_fighter_type,
       'fighter_class', v_fighter_class,
       'fighter_class_id', v_fighter_class_id,
-      'fighter_sub_type_id', v_fighter_sub_type_id,
+      'fighter_sub_type', 
+        CASE 
+          WHEN v_fighter_sub_type_id IS NOT NULL THEN (
+            SELECT jsonb_build_object(
+              'fighter_sub_type', sub_type_name,
+              'fighter_sub_type_id', id
+            )
+            FROM fighter_sub_types
+            WHERE id = v_fighter_sub_type_id
+          )
+          ELSE NULL
+        END,
       'free_skill', v_free_skill,
       'cost', p_cost,  -- Use p_cost here, not v_fighter_cost
       'base_cost', v_fighter_base_cost,
