@@ -2438,8 +2438,35 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
               onClose={() => {
                 handleModalToggle('editFighter', false);
               }}
-              onSubmit={async (values) => {
+              onSubmit={async (values): Promise<boolean> => {
                 try {
+                  // Optimistically update the fighter data
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? {
+                      ...prev.fighter,
+                      fighter_name: values.name,
+                      label: values.label,
+                      kills: values.kills,
+                      cost_adjustment: values.costAdjustment === '' || values.costAdjustment === '-' 
+                        ? 0 
+                        : Number(values.costAdjustment),
+                      fighter_class: values.fighter_class,
+                      fighter_class_id: values.fighter_class_id,
+                      fighter_type: {
+                        fighter_type: values.fighter_type || '',
+                        fighter_type_id: values.fighter_type_id || ''
+                      },
+                      fighter_type_id: values.fighter_type_id,
+                      special_rules: values.special_rules,
+                      fighter_sub_type: values.fighter_sub_type ? {
+                        fighter_sub_type: values.fighter_sub_type,
+                        fighter_sub_type_id: values.fighter_sub_type_id || ''
+                      } : undefined,
+                      fighter_sub_type_id: values.fighter_sub_type_id
+                    } : null
+                  }));
+
                   const response = await fetch(`/api/fighters/${fighterData.fighter?.id}`, {
                     method: 'PATCH',
                     headers: {
@@ -2456,25 +2483,24 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
                       fighter_class_id: values.fighter_class_id,
                       fighter_type: values.fighter_type,
                       fighter_type_id: values.fighter_type_id,
-                      special_rules: values.special_rules
+                      special_rules: values.special_rules,
+                      fighter_sub_type: values.fighter_sub_type ?? null,
+                      fighter_sub_type_id: values.fighter_sub_type_id ?? null
                     }),
                   });
 
                   if (!response.ok) throw new Error('Failed to update fighter');
 
                   handleNameUpdate(values.name);
-                  
-                  // Refresh fighter data to get the updated type information
-                  await fetchFighterData();
-                  
                   toast({
                     description: "Fighter updated successfully",
                     variant: "default"
                   });
-                  
                   return true;
-                } catch (error) {
-                  console.error('Error updating fighter:', error);
+                } catch (err) {
+                  console.error('Error updating fighter:', err);
+                  // Revert the optimistic update on error
+                  await fetchFighterData();
                   toast({
                     description: 'Failed to update fighter',
                     variant: "destructive"

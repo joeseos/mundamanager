@@ -516,6 +516,8 @@ interface EditFighterModalProps {
     fighter_type_id?: string;
     special_rules?: string[];
     stats?: Record<string, number>;
+    fighter_sub_type?: string | null;
+    fighter_sub_type_id?: string | null;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
 }
@@ -656,7 +658,7 @@ export function EditFighterModal({
           
           // Add this fighter variant as a sub-type option
           const subType = {
-            id: fighter.id,
+            id: fighter.sub_type?.id || '',
             fighter_sub_type: fighter.sub_type?.sub_type_name || 'Default',
             cost: fighter.total_cost
           };
@@ -938,7 +940,6 @@ export function EditFighterModal({
     try {
       // Get the selected fighter type details
       const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
-      
       // Get the selected sub-type details
       let selectedSubType = null;
       if (selectedSubTypeId && selectedFighterType?.typeClassKey) {
@@ -946,7 +947,6 @@ export function EditFighterModal({
         const subTypes = subTypesByFighterType.get(key) || [];
         selectedSubType = subTypes.find(st => st.id === selectedSubTypeId);
       }
-      
       // First, get the session for authentication
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -954,69 +954,26 @@ export function EditFighterModal({
       // With no fallback mapping needed
       const classId = selectedFighterType?.fighter_class_id || '';
       
-      // Make the PATCH request to update the fighter
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?id=eq.${fighter.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            fighter_name: formValues.name,
-            label: formValues.label,
-            kills: formValues.kills,
-            cost_adjustment: parseInt(formValues.costAdjustment) || 0,
-            special_rules: formValues.special_rules,
-            ...(selectedFighterType && {
-              fighter_type: selectedFighterType.fighter_type,
-              fighter_type_id: selectedFighterType.id,
-              fighter_class: selectedFighterType.fighter_class,
-              fighter_class_id: classId,
-            }),
-            ...(selectedSubType && {
-              fighter_sub_type: selectedSubType.fighter_sub_type,
-              fighter_sub_type_id: selectedSubType.id,
-            }),
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to update fighter');
-      }
-
-      // Call the original onSubmit for any additional processing
-      const success = await onSubmit({
+      // Call onSubmit with all values, including sub-type fields
+      await onSubmit({
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
+        fighter_class: selectedFighterType?.fighter_class || formValues.fighter_class,
+        fighter_class_id: selectedFighterType?.fighter_class_id || formValues.fighter_class_id,
+        fighter_type: selectedFighterType?.fighter_type || formValues.fighter_type,
+        fighter_type_id: selectedFighterType?.id || formValues.fighter_type_id,
         special_rules: formValues.special_rules,
-        ...(selectedFighterType && {
-          fighter_type: selectedFighterType.fighter_type,
-          fighter_type_id: selectedFighterType.id,
-          fighter_class: selectedFighterType.fighter_class,
-          fighter_class_id: classId,
-        }),
-        ...(selectedSubType && {
-          fighter_sub_type: selectedSubType.fighter_sub_type,
-          fighter_sub_type_id: selectedSubType.id,
-        }),
+        fighter_sub_type: selectedSubType && selectedSubType.id ? selectedSubType.fighter_sub_type : null,
+        fighter_sub_type_id: selectedSubType && selectedSubType.id ? selectedSubType.id : null
       });
-      
-      if (success) {
-        toast({
-          description: 'Fighter updated successfully',
-          variant: "default"
-        });
-        onClose();
-      }
-      
-      return success;
+      toast({
+        description: 'Fighter updated successfully',
+        variant: "default"
+      });
+      onClose();
+      return true;
     } catch (error) {
       console.error('Error updating fighter:', error);
       toast({
