@@ -605,7 +605,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   }}
                 >
                   <option key="default" value="">
-                    Select {advancementType === "characteristic" ? "a Characteristic" : "a Skill Type"}
+                    Select {advancementType === "characteristic" ? "a Characteristic" : "a Skill Set"}
                   </option>
 
                   {advancementType === "characteristic" ? (
@@ -639,7 +639,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                       </optgroup>
                     ))
                   ) : (
-                    // If selecting a Skill Type, sort and group dynamically
+                    // If selecting a Skill Set, sort and group dynamically
                     Object.entries(
                       categories
                         .filter((cat): cat is SkillType => cat.type === 'skill')  // Filter to only SkillType

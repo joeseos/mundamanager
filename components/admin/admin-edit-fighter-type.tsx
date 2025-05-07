@@ -256,18 +256,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterClassesRef = useRef(false);
 
-  // Only fetch skill types when needed
+  // Only fetch skill sets when needed
   const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
 
   const fetchSkillTypes = async () => {
     // Only fetch if we haven't already loaded the data
     if (hasLoadedSkillTypesRef.current) {
-      console.log('Using cached skill types');
+      console.log('Using cached skill sets');
         return;
       }
       
     try {
-      console.log('Fetching skill types');
+      console.log('Fetching skill sets');
         const response = await fetch('/api/admin/skill-types');
         if (!response.ok) throw new Error('Failed to fetch skill sets');
         const data = await response.json();
@@ -691,7 +691,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fetchEquipmentByCategory();
       }
       
-      // If we need to load skill types, do it now
+      // If we need to load skill sets, do it now
       if (!hasLoadedSkillTypesRef.current) {
         fetchSkillTypes();
       }
@@ -1420,7 +1420,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     value={selectedSkillType}
                     onChange={(e) => setSelectedSkillType(e.target.value)}
                     onFocus={() => {
-                      // Load skill types when the dropdown gets focus
+                      // Load skill sets when the dropdown gets focus
                       if (!hasLoadedSkillTypesRef.current) {
                         fetchSkillTypes();
                       }

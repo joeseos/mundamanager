@@ -24,14 +24,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     const fetchSkillTypes = async () => {
       try {
         const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch Skill Types');
+        if (!response.ok) throw new Error('Failed to fetch Skill Sets');
         const data = await response.json();
-        console.log('Fetched Skill Types:', data);
+        console.log('Fetched Skill Sets:', data);
         setSkillTypes(data);
       } catch (error) {
-        console.error('Error fetching Skill Types:', error);
+        console.error('Error fetching Skill Sets:', error);
         toast({
-          description: 'Failed to load Skill Types',
+          description: 'Failed to load Skill Sets',
           variant: "destructive"
         });
       }
@@ -108,11 +108,11 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create Skill Type');
+        throw new Error('Failed to create Skill Set');
       }
 
       toast({
-        description: "Skill Type created successfully",
+        description: "Skill Set created successfully",
         variant: "default"
       });
 
@@ -121,9 +121,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
       onClose();
     } catch (error) {
-      console.error('Error creating Skill Type:', error);
+      console.error('Error creating Skill Set:', error);
       toast({
-        description: 'Failed to create Skill Type',
+        description: 'Failed to create Skill Set',
         variant: "destructive"
       });
     } finally {
@@ -154,7 +154,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Type *
+                Skill Set *
               </label>
               <select
                 value={skillType}
@@ -162,7 +162,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 className="w-full p-2 border rounded-md"
                 disabled={skillTypeName !== ""}
               >
-                <option value="">Select a skill type</option>
+                <option value="">Select a skill set</option>
 
                 {Object.entries(
                   skillTypeList
@@ -173,7 +173,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                     })
                     .reduce((groups, type) => {
                       const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted skill types
+                      let groupLabel = "Misc."; // Default category for unlisted skill sets
 
                       if (rank <= 19) groupLabel = "Universal Skills";
                       else if (rank <= 39) groupLabel = "Gang-specific Skills";
@@ -197,7 +197,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 ))}
               </select>
               {skillTypeName !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Type Name field to select a Skill Type.</p>
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
               )}
             </div>
 
@@ -217,7 +217,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Type Name *
+                Skill Set Name *
               </label>
               <Input
                 type="text"
@@ -228,7 +228,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 disabled={skillType !== ''}
               />
               {skillType !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Type selection to enter a Skill Type Name.</p>
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
               )}
             </div>
           </div>
@@ -255,7 +255,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
             disabled={!skillTypeName || skillType !== '' || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Creating...' : 'Create Skill Type'}
+            {isLoading ? 'Creating...' : 'Create Skill Set'}
           </Button>
         </div>
       </div>
