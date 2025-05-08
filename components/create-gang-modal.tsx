@@ -19,8 +19,6 @@ interface CreateGangModalProps {
   onClose: () => void;
 }
 
-const EXCLUDED_GANG_TYPES = ['Exotic Beasts', 'Hired guns', 'Other'];
-
 // Button component that opens the modal
 export function CreateGangButton() {
   const [showModal, setShowModal] = useState(false);
@@ -68,6 +66,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           const { data: gangTypesData, error: gangTypesError } = await supabase
             .from('gang_types')
             .select('gang_type_id, gang_type, alignment')
+            .eq('is_hidden', false)
             .order('gang_type');
           
           if (gangTypesError) {
@@ -211,7 +210,6 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               <option value="">Select gang type</option>
               {Object.entries(
                 gangTypes
-                  .filter(type => !EXCLUDED_GANG_TYPES.includes(type.gang_type))
                   .sort((a, b) => {
                     const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
                     const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
