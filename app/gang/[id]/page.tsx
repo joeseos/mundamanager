@@ -439,7 +439,8 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
         ...prev,
         processedData: {
           ...prev.processedData,
-          vehicles: [...prev.processedData.vehicles, newVehicle]
+          vehicles: [...prev.processedData.vehicles, newVehicle],
+          credits: prev.processedData.credits - (newVehicle.payment_cost || newVehicle.cost)
         }
       };
     });
