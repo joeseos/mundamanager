@@ -701,6 +701,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       // If we have an option and it has a fighterId, fetch details
       if (selectedOption && selectedOption.fighterId) {
+        setSelectedFighterTypeId(selectedOption.fighterId); // <-- Add this line
         // Set sub-type name if it's not the default option, otherwise clear it
         if (subTypeId !== "default") {
           setSubTypeName(selectedOption.sub_type_name);
