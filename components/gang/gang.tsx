@@ -369,7 +369,7 @@ const handleAlignmentChange = (value: string) => {
 
       let baseData = await response.json();
 
-      // If gang_variants, fetch Gang Variants fighter types
+      // If variantList, fetch Gang Variants fighter types
       for (const variant of variantList) {
         const variantModifier = gangVariantFighterModifiers[variant.id];
         if (!variantModifier) continue;
