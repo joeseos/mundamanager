@@ -28,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
+import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 
 interface VehicleType {
   id: string;
@@ -172,13 +173,15 @@ export default function Gang({
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+
+  // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
     }
     return 'normal';
   });
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
 
   // Calculate the total value of unassigned vehicles
   const unassignedVehiclesValue = useMemo(() => {
@@ -277,6 +280,7 @@ const handleAlignmentChange = (value: string) => {
       setExplorationPoints(parseInt(editedExplorationPoints));
       setGangIsVariant(editedGangIsVariant);
       setGangVariants(editedGangVariants);
+      fetchFighterTypes(editedGangVariants);
 
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
@@ -346,8 +350,9 @@ const handleAlignmentChange = (value: string) => {
     setShowAddFighterModal(true);
   };
 
-  const fetchFighterTypes = async () => {
+  const fetchFighterTypes = async (variantList: Array<{ id: string, variant: string }> = gang_variants ?? []) => {
     try {
+      // Fetch base Gang fighter types
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
         {
@@ -356,16 +361,42 @@ const handleAlignmentChange = (value: string) => {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
-          body: JSON.stringify({
-            "p_gang_type_id": gang_type_id
-          })
+          body: JSON.stringify({ p_gang_type_id: gang_type_id })
         }
       );
 
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      
-      const data = await response.json();
-      const processedTypes = data
+      if (!response.ok) throw new Error('Failed to fetch Gang fighter types');
+
+      let baseData = await response.json();
+
+      // If variantList, fetch Gang Variants fighter types
+      for (const variant of variantList) {
+        const variantModifier = gangVariantFighterModifiers[variant.id];
+        if (!variantModifier) continue;
+
+        if (variantModifier.removeLeaders) {
+          baseData = baseData.filter((type: any) => type.fighter_class !== 'Leader');
+        }
+
+        const variantResponse = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({ p_gang_type_id: variantModifier.variantGangTypeId })
+          }
+        );
+
+        if (!variantResponse.ok) throw new Error(`Failed to fetch fighters for variant ${variant.variant}`);
+
+        const variantData = await variantResponse.json();
+        baseData = [...baseData, ...variantData];
+      }
+
+      const processedTypes: FighterType[] = baseData
         .map((type: any) => ({
           id: type.id,
           fighter_type_id: type.id,
@@ -395,6 +426,7 @@ const handleAlignmentChange = (value: string) => {
       });
     }
   };
+
 
   const handleGangAdditionsModalOpen = () => {
     setShowGangAdditionsModal(true);

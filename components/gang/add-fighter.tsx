@@ -380,13 +380,14 @@ export default function AddFighter({
             // Convert the map values to an array and sort
             return Array.from(typeClassMap.values())
               .sort((a, b) => {
-                // Sort by fighter type first
-                if (a.fighter.fighter_type !== b.fighter.fighter_type) {
-                  return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
+                const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                if (classRankA !== classRankB) {
+                  return classRankA - classRankB;
                 }
-                
-                // Then sort by class rank
-                return fighterClassRank[a.fighter.fighter_class.toLowerCase()] - fighterClassRank[b.fighter.fighter_class.toLowerCase()];
+
+                return a.cost - b.cost;
               })
               .map(({ fighter, cost }) => {
                 const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
