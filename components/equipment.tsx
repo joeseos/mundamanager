@@ -577,7 +577,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           id: equipmentRecord.id,
           equipment_id: item.equipment_id,
           created_at: new Date().toISOString()
-        }] : undefined
+        }] : undefined,
+        equipment_effect: data.equipment_effect
       });
 
       toast({

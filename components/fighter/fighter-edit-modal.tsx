@@ -76,6 +76,19 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     return effects;
   }, [fighter.effects?.user]);
 
+  // Calculate bionics effects
+  const bionicsEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.bionics?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.bionics]);
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full border-collapse text-sm">
@@ -126,6 +139,16 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             ))}
           </tr>
           
+          {/* Bionics row */}
+          <tr className="bg-yellow-50">
+            <td className="px-1 py-1 font-medium text-xs">Bionics</td>
+            {stats.map(stat => (
+              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                {bionicsEffects[stat.key] ? bionicsEffects[stat.key] : '-'}
+              </td>
+            ))}
+          </tr>
+          
           {/* User row */}
           <tr className="bg-green-50">
             <td className="px-1 py-1 font-medium text-xs">User</td>
@@ -143,8 +166,9 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const baseValue = getStat(fighter, stat.key);
               const injuryValue = injuryEffects[stat.key] || 0;
               const advancementValue = advancementEffects[stat.key] || 0;
+              const bionicsValue = bionicsEffects[stat.key] || 0;
               const userValue = userEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + userValue;
+              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue;
               
               return (
                 <td key={stat.key} className="border-l border-gray-300 text-center text-xs">

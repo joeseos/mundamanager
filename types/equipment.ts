@@ -33,4 +33,22 @@ export interface Equipment {
   vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   master_crafted?: boolean;
   is_master_crafted?: boolean;
+  equipment_effect?: {
+    id: string;
+    effect_name: string;
+    fighter_effect_type_id?: string;
+    fighter_equipment_id: string;
+    fighter_effect_modifiers: Array<{
+      id: string;
+      fighter_effect_id: string;
+      stat_name: string;
+      numeric_value: number;
+    }>;
+    type_specific_data?: {
+      xp_cost?: number;
+      credits_increase?: number;
+      [key: string]: any;
+    } | string;
+    created_at?: string;
+  };
 } 
