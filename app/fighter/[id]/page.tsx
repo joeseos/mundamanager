@@ -527,12 +527,32 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
   }, []);
 
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
-    setFighterData(prev => ({
-      ...prev,
-      equipment: updatedEquipment,
-      fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
-      gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-    }));
+    setFighterData(prev => {
+      // Find which equipment was removed (present in prev.equipment but not in updatedEquipment)
+      const removed = prev.equipment.find(
+        e => !updatedEquipment.some(ue => ue.fighter_equipment_id === e.fighter_equipment_id)
+      );
+      let updatedEffects = prev.fighter?.effects;
+      // If the removed equipment had an effect, remove it from user effects
+      if (removed?.equipment_effect && updatedEffects) {
+        updatedEffects = {
+          ...updatedEffects,
+          user: updatedEffects.user.filter(
+            effect => effect.id !== removed.equipment_effect?.id
+          )
+        };
+      }
+      return {
+        ...prev,
+        equipment: updatedEquipment,
+        fighter: prev.fighter ? {
+          ...prev.fighter,
+          credits: newFighterCredits,
+          effects: updatedEffects || prev.fighter.effects
+        } : null,
+        gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+      };
+    });
   }, []);
 
   const handleEquipmentBought = useCallback((
@@ -574,12 +594,22 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         }];
       }
 
+      // Optimistically add equipment effect to user effects if present
+      let updatedEffects = prev.fighter.effects;
+      if (boughtEquipment.equipment_effect) {
+        updatedEffects = {
+          ...updatedEffects,
+          user: [...(updatedEffects.user || []), boughtEquipment.equipment_effect]
+        };
+      }
+
       return {
         ...prev,
         fighter: {
           ...prev.fighter,
           credits: newFighterCredits,
-          vehicles: updatedVehicles
+          vehicles: updatedVehicles,
+          effects: updatedEffects
         },
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
         vehicleEquipment: isVehicleEquipment ? [
