@@ -2,15 +2,17 @@
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN);
 
--- Then create our new function with vehicle support, user_id and fighter effect support
+-- Then create our new function with vehicle support, user_id, fighter effect support, and use_base_cost_for_rating
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   fighter_id UUID DEFAULT NULL,
   equipment_id UUID DEFAULT NULL,
   gang_id UUID DEFAULT NULL,
   manual_cost INTEGER DEFAULT NULL,
   vehicle_id UUID DEFAULT NULL,
-  master_crafted BOOLEAN DEFAULT FALSE
+  master_crafted BOOLEAN DEFAULT FALSE,
+  use_base_cost_for_rating BOOLEAN DEFAULT TRUE
 )
 RETURNS JSONB 
 SECURITY DEFINER
@@ -46,6 +48,7 @@ DECLARE
   v_collections_data JSONB;
   v_final_result JSONB;
   v_has_effect BOOLEAN := FALSE;
+  rating_cost INTEGER;
 BEGIN
   -- Get the authenticated user's ID
   v_user_id := auth.uid();
@@ -133,6 +136,13 @@ BEGIN
     RAISE EXCEPTION 'Gang has insufficient credits. Required: %, Available: %', final_purchase_cost, current_gang_credits;
   END IF;
 
+  -- Determine the cost to use for fighter rating based on the use_base_cost_for_rating flag
+  IF use_base_cost_for_rating THEN
+    rating_cost := base_cost;
+  ELSE
+    rating_cost := final_purchase_cost;
+  END IF;
+
   -- Get owner details for response based on owner type
   IF v_owner_type = 'fighter' THEN
     SELECT * INTO v_fighter_record
@@ -187,7 +197,7 @@ BEGIN
     vehicle_id,
     buy_equipment_for_fighter.equipment_id,
     base_cost,
-    final_purchase_cost,
+    rating_cost, -- Use rating_cost for purchase_cost based on the flag
     now(),
     now(),
     v_user_id,
@@ -264,13 +274,15 @@ BEGIN
     v_collections_data := jsonb_build_object(
       'updatefightersCollection', jsonb_build_object('records', jsonb_build_array(updated_fighter)),
       'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
-      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment))
+      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
+      'rating_cost', rating_cost -- Include the rating value in the response
     );
   ELSE
     v_collections_data := jsonb_build_object(
       'updatevehiclesCollection', jsonb_build_object('records', jsonb_build_array(updated_vehicle)),
       'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
-      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment))
+      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
+      'rating_cost', rating_cost -- Include the rating value in the response
     );
   END IF;
 
@@ -368,6 +380,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN) TO authenticated;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN) TO service_role;
+REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) TO service_role;
