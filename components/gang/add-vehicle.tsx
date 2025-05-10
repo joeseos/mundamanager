@@ -4,6 +4,7 @@ import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImInfo } from "react-icons/im";
 
 interface VehicleType {
   id: string;
@@ -262,7 +263,7 @@ export default function AddVehicle({
               Use base cost for vehicle value
             </label>
             <div className="relative group">
-              <span className="cursor-help text-gray-500">ⓘ</span>
+              <ImInfo />
               <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
                 When checked, the vehicle will use its base cost as its value
                 regardless of how much you actually pay for it. This base cost will be used
