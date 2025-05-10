@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImInfo } from "react-icons/im";
 
 interface AddFighterProps {
   showModal: boolean;
@@ -479,7 +480,7 @@ export default function AddFighter({
           Use base cost for Fighter Rating
         </label>
         <div className="relative group">
-          <span className="cursor-help text-gray-500">ⓘ</span>
+          <ImInfo />
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
             When checked, the fighter will cost what you enter above, but its rating will be calculated using the base cost. When unchecked, the fighter's rating will be based on what you paid.
           </div>
