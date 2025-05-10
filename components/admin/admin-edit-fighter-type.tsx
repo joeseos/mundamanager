@@ -2028,7 +2028,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             }));
                             e.target.value = "";
                           }}
-                          className="flex-grow p-2 border rounded-md"
+                          className="w-full p-2 border rounded-md"
                           disabled={!selectedFighterTypeId}
                         >
                           <option value="">Add default equipment</option>
@@ -2112,7 +2112,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             }));
                             e.target.value = "";
                           }}
-                          className="flex-grow p-2 border rounded-md"
+                          className="w-full p-2 border rounded-md"
                           disabled={!selectedFighterTypeId}
                         >
                           <option value="">Add equipment option</option>
