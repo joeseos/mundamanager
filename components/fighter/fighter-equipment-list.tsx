@@ -110,7 +110,9 @@ export function WeaponList({
       }
       
       const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      const newFighterCredits = fighterCredits - (equipmentToDelete.cost ?? 0); // Use cost with fallback
+      // Use purchase_cost for calculating credit adjustments as this is what affects the rating
+      // The cost field should already be set to purchase_cost from the backend
+      const newFighterCredits = fighterCredits - (equipmentToDelete.cost ?? 0);
       
       onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
       
@@ -162,7 +164,9 @@ export function WeaponList({
         item => item.fighter_equipment_id !== fighterEquipmentId
       );
       const newGangCredits = gangCredits + manualCost;
-      const newFighterCredits = fighterCredits - manualCost;
+      // When selling, we need to subtract the rating cost (purchase_cost) from fighter's credits
+      // The cost field should already be set to purchase_cost from the backend
+      const newFighterCredits = fighterCredits - equipmentToSell.cost;
 
       onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
       
@@ -214,7 +218,8 @@ export function WeaponList({
         item => item.fighter_equipment_id !== fighterEquipmentId
       );
       
-      // Adjust fighter credits
+      // Adjust fighter credits using the purchase_cost (rating value)
+      // The cost field should already be set to purchase_cost from the backend
       const newFighterCredits = fighterCredits - (equipmentToStash.cost ?? 0);
 
       onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
