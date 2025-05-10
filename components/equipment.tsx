@@ -9,6 +9,8 @@ import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ImInfo } from "react-icons/im";
 
 interface ItemModalProps {
   title: string;
@@ -131,33 +133,35 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
             </div>
             
             {item.equipment_type === 'weapon' && (
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  type="checkbox"
+              <div className="flex items-center space-x-2 mt-2">
+                <Checkbox 
                   id="master-crafted"
                   checked={isMasterCrafted}
-                  onChange={() => setIsMasterCrafted(!isMasterCrafted)}
-                  className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                  onCheckedChange={(checked) => setIsMasterCrafted(checked as boolean)}
                 />
-                <label htmlFor="master-crafted" className="text-sm text-gray-700">
+                <label 
+                  htmlFor="master-crafted" 
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
                   Master-crafted (+25%)
                 </label>
               </div>
             )}
 
             <div className="flex items-center space-x-2 mb-2 mt-2">
-              <input
-                type="checkbox"
+              <Checkbox 
                 id="use-base-cost-for-rating"
                 checked={useBaseCostForRating}
-                onChange={() => setUseBaseCostForRating(!useBaseCostForRating)}
-                className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
               />
-              <label htmlFor="use-base-cost-for-rating" className="text-sm font-medium text-gray-700 cursor-pointer">
+              <label 
+                htmlFor="use-base-cost-for-rating" 
+                className="text-sm font-medium text-gray-700 cursor-pointer"
+              >
                 Use base cost for Fighter Rating
               </label>
               <div className="relative group">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                <ImInfo />
                 <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
                   When checked, the equipment will cost what you enter above, but its rating will be calculated using the base cost. When unchecked, the equipment's rating will be based on what you paid.
                 </div>
