@@ -186,6 +186,28 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchGangTypes();
   }, [toast]);
 
+  // New useEffect to fetch fighter classes
+  useEffect(() => {
+    const fetchFighterClasses = async () => {
+      try {
+        console.log('Fetching all fighter classes');
+        const response = await fetch('/api/admin/fighter-classes');
+        if (!response.ok) throw new Error('Failed to fetch fighter classes');
+        const data = await response.json();
+        console.log('Loaded fighter classes:', data);
+        setFighterClasses(data);
+      } catch (error) {
+        console.error('Error fetching fighter classes:', error);
+        toast({
+          description: 'Failed to load fighter classes',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchFighterClasses();
+  }, [toast]);
+
   // Modify fighter types fetch to extract unique combinations
   useEffect(() => {
     if (!gangTypeFilter) return; // Only fetch if gang type is selected
@@ -615,13 +637,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterType(fighter.fighter_type);
         setSelectedFighterClass(fighter.fighter_class);
         
-        // Extract and populate fighter classes if needed
+        // Don't overwrite the full list of fighter classes, just ensure the current one is selected
+        // Comment out this code that's overwriting all fighter classes
+        /*
         if (fighter.fighter_class && fighter.fighter_class_id) {
           setFighterClasses([{
             id: fighter.fighter_class_id,
             class_name: fighter.fighter_class
           }]);
         }
+        */
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
@@ -1198,10 +1223,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </label>
                   <select
                     value={selectedFighterClass}
-                    onChange={(e) => setSelectedFighterClass(e.target.value)}
+                    onChange={(e) => {
+                      console.log('Selected fighter class:', e.target.value);
+                      setSelectedFighterClass(e.target.value);
+                    }}
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select fighter class</option>
+                    {(() => { console.log('Rendering fighter classes dropdown with options:', fighterClasses); return null; })()}
                     {fighterClasses.map((fighterClass) => (
                       <option key={fighterClass.id} value={fighterClass.class_name}>
                         {fighterClass.class_name}
