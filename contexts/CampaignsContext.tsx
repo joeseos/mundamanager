@@ -17,6 +17,7 @@ type CampaignsContextType = {
   isLoading: boolean;
   error: string | null;
   refreshCampaigns: () => Promise<void>;
+  userId: string | undefined;
 };
 
 const CampaignsContext = createContext<CampaignsContextType | undefined>(undefined);
@@ -29,7 +30,12 @@ export const useCampaigns = () => {
   return context;
 };
 
-export const CampaignsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+interface CampaignsProviderProps {
+  children: ReactNode;
+  userId?: string;
+}
+
+export const CampaignsProvider: React.FC<CampaignsProviderProps> = ({ children, userId }) => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,18 +44,22 @@ export const CampaignsProvider: React.FC<{ children: ReactNode }> = ({ children 
   const fetchCampaigns = async () => {
     try {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (!userId) {
+        console.error('No user ID provided');
+        setError('Authentication required');
+        return;
       }
-
+      
       const { data, error: rpcError } = await supabase
         .rpc('get_user_campaigns', {
-          user_id: user.id
+          user_id: userId
         });
 
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        throw rpcError;
+      }
 
       setCampaigns(data || []);
       setError(null);
@@ -63,14 +73,14 @@ export const CampaignsProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   useEffect(() => {
     fetchCampaigns();
-  }, []);
+  }, [userId]);
 
   const refreshCampaigns = async () => {
     await fetchCampaigns();
   };
 
   return (
-    <CampaignsContext.Provider value={{ campaigns, setCampaigns, isLoading, error, refreshCampaigns }}>
+    <CampaignsContext.Provider value={{ campaigns, setCampaigns, isLoading, error, refreshCampaigns, userId }}>
       {children}
     </CampaignsContext.Provider>
   );
