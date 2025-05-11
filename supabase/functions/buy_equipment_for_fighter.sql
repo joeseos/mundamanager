@@ -129,6 +129,7 @@ BEGIN
   v_equipment_type := default_profile.equipment_type;
 
   -- Determine final purchase cost (manual or calculated)
+  -- This is the cost that will be deducted from gang credits
   final_purchase_cost := COALESCE(manual_cost, discounted_cost);
 
   -- Check if gang has enough credits using the final purchase cost
@@ -137,10 +138,11 @@ BEGIN
   END IF;
 
   -- Determine the cost to use for fighter rating based on the use_base_cost_for_rating flag
+  -- This value will be returned as rating_cost and used for fighter rating calculations
   IF use_base_cost_for_rating THEN
-    rating_cost := base_cost;
+    rating_cost := discounted_cost;  -- Using discounted_cost when use_base_cost_for_rating is true
   ELSE
-    rating_cost := final_purchase_cost;
+    rating_cost := final_purchase_cost;  -- Using manual_cost (when provided) for rating
   END IF;
 
   -- Get owner details for response based on owner type

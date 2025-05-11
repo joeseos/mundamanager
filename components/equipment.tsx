@@ -588,10 +588,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         throw new Error('Failed to get equipment ID from response');
       }
 
-      // Determine the cost value to use for the fighter's rating
-      // Use the rating_cost from the API response if available (most reliable)
-      // Otherwise calculate it based on checkbox state
-      const ratingCost = data.rating_cost || (useBaseCostForRating ? (item.base_cost || item.cost) : manualCost);
+      // Use the rating cost from the backend response
+      // This value will be the discounted_cost when use_base_cost_for_rating is true
+      // or the manual_cost when use_base_cost_for_rating is false
+      const ratingCost = data.rating_cost;
       
       // Calculate new fighter credits adding the rating cost, not the manual cost
       // This ensures the fighter's rating is correctly updated
@@ -602,8 +602,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         manualCost,
         useBaseCostForRating,
         baseCost: item.base_cost,
+        discountedCost: item.discounted_cost,
         ratingCost,
         responseRatingCost: data.rating_cost,
+        equipmentRecord,
         newFighterCredits,
         oldFighterCredits: fighterCredits
       });
@@ -611,7 +613,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       onEquipmentBought(newFighterCredits, newGangCredits, {
         ...item,
         fighter_equipment_id: equipmentRecord.id,
-        cost: ratingCost, // Use the rating cost value here instead of manualCost
+        cost: ratingCost, // Use the rating cost value from the server
         is_master_crafted: equipmentRecord.is_master_crafted,
         equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
           ? `${item.equipment_name} (Master-crafted)` 
