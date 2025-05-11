@@ -7,12 +7,30 @@ import { useGangs } from '@/contexts/GangsContext'
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { useToast } from "@/components/ui/use-toast"
-import { gangListRank } from "@/utils/gangListRank";
+import { gangListRank } from "@/utils/gangListRank"
+import { createGang } from "@/app/actions/create-gang"
+import { useRouter } from "next/navigation"
+
+type Gang = {
+  id: string;
+  name: string;
+  gang_type: string;
+  gang_type_id: string;
+  image_url: string;
+  credits: number;
+  reputation: number;
+  meat: number | null;
+  exploration_points: number | null;
+  rating: number | null;
+  created_at: string;
+  last_updated: string;
+};
 
 type GangType = {
   gang_type_id: string;
   gang_type: string;
   alignment: string;
+  image_url?: string;
 };
 
 interface CreateGangModalProps {
@@ -47,14 +65,16 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  const { refreshGangs } = useGangs();
+  const { gangs, setGangs } = useGangs();
   const { toast } = useToast();
+  const router = useRouter();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
+  const [gangTypeImages, setGangTypeImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchGangTypes = async () => {
@@ -63,9 +83,10 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         try {
           const supabase = createClient();
           
+          // Also fetch gang type images
           const { data: gangTypesData, error: gangTypesError } = await supabase
             .from('gang_types')
-            .select('gang_type_id, gang_type, alignment')
+            .select('gang_type_id, gang_type, alignment, image_url')
             .eq('is_hidden', false)
             .order('gang_type');
           
@@ -73,6 +94,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             throw gangTypesError;
           }
           
+          // Create a map of gang_type_id to image_url
+          const imageMap: Record<string, string> = {};
+          gangTypesData.forEach(type => {
+            if (type.image_url) {
+              imageMap[type.gang_type_id] = type.image_url;
+            }
+          });
+          setGangTypeImages(imageMap);
           setGangTypes(gangTypesData);
         } catch (err) {
           console.error('Error fetching gang types:', err);
@@ -116,48 +145,66 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       setIsLoading(true)
       setError(null)
       try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-          throw new Error('User not authenticated');
-        }
-
         const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
         if (!selectedGangType) {
           throw new Error('Invalid gang type selected');
         }
 
-        const { data, error: insertError } = await supabase
-          .from('gangs')
-          .insert([{
-            name: gangName,
-            credits: "1000",
-            reputation: "1",
-            user_id: user.id,
-            gang_type_id: gangType,
-            gang_type: selectedGangType.gang_type,
-            alignment: selectedGangType.alignment
-          }])
-          .select();
+        console.log("Creating gang:", gangName);
+        
+        // Use the server action to create the gang
+        const result = await createGang({
+          name: gangName,
+          gangTypeId: gangType,
+          gangType: selectedGangType.gang_type,
+          alignment: selectedGangType.alignment
+        });
 
-        if (insertError) {
-          throw insertError;
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create gang');
         }
 
-        console.log('Gang created successfully:', data);
+        console.log("Gang created successfully");
+
+        // Reset form and close modal first for better UX
+        setGangName("")
+        setGangType("")
+        onClose()
+
+        // Extract the new gang from the result
+        const newGang = result.data?.[0];
+        
+        if (newGang) {
+          // Create a properly formatted gang object with default values for any missing fields
+          const formattedGang: Gang = {
+            id: newGang.id,
+            name: newGang.name,
+            gang_type: newGang.gang_type,
+            gang_type_id: newGang.gang_type_id,
+            image_url: gangTypeImages[newGang.gang_type_id] || '',
+            credits: newGang.credits || 1000,
+            reputation: newGang.reputation || 1,
+            meat: newGang.meat || 0,
+            exploration_points: newGang.exploration_points || 0,
+            rating: 0, // New gang has no rating yet
+            created_at: newGang.created_at || new Date().toISOString(),
+            last_updated: newGang.last_updated || new Date().toISOString()
+          };
+          
+          // Update the client-side state immediately by adding the new gang at the top
+          setGangs([formattedGang, ...gangs]);
+          
+          console.log("Added new gang to the top of the list");
+        }
+        
+        // Also trigger router refresh to ensure server state gets updated in the background
+        // This uses revalidatePath under the hood
+        router.refresh();
 
         toast({
           title: "Success!",
           description: `${gangName} has been created successfully.`,
         })
-
-        // Reset form after successful creation
-        setGangName("")
-        setGangType("")
-        // Refresh the gangs list
-        await refreshGangs()
-        onClose()
       } catch (err) {
         console.error('Error creating gang:', err)
         setError('Failed to create gang. Please try again.')
