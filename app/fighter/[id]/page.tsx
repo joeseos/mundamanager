@@ -26,6 +26,7 @@ import { FighterProps } from '@/types/fighter';
 import { Plus, Minus, X } from "lucide-react";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
+import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 
 // Dynamically import heavy components
 const WeaponTable = dynamic(() => import('@/components/gang/fighter-card-weapon-table'), {
@@ -742,88 +743,6 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
       return false;
     }
   };
-
-  // Add a function to check if the input is valid
-  const isValidXpInput = (value: string) => {
-    // Allow empty string, minus sign, or only digits
-    return value === '' || value === '-' || /^-?\d+$/.test(value);
-  };
-
-  // Define XP "events" for the checkbox list
-  const xpCountCases = [
-    { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
-    { id: 'outOfAction', label: 'Cause OOA', xp: 2 },
-    { id: 'leaderChampionBonus', label: 'Leader/Champion', xp: 1 },
-    { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2 },
-  ];
-
-  const xpCheckboxCases = [
-    { id: 'battleParticipation', label: 'Battle Participation', xp: 1 },
-    { id: 'rally', label: 'Successful Rally', xp: 1 },
-    { id: 'assistance', label: 'Provide Assistance', xp: 1 },
-  ];
-
-
-  // Track which of these XP events are checked
-  const [xpCounts, setXpCounts] = useState(
-    xpCountCases.reduce((acc, xpCase) => {
-      acc[xpCase.id] = 0;
-      return acc;
-    }, {} as Record<string, number>)
-  );
-
-  const [xpCheckboxes, setXpCheckboxes] = useState(
-    xpCheckboxCases.reduce((acc, xpCase) => {
-      acc[xpCase.id] = false;
-      return acc;
-    }, {} as Record<string, boolean>)
-  );
-
-  // Handle toggling a checkbox
-  const handleXpCheckboxChange = (id: string) => {
-    setXpCheckboxes(prev => {
-      // Clone current state
-      const newState = { ...prev };
-
-      // Toggle the clicked checkbox
-      newState[id] = !prev[id];
-
-      // If they clicked seriousInjury, uncheck outOfAction
-      if (id === 'seriousInjury' && newState.seriousInjury) {
-        newState.outOfAction = false;
-      }
-      // If they clicked outOfAction, uncheck seriousInjury
-      if (id === 'outOfAction' && newState.outOfAction) {
-        newState.seriousInjury = false;
-      }
-
-      return newState;
-    });
-  };
-
-  const handleXpCountChange = (id: string, value: number) => {
-    setXpCounts(prev => ({
-      ...prev,
-      [id]: value
-    }));
-  };
-
-  // Compute total from checkboxes
-  const totalXpFromCountsAndCheckboxes =
-    Object.entries(xpCounts).reduce((sum, [id, count]) => {
-      const xpCase = xpCountCases.find(x => x.id === id);
-      return sum + (xpCase ? xpCase.xp * count : 0);
-    }, 0) +
-    xpCheckboxCases.reduce((sum, xpCase) => {
-      return xpCheckboxes[xpCase.id] ? sum + xpCase.xp : sum;
-    }, 0);
-
-
-  useEffect(() => {
-    // Convert to string since editState.xpAmount is a string
-    setEditState(prev => ({ ...prev, xpAmount: totalXpFromCountsAndCheckboxes === 0 ? "" : String(totalXpFromCountsAndCheckboxes) }));
-  }, [totalXpFromCountsAndCheckboxes, setEditState]);
-
 
   const handleAdvancementAdded = () => {
     // Simply call fetchFighterData (not refreshFighterData)
@@ -2248,124 +2167,31 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
           )}
 
           {uiState.modals.addXp && fighterData.fighter && (
-            <Modal
-              title="Add XP"
-              headerContent={
-                <div className="flex items-center">
-                  <span className="mr-2 text-sm text-gray-600">Fighter XP</span>
-                  <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                    {fighterData.fighter.xp ?? 0}
-                  </span>
-                </div>
-              }
-              content={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    {/* Repeatable XP with counters */}
-                    {xpCountCases.map((xpCase) => (
-                      <div key={xpCase.id} className="flex items-center justify-between">
-                        <label className="text-sm text-gray-800">
-                          {xpCase.label} (+{xpCase.xp} XP each)
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                            onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                            onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Separator after the first three */}
-                    <hr className="my-2 border-gray-300" />
-
-                    {/* Single XP Checkboxes */}
-                    {xpCheckboxCases.map((xpCase, idx, arr) => (
-                      <div key={xpCase.id}>
-                        <div className="flex items-center justify-between mb-2 mr-[52px]">
-                          <label htmlFor={xpCase.id} className="text-sm text-gray-800">
-                            {xpCase.label} (+{xpCase.xp} XP)
-                          </label>
-                          <input
-                            type="checkbox"
-                            id={xpCase.id}
-                            checked={xpCheckboxes[xpCase.id]}
-                            onChange={() => handleXpCheckboxChange(xpCase.id)}
-                            className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                        </div>
-                        {/* Only show a separator if it's not the last item in this slice */}
-                        {idx < arr.length - 1 && <hr className="my-2 border-gray-300" />}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* XP Summary */}
-                  <div className="text-xs text-gray-600">
-                    <div>Total XP: {totalXpFromCountsAndCheckboxes}</div>
-                    <div>Below value can be overridden (use a negative value to subtract)</div>
-                  </div>
-
-                  {/* Manual Override */}
-                  <Input
-                    type="tel"
-                    inputMode="url"
-                    pattern="-?[0-9]+"
-                    value={editState.xpAmount}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setEditState((prev) => ({
-                        ...prev,
-                        xpAmount: value,
-                        xpError: '',
-                      }));
-                    }}
-                    placeholder="XP Amount"
-                    className="w-full"
-                  />
-                  {editState.xpError && (
-                    <p className="text-red-500 text-sm mt-1">{editState.xpError}</p>
-                  )}
-                </div>
-              }
+            <FighterXpModal
+              isOpen={uiState.modals.addXp}
+              fighterId={params.id}
+              currentXp={fighterData.fighter.xp ?? 0}
               onClose={() => {
-                handleModalToggle('addXp', false);
-                // Clear numeric
-                setEditState((prev) => ({
+                // Clear any XP state when closing the modal
+                setEditState(prev => ({
                   ...prev,
                   xpAmount: '',
-                  xpError: '',
+                  xpError: ''
                 }));
-                // Reset all checkboxes
-                setXpCheckboxes(
-                  xpCheckboxCases.reduce((acc, xpCase) => {
-                    acc[xpCase.id] = false;
-                    return acc;
-                  }, {} as Record<string, boolean>)
-                );
-                setXpCounts(
-                  xpCountCases.reduce((acc, xpCase) => {
-                    acc[xpCase.id] = 0;
-                    return acc;
-                  }, {} as Record<string, number>)
-                );
+                handleModalToggle('addXp', false);
               }}
               onConfirm={handleAddXp}
-              confirmText={parseInt(editState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
-              confirmDisabled={!editState.xpAmount || !isValidXpInput(editState.xpAmount)}
+              xpAmountState={{
+                xpAmount: editState.xpAmount,
+                xpError: editState.xpError
+              }}
+              onXpAmountChange={(value) => {
+                setEditState(prev => ({
+                  ...prev,
+                  xpAmount: value,
+                  xpError: ''
+                }));
+              }}
             />
           )}
           
