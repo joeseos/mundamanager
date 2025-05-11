@@ -1,17 +1,17 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import Campaign from "@/components/campaign";
-import TerritoryGangModal from "@/components/campaign-territory-gang-modal";
+import Campaign from "@/components/campaign/campaign";
+import TerritoryGangModal from "@/components/campaign/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
-import MemberSearchBar from "@/components/campaign-member-search-bar"
-import MembersTable from "@/components/campaign-members-table"
+import MemberSearchBar from "@/components/campaign/campaign-member-search-bar"
+import MembersTable from "@/components/campaign/campaign-members-table"
 import Link from "next/link";
-import CampaignBattleLogsList from "@/components/campaign-battle-logs-list";
+import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-list";
 
 interface Gang {
   id: string;
