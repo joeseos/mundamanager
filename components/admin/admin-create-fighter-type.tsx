@@ -788,7 +788,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                       })
                       .reduce((groups, type) => {
                         const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                        let groupLabel = "Misc."; // Default category for unlisted skills
+                        let groupLabel = "Misc."; // Default category for unranked skills
 
                         if (rank <= 19) groupLabel = "Universal Skills";
                         else if (rank <= 39) groupLabel = "Gang-specific Skills";
