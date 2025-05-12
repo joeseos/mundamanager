@@ -818,7 +818,7 @@ const handleAlignmentChange = (value: string) => {
               </div>
             )}
             <Image
-              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
+              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
               alt="Cogwheel"
               width={250}
               height={250}

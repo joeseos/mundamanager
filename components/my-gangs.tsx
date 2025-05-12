@@ -48,7 +48,7 @@ export default function MyGangs() {
         <ul className="space-y-3">
           {sortedGangs.map((gang) => (
             <li key={gang.id}>
-              <Link href={`/gang/${gang.id}`} className="flex items-center p-3 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
+              <Link href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                   {gang.image_url ? (
                     <Image
@@ -56,23 +56,23 @@ export default function MyGangs() {
                       alt={gang.name}
                       width={60}
                       height={60}
-                      className="absolute rounded-full object-cover z-10 w-auto h-auto left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-90 md:scale-100"
+                      className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
                       priority={false}
                       onError={handleImageError}
                     />
                   ) : (
-                    <div className="absolute w-[60px] h-[60px] rounded-full bg-gray-200 z-10 flex items-center justify-center left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-90 md:scale-100">
+                    <div className="absolute w-[60px] h-[60px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
                       {gang.name.charAt(0)}
                     </div>
                   )}
                   <Image
-                    src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
+                    src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
                     alt=""
                     width={80}
                     height={80}
-                    className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-90 md:scale-100"
+                    className="absolute z-20 scale-110"
                     priority
-                    sizes="(max-width: 768px) 80px, 80px"
+                    sizes="80px, 80px"
                   />
                 </div>
                 <div className="flex-grow min-w-0">
