@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
+import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 
 interface VehicleType {
   id: string;
@@ -224,10 +225,35 @@ export default function AddVehicle({
               className="w-full p-2 border rounded"
             >
               <option value="">Select vehicle type</option>
-              {vehicleTypes.map((type: VehicleType) => (
-                <option key={type.id} value={type.id}>
-                  {type.vehicle_type} - {type.cost} credits
-                </option>
+              {Object.entries(
+                vehicleTypes
+                  .slice() // Shallow copy
+                  .sort((a, b) => {
+                    const rankA = vehicleTypeRank[a.vehicle_type.toLowerCase()] ?? Infinity;
+                    const rankB = vehicleTypeRank[b.vehicle_type.toLowerCase()] ?? Infinity;
+                    return rankA - rankB;
+                  })
+                  .reduce((groups, type) => {
+                    const rank = vehicleTypeRank[type.vehicle_type.toLowerCase()] ?? Infinity;
+                    let groupLabel = "Misc."; // Default category for unranked vehicles
+
+                    if (rank <= 29) groupLabel = "Gang Vehicles";
+                    else if (rank <= 49) groupLabel = "Universal Vehicles";
+                    else if (rank <= 69) groupLabel = "Base Vehicle Templates";
+                    else if (rank <= 89) groupLabel = "Sump Sea Vehicles";
+
+                    if (!groups[groupLabel]) groups[groupLabel] = [];
+                    groups[groupLabel].push(type);
+                    return groups;
+                  }, {} as Record<string, VehicleType[]>)
+              ).map(([groupLabel, types]) => (
+                <optgroup key={groupLabel} label={groupLabel}>
+                  {types.map(type => (
+                    <option key={type.id} value={type.id}>
+                      {type.vehicle_type} - {type.cost} credits
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
