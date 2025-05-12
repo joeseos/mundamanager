@@ -387,7 +387,7 @@ const FighterCard = memo(function FighterCard({
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black p-4 print:hover:scale-[1] print:print-fighter-card print:inline-block
       ${viewMode !== 'normal' ? `${sizeStyles[viewMode]} flex-shrink-0` : ''}`}
         style={{
-          backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1736145100/fighter-card-background-v3-lighter_bmefnl.png')",
+          backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1747057650/fighter-card-background-4-web_pm2scj.avif')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           fontSize: 'calc(10px + 0.2vmin)'
