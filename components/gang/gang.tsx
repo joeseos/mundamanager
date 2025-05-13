@@ -29,6 +29,8 @@ import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
+import PrintModal from "@/components/print-modal";
+import { FiPrinter } from 'react-icons/fi';
 
 interface VehicleType {
   id: string;
@@ -174,6 +176,7 @@ export default function Gang({
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
@@ -832,9 +835,20 @@ const handleAlignmentChange = (value: string) => {
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
-              <div className="flex gap-2">
+              <div className="flex gap-2 print:hidden">
+                {/* Print button */}
+                <Button
+                  onClick={() => setShowPrintModal(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="mt-[2px] print:hidden"
+                  title="Print Options"
+                >
+                  <FiPrinter className="w-5 h-5" />
+                </Button>
+
                 {/* View Mode Dropdown */}
-                <div className="w-full print:hidden">
+                <div className="max-w-[120px] md:max-w-full md:w-full print:hidden">
                   <select
                     id="view-mode-select"
                     value={viewMode}
@@ -984,6 +998,10 @@ const handleAlignmentChange = (value: string) => {
               </Button>
             </div>
           </div>
+
+          {showPrintModal && (
+            <PrintModal gangId={id} onClose={() => setShowPrintModal(false)} />
+          )}
 
           {showEditModal && (
             <Modal
