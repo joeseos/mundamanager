@@ -25,6 +25,7 @@ interface CampaignProps {
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
+  userId?: string;
   onRoleChange?: (role: 'OWNER' | 'ARBITRATOR' | 'MEMBER') => void;
   onUpdate?: (updatedData: {
     campaign_name: string;
@@ -45,6 +46,7 @@ export default function Campaign({
   has_meat,
   has_exploration_points,
   has_scavenging_rolls,
+  userId,
   onRoleChange,
   onUpdate,
 }: CampaignProps) {
@@ -69,8 +71,7 @@ export default function Campaign({
   useEffect(() => {
     const checkUserRole = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!userId) {
           setUserRole(null);
           onRoleChange?.('MEMBER');
           return;
@@ -80,7 +81,7 @@ export default function Campaign({
           .from('campaign_members')
           .select('role')
           .eq('campaign_id', id)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .single();
 
         if (error) {
@@ -100,7 +101,7 @@ export default function Campaign({
     };
 
     checkUserRole();
-  }, [id, onRoleChange]);
+  }, [id, userId, onRoleChange]);
 
   const handleSave = async () => {
     try {
