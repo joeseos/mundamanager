@@ -122,6 +122,7 @@ interface CampaignPageContentProps {
       };
     }[];
   };
+  userId?: string;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -130,7 +131,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {
+export default function CampaignPageContent({ campaignData: initialCampaignData, userId }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
@@ -141,24 +142,19 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const supabase = createClient();
   const isLoadingRef = useRef(false);
 
-  // Fetch user data once and determine role
+  // Determine user role based on userId
   useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Find user's role from campaign members
-          const memberData = campaignData.members.find(m => m.user_id === user.id);
-          if (memberData) {
-            setUserRole(memberData.role);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
+    if (userId) {
+      // Find user's role from campaign members
+      const memberData = campaignData.members.find(m => m.user_id === userId);
+      if (memberData) {
+        setUserRole(memberData.role);
       }
-    };
-    getCurrentUser();
-  }, [campaignData.members]);
+    }
+  }, [campaignData.members, userId]);
+
+  // Helper for checking authentication
+  const isAuthenticated = !!userId;
 
   // Use existing gang data instead of re-fetching
   const getGangDetails = (gangId: string) => {
@@ -196,6 +192,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     if (!selectedTerritory) return false;
 
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to assign gangs to territories"
+        });
+        return false;
+      }
+
       const { error } = await supabase
         .from('campaign_territories')
         .update({
@@ -247,6 +252,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const handleRemoveGang = async (territoryId: string, gangId: string) => {
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to remove gangs from territories"
+        });
+        return;
+      }
+
       // Update territory
       const { error } = await supabase
         .from('campaign_territories')
@@ -290,6 +304,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const handleRemoveTerritory = async (territoryId: string) => {
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to remove territories"
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('campaign_territories')
         .delete()
@@ -437,6 +460,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <Campaign 
           {...transformedData} 
+          userId={userId}
           onRoleChange={setUserRole}
           onUpdate={(updatedData) => {
             handleCampaignUpdate(updatedData);
@@ -464,6 +488,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
             campaignId={campaignData.id}
             isAdmin={isAdmin}
             members={campaignData.members}  // Use existing data
+            userId={userId}
             onMemberUpdate={refreshData}
           />
         </div>

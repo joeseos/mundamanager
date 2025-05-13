@@ -43,6 +43,7 @@ interface MembersTableProps {
   campaignId: string;
   isAdmin: boolean;
   members: Member[];
+  userId?: string;
   onMemberUpdate: () => void;
 }
 
@@ -63,6 +64,7 @@ export default function MembersTable({
   campaignId,
   isAdmin,
   members,
+  userId,
   onMemberUpdate
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -80,16 +82,10 @@ export default function MembersTable({
   const supabase = createClient()
   const { toast } = useToast()
 
-  // Only fetch current user ID
   useEffect(() => {
-    const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUserId(user?.id || null);
-    };
-    getCurrentUser();
-  }, []);
+    setCurrentUserId(userId || null);
+  }, [userId]);
 
-  // Use memoized sorting instead of re-fetching
   const sortedMembers = useMemo(() => {
     return [...members].sort((a, b) => {
       const ratingA = a.gangs[0]?.rating ?? -1;
@@ -98,7 +94,6 @@ export default function MembersTable({
     });
   }, [members]);
 
-  // Gang management functions
   const fetchUserGangs = async (userId: string) => {
     try {
       const { data: gangs, error } = await supabase
@@ -167,7 +162,6 @@ export default function MembersTable({
     }
   };
 
-  // Role management
   const handleRoleChange = async () => {
     if (!roleChange) return false;
 
@@ -204,12 +198,10 @@ export default function MembersTable({
     }
   };
 
-  // Member removal
   const handleRemoveMember = async () => {
     if (!memberToRemove) return false;
 
     try {
-      // First, get all gangs owned by the member in this campaign
       const { data: userGangs } = await supabase
         .from('campaign_gangs')
         .select('gang_id')
@@ -219,7 +211,6 @@ export default function MembersTable({
       if (userGangs && userGangs.length > 0) {
         const gangIds = userGangs.map(g => g.gang_id);
 
-        // Update territories to remove gang control
         const { error: territoryError } = await supabase
           .from('campaign_territories')
           .update({ gang_id: null })
@@ -228,7 +219,6 @@ export default function MembersTable({
 
         if (territoryError) throw territoryError;
 
-        // Remove gangs from campaign
         const { error: gangError } = await supabase
           .from('campaign_gangs')
           .delete()
@@ -238,7 +228,6 @@ export default function MembersTable({
         if (gangError) throw gangError;
       }
 
-      // Remove the member
       const { error } = await supabase
         .from('campaign_members')
         .delete()
@@ -262,7 +251,6 @@ export default function MembersTable({
     }
   };
 
-  // Gang removal
   const handleRemoveGang = async () => {
     if (!gangToRemove) return false;
 
@@ -292,7 +280,6 @@ export default function MembersTable({
     }
   };
 
-  // Modal content memos
   const gangModalContent = useMemo(() => (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">Select a gang to add to the campaign:</p>
@@ -361,7 +348,6 @@ export default function MembersTable({
 
   return (
     <div>
-      {/* Table for md and larger screens */}
       <div className="hidden md:block overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead>
@@ -479,7 +465,6 @@ export default function MembersTable({
         </table>
       </div>
 
-      {/* Card layout for mobile */}
       <div className="md:hidden space-y-4">
         {sortedMembers.map(member => (
           <div key={member.user_id} className="bg-white rounded-lg border p-4">
@@ -589,7 +574,6 @@ export default function MembersTable({
         ))}
       </div>
 
-      {/* Modals */}
       {showGangModal && (
         <Modal
           title="Add Gang to Campaign"
