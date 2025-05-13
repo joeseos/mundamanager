@@ -2,6 +2,7 @@
 
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { createClient } from "@/utils/supabase/client";
+import { useRouter } from 'next/navigation';
 
 type Gang = {
   id: string;
@@ -36,26 +37,50 @@ export const useGangs = () => {
   return context;
 };
 
-export const GangsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [gangs, setGangs] = useState<Gang[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface GangsProviderProps {
+  children: ReactNode;
+  initialGangs?: Gang[];
+}
+
+export const GangsProvider: React.FC<GangsProviderProps> = ({ children, initialGangs = [] }) => {
+  const router = useRouter();
+  const [gangs, setGangs] = useState<Gang[]>(initialGangs);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  console.log('GangsProvider initialized with', initialGangs.length, 'gangs');
 
-  const fetchGangs = async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  // Update gangs when initialGangs change (e.g., when server refetches)
+  useEffect(() => {
+    if (initialGangs.length > 0 && JSON.stringify(gangs) !== JSON.stringify(initialGangs)) {
+      console.log('Initial gangs updated, refreshing state with', initialGangs.length, 'gangs');
+      setGangs(initialGangs);
+    }
+  }, [initialGangs]);
 
-    if (!user) {
-      console.error('User not authenticated');
-      setError('User not authenticated');
-      setIsLoading(false);
+  const fetchGangs = async (forceRefresh = false) => {
+    console.log('Fetching gangs from client... (force refresh:', forceRefresh, ')');
+    
+    // Only skip fetch if we have initial gangs, this is first load, and we're not forcing refresh
+    if (initialGangs.length > 0 && gangs === initialGangs && !forceRefresh) {
+      console.log('Using initial gangs data, skipping fetch');
       return;
     }
 
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error('User not authenticated');
+        setError('User not authenticated');
+        setIsLoading(false);
+        return;
+      }
       
-      // Use the get_user_gangs RPC endpoint with correct parameter name
+      // Use the get_user_gangs RPC endpoint
       const { data: gangsData, error: gangsError } = await supabase
         .rpc('get_user_gangs', {
           user_id: user.id
@@ -63,7 +88,7 @@ export const GangsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       if (gangsError) throw gangsError;
 
-      console.log('Gangs from RPC:', gangsData);
+      console.log('Fetched gangs data:', gangsData.length, 'gangs');
 
       setGangs(gangsData);
       setError(null);
@@ -76,11 +101,25 @@ export const GangsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   useEffect(() => {
-    fetchGangs();
+    // Only fetch on first load if we don't have initial gangs
+    if (initialGangs.length === 0) {
+      console.log('No initial gangs, triggering fetch');
+      fetchGangs();
+    } else {
+      console.log('Using initial gangs:', initialGangs.length);
+    }
   }, []);
 
   const refreshGangs = async () => {
-    await fetchGangs();
+    console.log('Refreshing gangs data...');
+    
+    // First tell Next.js to refresh the current route data from the server
+    router.refresh();
+    
+    // Then immediately fetch new data, forcing a refresh regardless of initialGangs
+    await fetchGangs(true);
+    
+    console.log('Gang refresh complete');
   };
 
   return (

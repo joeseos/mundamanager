@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { createClient } from '@/utils/supabase/client'
+import { Checkbox } from "@/components/ui/checkbox";
+import { campaignRank } from '@/utils/campaignRank';
 
 interface Territory {
   id: string;
@@ -155,9 +157,23 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
     }
   };
 
-  const filteredTerritories = territories.filter(territory => 
-    selectedTypes.includes(territory.campaign_type_id)
-  ).sort((a, b) => a.territory_name.localeCompare(b.territory_name));
+  const filteredTerritories = territories
+    .filter(territory => selectedTypes.includes(territory.campaign_type_id))
+    .sort((a, b) => {
+      const typeA = campaignTypes.find(ct => ct.campaign_type_id === a.campaign_type_id)?.campaign_type.toLowerCase() || '';
+      const typeB = campaignTypes.find(ct => ct.campaign_type_id === b.campaign_type_id)?.campaign_type.toLowerCase() || '';
+
+      const rankA = campaignRank[typeA] ?? Infinity;
+      const rankB = campaignRank[typeB] ?? Infinity;
+
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      return a.territory_name.localeCompare(b.territory_name);
+    });
+
+
 
   if (isLoading) {
     return <div className="text-center py-1">Loading territories...</div>;
@@ -166,21 +182,25 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="flex flex-wrap gap-4">
-          {campaignTypes.map((type) => (
-            <label 
-              key={type.campaign_type_id} 
-              className="flex items-center gap-2 cursor-pointer hover:text-gray-700 text-sm"
-            >
-              <input
-                type="checkbox"
-                checked={selectedTypes.includes(type.campaign_type_id)}
-                onChange={() => handleTypeToggle(type.campaign_type_id)}
-                className="rounded border-gray-300 text-black focus:ring-black"
-              />
-              <span>{type.campaign_type}</span>
-            </label>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
+          {[...campaignTypes]
+            .sort((a, b) => {
+              const rankA = campaignRank[a.campaign_type.toLowerCase()] ?? Infinity;
+              const rankB = campaignRank[b.campaign_type.toLowerCase()] ?? Infinity;
+              return rankA - rankB;
+            })
+            .map((type) => (
+              <div key={type.campaign_type_id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`type-${type.campaign_type_id}`}
+                  checked={selectedTypes.includes(type.campaign_type_id)}
+                  onCheckedChange={() => handleTypeToggle(type.campaign_type_id)}
+                />
+                <label htmlFor={`type-${type.campaign_type_id}`} className="text-sm cursor-pointer">
+                  {type.campaign_type}
+                </label>
+              </div>
+            ))}
         </div>
       </div>
 
@@ -188,23 +208,28 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-              <th className="w-20 px-4 py-2"></th>
+              <th className="pl-4 pr-2 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+              <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
+              <th className="w-[30px] px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {filteredTerritories.length === 0 ? (
               <tr>
-                <td colSpan={2} className="px-4 py-2 text-gray-500 text-center">No territories found</td>
+                <td colSpan={3} className="px-4 py-2 text-gray-500 italic text-center">No territories found.</td>
               </tr>
             ) : (
               filteredTerritories.map((territory) => {
+                const type = campaignTypes.find(ct => ct.campaign_type_id === territory.campaign_type_id);
+                const typeName = type?.campaign_type ?? 'Unknown';
+
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="px-4 py-1.5 align-middle min-w-[200px]">
-                      <span className="font-medium whitespace-nowrap">{territory.territory_name}</span>
+                    <td className="pl-4 pr-2 py-1.5 align-middle sm:w-[300px] max-w-[300px]">
+                      <span className="font-medium">{territory.territory_name}</span>
                     </td>
-                    <td className="px-4 py-1.5 text-right align-middle w-20">
+                    <td className="px-2 py-1.5 align-middle text-gray-500">{typeName}</td>
+                    <td className="pl-2 pr-4 py-1.5 text-right align-middle w-[30px]">
                       <Button
                         onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
                         size="sm"

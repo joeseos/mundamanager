@@ -186,6 +186,28 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchGangTypes();
   }, [toast]);
 
+  // New useEffect to fetch fighter classes
+  useEffect(() => {
+    const fetchFighterClasses = async () => {
+      try {
+        console.log('Fetching all fighter classes');
+        const response = await fetch('/api/admin/fighter-classes');
+        if (!response.ok) throw new Error('Failed to fetch fighter classes');
+        const data = await response.json();
+        console.log('Loaded fighter classes:', data);
+        setFighterClasses(data);
+      } catch (error) {
+        console.error('Error fetching fighter classes:', error);
+        toast({
+          description: 'Failed to load fighter classes',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchFighterClasses();
+  }, [toast]);
+
   // Modify fighter types fetch to extract unique combinations
   useEffect(() => {
     if (!gangTypeFilter) return; // Only fetch if gang type is selected
@@ -256,18 +278,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterClassesRef = useRef(false);
 
-  // Only fetch skill types when needed
+  // Only fetch skill sets when needed
   const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
 
   const fetchSkillTypes = async () => {
     // Only fetch if we haven't already loaded the data
     if (hasLoadedSkillTypesRef.current) {
-      console.log('Using cached skill types');
+      console.log('Using cached skill sets');
         return;
       }
       
     try {
-      console.log('Fetching skill types');
+      console.log('Fetching skill sets');
         const response = await fetch('/api/admin/skill-types');
         if (!response.ok) throw new Error('Failed to fetch skill sets');
         const data = await response.json();
@@ -615,13 +637,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterType(fighter.fighter_type);
         setSelectedFighterClass(fighter.fighter_class);
         
-        // Extract and populate fighter classes if needed
+        // Don't overwrite the full list of fighter classes, just ensure the current one is selected
+        // Comment out this code that's overwriting all fighter classes
+        /*
         if (fighter.fighter_class && fighter.fighter_class_id) {
           setFighterClasses([{
             id: fighter.fighter_class_id,
             class_name: fighter.fighter_class
           }]);
         }
+        */
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
@@ -691,7 +716,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fetchEquipmentByCategory();
       }
       
-      // If we need to load skill types, do it now
+      // If we need to load skill sets, do it now
       if (!hasLoadedSkillTypesRef.current) {
         fetchSkillTypes();
       }
@@ -701,6 +726,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       // If we have an option and it has a fighterId, fetch details
       if (selectedOption && selectedOption.fighterId) {
+        setSelectedFighterTypeId(selectedOption.fighterId); // <-- Add this line
         // Set sub-type name if it's not the default option, otherwise clear it
         if (subTypeId !== "default") {
           setSubTypeName(selectedOption.sub_type_name);
@@ -1197,10 +1223,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   </label>
                   <select
                     value={selectedFighterClass}
-                    onChange={(e) => setSelectedFighterClass(e.target.value)}
+                    onChange={(e) => {
+                      console.log('Selected fighter class:', e.target.value);
+                      setSelectedFighterClass(e.target.value);
+                    }}
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select fighter class</option>
+                    {(() => { console.log('Rendering fighter classes dropdown with options:', fighterClasses); return null; })()}
                     {fighterClasses.map((fighterClass) => (
                       <option key={fighterClass.id} value={fighterClass.class_name}>
                         {fighterClass.class_name}
@@ -1420,7 +1450,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     value={selectedSkillType}
                     onChange={(e) => setSelectedSkillType(e.target.value)}
                     onFocus={() => {
-                      // Load skill types when the dropdown gets focus
+                      // Load skill sets when the dropdown gets focus
                       if (!hasLoadedSkillTypesRef.current) {
                         fetchSkillTypes();
                       }
@@ -2027,7 +2057,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             }));
                             e.target.value = "";
                           }}
-                          className="flex-grow p-2 border rounded-md"
+                          className="w-full p-2 border rounded-md"
                           disabled={!selectedFighterTypeId}
                         >
                           <option value="">Add default equipment</option>
@@ -2111,7 +2141,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             }));
                             e.target.value = "";
                           }}
-                          className="flex-grow p-2 border rounded-md"
+                          className="w-full p-2 border rounded-md"
                           disabled={!selectedFighterTypeId}
                         >
                           <option value="">Add equipment option</option>

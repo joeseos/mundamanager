@@ -25,6 +25,10 @@ type Fighter = {
   fighter_name: string;
   fighter_type_id: string;
   fighter_type: string;
+  fighter_sub_type?: string;
+  fighter_sub_type_id?: string;
+  fighter_class?: string;
+  fighter_class_id?: string;
   credits: number;
   movement: number;
   weapon_skill: number;
@@ -39,6 +43,7 @@ type Fighter = {
   intelligence: number;
   attacks: number;
   weapons: Weapon[];
+  updated_at?: string;
 };
 
 export async function POST(request: Request) {
@@ -54,9 +59,14 @@ export async function POST(request: Request) {
     gang_id, 
     fighter_type_id,
     fighter_name,
+    fighter_type,
+    fighter_sub_type,
+    fighter_sub_type_id,
+    fighter_class,
+    fighter_class_id
   } = await request.json();
 
-  console.log('Received data:', { gang_id, fighter_type_id, fighter_name });
+  console.log('Received data:', { gang_id, fighter_type_id, fighter_name, fighter_type, fighter_sub_type, fighter_sub_type_id, fighter_class });
 
   if (!gang_id || !fighter_type_id || !fighter_name) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -94,8 +104,13 @@ export async function POST(request: Request) {
       .insert([
         { 
           gang_id,
-          fighter_type_id,
+          fighter_type_id: fighter_type_id === "" ? null : fighter_type_id,
           fighter_name,
+          fighter_type,
+          fighter_sub_type,
+          fighter_sub_type_id: fighter_sub_type_id === "" ? null : fighter_sub_type_id,
+          fighter_class,
+          fighter_class_id: fighter_class_id === "" ? null : fighter_class_id,
           credits: fighterCost,
           movement: fighterTypeData.movement,
           weapon_skill: fighterTypeData.weapon_skill,
@@ -108,7 +123,8 @@ export async function POST(request: Request) {
           leadership: fighterTypeData.leadership,
           cool: fighterTypeData.cool,
           willpower: fighterTypeData.willpower,
-          intelligence: fighterTypeData.intelligence
+          intelligence: fighterTypeData.intelligence,
+          updated_at: new Date().toISOString()
         },
       ])
       .select()
@@ -162,6 +178,11 @@ export async function GET(request: Request) {
         id, 
         fighter_name, 
         fighter_type_id,
+        fighter_type,
+        fighter_sub_type,
+        fighter_sub_type_id,
+        fighter_class,
+        fighter_class_id,
         credits,
         movement, 
         weapon_skill, 
@@ -174,7 +195,8 @@ export async function GET(request: Request) {
         cool, 
         willpower, 
         intelligence, 
-        attacks
+        attacks,
+        updated_at
       `)
       .eq('gang_id', gangId);
 
@@ -244,6 +266,10 @@ export async function GET(request: Request) {
       fighter_name: fighter.fighter_name,
       fighter_type_id: fighter.fighter_type_id,
       fighter_type: fighterTypeMap[fighter.fighter_type_id] || 'Unknown Type',
+      fighter_sub_type: fighter.fighter_sub_type,
+      fighter_sub_type_id: fighter.fighter_sub_type_id,
+      fighter_class: fighter.fighter_class,
+      fighter_class_id: fighter.fighter_class_id,
       credits: fighter.credits,
       movement: fighter.movement,
       weapon_skill: fighter.weapon_skill,
@@ -252,11 +278,12 @@ export async function GET(request: Request) {
       toughness: fighter.toughness,
       wounds: fighter.wounds,
       initiative: fighter.initiative,
-      attacks: fighter.attacks,
       leadership: fighter.leadership,
       cool: fighter.cool,
       willpower: fighter.willpower,
       intelligence: fighter.intelligence,
+      attacks: fighter.attacks,
+      updated_at: fighter.updated_at,
       weapons: fighterWeaponsMap[fighter.id] || []
     }));
 

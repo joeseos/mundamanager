@@ -28,6 +28,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
+import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
+import PrintModal from "@/components/print-modal";
+import { FiPrinter } from 'react-icons/fi';
 
 interface VehicleType {
   id: string;
@@ -172,13 +175,16 @@ export default function Gang({
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
     }
     return 'normal';
   });
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
 
   // Calculate the total value of unassigned vehicles
   const unassignedVehiclesValue = useMemo(() => {
@@ -277,6 +283,7 @@ const handleAlignmentChange = (value: string) => {
       setExplorationPoints(parseInt(editedExplorationPoints));
       setGangIsVariant(editedGangIsVariant);
       setGangVariants(editedGangVariants);
+      fetchFighterTypes(editedGangVariants);
 
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
@@ -346,8 +353,9 @@ const handleAlignmentChange = (value: string) => {
     setShowAddFighterModal(true);
   };
 
-  const fetchFighterTypes = async () => {
+  const fetchFighterTypes = async (variantList: Array<{ id: string, variant: string }> = gang_variants ?? []) => {
     try {
+      // Fetch base Gang fighter types
       const response = await fetch(
         'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
         {
@@ -356,16 +364,42 @@ const handleAlignmentChange = (value: string) => {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
-          body: JSON.stringify({
-            "p_gang_type_id": gang_type_id
-          })
+          body: JSON.stringify({ p_gang_type_id: gang_type_id })
         }
       );
 
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      
-      const data = await response.json();
-      const processedTypes = data
+      if (!response.ok) throw new Error('Failed to fetch Gang fighter types');
+
+      let baseData = await response.json();
+
+      // If variantList, fetch Gang Variants fighter types
+      for (const variant of variantList) {
+        const variantModifier = gangVariantFighterModifiers[variant.id];
+        if (!variantModifier) continue;
+
+        if (variantModifier.removeLeaders) {
+          baseData = baseData.filter((type: any) => type.fighter_class !== 'Leader');
+        }
+
+        const variantResponse = await fetch(
+          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            },
+            body: JSON.stringify({ p_gang_type_id: variantModifier.variantGangTypeId })
+          }
+        );
+
+        if (!variantResponse.ok) throw new Error(`Failed to fetch fighters for variant ${variant.variant}`);
+
+        const variantData = await variantResponse.json();
+        baseData = [...baseData, ...variantData];
+      }
+
+      const processedTypes: FighterType[] = baseData
         .map((type: any) => ({
           id: type.id,
           fighter_type_id: type.id,
@@ -395,6 +429,7 @@ const handleAlignmentChange = (value: string) => {
       });
     }
   };
+
 
   const handleGangAdditionsModalOpen = () => {
     setShowGangAdditionsModal(true);
@@ -617,7 +652,7 @@ const handleAlignmentChange = (value: string) => {
         </div>
 
         {editedGangIsVariant && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
             {/* Unaffiliated variants */}
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
@@ -786,7 +821,7 @@ const handleAlignmentChange = (value: string) => {
               </div>
             )}
             <Image
-              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1736571990/cogwheel-gang-portrait-3_de5bzo.png"
+              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
               alt="Cogwheel"
               width={250}
               height={250}
@@ -800,9 +835,20 @@ const handleAlignmentChange = (value: string) => {
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
-              <div className="flex gap-2">
+              <div className="flex gap-2 print:hidden">
+                {/* Print button */}
+                <Button
+                  onClick={() => setShowPrintModal(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="mt-[2px] print:hidden"
+                  title="Print Options"
+                >
+                  <FiPrinter className="w-5 h-5" />
+                </Button>
+
                 {/* View Mode Dropdown */}
-                <div className="w-full print:hidden">
+                <div className="max-w-[120px] md:max-w-full md:w-full print:hidden">
                   <select
                     id="view-mode-select"
                     value={viewMode}
@@ -952,6 +998,10 @@ const handleAlignmentChange = (value: string) => {
               </Button>
             </div>
           </div>
+
+          {showPrintModal && (
+            <PrintModal gangId={id} onClose={() => setShowPrintModal(false)} />
+          )}
 
           {showEditModal && (
             <Modal

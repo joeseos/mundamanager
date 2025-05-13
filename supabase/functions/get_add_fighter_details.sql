@@ -7,6 +7,7 @@ RETURNS TABLE (
     id uuid,
     fighter_type text,
     fighter_class text,
+    fighter_class_id uuid,  -- Added fighter_class_id field
     gang_type text,
     cost numeric,
     gang_type_id uuid,
@@ -35,6 +36,7 @@ BEGIN
         ft.id,
         ft.fighter_type,
         fc.class_name,
+        ft.fighter_class_id,  -- Added fighter_class_id field
         ft.gang_type,
         ft.cost,
         ft.gang_type_id,
@@ -71,33 +73,52 @@ BEGIN
             ),
             '[]'::jsonb
         ) AS default_equipment,
-        COALESCE(
-            (
-                SELECT jsonb_set(
-                    fes.equipment_selection::jsonb,
-                    '{weapons,options}',
-                    (
-                        SELECT COALESCE(
-                            jsonb_agg(
-                                jsonb_build_object(
-                                    'id', opt->>'id',
-                                    'equipment_name', e.equipment_name,
-                                    'cost', (opt->>'cost')::numeric,
-                                    'max_quantity', (opt->>'max_quantity')::integer
-                                )
-                            ),
-                            '[]'::jsonb
+        CASE 
+            WHEN EXISTS (SELECT 1 FROM fighter_equipment_selections fes WHERE fes.fighter_type_id = ft.id) THEN
+                (
+                    SELECT
+                        jsonb_build_object(
+                            'weapons', jsonb_build_object(
+                                'default', COALESCE(
+                                    (
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', def->>'id',
+                                                'quantity', (def->>'quantity')::integer,
+                                                'equipment_name', e.equipment_name,
+                                                'equipment_category', e.equipment_category
+                                            )
+                                        )
+                                        FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,default}') def
+                                        LEFT JOIN equipment e ON e.id::text = def->>'id'
+                                    ),
+                                    '[]'::jsonb
+                                ),
+                                'options', COALESCE(
+                                    (
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', opt->>'id',
+                                                'equipment_name', e.equipment_name,
+                                                'equipment_category', e.equipment_category,
+                                                'cost', (opt->>'cost')::numeric,
+                                                'max_quantity', (opt->>'max_quantity')::integer
+                                            )
+                                        )
+                                        FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,options}') opt
+                                        LEFT JOIN equipment e ON e.id::text = opt->>'id'
+                                    ),
+                                    '[]'::jsonb
+                                ),
+                                'select_type', fes.equipment_selection::jsonb#>'{weapons,select_type}'
+                            )
                         )
-                        FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,options}') opt
-                        LEFT JOIN equipment e ON e.id::text = opt->>'id'
-                    )
+                    FROM fighter_equipment_selections fes
+                    WHERE fes.fighter_type_id = ft.id
+                    LIMIT 1
                 )
-                FROM fighter_equipment_selections fes
-                WHERE fes.fighter_type_id = ft.id
-                LIMIT 1
-            ),
-            '{}'::jsonb
-        ) AS equipment_selection,
+            ELSE '{}'::jsonb
+        END AS equipment_selection,
         ft.cost AS total_cost,
         COALESCE(
             (
@@ -115,6 +136,3 @@ BEGIN
     WHERE ft.gang_type_id = p_gang_type_id;
 END;
 $$;
-
--- Example usage:
--- SELECT * FROM get_add_fighter_details('c3b4d7e8-149a-4cad-85fd-c06f0aa771eb');

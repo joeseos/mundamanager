@@ -1,11 +1,15 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
-import CampaignPageContent from "@/components/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaign-error-boundary";
+import CampaignPageContent from "@/components/campaign/campaign-page-content";
+import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
+
+  // Get the user data once at the page level
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id;
 
   try {
     const { data, error } = await supabase
@@ -23,10 +27,13 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     if (!campaignData) {
       notFound();
     }
-
+    
     return (
       <CampaignErrorBoundary>
-        <CampaignPageContent campaignData={campaignData} />
+        <CampaignPageContent 
+          campaignData={campaignData} 
+          userId={userId} 
+        />
       </CampaignErrorBoundary>
     );
   } catch (error) {

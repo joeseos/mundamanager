@@ -103,10 +103,11 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
   }
 
   return (
-    <div className={viewMode !== 'normal'
-    ? "flex flex-wrap gap-4 justify-center items-start px-0 print:justify-start print:gap-0"
-    : "space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0"}
-    >
+    <div className={
+      viewMode === 'normal'
+        ? "space-y-4 print:flex print:flex-wrap print:flex-row print:space-y-0"
+        : "flex flex-wrap gap-1 justify-center items-start px-0 print:justify-start print:gap-0"
+    }>
       {sortedFighters.map((fighter) => (
         <SortableFighter
           key={fighter.id}

@@ -1,17 +1,17 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import Campaign from "@/components/campaign";
-import TerritoryGangModal from "@/components/campaign-territory-gang-modal";
+import Campaign from "@/components/campaign/campaign";
+import TerritoryGangModal from "@/components/campaign/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
-import MemberSearchBar from "@/components/campaign-member-search-bar"
-import MembersTable from "@/components/campaign-members-table"
+import MemberSearchBar from "@/components/campaign/campaign-member-search-bar"
+import MembersTable from "@/components/campaign/campaign-members-table"
 import Link from "next/link";
-import CampaignBattleLogsList from "@/components/campaign-battle-logs-list";
+import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-list";
 
 interface Gang {
   id: string;
@@ -122,6 +122,7 @@ interface CampaignPageContentProps {
       };
     }[];
   };
+  userId?: string;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -130,7 +131,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData }: CampaignPageContentProps) {
+export default function CampaignPageContent({ campaignData: initialCampaignData, userId }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
@@ -140,25 +141,21 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
   const { toast } = useToast();
   const supabase = createClient();
   const isLoadingRef = useRef(false);
+  const [activeTab, setActiveTab] = useState(0);
 
-  // Fetch user data once and determine role
+  // Determine user role based on userId
   useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Find user's role from campaign members
-          const memberData = campaignData.members.find(m => m.user_id === user.id);
-          if (memberData) {
-            setUserRole(memberData.role);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
+    if (userId) {
+      // Find user's role from campaign members
+      const memberData = campaignData.members.find(m => m.user_id === userId);
+      if (memberData) {
+        setUserRole(memberData.role);
       }
-    };
-    getCurrentUser();
-  }, [campaignData.members]);
+    }
+  }, [campaignData.members, userId]);
+
+  // Helper for checking authentication
+  const isAuthenticated = !!userId;
 
   // Use existing gang data instead of re-fetching
   const getGangDetails = (gangId: string) => {
@@ -196,6 +193,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
     if (!selectedTerritory) return false;
 
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to assign gangs to territories"
+        });
+        return false;
+      }
+
       const { error } = await supabase
         .from('campaign_territories')
         .update({
@@ -247,6 +253,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const handleRemoveGang = async (territoryId: string, gangId: string) => {
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to remove gangs from territories"
+        });
+        return;
+      }
+
       // Update territory
       const { error } = await supabase
         .from('campaign_territories')
@@ -290,6 +305,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
 
   const handleRemoveTerritory = async (territoryId: string) => {
     try {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to remove territories"
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('campaign_territories')
         .delete()
@@ -437,133 +461,150 @@ export default function CampaignPageContent({ campaignData: initialCampaignData 
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <Campaign 
           {...transformedData} 
+          userId={userId}
           onRoleChange={setUserRole}
           onUpdate={(updatedData) => {
             handleCampaignUpdate(updatedData);
             refreshData();
           }}
+          onTabChange={(tabIndex) => setActiveTab(tabIndex)}
         />
         
-        {/* Campaign Members Section */}
-        <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Members</h2>
-          {isAdmin && (
-            <MemberSearchBar
+        {/* Only render Members section when on the Campaign tab (0) */}
+        {activeTab === 0 && (
+          <div className="bg-white shadow-md rounded-lg p-4">
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Members</h2>
+            {isAdmin && (
+              <MemberSearchBar
+                campaignId={campaignData.id}
+                campaignMembers={campaignData.members}
+                onMemberAdd={(member) => {
+                  setCampaignData(prev => ({
+                    ...prev,
+                    members: [...prev.members, member]
+                  }));
+                  refreshData();
+                }}
+              />
+            )}
+            <MembersTable
               campaignId={campaignData.id}
-              campaignMembers={campaignData.members}  // Use existing data
-              onMemberAdd={(member) => {
-                setCampaignData(prev => ({
-                  ...prev,
-                  members: [...prev.members, member]
-                }));
-                refreshData();
-              }}
+              isAdmin={isAdmin}
+              members={campaignData.members}
+              userId={userId}
+              onMemberUpdate={refreshData}
             />
-          )}
-          <MembersTable
-            campaignId={campaignData.id}
-            isAdmin={isAdmin}
-            members={campaignData.members}  // Use existing data
-            onMemberUpdate={refreshData}
-          />
-        </div>
-
-        {/* Campaign Territories Section */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Territories</h2>
-          <div className="rounded-md border overflow-x-auto">
-            <table className="text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-                  <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
-                  {isAdmin && (
-                    <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {campaignData.territories.length === 0 ? (
-                  <tr>
-                    <td colSpan={isAdmin ? 3 : 2} className="text-gray-500 italic text-center">
-                      No territories in this campaign
-                    </td>
-                  </tr>
-                ) : (
-                  [...campaignData.territories]
-                    .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
-                    .map((territory) => (
-                    <tr key={territory.id} className="border-b last:border-0">
-                      <td className="w-2/5 px-4 py-2">
-                        <span className="font-medium">{territory.territory_name}</span>
-                      </td>
-                      <td className="w-3/5 px-4 py-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {territory.owning_gangs?.map(gang => (
-                            <div 
-                              key={gang.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                            >
-                              <Link 
-                                href={`/gang/${gang.id}`} 
-                                className="hover:text-gray-600 transition-colors"
-                              >
-                                {gang.name}
-                              </Link>
-                              {isAdmin && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveGang(territory.id, gang.id);
-                                  }}
-                                  className="ml-1 hover:text-gray-900 transition-colors"
-                                >
-                                  <X size={12} />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          {isAdmin && !territory.gang_id && (
-                            <button
-                              onClick={() => {
-                                setSelectedTerritory(territory);
-                                setShowGangModal(true);
-                              }}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
-                            >
-                              Add gang
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      {isAdmin && (
-                        <td className="w-1/5 px-4 py-2 text-right">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Delete
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
           </div>
-        </div>
+        )}
 
-        {/* Battle Logs Section */}
-        <CampaignBattleLogsList
-          campaignId={campaignData.id}
-          battles={campaignData.battles || []}
-          isAdmin={isAdmin}
-          onBattleAdd={refreshData}
-          members={campaignData.members}
-        />
+        {/* Only render Territories section when on the Campaign tab (0) or Territories tab (1) */}
+        {(activeTab === 0 || activeTab === 1) && (
+          <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Territories</h2>
+            <div className="rounded-md border overflow-x-auto">
+              <table className="text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                    <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
+                    {isAdmin && (
+                      <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaignData.territories.length === 0 ? (
+                    <tr>
+                      <td colSpan={isAdmin ? 3 : 2} className="text-gray-500 italic text-center">
+                        No territories in this campaign
+                      </td>
+                    </tr>
+                  ) : (
+                    [...campaignData.territories]
+                      .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                      .map((territory) => (
+                      <tr key={territory.id} className="border-b last:border-0">
+                        <td className="w-2/5 px-4 py-2">
+                          <span className="font-medium">{territory.territory_name}</span>
+                        </td>
+                        <td className="w-3/5 px-4 py-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {territory.owning_gangs?.map(gang => (
+                              <div 
+                                key={gang.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                              >
+                                <Link 
+                                  href={`/gang/${gang.id}`} 
+                                  className="hover:text-gray-600 transition-colors"
+                                >
+                                  {gang.name}
+                                </Link>
+                                {isAdmin && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveGang(territory.id, gang.id);
+                                    }}
+                                    className="ml-1 hover:text-gray-900 transition-colors"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {isAdmin && !territory.gang_id && (
+                              <button
+                                onClick={() => {
+                                  setSelectedTerritory(territory);
+                                  setShowGangModal(true);
+                                }}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                              >
+                                Add gang
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        {isAdmin && (
+                          <td className="w-1/5 px-4 py-2 text-right">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                              className="text-xs px-1.5 h-6"
+                            >
+                              Delete
+                            </Button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Battle Logs Section - show on both Campaign tab (0) and Battle Logs tab (2) */}
+        {(activeTab === 0 || activeTab === 2) && (
+          <CampaignBattleLogsList
+            campaignId={campaignData.id}
+            battles={campaignData.battles || []}
+            isAdmin={isAdmin}
+            onBattleAdd={refreshData}
+            members={campaignData.members}
+          />
+        )}
+
+        {/* Notes Section - only shown when on the Notes tab */}
+        {activeTab === 3 && (
+          <div className="bg-white shadow-md rounded-lg p-4">
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Notes</h2>
+            <p className="text-gray-600">Notes content coming soon...</p>
+          </div>
+        )}
 
         {showGangModal && selectedTerritory && (
           <TerritoryGangModal

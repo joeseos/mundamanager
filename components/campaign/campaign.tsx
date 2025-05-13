@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from "@/utils/supabase/client";
 import Tabs from '@/components/tabs';
-import TerritoryList from '@/components/campaign-territory-list';
+import TerritoryList from '@/components/campaign/campaign-territory-list';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
@@ -25,6 +25,7 @@ interface CampaignProps {
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
+  userId?: string;
   onRoleChange?: (role: 'OWNER' | 'ARBITRATOR' | 'MEMBER') => void;
   onUpdate?: (updatedData: {
     campaign_name: string;
@@ -33,6 +34,7 @@ interface CampaignProps {
     has_scavenging_rolls: boolean;
     updated_at: string;
   }) => void;
+  onTabChange?: (tabIndex: number) => void;
 }
 
 export default function Campaign({
@@ -45,8 +47,10 @@ export default function Campaign({
   has_meat,
   has_exploration_points,
   has_scavenging_rolls,
+  userId,
   onRoleChange,
   onUpdate,
+  onTabChange,
 }: CampaignProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -69,8 +73,7 @@ export default function Campaign({
   useEffect(() => {
     const checkUserRole = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!userId) {
           setUserRole(null);
           onRoleChange?.('MEMBER');
           return;
@@ -80,7 +83,7 @@ export default function Campaign({
           .from('campaign_members')
           .select('role')
           .eq('campaign_id', id)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .single();
 
         if (error) {
@@ -100,7 +103,7 @@ export default function Campaign({
     };
 
     checkUserRole();
-  }, [id, onRoleChange]);
+  }, [id, userId, onRoleChange]);
 
   const handleSave = async () => {
     try {
@@ -186,14 +189,16 @@ export default function Campaign({
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
-        <Tabs tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
-           tabIcons={[
-             <FiMap key="campaign" />,
-             <FaCity  key="territories" />,
-             <LuSwords  key="battles" />,
-             <LuClipboard key="notes" />
-           ]}
-          >
+        <Tabs 
+          tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
+          tabIcons={[
+            <FiMap key="campaign" />,
+            <FaCity  key="territories" />,
+            <LuSwords  key="battles" />,
+            <LuClipboard key="notes" />
+          ]}
+          onTabChange={onTabChange}
+        >
 
           {/* 1st tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
@@ -248,16 +253,10 @@ export default function Campaign({
           </div>
 
           {/* 3rd tab */}
-          <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h1>
-            <p className="text-gray-600">See the Campaign tab.</p>
-          </div>
+          <></>
 
           {/* 4th tab */}
-          <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-xl md:text-2xl font-bold mb-4">Notes</h1>
-            <p className="text-gray-600">Notes content coming soon...</p>
-          </div>
+          <></>
 
         </Tabs>
       ) : (

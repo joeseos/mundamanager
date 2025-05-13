@@ -5,149 +5,148 @@ CREATE OR REPLACE FUNCTION delete_skill_or_effect(
     fighter_skill_id UUID DEFAULT NULL,
     fighter_effect_id UUID DEFAULT NULL
 )
-RETURNS TABLE (success BOOLEAN, message TEXT, refunded_xp INTEGER) AS $$
+RETURNS TABLE (success BOOLEAN, message TEXT, refunded_xp INTEGER, free_skill BOOLEAN) AS $$
 DECLARE
     xp_to_refund INTEGER := 0;
-    fighter_exists BOOLEAN;
-    effect_id UUID;
-    current_user_id UUID;
-    user_is_admin BOOLEAN;
-    is_authorized BOOLEAN;
+    item_count INTEGER;
+    item_fighter_id UUID;
+    skill_count INTEGER;
+    deleted_skill_id UUID;
+    fighter_type_id_var UUID;
+    default_skill_count INTEGER;
+    fighter_type_free_skill BOOLEAN;
+    is_free_skill BOOLEAN := FALSE;
 BEGIN
-    -- Get current user ID from auth.uid()
-    current_user_id := auth.uid();
-    
-    -- Check if user is authenticated
-    IF current_user_id IS NULL THEN
-        RETURN QUERY SELECT FALSE, 'Authentication required', 0;
-        RETURN;
-    END IF;
-    
-    -- Check if user is admin
-    SELECT EXISTS (
-        SELECT 1 FROM profiles 
-        WHERE profiles.id = current_user_id AND profiles.user_role = 'admin'
-    ) INTO user_is_admin;
-
-    -- Check if fighter exists
-    SELECT EXISTS(SELECT 1 FROM fighters WHERE id = input_fighter_id) INTO fighter_exists;
-    
-    IF NOT fighter_exists THEN
-        RETURN QUERY SELECT FALSE, 'Fighter not found', 0;
-        RETURN;
-    END IF;
-
-    -- Validate input parameters
+    -- Input validation
     IF fighter_skill_id IS NULL AND fighter_effect_id IS NULL THEN
-        RETURN QUERY SELECT FALSE, 'Either fighter_skill_id or fighter_effect_id must be provided', 0;
+        RETURN QUERY SELECT FALSE, 'Either fighter_skill_id or fighter_effect_id must be provided', 0, FALSE;
         RETURN;
     END IF;
     
     IF fighter_skill_id IS NOT NULL AND fighter_effect_id IS NOT NULL THEN
-        RETURN QUERY SELECT FALSE, 'Only one of fighter_skill_id or fighter_effect_id should be provided', 0;
+        RETURN QUERY SELECT FALSE, 'Only one of fighter_skill_id or fighter_effect_id should be provided', 0, FALSE;
         RETURN;
     END IF;
 
-    -- Handle skill deletion
+    -- Process skill deletion request
     IF fighter_skill_id IS NOT NULL THEN
-        -- Check if skill exists for this fighter
-        IF NOT EXISTS(SELECT 1 FROM fighter_skills WHERE fighter_id = input_fighter_id AND id = fighter_skill_id) THEN
-            RETURN QUERY SELECT FALSE, 'Skill not found for this fighter', 0;
-            RETURN;
-        END IF;
-        
-        -- Check if user is authorized to delete this skill
-        SELECT 
-            (user_id = current_user_id OR user_is_admin) INTO is_authorized
+        -- Check if skill exists and get fighter_id and skill_id
+        SELECT fighter_id, skill_id INTO item_fighter_id, deleted_skill_id
         FROM fighter_skills
         WHERE id = fighter_skill_id;
         
-        IF NOT is_authorized THEN
-            RETURN QUERY SELECT FALSE, 'Not authorized to delete this skill', 0;
+        IF item_fighter_id IS NULL THEN
+            RETURN QUERY SELECT FALSE, 'Skill not found', 0, FALSE;
             RETURN;
         END IF;
         
-        -- Get the XP cost to refund
-        SELECT COALESCE(fs.xp_cost, 0) INTO xp_to_refund
-        FROM fighter_skills fs
-        WHERE fs.id = fighter_skill_id AND fs.fighter_id = input_fighter_id;
+        -- Get fighter_type_id for the fighter
+        SELECT fighter_type_id INTO fighter_type_id_var
+        FROM fighters
+        WHERE id = item_fighter_id;
+        
+        -- Get XP to refund
+        SELECT COALESCE(xp_cost, 0) INTO xp_to_refund
+        FROM fighter_skills
+        WHERE id = fighter_skill_id;
         
         -- Delete the skill
         DELETE FROM fighter_skills
-        WHERE id = fighter_skill_id AND fighter_id = input_fighter_id;
+        WHERE id = fighter_skill_id;
         
-        -- Update fighter's XP
-        UPDATE fighters
-        SET xp = xp + xp_to_refund
-        WHERE id = input_fighter_id;
+        GET DIAGNOSTICS item_count = ROW_COUNT;
         
-        RETURN QUERY SELECT TRUE, 'Skill deleted and XP refunded', xp_to_refund;
+        IF item_count = 0 THEN
+            RETURN QUERY SELECT FALSE, 'Failed to delete skill - permission denied', 0, FALSE;
+            RETURN;
+        END IF;
+        
+        -- Count the number of default skills for this fighter type
+        SELECT COUNT(*) INTO default_skill_count
+        FROM fighter_defaults
+        WHERE fighter_type_id = fighter_type_id_var 
+        AND skill_id IS NOT NULL;  -- Only count skill entries, not equipment
+        
+        -- Check remaining skills count for this fighter
+        SELECT COUNT(*) INTO skill_count
+        FROM fighter_skills
+        WHERE fighter_id = item_fighter_id;
+        
+        -- Check if fighter_type has free_skill = true
+        SELECT ft.free_skill INTO fighter_type_free_skill
+        FROM fighter_types ft
+        WHERE ft.id = fighter_type_id_var;
+        
+        -- Determine if free_skill should be true
+        -- Key logic: If the fighter has ONLY their default skills (or fewer),
+        -- AND the deleted skill was NOT a default skill, then free_skill should be true
+        is_free_skill := (fighter_type_free_skill = true AND 
+                        skill_count <= default_skill_count AND
+                        NOT EXISTS (
+                            SELECT 1 
+                            FROM fighter_defaults 
+                            WHERE fighter_type_id = fighter_type_id_var AND 
+                                  skill_id = deleted_skill_id
+                        ));
+        
+        -- Update fighter's XP and free_skill
+        UPDATE fighters f
+        SET xp = f.xp + xp_to_refund,
+            free_skill = is_free_skill
+        WHERE f.id = item_fighter_id;
+        
+        RETURN QUERY SELECT TRUE, 'Skill deleted and XP refunded', xp_to_refund, is_free_skill;
     
     -- Handle effect deletion
     ELSIF fighter_effect_id IS NOT NULL THEN
-        -- Assign the effect_id to a local variable to avoid ambiguity
-        effect_id := fighter_effect_id;
-        
-        -- Check if effect exists for this fighter
-        IF NOT EXISTS(SELECT 1 FROM fighter_effects WHERE fighter_id = input_fighter_id AND id = effect_id) THEN
-            RETURN QUERY SELECT FALSE, 'Effect not found for this fighter', 0;
-            RETURN;
-        END IF;
-        
-        -- Check if user is authorized to delete this effect
-        SELECT 
-            (user_id = current_user_id OR user_is_admin) INTO is_authorized
+        -- Check if effect exists and get fighter_id
+        SELECT fighter_id INTO item_fighter_id
         FROM fighter_effects
-        WHERE id = effect_id;
+        WHERE id = fighter_effect_id;
         
-        IF NOT is_authorized THEN
-            RETURN QUERY SELECT FALSE, 'Not authorized to delete this effect', 0;
+        IF item_fighter_id IS NULL THEN
+            RETURN QUERY SELECT FALSE, 'Effect not found', 0, FALSE;
             RETURN;
         END IF;
         
-        -- Get the XP cost to refund from the type_specific_data JSON
+        -- Get current free_skill value for fighter
+        SELECT f.free_skill INTO is_free_skill
+        FROM fighters f
+        WHERE f.id = item_fighter_id;
+        
+        -- Get XP to refund
         SELECT 
             COALESCE(
                 (CASE 
-                    WHEN fe.type_specific_data->>'xp_cost' IS NOT NULL THEN 
-                        (fe.type_specific_data->>'xp_cost')::integer
+                    WHEN type_specific_data->>'xp_cost' IS NOT NULL THEN 
+                        (type_specific_data->>'xp_cost')::integer
                     ELSE 0
                 END),
                 0
             ) INTO xp_to_refund
-        FROM fighter_effects fe
-        WHERE fe.id = effect_id AND fe.fighter_id = input_fighter_id;
+        FROM fighter_effects
+        WHERE id = fighter_effect_id;
         
-        -- Delete the effect (cascading delete will handle related modifiers)
+        -- Delete the effect
         DELETE FROM fighter_effects
-        WHERE id = effect_id AND fighter_id = input_fighter_id;
+        WHERE id = fighter_effect_id;
+        
+        GET DIAGNOSTICS item_count = ROW_COUNT;
+        
+        IF item_count = 0 THEN
+            RETURN QUERY SELECT FALSE, 'Failed to delete effect - permission denied', 0, FALSE;
+            RETURN;
+        END IF;
         
         -- Update fighter's XP
-        UPDATE fighters
-        SET xp = xp + xp_to_refund
-        WHERE id = input_fighter_id;
+        UPDATE fighters f
+        SET xp = f.xp + xp_to_refund
+        WHERE f.id = item_fighter_id;
         
-        RETURN QUERY SELECT TRUE, 'Effect deleted and XP refunded', xp_to_refund;
+        RETURN QUERY SELECT TRUE, 'Effect deleted and XP refunded', xp_to_refund, is_free_skill;
     END IF;
 END;
 $$ 
 LANGUAGE plpgsql
-SECURITY DEFINER
-VOLATILE
+SECURITY INVOKER
 SET search_path = public, auth;
-
-COMMENT ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) IS 
-'Deletes a skill or effect for a fighter and refunds the XP cost back to the fighter.
-Manual permission checks ensure only owners or admins can delete.
-Parameters:
-- input_fighter_id: UUID of the fighter
-- fighter_skill_id: UUID of the skill to delete (pass NULL if deleting an effect)
-- fighter_effect_id: UUID of the effect to delete (pass NULL if deleting a skill)
-Returns:
-- success: Boolean indicating whether the operation was successful
-- message: Text message describing the result
-- refunded_xp: Integer amount of XP refunded to the fighter';
-
-REVOKE ALL ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION delete_skill_or_effect(UUID, UUID, UUID) TO service_role; 

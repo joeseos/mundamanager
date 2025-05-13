@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImInfo } from "react-icons/im";
 
 interface AddFighterProps {
   showModal: boolean;
@@ -35,20 +36,33 @@ export default function AddFighter({
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+  const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   
-  // Automatically select Default or Vatborn sub-type if available
+  // Automatically select NULL sub-type if available, otherwise select the cheapest one
   useEffect(() => {
     if (availableSubTypes.length > 0 && !selectedSubTypeId) {
+      // Try to find a sub-type with NULL sub_type_name (Default)
       const defaultSubType = availableSubTypes.find(
-        (sub) =>
-          sub.sub_type_name.toLowerCase() === "default" ||
-          sub.sub_type_name.toLowerCase() === "vatborn"
+        (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
       );
+      
       if (defaultSubType) {
         setSelectedSubTypeId(defaultSubType.id);
+      } else {
+        // Find the cheapest sub-type if no default is available
+        const cheapestSubType = availableSubTypes.reduce(
+          (lowest, current) => {
+            const lowestCost = fighterTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
+            const currentCost = fighterTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
+            return currentCost < lowestCost ? current : lowest;
+          },
+          availableSubTypes[0]
+        );
+        
+        setSelectedSubTypeId(cheapestSubType.id);
       }
     }
-  }, [availableSubTypes, selectedSubTypeId]);
+  }, [availableSubTypes, selectedSubTypeId, fighterTypes]);
 
   const handleFighterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const typeId = e.target.value;
@@ -57,13 +71,14 @@ export default function AddFighter({
     setSelectedEquipmentIds([]); // Reset equipment selections when type changes
     
     if (typeId) {
-      // Get all fighters with this fighter_type name to check for sub-types
+      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
       const selectedType = fighterTypes.find(t => t.id === typeId);
       const fighterTypeGroup = fighterTypes.filter(t => 
-        t.fighter_type === selectedType?.fighter_type
+        t.fighter_type === selectedType?.fighter_type &&
+        t.fighter_class === selectedType?.fighter_class
       );
       
-      // If we have multiple entries with the same fighter_type, they have sub-types
+      // If we have multiple entries with the same fighter_type + class, they have sub-types
       if (fighterTypeGroup.length > 1) {
         const subTypes = fighterTypeGroup.map(ft => ({
           id: ft.id,
@@ -73,14 +88,10 @@ export default function AddFighter({
         
         setAvailableSubTypes(subTypes);
         
-        // Set cost to the lowest cost option initially
-        const lowestCostType = fighterTypeGroup.reduce(
-          (lowest, current) => 
-            current.total_cost < lowest.total_cost ? current : lowest, 
-          fighterTypeGroup[0]
-        );
+        // Set cost to the fighter with the ID we selected initially
+        setFighterCost(selectedType?.total_cost.toString() || '');
         
-        setFighterCost(lowestCostType.total_cost.toString() || '');
+        // Auto-selection will happen in the useEffect
       } else {
         // No sub-types, just set the cost directly
         setFighterCost(selectedType?.total_cost.toString() || '');
@@ -98,19 +109,31 @@ export default function AddFighter({
     setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
     
     if (subTypeId) {
-      // Set the fighter type ID to match the sub-type's ID
-      setSelectedFighterTypeId(subTypeId);
-      
+      // Don't change the selectedFighterTypeId, just update the cost
       const selectedType = fighterTypes.find(t => t.id === subTypeId);
       if (selectedType) {
         setFighterCost(selectedType.total_cost.toString() || '');
+      }
+    } else {
+      // If no sub-type is selected, revert to the main fighter type's cost
+      const mainType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+      if (mainType) {
+        setFighterCost(mainType.total_cost.toString() || '');
       }
     }
   };
 
   const handleAddFighter = async () => {
-    if (!selectedFighterTypeId || !fighterName || !fighterCost) {
+    if (!fighterName || !fighterCost) {
       setFetchError('Please fill in all fields');
+      return false;
+    }
+
+    // Determine which fighter type ID to use
+    const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
+    
+    if (!fighterTypeIdToUse) {
+      setFetchError('Please select a fighter type');
       return false;
     }
 
@@ -124,8 +147,19 @@ export default function AddFighter({
         return false;
       }
 
+      // Parse the cost from the input
+      const enteredCost = parseInt(fighterCost);
+      
+      // Get the base cost of the fighter for optimistic update
+      const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
+      const actualBaseCost = selectedType?.total_cost || 0;
+      
+      // Determine the actual cost to use in the optimistic update
+      // If entered cost is 0 and useBaseCostForRating is true, use the base cost
+      const actualCost = enteredCost === 0 && useBaseCostForRating ? actualBaseCost : enteredCost;
+
       const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/add_fighter_to_gang',
+        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
         {
           method: 'POST',
           headers: {
@@ -134,11 +168,12 @@ export default function AddFighter({
           },
           body: JSON.stringify({
             p_gang_id: gangId,
-            p_fighter_type_id: selectedFighterTypeId,
+            p_fighter_type_id: fighterTypeIdToUse,
             p_fighter_name: fighterName,
-            p_cost: parseInt(fighterCost),
+            p_cost: enteredCost,
             p_selected_equipment_ids: selectedEquipmentIds,
-            p_user_id: user.id  // Use the current user's ID from auth
+            p_user_id: user.id,
+            p_use_base_cost_for_rating: useBaseCostForRating
           })
         }
       );
@@ -157,16 +192,21 @@ export default function AddFighter({
         throw new Error('Failed to add fighter');
       }
 
-      const actualCost = parseInt(fighterCost);
+      // Log the returned data to see what's available
+      console.log('Fighter added, server response:', data);
+
+      // Use the rating_cost from the server if available, otherwise use our locally calculated cost
+      const displayCost = data.rating_cost || actualCost;
+      console.log('Using cost for display:', displayCost);
 
       const newFighter = {
         id: data.fighter_id,
         fighter_name: fighterName,
-        fighter_type_id: selectedFighterTypeId,
+        fighter_type_id: fighterTypeIdToUse,
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
         fighter_sub_type: data.fighter_sub_type,
-        credits: actualCost,
+        credits: displayCost,
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
         ballistic_skill: data.stats.ballistic_skill,
@@ -277,6 +317,7 @@ export default function AddFighter({
     setAvailableSubTypes([]);
     setFighterCost('');
     setSelectedEquipmentIds([]);
+    setUseBaseCostForRating(true);
     setFetchError(null);
   };
 
@@ -305,35 +346,60 @@ export default function AddFighter({
           className="w-full p-2 border rounded"
         >
           <option value="">Select fighter type</option>
-          {/* Modified dropdown options to properly handle sub-types */}
-          {Array.from(new Set(fighterTypes.map(type => type.fighter_type))).map(uniqueType => {
-            const matchingFighters = fighterTypes.filter(ft => ft.fighter_type === uniqueType);
+          {(() => {
+            // Create a map to group fighters by type+class and find default/cheapest for each
+            const typeClassMap = new Map();
+            
+            fighterTypes.forEach(fighter => {
+              const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
+              
+              if (!typeClassMap.has(key)) {
+                typeClassMap.set(key, {
+                  fighter: fighter,
+                  cost: fighter.total_cost
+                });
+              } else {
+                const current = typeClassMap.get(key);
+                
+                // If this fighter has no sub-type, prefer it as default
+                if (!fighter.sub_type && current.fighter.sub_type) {
+                  typeClassMap.set(key, {
+                    fighter: fighter,
+                    cost: fighter.total_cost
+                  });
+                }
+                // Otherwise, take the cheaper option
+                else if (fighter.total_cost < current.cost) {
+                  typeClassMap.set(key, {
+                    fighter: fighter,
+                    cost: fighter.total_cost
+                  });
+                }
+              }
+            });
+            
+            // Convert the map values to an array and sort
+            return Array.from(typeClassMap.values())
+              .sort((a, b) => {
+                const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
 
-            // Find the selected sub-type if it matches this fighter type
-            const selectedSubType = selectedSubTypeId
-              ? matchingFighters.find(t => t.id === selectedSubTypeId)
-              : null;
+                if (classRankA !== classRankB) {
+                  return classRankA - classRankB;
+                }
 
-            // Find the cheapest fighter for this type
-            const lowestCostFighter = matchingFighters.reduce((lowest, current) =>
-              current.total_cost < lowest.total_cost ? current : lowest
-            );
-
-            // Show the selected sub-type if available; otherwise, fall back to the cheapest option for this fighter type
-            if (selectedSubType) {
-              return (
-                <option key={selectedSubType.id} value={selectedSubType.id}>
-                  {uniqueType} ({selectedSubType.fighter_class}) - {lowestCostFighter.total_cost} credits
-                </option>
-              );
-            } else {
-              return (
-                <option key={lowestCostFighter.id} value={lowestCostFighter.id}>
-                  {uniqueType} ({lowestCostFighter.fighter_class}) - {lowestCostFighter.total_cost} credits
-                </option>
-              );
-            }
-          })}
+                return a.cost - b.cost;
+              })
+              .map(({ fighter, cost }) => {
+                const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+                
+                return (
+                  <option key={fighter.id} value={fighter.id}>
+                    {displayName}
+                  </option>
+                );
+              });
+          })()}
         </select>
       </div>
 
@@ -354,11 +420,9 @@ export default function AddFighter({
                 const aName = a.sub_type_name.toLowerCase();
                 const bName = b.sub_type_name.toLowerCase();
 
-                // Always keep "Default" or "Vatborn" first
-                const isAFirst = aName === 'default' || aName === 'vatborn';
-                const isBFirst = bName === 'default' || bName === 'vatborn';
-                if (isAFirst && !isBFirst) return -1;
-                if (!isAFirst && isBFirst) return 1;
+                // Always keep "Default" first
+                if (aName === 'default') return -1;
+                if (bName === 'default') return 1;
 
                 // Otherwise sort by cost, then name
                 const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
@@ -377,9 +441,12 @@ export default function AddFighter({
                 const diff = subTypeCost - lowestSubTypeCost;
                 const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
 
+                // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
+                const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
+
                 return (
                   <option key={subType.id} value={subType.id}>
-                    {subType.sub_type_name} {costLabel}
+                    {displayName} {costLabel}
                   </option>
                 );
               })}
@@ -398,11 +465,26 @@ export default function AddFighter({
           className="w-full"
           min={0}
         />
-        {selectedFighterTypeId && (
-          <p className="text-sm text-gray-500">
-            Base cost: {fighterTypes.find(t => t.id === selectedFighterTypeId)?.total_cost} credits
-          </p>
-        )}
+      </div>
+
+      <div className="flex items-center space-x-2 mb-4 mt-2">
+        <Checkbox 
+          id="use-base-cost-for-rating"
+          checked={useBaseCostForRating}
+          onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+        />
+        <label 
+          htmlFor="use-base-cost-for-rating" 
+          className="text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          Use base cost for Fighter Rating
+        </label>
+        <div className="relative group">
+          <ImInfo />
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            When checked, the fighter will cost what you enter above, but its rating will be calculated using the base cost. When unchecked, the fighter's rating will be based on what you paid.
+          </div>
+        </div>
       </div>
 
       {/* Equipment selection */}

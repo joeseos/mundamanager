@@ -14,9 +14,10 @@ interface CampaignType {
 
 interface CreateCampaignProps {
   initialCampaignTypes: CampaignType[] | null;
+  userId?: string;
 }
 
-export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignProps) {
+export default function CreateCampaign({ initialCampaignTypes, userId }: CreateCampaignProps) {
   const { refreshCampaigns } = useCampaigns();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
@@ -33,20 +34,25 @@ export default function CreateCampaign({ initialCampaignTypes }: CreateCampaignP
       return
     }
 
+    if (!userId) {
+      setError('Authentication required')
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-
       const { data, error: rpcError } = await supabase
         .rpc('create_campaign', {
           p_campaign_type_id: campaignType,
           p_campaign_name: campaignName,
-          p_user_id: user.id
+          p_user_id: userId
         })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        throw rpcError;
+      }
 
       console.log('Campaign created:', data)
       setCampaignName("")

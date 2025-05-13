@@ -9,6 +9,8 @@ import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ImInfo } from "react-icons/im";
 
 interface ItemModalProps {
   title: string;
@@ -49,7 +51,7 @@ interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (cost: number, isMasterCrafted: boolean) => void;
+  onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean) => void;
 }
 
 interface Category {
@@ -61,6 +63,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
   const [manualCost, setManualCost] = useState<string>(String(item.discounted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
+  const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -89,7 +92,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
     }
 
     setCreditError(null);
-    onConfirm(parsedCost, isMasterCrafted);
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating);
     return true; // Allow modal to close
   };
 
@@ -130,19 +133,40 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
             </div>
             
             {item.equipment_type === 'weapon' && (
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  type="checkbox"
+              <div className="flex items-center space-x-2 mt-2">
+                <Checkbox 
                   id="master-crafted"
                   checked={isMasterCrafted}
-                  onChange={() => setIsMasterCrafted(!isMasterCrafted)}
-                  className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                  onCheckedChange={(checked) => setIsMasterCrafted(checked as boolean)}
                 />
-                <label htmlFor="master-crafted" className="text-sm text-gray-700">
+                <label 
+                  htmlFor="master-crafted" 
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
                   Master-crafted (+25%)
                 </label>
               </div>
             )}
+
+            <div className="flex items-center space-x-2 mb-2 mt-2">
+              <Checkbox 
+                id="use-base-cost-for-rating"
+                checked={useBaseCostForRating}
+                onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+              />
+              <label 
+                htmlFor="use-base-cost-for-rating" 
+                className="text-sm font-medium text-gray-700 cursor-pointer"
+              >
+                Use base cost for Fighter Rating
+              </label>
+              <div className="relative group">
+                <ImInfo />
+                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                  When checked, the equipment will cost what you enter above, but its rating will be calculated using the base cost. When unchecked, the equipment's rating will be based on what you paid.
+                </div>
+              </div>
+            </div>
 
             {creditError && (
               <p className="text-red-500 text-sm">{creditError}</p>
@@ -518,7 +542,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.discounted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false) => {
+  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true) => {
     if (!session) return;
     try {
       const requestBody = {
@@ -526,6 +550,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         gang_id: gangId,
         manual_cost: manualCost,
         master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
+        use_base_cost_for_rating: useBaseCostForRating,
         ...(isVehicleEquipment
           ? { vehicle_id: vehicleId }
           : { fighter_id: fighterId }
@@ -556,7 +581,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data = await response.json();
 
-      const newFighterCredits = fighterCredits + manualCost;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
       const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
 
@@ -564,10 +588,32 @@ const ItemModal: React.FC<ItemModalProps> = ({
         throw new Error('Failed to get equipment ID from response');
       }
 
+      // Use the rating cost from the backend response
+      // This value will be the discounted_cost when use_base_cost_for_rating is true
+      // or the manual_cost when use_base_cost_for_rating is false
+      const ratingCost = data.rating_cost;
+      
+      // Calculate new fighter credits adding the rating cost, not the manual cost
+      // This ensures the fighter's rating is correctly updated
+      const newFighterCredits = fighterCredits + ratingCost;
+      
+      // Log to verify the values being used
+      console.log('Equipment purchase details:', {
+        manualCost,
+        useBaseCostForRating,
+        baseCost: item.base_cost,
+        discountedCost: item.discounted_cost,
+        ratingCost,
+        responseRatingCost: data.rating_cost,
+        equipmentRecord,
+        newFighterCredits,
+        oldFighterCredits: fighterCredits
+      });
+
       onEquipmentBought(newFighterCredits, newGangCredits, {
         ...item,
         fighter_equipment_id: equipmentRecord.id,
-        cost: manualCost,
+        cost: ratingCost, // Use the rating cost value from the server
         is_master_crafted: equipmentRecord.is_master_crafted,
         equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
           ? `${item.equipment_name} (Master-crafted)` 
@@ -577,7 +623,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           id: equipmentRecord.id,
           equipment_id: item.equipment_id,
           created_at: new Date().toISOString()
-        }] : undefined
+        }] : undefined,
+        equipment_effect: data.equipment_effect
       });
 
       toast({
@@ -810,7 +857,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           item={buyModalData}
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted)}
+          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating)}
         />
       )}
     </div>

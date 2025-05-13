@@ -2,8 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const updateSession = async (request: NextRequest) => {
-  // This `try/catch` block is only here for the interactive tutorial.
-  // Feel free to remove once you have Supabase connected.
   try {
     // Create a response to modify
     let response = NextResponse.next({
@@ -60,7 +58,7 @@ export const updateSession = async (request: NextRequest) => {
         },
       }
     );
-
+    
     // This will refresh session if expired - required for Server Components
     // https://supabase.com/docs/guides/auth/server-side/nextjs
     await supabase.auth.getUser();
