@@ -1,18 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface TabsProps {
   children: React.ReactNode[];
   tabTitles?: string[];
   tabIcons?: React.ReactNode[]; // Accept icons for each tab
+  onTabChange?: (tabIndex: number) => void; // Callback for tab changes
 }
 
-const Tabs = ({ children, tabTitles, tabIcons }: TabsProps) => {
+const Tabs = ({ children, tabTitles, tabIcons, onTabChange }: TabsProps) => {
   const [activeTab, setActiveTab] = useState(0);
 
   const defaultTabTitles = ['Gang', 'Stash', 'Notes'];
   const titles = tabTitles || defaultTabTitles;
+  
+  // Call onTabChange whenever activeTab changes
+  useEffect(() => {
+    if (onTabChange) {
+      onTabChange(activeTab);
+    }
+  }, [activeTab, onTabChange]);
+
+  // Handle tab click with callback
+  const handleTabClick = (index: number) => {
+    setActiveTab(index);
+  };
 
   return (
     <div className="w-full">
@@ -20,7 +33,7 @@ const Tabs = ({ children, tabTitles, tabIcons }: TabsProps) => {
         {titles.map((title, index) => (
           <button
             key={index}
-            onClick={() => setActiveTab(index)}
+            onClick={() => handleTabClick(index)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === index
                 ? 'text-black font-medium'

@@ -34,6 +34,7 @@ interface CampaignProps {
     has_scavenging_rolls: boolean;
     updated_at: string;
   }) => void;
+  onTabChange?: (tabIndex: number) => void;
 }
 
 export default function Campaign({
@@ -49,6 +50,7 @@ export default function Campaign({
   userId,
   onRoleChange,
   onUpdate,
+  onTabChange,
 }: CampaignProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -187,14 +189,16 @@ export default function Campaign({
   return (
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
-        <Tabs tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
-           tabIcons={[
-             <FiMap key="campaign" />,
-             <FaCity  key="territories" />,
-             <LuSwords  key="battles" />,
-             <LuClipboard key="notes" />
-           ]}
-          >
+        <Tabs 
+          tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
+          tabIcons={[
+            <FiMap key="campaign" />,
+            <FaCity  key="territories" />,
+            <LuSwords  key="battles" />,
+            <LuClipboard key="notes" />
+          ]}
+          onTabChange={onTabChange}
+        >
 
           {/* 1st tab */}
           <div className="bg-white shadow-md rounded-lg p-4">
@@ -249,16 +253,10 @@ export default function Campaign({
           </div>
 
           {/* 3rd tab */}
-          <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h1>
-            <p className="text-gray-600">See the Campaign tab.</p>
-          </div>
+          <></>
 
           {/* 4th tab */}
-          <div className="bg-white shadow-md rounded-lg p-4">
-            <h1 className="text-xl md:text-2xl font-bold mb-4">Notes</h1>
-            <p className="text-gray-600">Notes content coming soon...</p>
-          </div>
+          <></>
 
         </Tabs>
       ) : (
