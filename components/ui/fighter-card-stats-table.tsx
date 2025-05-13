@@ -62,12 +62,13 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement
 interface StatsTableProps {
   data?: StatsType;
   isCrew?: boolean;
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
 // Add a type for valid stat keys
 type StatKey = keyof CrewStats | keyof FighterStats;
 
-export function StatsTable({ data, isCrew }: StatsTableProps) {
+export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
   if (!data || Object.keys(data).length === 0) {
     return <p>No characteristics available</p>;
   }
@@ -133,7 +134,7 @@ export function StatsTable({ data, isCrew }: StatsTableProps) {
 
   return (
     <div className="w-full">
-      <table className="w-full text-xs sm:text-sm border-collapse">
+      <table className={`w-full text-[10px] sm:text-sm border-collapse ${isCrew ? '-mt-3' : ''}`}>
         <thead>
           {/* Conditionally Render Toughness Header Row */}
           {isCrew && (
@@ -158,14 +159,21 @@ export function StatsTable({ data, isCrew }: StatsTableProps) {
                   ${getColumnBorderClass(key)}`}
               >
                 {/* Responsive Header Text */}
-                {columnRenameMap[key]
-                  ? (
-                    <>
+                {columnRenameMap[key] ? (
+                  <>
+                    {/* Full label: only if normal view and not small screen */}
+                    {viewMode === 'normal' && (
                       <span className="hidden sm:inline">{columnRenameMap[key].full}</span>
+                    )}
+                    {/* Short label: if not normal view, or on small screen */}
+                    {(viewMode !== 'normal') && (
+                      <span>{columnRenameMap[key].short}</span>
+                    )}
+                    {viewMode === 'normal' && (
                       <span className="sm:hidden">{columnRenameMap[key].short}</span>
-                    </>
-                  )
-                  : key}
+                    )}
+                  </>
+                ) : key}
               </th>
             ))}
           </tr>
