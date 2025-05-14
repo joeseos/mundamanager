@@ -66,10 +66,19 @@ export async function POST(
   }
 
   try {
-    const { scenario_id, attacker_id, defender_id, winner_id } = await request.json();
+    const requestBody = await request.json();
+    const { 
+      scenario, 
+      attacker_id, 
+      defender_id, 
+      winner_id, 
+      note,
+      participants,
+      claimed_territories = [] 
+    } = requestBody;
 
     // Validate required fields
-    if (!scenario_id || !attacker_id || !defender_id || !winner_id) {
+    if (!scenario || !attacker_id || !defender_id) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -82,10 +91,12 @@ export async function POST(
       .insert([
         {
           campaign_id: campaignId,
-          scenario_id,
+          scenario,
           attacker_id,
           defender_id,
           winner_id,
+          note,
+          participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
           created_at: new Date().toISOString()
         }
       ])
@@ -94,26 +105,34 @@ export async function POST(
 
     if (battleError) throw battleError;
 
-    // Then fetch the related data
+    // Process territory claims if any
+    if (claimed_territories.length > 0 && winner_id) {
+      for (const territory of claimed_territories) {
+        await supabase
+          .from('campaign_territories')
+          .update({ controlled_by: winner_id })
+          .eq('territory_id', territory.territory_id)
+          .eq('campaign_id', campaignId);
+      }
+    }
+
+    // Then fetch the related data for display
     const [
-      { data: scenario },
       { data: attacker },
       { data: defender },
       { data: winner }
     ] = await Promise.all([
-      supabase.from('scenarios').select('scenario_name').eq('id', scenario_id).single(),
       supabase.from('gangs').select('name').eq('id', attacker_id).single(),
       supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      supabase.from('gangs').select('name').eq('id', winner_id).single()
+      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null })
     ]);
 
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
-      scenario_name: scenario?.scenario_name,
       attacker: { gang_name: attacker?.name },
       defender: { gang_name: defender?.name },
-      winner: { gang_name: winner?.name }
+      winner: winner?.name ? { gang_name: winner.name } : null
     };
 
     return NextResponse.json(transformedBattle);
