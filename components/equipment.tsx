@@ -780,7 +780,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               Unrestricted
             </label>
           </div>
-          <div className="mt-3 flex justify-center">
+          <div className="mt-1 flex justify-center">
             <div className="relative w-[250px]">
               <input
                 type="text"
