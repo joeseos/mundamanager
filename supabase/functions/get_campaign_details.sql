@@ -100,9 +100,8 @@ SELECT json_build_object(
             'created_at', cb.created_at,
             'attacker_id', cb.attacker_id,
             'defender_id', cb.defender_id,
-            'scenario_id', cb.scenario_id,
-            'scenario_number', s.scenario_number,
-            'scenario_name', s.scenario_name,
+            'scenario', COALESCE(cb.scenario, s.scenario_name || CASE WHEN s.scenario_number IS NOT NULL THEN ' (#' || s.scenario_number || ')' ELSE '' END),
+            'participants', cb.participants,
             'note', cb.note,
             'winner_id', cb.winner_id,
             'winner', (
