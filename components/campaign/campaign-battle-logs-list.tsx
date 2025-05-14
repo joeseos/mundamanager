@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -69,13 +69,17 @@ interface CampaignBattleLogsListProps {
   hideAddButton?: boolean;
 }
 
+export interface CampaignBattleLogsListRef {
+  openAddModal: () => void;
+}
+
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignBattleLogsList({ 
+const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>(({ 
   campaignId, 
   battles, 
   isAdmin, 
@@ -83,7 +87,7 @@ export default function CampaignBattleLogsList({
   members,
   noContainer = false,
   hideAddButton = false
-}: CampaignBattleLogsListProps) {
+}, ref) => {
   const [showBattleModal, setShowBattleModal] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState('');
   const [selectedAttacker, setSelectedAttacker] = useState('');
@@ -93,6 +97,14 @@ export default function CampaignBattleLogsList({
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const { toast } = useToast();
+
+  // Expose the openAddModal function to parent components
+  useImperativeHandle(ref, () => ({
+    openAddModal: () => {
+      setShowBattleModal(true);
+      loadBattleData();
+    }
+  }));
 
   // Extract gangs from members
   useEffect(() => {
@@ -405,4 +417,8 @@ export default function CampaignBattleLogsList({
       {content}
     </div>
   );
-} 
+});
+
+CampaignBattleLogsList.displayName = "CampaignBattleLogsList";
+
+export default CampaignBattleLogsList; 

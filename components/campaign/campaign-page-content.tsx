@@ -21,6 +21,7 @@ import { cn } from "@/app/lib/utils";
 import { RxDashboard, RxLayers } from "react-icons/rx";
 import { MdPlace } from "react-icons/md";
 import TerritoryList from "@/components/campaign/campaign-territory-list";
+import { CampaignBattleLogsListRef } from "@/components/campaign/campaign-battle-logs-list";
 
 interface Gang {
   id: string;
@@ -156,6 +157,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const supabase = createClient();
   const isLoadingRef = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
+  const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
 
   // Determine user role based on userId
   useEffect(() => {
@@ -514,6 +516,13 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     }
   };
 
+  // Add this function to handle the Add button click
+  const handleAddBattleLog = () => {
+    if (battleLogsRef.current) {
+      battleLogsRef.current.openAddModal();
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -838,15 +847,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 {isAdmin && (
                   <Button
                     className="bg-black hover:bg-gray-800 text-white"
-                    onClick={() => {
-                      const battleLogsComponent = document.getElementById('campaign-battle-logs');
-                      if (battleLogsComponent) {
-                        const addButton = battleLogsComponent.querySelector('button[aria-label="Add battle log"]');
-                        if (addButton) {
-                          (addButton as HTMLButtonElement).click();
-                        }
-                      }
-                    }}
+                    onClick={handleAddBattleLog}
                   >
                     Add
                   </Button>
@@ -854,6 +855,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
               </div>
               <div id="campaign-battle-logs">
                 <CampaignBattleLogsList
+                  ref={battleLogsRef}
                   campaignId={campaignData.id}
                   battles={campaignData.battles || []}
                   isAdmin={isAdmin}
