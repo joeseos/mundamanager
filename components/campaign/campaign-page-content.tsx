@@ -718,14 +718,29 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
         {/* Battle Logs Section */}
               <div>
-        <CampaignBattleLogsList
-          campaignId={campaignData.id}
-          battles={campaignData.battles || []}
-          isAdmin={isAdmin}
-          onBattleAdd={refreshData}
-          members={campaignData.members}
-                  noContainer={true}
-                />
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
+          {isAdmin && (
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={handleAddBattleLog}
+            >
+              Add
+            </Button>
+          )}
+        </div>
+        <div id="campaign-battle-logs">
+          <CampaignBattleLogsList
+            ref={battleLogsRef}
+            campaignId={campaignData.id}
+            battles={campaignData.battles || []}
+            isAdmin={isAdmin}
+            onBattleAdd={refreshData}
+            members={campaignData.members}
+            noContainer={true}
+            hideAddButton={true}
+          />
+        </div>
               </div>
             </>
           )}
@@ -842,7 +857,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           {/* Battle Logs tab content */}
           {activeTab === 2 && (
             <div>
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
                 {isAdmin && (
                   <Button
