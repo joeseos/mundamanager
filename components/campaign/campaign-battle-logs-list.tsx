@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
+import CampaignBattleLogModal from "./campaign-battle-log-modal";
 
 interface Member {
   user_id: string;
@@ -89,20 +89,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   hideAddButton = false
 }, ref) => {
   const [showBattleModal, setShowBattleModal] = useState(false);
-  const [selectedScenario, setSelectedScenario] = useState('');
-  const [selectedAttacker, setSelectedAttacker] = useState('');
-  const [selectedDefender, setSelectedDefender] = useState('');
-  const [selectedWinner, setSelectedWinner] = useState('');
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const { toast } = useToast();
 
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
       setShowBattleModal(true);
-      loadBattleData();
     }
   }));
 
@@ -129,84 +122,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   }, [members]);
 
-  const loadBattleData = async () => {
-    setIsLoadingBattleData(true);
-    try {
-      // Only need to fetch scenarios, gangs are extracted from members
-      const response = await fetch('/api/campaigns/battles', {
-        headers: {
-          'X-Campaign-Id': campaignId
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch battle data');
-      
-      const data = await response.json();
-      // Sort scenarios alphabetically by scenario_name
-      const sortedScenarios = [...data.scenarios].sort((a, b) =>
-        a.scenario_number - b.scenario_number
-      );
-      setScenarios(sortedScenarios);
-      
-      // Gangs are already set from members in the useEffect
-    } catch (error) {
-      console.error('Error loading battle data:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to load battle data"
-      });
-    } finally {
-      setIsLoadingBattleData(false);
-    }
-  };
-
-  const handleAddBattle = async () => {
-    if (!selectedScenario || !selectedAttacker || !selectedDefender || !selectedWinner) {
-      toast({
-        variant: "destructive",
-        description: "Please fill in all fields"
-      });
-      return false;
-    }
-
-    try {
-      const response = await fetch('/api/campaigns/battles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Campaign-Id': campaignId
-        },
-        body: JSON.stringify({
-          scenario_id: selectedScenario,
-          attacker_id: selectedAttacker,
-          defender_id: selectedDefender,
-          winner_id: selectedWinner
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to create battle log');
-
-      onBattleAdd();
-      toast({
-        description: "Battle log added successfully"
-      });
-      setShowBattleModal(false);
-      // Reset form
-      setSelectedScenario('');
-      setSelectedAttacker('');
-      setSelectedDefender('');
-      setSelectedWinner('');
-      return false;
-    } catch (error) {
-      console.error('Error creating battle log:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to create battle log"
-      });
-      return false;
-    }
-  };
-
   // The content to render
   const content = (
     <>
@@ -215,10 +130,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
           {isAdmin && !hideAddButton && (
             <Button
-              onClick={() => {
-                setShowBattleModal(true);
-                loadBattleData();
-              }}
+              onClick={() => setShowBattleModal(true)}
               className="bg-black hover:bg-gray-800 text-white"
               aria-label="Add battle log"
             >
@@ -230,10 +142,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {noContainer && isAdmin && !hideAddButton && (
         <div className="flex justify-end mb-4">
           <Button
-            onClick={() => {
-              setShowBattleModal(true);
-              loadBattleData();
-            }}
+            onClick={() => setShowBattleModal(true)}
             className="bg-black hover:bg-gray-800 text-white"
             aria-label="Add battle log"
           >
@@ -317,97 +226,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </table>
       </div>
 
-      {/* Battle Log Modal */}
-      {showBattleModal && (
-        <Modal
-          title="Add Battle Log"
-          content={
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Scenario
-                </label>
-                <select 
-                  className="w-full px-3 py-2 rounded-md border border-gray-300"
-                  value={selectedScenario}
-                  onChange={(e) => setSelectedScenario(e.target.value)}
-                  disabled={isLoadingBattleData}
-                >
-                  <option value="">Select scenario</option>
-                  {scenarios.map(scenario => (
-                    <option key={scenario.id} value={scenario.id}>
-                      {scenario.scenario_number}. {scenario.scenario_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attacker
-                </label>
-                <select 
-                  className="w-full px-3 py-2 rounded-md border border-gray-300"
-                  value={selectedAttacker}
-                  onChange={(e) => setSelectedAttacker(e.target.value)}
-                  disabled={isLoadingBattleData}
-                >
-                  <option value="">Select gang</option>
-                  {availableGangs.map(gang => (
-                    <option key={gang.id} value={gang.id}>
-                      {gang.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Defender
-                </label>
-                <select 
-                  className="w-full px-3 py-2 rounded-md border border-gray-300"
-                  value={selectedDefender}
-                  onChange={(e) => setSelectedDefender(e.target.value)}
-                  disabled={isLoadingBattleData}
-                >
-                  <option value="">Select gang</option>
-                  {availableGangs.map(gang => (
-                    <option key={gang.id} value={gang.id}>
-                      {gang.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Winner
-                </label>
-                <select 
-                  className="w-full px-3 py-2 rounded-md border border-gray-300"
-                  value={selectedWinner}
-                  onChange={(e) => setSelectedWinner(e.target.value)}
-                  disabled={isLoadingBattleData}
-                >
-                  <option value="">Select gang</option>
-                  {availableGangs.map(gang => (
-                    <option key={gang.id} value={gang.id}>
-                      {gang.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          }
-          onClose={() => {
-            setShowBattleModal(false);
-            setSelectedScenario('');
-            setSelectedAttacker('');
-            setSelectedDefender('');
-            setSelectedWinner('');
-          }}
-          onConfirm={handleAddBattle}
-          confirmText="Save"
-        />
-      )}
+      {/* Use the new Battle Log Modal component */}
+      <CampaignBattleLogModal
+        campaignId={campaignId}
+        availableGangs={availableGangs}
+        isOpen={showBattleModal}
+        onClose={() => setShowBattleModal(false)}
+        onSuccess={onBattleAdd}
+      />
     </>
   );
 
