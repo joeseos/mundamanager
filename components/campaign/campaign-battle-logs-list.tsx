@@ -181,8 +181,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     return gangNameMap.get(gangId) || "Unknown";
   };
 
-  // Get all attackers for a battle
-  const getAttackers = (battle: Battle): React.ReactNode => {
+  // Get all gangs with their roles for a battle
+  const getGangsWithRoles = (battle: Battle): React.ReactNode => {
     // Parse participants if it's a string
     let participants = battle.participants;
     if (participants && typeof participants === 'string') {
@@ -196,114 +196,105 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
     // If using the new data structure with participants
     if (participants && Array.isArray(participants) && participants.length > 0) {
-      const attackers = participants.filter(p => p.role === 'attacker');
-      
-      // Return "None" if no attackers found
-      if (attackers.length === 0) {
+      // If no gangs with roles, return None
+      if (participants.every(p => !p.gang_id)) {
         return <span className="text-gray-500">None</span>;
       }
       
       return (
         <div className="space-y-1">
-          {attackers.map((attacker, index) => (
-            <div key={index}>
-              {attacker.gang_id ? (
+          {participants.map((participant, index) => {
+            if (!participant.gang_id) return null;
+            
+            // Role indicator
+            let roleColor = "";
+            let roleLetter = "";
+            if (participant.role === 'attacker') {
+              roleColor = "bg-red-500";
+              roleLetter = "A";
+            } else if (participant.role === 'defender') {
+              roleColor = "bg-blue-500";
+              roleLetter = "D";
+            }
+            
+            return (
+              <div key={index}>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                   <Link 
-                    href={`/gang/${attacker.gang_id}`}
-                    className="hover:text-gray-600 transition-colors"
+                    href={`/gang/${participant.gang_id}`}
+                    className="hover:text-gray-600 transition-colors flex items-center"
                   >
-                    {getGangName(attacker.gang_id)}
+                    {getGangName(participant.gang_id)}
+                    {roleColor && (
+                      <span className={`ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                        {roleLetter}
+                      </span>
+                    )}
                   </Link>
                 </span>
-              ) : (
-                getGangName(attacker.gang_id)
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       );
     }
     
     // Fallback to old data structure
-    if (!battle.attacker_id && !battle.attacker?.gang_id) {
+    const gangs = [];
+    
+    if (battle.attacker_id || battle.attacker?.gang_id) {
+      const gangId = battle.attacker?.gang_id || battle.attacker_id;
+      const gangName = battle.attacker?.gang_name || getGangName(gangId || "");
+      
+      if (gangId) {
+        gangs.push({
+          id: gangId,
+          name: gangName,
+          role: 'attacker'
+        });
+      }
+    }
+    
+    if (battle.defender_id || battle.defender?.gang_id) {
+      const gangId = battle.defender?.gang_id || battle.defender_id;
+      const gangName = battle.defender?.gang_name || getGangName(gangId || "");
+      
+      if (gangId) {
+        gangs.push({
+          id: gangId,
+          name: gangName,
+          role: 'defender'
+        });
+      }
+    }
+    
+    if (gangs.length === 0) {
       return <span className="text-gray-500">None</span>;
     }
     
-    return battle.attacker?.gang_id ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-        <Link 
-          href={`/gang/${battle.attacker.gang_id}`}
-          className="hover:text-gray-600 transition-colors"
-        >
-          {battle.attacker.gang_name || 'Unknown'}
-        </Link>
-      </span>
-    ) : (
-      battle.attacker?.gang_name || getGangName(battle.attacker_id) || 'Unknown'
-    );
-  };
-
-  // Get all defenders for a battle
-  const getDefenders = (battle: Battle): React.ReactNode => {
-    // Parse participants if it's a string
-    let participants = battle.participants;
-    if (participants && typeof participants === 'string') {
-      try {
-        participants = JSON.parse(participants);
-      } catch (e) {
-        console.error('Error parsing participants:', e);
-        participants = [];
-      }
-    }
-
-    // If using the new data structure with participants
-    if (participants && Array.isArray(participants) && participants.length > 0) {
-      const defenders = participants.filter(p => p.role === 'defender');
-      
-      // Return "None" if no defenders found
-      if (defenders.length === 0) {
-        return <span className="text-gray-500">None</span>;
-      }
-      
-      return (
-        <div className="space-y-1">
-          {defenders.map((defender, index) => (
+    return (
+      <div className="space-y-1">
+        {gangs.map((gang, index) => {
+          const roleColor = gang.role === 'attacker' ? 'bg-red-500' : 'bg-blue-500';
+          const roleLetter = gang.role === 'attacker' ? 'A' : 'D';
+          
+          return (
             <div key={index}>
-              {defender.gang_id ? (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  <Link 
-                    href={`/gang/${defender.gang_id}`}
-                    className="hover:text-gray-600 transition-colors"
-                  >
-                    {getGangName(defender.gang_id)}
-                  </Link>
-                </span>
-              ) : (
-                getGangName(defender.gang_id)
-              )}
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                <Link 
+                  href={`/gang/${gang.id}`}
+                  className="hover:text-gray-600 transition-colors flex items-center"
+                >
+                  {gang.name}
+                  <span className={`ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                    {roleLetter}
+                  </span>
+                </Link>
+              </span>
             </div>
-          ))}
-        </div>
-      );
-    }
-    
-    // Fallback to old data structure
-    if (!battle.defender_id && !battle.defender?.gang_id) {
-      return <span className="text-gray-500">None</span>;
-    }
-    
-    return battle.defender?.gang_id ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-        <Link 
-          href={`/gang/${battle.defender.gang_id}`}
-          className="hover:text-gray-600 transition-colors"
-        >
-          {battle.defender.gang_name || 'Unknown'}
-        </Link>
-      </span>
-    ) : (
-      battle.defender?.gang_name || getGangName(battle.defender_id) || 'Unknown'
+          );
+        })}
+      </div>
     );
   };
 
@@ -341,15 +332,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             <tr className="bg-gray-50 border-b">
               <th className="px-4 py-2 text-left font-medium">Date</th>
               <th className="px-4 py-2 text-left font-medium">Scenario</th>
-              <th className="px-4 py-2 text-left font-medium">Attacker</th>
-              <th className="px-4 py-2 text-left font-medium">Defender</th>
+              <th className="px-4 py-2 text-left font-medium">Gangs</th>
               <th className="px-4 py-2 text-left font-medium">Winner</th>
             </tr>
           </thead>
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-gray-500 italic text-center">
+                <td colSpan={4} className="text-gray-500 italic text-center">
                   No battles recorded yet.
                 </td>
               </tr>
@@ -363,10 +353,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {battle.scenario || battle.scenario_name || 'N/A'}
                   </td>
                   <td className="px-4 py-2">
-                    {getAttackers(battle)}
-                  </td>
-                  <td className="px-4 py-2">
-                    {getDefenders(battle)}
+                    {getGangsWithRoles(battle)}
                   </td>
                   <td className="px-4 py-2">
                     {battle.winner?.gang_id ? (
@@ -388,7 +375,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           </tbody>
         </table>
       </div>
-      
+
       {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-4">
@@ -415,7 +402,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             Next
             <ChevronRight className="h-4 w-4" />
           </Button>
-        </div>
+            </div>
       )}
 
       {/* Use the new Battle Log Modal component */}
