@@ -65,6 +65,8 @@ interface CampaignBattleLogsListProps {
   isAdmin: boolean;
   onBattleAdd: () => void;
   members: Member[];
+  noContainer?: boolean;
+  hideAddButton?: boolean;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -78,7 +80,9 @@ export default function CampaignBattleLogsList({
   battles, 
   isAdmin, 
   onBattleAdd,
-  members
+  members,
+  noContainer = false,
+  hideAddButton = false
 }: CampaignBattleLogsListProps) {
   const [showBattleModal, setShowBattleModal] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState('');
@@ -191,22 +195,40 @@ export default function CampaignBattleLogsList({
     }
   };
 
-  return (
-    <div className="bg-white shadow-md rounded-lg p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
-        {isAdmin && (
+  // The content to render
+  const content = (
+    <>
+      {!noContainer && (
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
+          {isAdmin && !hideAddButton && (
+            <Button
+              onClick={() => {
+                setShowBattleModal(true);
+                loadBattleData();
+              }}
+              className="bg-black hover:bg-gray-800 text-white"
+              aria-label="Add battle log"
+            >
+              Add
+            </Button>
+          )}
+        </div>
+      )}
+      {noContainer && isAdmin && !hideAddButton && (
+        <div className="flex justify-end mb-4">
           <Button
             onClick={() => {
               setShowBattleModal(true);
               loadBattleData();
             }}
             className="bg-black hover:bg-gray-800 text-white"
+            aria-label="Add battle log"
           >
             Add
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -374,6 +396,13 @@ export default function CampaignBattleLogsList({
           confirmText="Save"
         />
       )}
+    </>
+  );
+
+  // Return with or without container based on prop
+  return noContainer ? content : (
+    <div className="bg-white shadow-md rounded-lg p-4">
+      {content}
     </div>
   );
 } 
