@@ -310,7 +310,8 @@ BEGIN
             'gang', json_build_object(
                 'id', g.id,
                 'credits', g.credits,
-                'gang_type_id', g.gang_type_id
+                'gang_type_id', g.gang_type_id,
+                'positioning', g.positioning
             ),
             'fighter', json_build_object(
                 'id', f.id,
