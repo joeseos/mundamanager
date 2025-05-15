@@ -393,7 +393,8 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
         gang: {
           id: result.gang.id,
           credits: result.gang.credits,
-          gang_type_id: result.gang.gang_type_id
+          gang_type_id: result.gang.gang_type_id,
+          positioning: result.gang.positioning
         }
       }));
 
@@ -1877,7 +1878,16 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
               onChange={handleFighterChange}
               className="w-full p-2 border rounded"
             >
-              {fighterData.gangFighters.map((f) => (
+            {[...fighterData.gangFighters]
+              .sort((a, b) => {
+                const positioning = fighterData.gang?.positioning || {};
+                const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+                const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+                const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+                const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+                return posA - posB;
+              })
+              .map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.fighter_name} - {f.fighter_type} {f.xp !== undefined ? `(${f.xp} XP)` : ''}
                 </option>
