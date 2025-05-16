@@ -151,6 +151,14 @@ BEGIN
         e.equipment_name
       FROM unnest(p_selected_equipment_ids) AS equip_id
       JOIN equipment e ON e.id = equip_id
+      -- Only include non-default equipment in the cost calculation
+      WHERE NOT EXISTS (
+        SELECT 1 
+        FROM fighter_equipment_selections fes,
+             jsonb_array_elements(fes.equipment_selection->'weapons'->'default') as def
+        WHERE fes.fighter_type_id = p_fighter_type_id 
+        AND def->>'id' = e.id::text
+      )
     ) e;
     
     RAISE NOTICE 'Selected equipment cost from fighter_equipment_selections: %', v_total_equipment_cost;
@@ -256,7 +264,7 @@ BEGIN
               ),
               e.cost
             )
-          ELSE e.cost
+          ELSE 0  -- Default equipment should have 0 original cost
         END AS original_cost
       FROM all_equipment_ids ae
       JOIN equipment e ON e.id = ae.equipment_id
