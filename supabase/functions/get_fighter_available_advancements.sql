@@ -10,15 +10,26 @@ DECLARE
   v_result jsonb;
   v_fighter_xp integer;
   v_advancements_category_id UUID;
+  v_fighter_type text;
+  v_fighter_class text;
+  v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger or Crew)
 BEGIN
-  -- Get fighter's current XP
-  SELECT xp INTO v_fighter_xp
+  -- Get fighter's current XP, fighter type, and fighter class
+  SELECT f.xp, ft.fighter_type, ft.fighter_class 
+  INTO v_fighter_xp, v_fighter_type, v_fighter_class
   FROM fighters f
+  JOIN fighter_types ft ON ft.id = f.fighter_type_id
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Fighter not found with ID %', get_fighter_available_advancements.fighter_id;
   END IF;
+  
+  -- Determine if the fighter uses flat costs based on fighter_class
+  -- For Ganger or Crew fighter classes, use flat costs
+  v_uses_flat_cost := 
+    v_fighter_class = 'Ganger' OR 
+    v_fighter_class = 'Crew';
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -66,15 +77,39 @@ BEGIN
       etc.effect_name as characteristic_name,
       LOWER(REPLACE(etc.effect_name, ' ', '_')) as characteristic_code,
       etc.base_xp_cost,
-      -- Calculate XP cost based on base cost and times increased
-      CASE 
+      -- Calculate XP cost based on fighter class and characteristic
+      CASE
+        -- For Gangers and Crew: fixed 6 XP cost
+        WHEN v_uses_flat_cost THEN 6
+        -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
         ELSE etc.base_xp_cost + (2 * ac.times_increased)
       END as xp_cost,
-      etc.base_credits_increase as credits_increase,
+      -- Calculate credits increase based on fighter class and characteristic
+      CASE
+        -- For Gangers and Crew: credits based on advancement table
+        WHEN v_uses_flat_cost THEN
+          CASE
+            -- Weapon Skill or Ballistic Skill
+            WHEN etc.effect_name ILIKE '%weapon skill%' OR etc.effect_name ILIKE '%ballistic skill%' THEN 20
+            -- Strength or Toughness
+            WHEN etc.effect_name ILIKE '%strength%' OR etc.effect_name ILIKE '%toughness%' THEN 30
+            -- Movement, Initiative, Leadership, or Cool
+            WHEN etc.effect_name ILIKE '%movement%' OR etc.effect_name ILIKE '%initiative%' OR 
+                 etc.effect_name ILIKE '%leadership%' OR etc.effect_name ILIKE '%cool%' THEN 10
+            -- Willpower or Intelligence
+            WHEN etc.effect_name ILIKE '%willpower%' OR etc.effect_name ILIKE '%intelligence%' THEN 5
+            -- Default for other characteristics
+            ELSE 10
+          END
+        -- For other fighters: use the base credits increase
+        ELSE etc.base_credits_increase
+      END as credits_increase,
       COALESCE(ac.times_increased, 0) as times_increased,
       true as is_available,
-      CASE 
+      -- Check if fighter has enough XP based on the calculated cost
+      CASE
+        WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
@@ -94,13 +129,17 @@ BEGIN
         'credits_increase', credits_increase,
         'is_available', is_available,
         'has_enough_xp', has_enough_xp,
-        'can_purchase', is_available AND has_enough_xp
+        'can_purchase', is_available AND has_enough_xp,
+        'uses_flat_cost', v_uses_flat_cost -- Add flag to indicate flat costs are applied
       ) as advancement_info
     FROM available_advancements
   )
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
+    'fighter_type', v_fighter_type,
+    'fighter_class', v_fighter_class,
+    'uses_flat_cost', v_uses_flat_cost,
     'characteristics', COALESCE(
       (SELECT jsonb_object_agg(
         characteristic_name,
