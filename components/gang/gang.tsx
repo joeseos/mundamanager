@@ -30,7 +30,8 @@ import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import PrintModal from "@/components/print-modal";
-import { FiPrinter } from 'react-icons/fi';
+import { FiPrinter, FiShare2 } from 'react-icons/fi';
+import { useShare } from '@/hooks/use-share';
 
 interface VehicleType {
   id: string;
@@ -143,6 +144,7 @@ export default function Gang({
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
+  const { shareUrl } = useShare();
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
@@ -833,19 +835,9 @@ const handleAlignmentChange = (value: string) => {
 
           {/* Right Section: Content */}
           <div className="flex-grow w-full">
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start">
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2 print:hidden">
-                {/* Print button */}
-                <Button
-                  onClick={() => setShowPrintModal(true)}
-                  variant="ghost"
-                  size="icon"
-                  className="mt-[2px] print:hidden"
-                  title="Print Options"
-                >
-                  <FiPrinter className="w-5 h-5" />
-                </Button>
 
                 {/* View Mode Dropdown */}
                 <div className="max-w-[120px] md:max-w-full md:w-full print:hidden">
@@ -853,7 +845,7 @@ const handleAlignmentChange = (value: string) => {
                     id="view-mode-select"
                     value={viewMode}
                     onChange={(e) => setViewMode(e.target.value as 'normal' | 'small' | 'medium' | 'large')}
-                    className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
+                    className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
                   >
                     <option value="normal">Page View</option>
                     <option value="small">Small Cards</option>
@@ -872,6 +864,30 @@ const handleAlignmentChange = (value: string) => {
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end -mr-[10px]">
+              {/* Share button */}
+              <Button
+                onClick={() => shareUrl(name)}
+                variant="ghost"
+                size="icon"
+                className="print:hidden"
+                title="Share Gang"
+              >
+                <FiShare2 className="w-5 h-5" />
+              </Button>
+
+              {/* Print button */}
+              <Button
+                onClick={() => setShowPrintModal(true)}
+                variant="ghost"
+                size="icon"
+                className="print:hidden"
+                title="Print Options"
+              >
+                <FiPrinter className="w-5 h-5" />
+              </Button>
             </div>
 
             <div className="text-gray-600 mb-4">
