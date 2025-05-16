@@ -765,9 +765,12 @@ export default function GangAdditions({
           // If no equipment selection feature, button should not be disabled
           if (!weapons || !weapons.select_type) return false;
           
-          // If 'single' type selection is required and no default equipment exists,
-          // require user to select at least one equipment
-          if (weapons.select_type === 'single' && !weapons.default && selectedEquipmentIds.length === 0) {
+          // If 'single' type selection is required and there's a default weapons array that's empty,
+          // AND there are options available, require user to select one option
+          if (weapons.select_type === 'single' && 
+              Array.isArray(weapons.default) && weapons.default.length === 0 &&
+              Array.isArray(weapons.options) && weapons.options.length > 0 &&
+              selectedEquipmentIds.length === 0) {
             return true;
           }
           
