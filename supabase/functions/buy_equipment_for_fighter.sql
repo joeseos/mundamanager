@@ -140,7 +140,13 @@ BEGIN
   -- Determine the cost to use for fighter rating based on the use_base_cost_for_rating flag
   -- This value will be returned as rating_cost and used for fighter rating calculations
   IF use_base_cost_for_rating THEN
-    rating_cost := discounted_cost;  -- Using discounted_cost when use_base_cost_for_rating is true
+    -- For master-crafted weapons, we need to apply the 25% increase to the base cost
+    IF v_equipment_type = 'weapon' AND master_crafted = TRUE THEN
+      -- Increase by 25% and round up to nearest 5
+      rating_cost := CEIL((discounted_cost * 1.25) / 5) * 5;
+    ELSE
+      rating_cost := discounted_cost;  -- Using discounted_cost when use_base_cost_for_rating is true
+    END IF;
   ELSE
     rating_cost := final_purchase_cost;  -- Using manual_cost (when provided) for rating
   END IF;
