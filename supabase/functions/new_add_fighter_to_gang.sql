@@ -129,19 +129,20 @@ BEGIN
     
     RAISE NOTICE 'Base cost from database: %', v_fighter_base_cost;
     
-    -- Calculate cost of ONLY SELECTED equipment (no default equipment)
-    -- Use the costs from fighter_equipment_selections instead of equipment table
+    -- Calculate cost of selected equipment from all equipment categories
     SELECT COALESCE(SUM(option_cost), 0)
     INTO v_total_equipment_cost
     FROM (
-      -- Get selected equipment with costs from fighter_equipment_selections
+      -- Get selected equipment with costs from all categories in fighter_equipment_selections
       SELECT DISTINCT 
         e.id, 
         COALESCE(
           (
+            -- Look for the option in any category (weapons, wargear, etc.)
             SELECT (opt->>'cost')::integer
             FROM fighter_equipment_selections fes,
-                 jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
+                 jsonb_each(fes.equipment_selection) as category,
+                 jsonb_array_elements(category.value->'options') as opt
             WHERE fes.fighter_type_id = p_fighter_type_id
             AND opt->>'id' = e.id::text
             LIMIT 1
@@ -155,13 +156,14 @@ BEGIN
       WHERE NOT EXISTS (
         SELECT 1 
         FROM fighter_equipment_selections fes,
-             jsonb_array_elements(fes.equipment_selection->'weapons'->'default') as def
+             jsonb_each(fes.equipment_selection) as category,
+             jsonb_array_elements(category.value->'default') as def
         WHERE fes.fighter_type_id = p_fighter_type_id 
         AND def->>'id' = e.id::text
       )
     ) e;
     
-    RAISE NOTICE 'Selected equipment cost from fighter_equipment_selections: %', v_total_equipment_cost;
+    RAISE NOTICE 'Selected equipment cost: %', v_total_equipment_cost;
     
     -- Calculate total expected cost for fighter
     v_expected_cost := v_fighter_base_cost + v_total_equipment_cost;
@@ -169,7 +171,17 @@ BEGIN
     RAISE NOTICE 'COST BREAKDOWN: Base cost: %, Equipment cost: %, Expected total: %', 
       v_fighter_base_cost, v_total_equipment_cost, v_expected_cost;
     
-    -- Insert the fighter - when checkbox is checked, use base + equipment cost
+    -- Use the entered cost value for payment
+    v_total_cost := p_cost;
+    
+    -- Set the rating cost correctly - always use actual equipment costs
+    IF p_use_base_cost_for_rating THEN
+      v_rating_cost := v_expected_cost;
+    ELSE
+      v_rating_cost := p_cost;
+    END IF;
+    
+    -- Insert the fighter with the correct credits value for rating
     INSERT INTO fighters (
       fighter_name, 
       gang_id, 
@@ -206,10 +218,7 @@ BEGIN
       ft.fighter_type,
       fc.class_name as fighter_class,
       ft.free_skill,
-      CASE 
-        WHEN p_use_base_cost_for_rating THEN v_expected_cost  -- Use the explicitly calculated value
-        ELSE p_cost
-      END as credits,  -- Make sure we use p_cost, not fighterCost
+      v_rating_cost as credits,  -- Use the calculated rating cost
       ft.movement,
       ft.weapon_skill,
       ft.ballistic_skill,
@@ -233,7 +242,7 @@ BEGIN
 
     v_fighter_id := v_inserted_fighter.id;
 
-    -- Insert equipment with cost=0 (simpler query)
+    -- Insert equipment with proper costs
     WITH all_equipment_ids AS (
       -- Default equipment
       SELECT DISTINCT equipment_id
@@ -255,9 +264,11 @@ BEGIN
           WHEN ae.equipment_id = ANY(p_selected_equipment_ids) THEN
             COALESCE(
               (
+                -- Look for the option in any category (weapons, wargear, etc.)
                 SELECT (opt->>'cost')::integer
                 FROM fighter_equipment_selections fes,
-                     jsonb_array_elements(fes.equipment_selection->'weapons'->'options') as opt
+                     jsonb_each(fes.equipment_selection) as category,
+                     jsonb_array_elements(category.value->'options') as opt
                 WHERE fes.fighter_type_id = p_fighter_type_id
                 AND opt->>'id' = ae.equipment_id::text
                 LIMIT 1
@@ -345,18 +356,6 @@ BEGIN
     INTO v_skills_info
     FROM skill_details;
 
-    -- Always use the entered cost for payment
-    v_total_cost := p_cost;  -- Use p_cost directly, not v_fighter_cost
-
-    -- For the fighter's cost attribute (used for rating):
-    -- If checkbox is checked: use base cost + equipment cost (equipment cost is on the fighter)
-    -- If checkbox is unchecked: use the entered cost value (what the user paid)
-    IF p_use_base_cost_for_rating THEN
-      v_rating_cost := v_expected_cost;  -- Use the same value we calculated above
-    ELSE
-      v_rating_cost := p_cost;  -- Use p_cost, not v_fighter_cost
-    END IF;
-
     -- Debug information for troubleshooting
     RAISE NOTICE 'FINAL VALUES: p_cost: %, v_total_cost: %, v_rating_cost: %, fighter credits: %', 
       p_cost, v_total_cost, v_rating_cost, v_inserted_fighter.credits;
@@ -401,12 +400,12 @@ BEGIN
           ELSE NULL
         END,
       'free_skill', v_free_skill,
-      'cost', p_cost,  -- Use p_cost here, not v_fighter_cost
+      'cost', p_cost,  -- User entered cost
       'base_cost', v_fighter_base_cost,
       'equipment_cost', v_total_equipment_cost,
-      'expected_total', v_expected_cost,  -- Add this for clarity
-      'rating_cost', v_rating_cost, 
-      'total_cost', v_total_cost,
+      'expected_total', v_expected_cost,  -- Calculated expected total
+      'rating_cost', v_rating_cost,  -- Rating cost based on checkbox
+      'total_cost', v_total_cost,  -- Total cost paid
       'stats', jsonb_build_object(
         'movement', v_inserted_fighter.movement,
         'weapon_skill', v_inserted_fighter.weapon_skill,

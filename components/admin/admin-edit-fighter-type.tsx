@@ -116,7 +116,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
   const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({ weapons: { select_type: 'optional' } });
+  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
 
   // Add a new state variable to track the sub-type name
   const [subTypeName, setSubTypeName] = useState('');
@@ -294,31 +294,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     // Only fetch if we haven't already loaded the data
     if (hasLoadedSkillTypesRef.current) {
       console.log('Using cached skill sets');
-      return;
-    }
-    
+        return;
+      }
+      
     console.log('Fetching skill sets...');
     try {
-      const response = await fetch('/api/admin/skill-types');
+        const response = await fetch('/api/admin/skill-types');
       if (!response.ok) {
         throw new Error(`Failed to fetch skill sets: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+        const data = await response.json();
       console.log(`Loaded ${data.length} skill sets`);
-      setSkillTypes(data);
+        setSkillTypes(data);
       hasLoadedSkillTypesRef.current = true;
       return data;
-    } catch (error) {
-      console.error('Error fetching skill sets:', error);
-      toast({
+      } catch (error) {
+        console.error('Error fetching skill sets:', error);
+        toast({
         description: 'Failed to load skill sets. Some features may be limited.',
-        variant: "destructive"
-      });
+          variant: "destructive"
+        });
       // Don't throw, just report the error and continue
       return null;
-    }
-  };
+      }
+    };
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -501,28 +501,48 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Set equipment selection
       if (data.equipment_selection) {
-        setEquipmentSelection({
-          weapons: {
-            select_type: data.equipment_selection.weapons?.select_type || 'optional',
-            default: data.equipment_selection.weapons?.default || [],
-            options: data.equipment_selection.weapons?.options?.map((option: any) => ({
+        const newEquipmentSelection: EquipmentSelection = {};
+        
+        // Handle legacy data format (weapons only)
+        if (data.equipment_selection.weapons) {
+          newEquipmentSelection['weapons'] = {
+            id: 'weapons',
+            name: 'Weapons',
+            select_type: data.equipment_selection.weapons.select_type || 'optional',
+            default: data.equipment_selection.weapons.default || [],
+            options: data.equipment_selection.weapons.options?.map((option: any) => ({
               id: option.id,
               cost: option.cost,
               max_quantity: option.max_quantity,
               replaces: option.replaces,
               max_replace: option.max_replace
             })) || []
+          };
+        }
+        
+        // Handle new categories format if present
+        Object.entries(data.equipment_selection).forEach(([key, value]: [string, any]) => {
+          if (key !== 'weapons' && value && typeof value === 'object') {
+            newEquipmentSelection[key] = {
+              id: key,
+              name: value.name || key,
+              select_type: value.select_type || 'optional',
+              default: value.default || [],
+              options: value.options?.map((option: any) => ({
+                id: option.id,
+                cost: option.cost,
+                max_quantity: option.max_quantity,
+                replaces: option.replaces,
+                max_replace: option.max_replace
+              })) || []
+            };
           }
         });
+        
+        setEquipmentSelection(newEquipmentSelection);
       } else {
-        // Reset to default state if no equipment selection
-        setEquipmentSelection({ 
-          weapons: { 
-            select_type: 'optional',
-            default: [],
-            options: []
-          } 
-        });
+        // Reset to empty object if no equipment selection
+        setEquipmentSelection({});
       }
 
       return data;
@@ -906,11 +926,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
         trading_post_equipment: tradingPostEquipment,
-        equipment_selection: equipmentSelection.weapons ? {
-          weapons: {
-            select_type: equipmentSelection.weapons.select_type,
-            default: equipmentSelection.weapons.default,
-            options: equipmentSelection.weapons.options?.map(option => ({
+        equipment_selection: Object.keys(equipmentSelection).length > 0 ? 
+          Object.entries(equipmentSelection).reduce((acc, [key, category]) => {
+            return {
+              ...acc,
+              [key]: {
+                select_type: category.select_type,
+                name: category.name,
+                default: category.default,
+                options: category.options?.map(option => ({
               id: option.id,
               cost: option.cost,
               max_quantity: option.max_quantity,
@@ -918,7 +942,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               max_replace: option.max_replace
             }))
           }
-        } : null,
+            };
+          }, {}) : 
+          null,
         updated_at: new Date().toISOString()
       };
 
@@ -1102,6 +1128,57 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     // The actual value is read from the ref on blur
     // This is deliberately empty to avoid any performance overhead
   };
+
+  // Add this useEffect after the existing useEffects to handle backward compatibility
+
+  // Convert old equipment_selection format to new format if necessary
+  useEffect(() => {
+    // Check if we have old format data (weapons property as an object)
+    if (
+      equipmentSelection && 
+      Object.keys(equipmentSelection).length === 0 && 
+      selectedFighterTypeId
+    ) {
+      console.log('Checking and converting equipment selection format if needed');
+      
+      const fetchCurrentData = async () => {
+        try {
+          const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`);
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          if (!data.equipment_selection) return;
+          
+          // Handle case where we have old format (just weapons property)
+          if (
+            typeof data.equipment_selection === 'object' && 
+            data.equipment_selection.weapons && 
+            !data.equipment_selection.weapons.id
+          ) {
+            console.log('Converting old equipment_selection format to new format');
+            
+            // Create new format
+            const newEquipmentSelection: EquipmentSelection = {
+              weapons: {
+                id: 'weapons',
+                name: 'Weapons',
+                select_type: data.equipment_selection.weapons.select_type || 'optional',
+                default: data.equipment_selection.weapons.default || [],
+                options: data.equipment_selection.weapons.options || []
+              }
+            };
+            
+            // Update state with new format
+            setEquipmentSelection(newEquipmentSelection);
+          }
+        } catch (error) {
+          console.error('Error converting equipment selection format:', error);
+        }
+      };
+      
+      fetchCurrentData();
+    }
+  }, [selectedFighterTypeId, equipmentSelection]);
 
   return (
     <div 
@@ -2052,7 +2129,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   equipment={equipment}
                   equipmentSelection={equipmentSelection}
                   setEquipmentSelection={setEquipmentSelection}
-                  disabled={!selectedFighterTypeId}
+                      disabled={!selectedFighterTypeId}
                 />
               </div>
             </>

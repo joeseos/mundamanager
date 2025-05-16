@@ -77,19 +77,20 @@ BEGIN
             WHERE fd.fighter_type_id = ft.id
         ) AS default_equipment,
         (
-            -- Process both options and default arrays
+            -- Process all equipment selection categories
             SELECT 
                 CASE 
                     WHEN fes.equipment_selection IS NOT NULL THEN
                         (
                             SELECT 
-                                -- First process the options
-                                jsonb_set(
-                                    -- Then process the default
-                                    jsonb_set(
-                                        fes.equipment_selection::jsonb,
-                                        '{weapons,options}',
-                                        COALESCE(
+                                -- Process each category in the equipment_selection JSON
+                                jsonb_object_agg(
+                                    cat_key,
+                                    jsonb_build_object(
+                                        'name', cat_val->>'name',
+                                        'select_type', cat_val->>'select_type',
+                                        -- Process options for this category
+                                        'options', COALESCE(
                                             (
                                                 SELECT jsonb_agg(
                                                     jsonb_build_object(
@@ -101,32 +102,33 @@ BEGIN
                                                         'max_quantity', (opt->>'max_quantity')::integer
                                                     )
                                                 )
-                                                FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,options}') AS opt
+                                                FROM jsonb_array_elements(cat_val->'options') AS opt
                                                 LEFT JOIN equipment e ON e.id::text = opt->>'id'
                                                 WHERE e.id IS NOT NULL
                                             ),
                                             '[]'::jsonb
-                                        )
-                                    ),
-                                    '{weapons,default}',
-                                    COALESCE(
-                                        (
-                                            SELECT jsonb_agg(
-                                                jsonb_build_object(
-                                                    'id', def->>'id',
-                                                    'equipment_name', e.equipment_name,
-                                                    'equipment_type', e.equipment_type,
-                                                    'equipment_category', e.equipment_category,
-                                                    'quantity', (def->>'quantity')::integer
-                                                )
-                                            )
-                                            FROM jsonb_array_elements(fes.equipment_selection::jsonb#>'{weapons,default}') AS def
-                                            LEFT JOIN equipment e ON e.id::text = def->>'id'
-                                            WHERE e.id IS NOT NULL
                                         ),
-                                        '[]'::jsonb
+                                        -- Process default equipment for this category
+                                        'default', COALESCE(
+                                            (
+                                                SELECT jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', def->>'id',
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'quantity', (def->>'quantity')::integer
+                                                    )
+                                                )
+                                                FROM jsonb_array_elements(cat_val->'default') AS def
+                                                LEFT JOIN equipment e ON e.id::text = def->>'id'
+                                                WHERE e.id IS NOT NULL
+                                            ),
+                                            '[]'::jsonb
+                                        )
                                     )
-                                )
+                                ) 
+                            FROM jsonb_each(fes.equipment_selection) AS t(cat_key, cat_val)
                         )
                     ELSE NULL
                 END

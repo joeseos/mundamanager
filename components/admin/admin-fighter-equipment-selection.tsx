@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
-import { X } from "lucide-react";
+import { X, Plus, Trash2, Zap } from "lucide-react";
 import { Equipment } from '@/types/equipment';
+import { Button } from "@/components/ui/button";
 
 interface EquipmentWithId extends Equipment {
   id: string;
@@ -18,12 +19,16 @@ export interface EquipmentOption {
   max_replace?: number;
 }
 
+export interface SelectionCategory {
+  id: string;
+  select_type: 'optional' | 'single' | 'multiple';
+  default?: Array<{ id: string; quantity: number }>;
+  options?: EquipmentOption[];
+  name?: string;
+}
+
 export interface EquipmentSelection {
-  weapons?: {
-    default?: Array<{ id: string; quantity: number }>;
-    options?: EquipmentOption[];
-    select_type: 'optional' | 'single' | 'multiple';
-  };
+  [key: string]: SelectionCategory;
 }
 
 interface AdminFighterEquipmentSelectionProps {
@@ -33,227 +38,451 @@ interface AdminFighterEquipmentSelectionProps {
   disabled: boolean;
 }
 
+// Predefined selection types with their display names
+const SELECTION_TYPES = [
+  { id: 'weapons', name: 'Weapons' },
+  { id: 'wargear', name: 'Wargear' },
+  { id: 'armor', name: 'Armor' },
+  { id: 'equipment', name: 'Equipment' },
+  { id: 'rangedWeapons', name: 'Ranged Weapons' },
+  { id: 'meleeWeapons', name: 'Melee Weapons' },
+  { id: 'specialEquipment', name: 'Special Equipment' },
+];
+
+// Selection modes
+const SELECTION_MODES = [
+  { value: 'optional', label: 'Optional (Replace Default)' },
+  { value: 'single', label: 'Single Selection' },
+  { value: 'multiple', label: 'Multiple Selection' },
+];
+
 export function AdminFighterEquipmentSelection({
   equipment,
   equipmentSelection,
   setEquipmentSelection,
   disabled
 }: AdminFighterEquipmentSelectionProps) {
+  const [selectedType, setSelectedType] = useState('');
+  const [selectedMode, setSelectedMode] = useState<'optional' | 'single' | 'multiple'>('optional');
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Generate a unique ID for a new category
+  const generateCategoryId = (typeId: string) => {
+    return `${typeId}_${Date.now()}`;
+  };
+  
+  // Add a new category
+  const addCategory = () => {
+    if (!selectedType) return;
+    
+    // Get the selected type details
+    const typeDetails = SELECTION_TYPES.find(type => type.id === selectedType);
+    if (!typeDetails) return;
+    
+    const id = generateCategoryId(selectedType);
+    
+    setEquipmentSelection(prev => ({
+      ...prev,
+      [id]: {
+        id,
+        name: typeDetails.name,
+        select_type: selectedMode,
+        default: selectedMode === 'optional' ? [] : undefined,
+        options: []
+      }
+    }));
+    
+    setSelectedType('');
+    setNewCategoryName('');
+  };
+  
+  // Remove a category
+  const removeCategory = (categoryId: string) => {
+    setEquipmentSelection(prev => {
+      const newSelection = { ...prev };
+      delete newSelection[categoryId];
+      return newSelection;
+    });
+  };
+  
+  // Add common categories
+  const addCommonCategories = () => {
+    let newSelection = { ...equipmentSelection };
+    
+    // Add weapons if not already present
+    const weaponsType = SELECTION_TYPES.find(type => type.id === 'weapons');
+    if (weaponsType && !isTypeAlreadyAdded('weapons')) {
+      const weaponsId = generateCategoryId('weapons');
+      newSelection[weaponsId] = {
+        id: weaponsId,
+        name: weaponsType.name,
+        select_type: 'optional',
+        default: [],
+        options: []
+      };
+    }
+    
+    // Add wargear if not already present
+    const wargearType = SELECTION_TYPES.find(type => type.id === 'wargear');
+    if (wargearType && !isTypeAlreadyAdded('wargear')) {
+      const wargearId = generateCategoryId('wargear');
+      newSelection[wargearId] = {
+        id: wargearId,
+        name: wargearType.name,
+        select_type: 'optional',
+        default: [],
+        options: []
+      };
+    }
+    
+    setEquipmentSelection(newSelection);
+  };
+  
+  // Check if a type is already added
+  const isTypeAlreadyAdded = (typeId: string) => {
+    const typeName = SELECTION_TYPES.find(type => type.id === typeId)?.name;
+    return Object.values(equipmentSelection).some(
+      category => category.name === typeName
+    );
+  };
+  
+  // Get available selection types (those that haven't been added yet)
+  const getAvailableSelectionTypes = () => {
+    return SELECTION_TYPES.filter(type => !isTypeAlreadyAdded(type.id));
+  };
+
   return (
-    <div className="space-y-4 border rounded-lg p-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Selection Type
-        </label>
-        <select
-          value={equipmentSelection?.weapons?.select_type || ''}
-          onChange={(e) => {
-            const value = e.target.value as 'optional' | 'single' | 'multiple';
-            setEquipmentSelection(prev => ({
-              weapons: {
-                select_type: value,
-                default: value === 'optional' ? [] : undefined,
-                options: []
+    <div className="space-y-6 border rounded-lg p-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedMode}
+            onChange={(e) => setSelectedMode(e.target.value as 'optional' | 'single' | 'multiple')}
+            className="w-full p-2 border rounded-md"
+            disabled={disabled}
+          >
+            {SELECTION_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            onClick={() => {
+              // Open a second step to select the equipment category
+              // after the selection type is chosen
+              const availableTypes = getAvailableSelectionTypes();
+              if (availableTypes.length > 0) {
+                setSelectedType(availableTypes[0].id);
+                addCategory();
               }
-            }));
-          }}
-          className="w-full p-2 border rounded-md"
-          disabled={disabled}
-        >
-          <option value="">Select type</option>
-          <option value="optional">Optional (Replace Default)</option>
-          <option value="single">Single Selection</option>
-          <option value="multiple">Multiple Selection</option>
-        </select>
+            }}
+            disabled={disabled || getAvailableSelectionTypes().length === 0}
+            variant="outline"
+            className="whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4 mr-1" /> Add Category
+          </Button>
+        </div>
+        
+        {Object.keys(equipmentSelection).length === 0 && (
+          <div className="flex justify-center mt-2">
+            <Button
+              onClick={addCommonCategories}
+              disabled={disabled}
+              variant="secondary"
+              size="sm"
+              className="text-sm"
+            >
+              <Zap className="h-3 w-3 mr-1" /> Quick Add: Weapons & Wargear
+            </Button>
+          </div>
+        )}
       </div>
 
-      {equipmentSelection?.weapons?.select_type === 'optional' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Default Equipment
-          </label>
-          <div className="flex gap-2 mb-2">
-            <select
-              value=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!value) return;
-
-                setEquipmentSelection(prev => ({
-                  weapons: {
-                    ...prev.weapons!,
-                    default: [
-                      ...(prev.weapons?.default || []),
-                      { id: value, quantity: 1 }
-                    ]
-                  }
-                }));
-                e.target.value = "";
-              }}
-              className="w-full p-2 border rounded-md"
-              disabled={disabled}
-            >
-              <option value="">Add default equipment</option>
-              {equipment
-                .filter(item => !equipmentSelection?.weapons?.default?.some(d => d.id === item.id))
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.equipment_name}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            {equipmentSelection?.weapons?.default?.map((item, index) => {
-              const equip = equipment.find(e => e.id === item.id);
-              return (
-                <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                  <div className="flex items-center gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500">Number</label>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => {
-                          const quantity = parseInt(e.target.value) || 1;
-                          setEquipmentSelection(prev => ({
-                            weapons: {
-                              ...prev.weapons!,
-                              default: prev.weapons?.default?.map((d, i) =>
-                                i === index ? { ...d, quantity } : d
-                              )
-                            }
-                          }));
-                        }}
-                        min="1"
-                        className="w-16 p-1 border rounded"
-                      />
-                    </div>
-                    <span>x {equip?.equipment_name}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEquipmentSelection(prev => ({
-                        weapons: {
-                          ...prev.weapons!,
-                          default: prev.weapons?.default?.filter((_, i) => i !== index)
-                        }
-                      }));
-                    }}
-                    className="ml-auto hover:bg-gray-100 p-1 rounded"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+      {Object.keys(equipmentSelection).length === 0 ? (
+        <div className="text-center py-6 text-gray-500 border border-dashed rounded-lg">
+          <p className="mb-2">No equipment categories.</p> 
+          <p>Select a selection type and click "Add Category" to get started.</p>
         </div>
-      )}
+      ) : (
+        Object.entries(equipmentSelection).map(([categoryId, category]) => (
+          <div key={categoryId} className="border rounded-lg p-4 mb-6 bg-gray-50">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-700">{category.name || 'New Category'}</h3>
+                <Input
+                  type="text"
+                  value={category.name || ''}
+                  onChange={(e) => {
+                    setEquipmentSelection(prev => ({
+                      ...prev,
+                      [categoryId]: {
+                        ...prev[categoryId],
+                        name: e.target.value
+                      }
+                    }));
+                  }}
+                  placeholder="Category name"
+                  className="w-[200px] h-8"
+                  disabled={disabled}
+                />
+              </div>
+              <Button
+                onClick={() => removeCategory(categoryId)}
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                disabled={disabled}
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Remove
+              </Button>
+            </div>
 
-      {equipmentSelection?.weapons?.select_type && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {equipmentSelection.weapons.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
-          </label>
-          <div className="flex gap-2 mb-2">
-            <select
-              value=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!value) return;
+            <div className="space-y-4 bg-white p-3 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Selection Type
+                </label>
+                <select
+                  value={category.select_type || ''}
+                  onChange={(e) => {
+                    const value = e.target.value as 'optional' | 'single' | 'multiple';
+                    setEquipmentSelection(prev => ({
+                      ...prev,
+                      [categoryId]: {
+                        ...prev[categoryId],
+                        select_type: value,
+                        default: value === 'optional' ? [] : undefined,
+                        options: prev[categoryId].options || []
+                      }
+                    }));
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={disabled}
+                >
+                  {SELECTION_MODES.map((mode) => (
+                    <option key={mode.value} value={mode.value}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                setEquipmentSelection(prev => ({
-                  weapons: {
-                    ...prev.weapons!,
-                    options: [
-                      ...(prev?.weapons?.options || []),
-                      { id: value, cost: 0, max_quantity: 1 }
-                    ]
-                  }
-                }));
-                e.target.value = "";
-              }}
-              className="w-full p-2 border rounded-md"
-              disabled={disabled}
-            >
-              <option value="">Add equipment option</option>
-              {equipment
-                .filter(item => !equipmentSelection?.weapons?.options?.some(o => o.id === item.id))
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.equipment_name}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            {equipmentSelection?.weapons?.options?.map((item, index) => {
-              const equip = equipment.find(e => e.id === item.id);
-              return (
-                <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                  <span>{equip?.equipment_name}</span>
-                  <div className="ml-auto flex items-center gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-500">Cost</label>
-                      <input
-                        type="number"
-                        value={item.cost}
-                        onChange={(e) => {
-                          const cost = parseInt(e.target.value) || 0;
-                          setEquipmentSelection(prev => ({
-                            weapons: {
-                              ...prev.weapons!,
-                              options: prev?.weapons?.options?.map((o, i) =>
-                                i === index ? { ...o, cost } : o
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="Cost"
-                        className="w-20 p-1 border rounded"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500">Max Number</label>
-                      <input
-                        type="number"
-                        value={item.max_quantity}
-                        onChange={(e) => {
-                          const max_quantity = parseInt(e.target.value) || 1;
-                          setEquipmentSelection(prev => ({
-                            weapons: {
-                              ...prev.weapons!,
-                              options: prev?.weapons?.options?.map((o, i) =>
-                                i === index ? { ...o, max_quantity } : o
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="Max"
-                        min="1"
-                        className="w-16 p-1 border rounded"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
+              {category.select_type === 'optional' && (
+                <div className="mt-4 border-t pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Equipment
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (!value) return;
+
                         setEquipmentSelection(prev => ({
-                          weapons: {
-                            ...prev.weapons!,
-                            options: prev?.weapons?.options?.filter((_, i) => i !== index)
+                          ...prev,
+                          [categoryId]: {
+                            ...prev[categoryId],
+                            default: [
+                              ...(prev[categoryId].default || []),
+                              { id: value, quantity: 1 }
+                            ]
                           }
                         }));
+                        e.target.value = "";
                       }}
-                      className="hover:bg-gray-100 p-1 rounded self-end"
+                      className="w-full p-2 border rounded-md"
+                      disabled={disabled}
                     >
-                      <X className="h-4 w-4" />
-                    </button>
+                      <option value="">Add default equipment</option>
+                      {equipment
+                        .filter(item => !category.default?.some(d => d.id === item.id))
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.equipment_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    {category.default && category.default.length > 0 ? (
+                      category.default?.map((item, index) => {
+                        const equip = equipment.find(e => e.id === item.id);
+                        return (
+                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-500">Number</label>
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const quantity = parseInt(e.target.value) || 1;
+                                    setEquipmentSelection(prev => ({
+                                      ...prev,
+                                      [categoryId]: {
+                                        ...prev[categoryId],
+                                        default: prev[categoryId].default?.map((d, i) =>
+                                          i === index ? { ...d, quantity } : d
+                                        )
+                                      }
+                                    }));
+                                  }}
+                                  min="1"
+                                  className="w-16 p-1 border rounded"
+                                />
+                              </div>
+                              <span>x {equip?.equipment_name || 'Unknown Equipment'}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEquipmentSelection(prev => ({
+                                  ...prev,
+                                  [categoryId]: {
+                                    ...prev[categoryId],
+                                    default: prev[categoryId].default?.filter((_, i) => i !== index)
+                                  }
+                                }));
+                              }}
+                              className="ml-auto hover:bg-gray-100 p-1 rounded"
+                              disabled={disabled}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-sm text-gray-500 italic py-2">
+                        No default equipment added yet
+                      </div>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              )}
+
+              {category.select_type && (
+                <div className="mt-4 border-t pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {category.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (!value) return;
+
+                        setEquipmentSelection(prev => ({
+                          ...prev,
+                          [categoryId]: {
+                            ...prev[categoryId],
+                            options: [
+                              ...(prev[categoryId].options || []),
+                              { id: value, cost: 0, max_quantity: 1 }
+                            ]
+                          }
+                        }));
+                        e.target.value = "";
+                      }}
+                      className="w-full p-2 border rounded-md"
+                      disabled={disabled}
+                    >
+                      <option value="">Add equipment option</option>
+                      {equipment
+                        .filter(item => !category.options?.some(o => o.id === item.id))
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.equipment_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    {category.options && category.options.length > 0 ? (
+                      category.options?.map((item, index) => {
+                        const equip = equipment.find(e => e.id === item.id);
+                        return (
+                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                            <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
+                            <div className="ml-auto flex items-center gap-4">
+                              <div>
+                                <label className="block text-xs text-gray-500">Cost</label>
+                                <input
+                                  type="number"
+                                  value={item.cost}
+                                  onChange={(e) => {
+                                    const cost = parseInt(e.target.value) || 0;
+                                    setEquipmentSelection(prev => ({
+                                      ...prev,
+                                      [categoryId]: {
+                                        ...prev[categoryId],
+                                        options: prev[categoryId].options?.map((o, i) =>
+                                          i === index ? { ...o, cost } : o
+                                        )
+                                      }
+                                    }));
+                                  }}
+                                  placeholder="Cost"
+                                  className="w-20 p-1 border rounded"
+                                  disabled={disabled}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500">Max Number</label>
+                                <input
+                                  type="number"
+                                  value={item.max_quantity}
+                                  onChange={(e) => {
+                                    const max_quantity = parseInt(e.target.value) || 1;
+                                    setEquipmentSelection(prev => ({
+                                      ...prev,
+                                      [categoryId]: {
+                                        ...prev[categoryId],
+                                        options: prev[categoryId].options?.map((o, i) =>
+                                          i === index ? { ...o, max_quantity } : o
+                                        )
+                                      }
+                                    }));
+                                  }}
+                                  placeholder="Max"
+                                  min="1"
+                                  className="w-16 p-1 border rounded"
+                                  disabled={disabled}
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setEquipmentSelection(prev => ({
+                                    ...prev,
+                                    [categoryId]: {
+                                      ...prev[categoryId],
+                                      options: prev[categoryId].options?.filter((_, i) => i !== index)
+                                    }
+                                  }));
+                                }}
+                                className="hover:bg-gray-100 p-1 rounded self-end"
+                                disabled={disabled}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-sm text-gray-500 italic py-2">
+                        No equipment options added yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        ))
       )}
     </div>
   );

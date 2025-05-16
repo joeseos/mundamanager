@@ -13,6 +13,35 @@ import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 
+interface GangEquipmentOption {
+  id: string;
+  equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
+  cost: number;
+  max_quantity: number;
+  displayCategory?: string;
+}
+
+interface EquipmentDefaultItem {
+  id: string;
+  equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
+  quantity: number;
+}
+
+interface EquipmentSelectionCategory {
+  name?: string;
+  select_type?: 'optional' | 'single' | 'multiple';
+  default?: EquipmentDefaultItem[];
+  options?: GangEquipmentOption[];
+}
+
+interface EquipmentSelection {
+  [key: string]: EquipmentSelectionCategory;
+}
+
 interface GangAdditionsProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
@@ -148,159 +177,180 @@ export default function GangAdditions({
 
   const renderEquipmentSelection = () => {
     const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-    if (!selectedType?.equipment_selection?.weapons) return null;
+    if (!selectedType?.equipment_selection) return null;
 
-    const { weapons } = selectedType.equipment_selection;
-    const isOptional = weapons.select_type === 'optional';
-    const isSingle = weapons.select_type === 'single';
-    
-    // Group equipment options by category
-    const categorizedOptions: Record<string, any[]> = {};
-    
-    // Check if options exists before attempting to iterate over it
-    if (weapons.options && Array.isArray(weapons.options)) {
-      weapons.options.forEach(option => {
-        const optionAny = option as any;
-        
-        // Get category name, ensure it has a value or use a default
-        const categoryName = optionAny.equipment_category || inferCategoryFromEquipmentName(optionAny.equipment_name || '');
-        const categoryKey = categoryName.toLowerCase();
-        
-        // Initialize category array if it doesn't exist
-        if (!categorizedOptions[categoryKey]) {
-          categorizedOptions[categoryKey] = [];
-        }
-        
-        // Add option to the appropriate category
-        categorizedOptions[categoryKey].push({
-          ...option,
-          displayCategory: categoryName  // Keep original case for display
-        });
-      });
-    }
-
-    // Sort categories according to equipmentCategoryRank
-    const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
-      const rankA = equipmentCategoryRank[a] ?? Infinity;
-      const rankB = equipmentCategoryRank[b] ?? Infinity;
-      return rankA - rankB;
-    });
+    // Group equipment options by selection category
+    const allCategories = Object.entries(selectedType.equipment_selection as EquipmentSelection);
+    if (allCategories.length === 0) return null;
 
     return (
-      <div className="space-y-3">
-        {weapons.default && weapons.default.length > 0 && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Default Equipment
-            </label>
-            <div className="space-y-1.5">
-              {weapons.default.map((item, index) => {
-                // Access equipment_name with type assertion for safety
-                const defaultItem = item as any;
-                const equipmentName = defaultItem.equipment_name || "Tunnelling claw (Ambot)";
-                
-                return (
-                  <div key={`${item.id}-${index}`} className="flex items-center gap-2">
-                    <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
-                      {item.quantity}x {equipmentName}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {weapons.options && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              {isOptional ? 'Optional Equipment (Replaces one default weapon)' : 'Select Equipment'}
-            </label>
-            
-            {sortedCategories.map(category => {
-              const displayCategory = categorizedOptions[category][0].displayCategory;
+      <div className="space-y-4">
+        {allCategories.map(([categoryId, categoryData]) => {
+          // Skip if no data
+          if (!categoryData) return null;
+          
+          const categoryName = categoryData.name || 'Equipment';
+          const selectType = categoryData.select_type || 'optional';
+          const isOptional = selectType === 'optional';
+          const isSingle = selectType === 'single';
+          const isMultiple = selectType === 'multiple';
+          
+          // Group equipment options by category
+          const categorizedOptions: Record<string, GangEquipmentOption[]> = {};
+          
+          // Process options if they exist
+          if (categoryData.options && Array.isArray(categoryData.options)) {
+            categoryData.options.forEach((option: GangEquipmentOption) => {
+              const optionAny = option as any;
               
-              return (
-                <div key={category} className="mt-3">
-                  <p className="text-xs text-gray-500 mb-1">
-                    {displayCategory}
-                  </p>
-                  
-                  <div className="space-y-1.5">
-                    {categorizedOptions[category]
-                      .sort((a, b) => {
-                        // Sort alphabetically within category
-                        const nameA = a.equipment_name || '';
-                        const nameB = b.equipment_name || '';
-                        return nameA.localeCompare(nameB);
-                      })
-                      .map((option) => (
-                        <div key={option.id} className="flex items-center gap-2">
-                          {isSingle ? (
-                            <input
-                              type="radio"
-                              name="equipment-selection"
-                              id={option.id}
-                              checked={selectedEquipmentIds.includes(option.id)}
-                              onChange={(e) => {
-                                const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                                const baseCost = selectedType?.total_cost || 0;
-                                
-                                // Get the option's cost
-                                const optionCost = option.cost || 0;
-                                
-                                if (e.target.checked) {
-                                  // For single or optional selection, replace previous selection
-                                  const prevSelectedId = selectedEquipmentIds[0];
-                                  let prevSelectedCost = 0;
-                                  
-                                  // Find cost of previously selected item if any
-                                  if (prevSelectedId) {
-                                    const prevOption = weapons.options?.find((o: any) => o.id === prevSelectedId);
-                                    prevSelectedCost = prevOption?.cost || 0;
-                                  }
-                                  
-                                  // Update IDs and cost
-                                  setSelectedEquipmentIds([option.id]);
-                                  setFighterCost(String(baseCost - prevSelectedCost + optionCost));
-                                }
-                              }}
-                            />
-                          ) : (
-                            <Checkbox
-                              id={option.id}
-                              checked={selectedEquipmentIds.includes(option.id)}
-                              onCheckedChange={(checked) => {
-                                const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                                const baseCost = selectedType?.total_cost || 0;
-                                
-                                // Get the option's cost
-                                const optionCost = option.cost || 0;
-                                
-                                if (checked === true) {
-                                  // For multiple selection, add to existing selections
-                                  setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                                  setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
-                                } else {
-                                  // Remove this option
-                                  setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                                  setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
-                                }
-                              }}
-                            />
-                          )}
-                          <label htmlFor={option.id} className="text-sm">
-                            {option.equipment_name || 'Loading...'}
-                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
-                          </label>
+              // Get category name, ensure it has a value or use a default
+              const equipCategoryName = optionAny.equipment_category || inferCategoryFromEquipmentName(optionAny.equipment_name || categoryName);
+              const categoryKey = equipCategoryName.toLowerCase();
+              
+              // Initialize category array if it doesn't exist
+              if (!categorizedOptions[categoryKey]) {
+                categorizedOptions[categoryKey] = [];
+              }
+              
+              // Add option to the appropriate category
+              categorizedOptions[categoryKey].push({
+                ...option,
+                displayCategory: equipCategoryName  // Keep original case for display
+              } as any);
+            });
+          }
+
+          // Sort categories according to equipmentCategoryRank
+          const sortedCategories = Object.keys(categorizedOptions).sort((a, b) => {
+            const rankA = equipmentCategoryRank[a] ?? Infinity;
+            const rankB = equipmentCategoryRank[b] ?? Infinity;
+            return rankA - rankB;
+          });
+
+          // Don't render anything if no options
+          if ((!categoryData.default || categoryData.default.length === 0) && 
+              (!categoryData.options || categoryData.options.length === 0)) {
+            return null;
+          }
+
+          return (
+            <div key={categoryId} className="space-y-3">
+              {categoryData.default && categoryData.default.length > 0 && (
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Default {categoryName}
+                  </label>
+                  <div className="space-y-1">
+                    {categoryData.default.map((item: EquipmentDefaultItem, index: number) => {
+                      // Access equipment_name with type assertion for safety
+                      const defaultItem = item as any;
+                      const equipmentName = defaultItem.equipment_name || "Equipment";
+                      
+                      return (
+                        <div key={`${item.id}-${index}`} className="flex items-center gap-2">
+                          <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                            {item.quantity}x {equipmentName}
+                          </div>
                         </div>
-                      ))}
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+
+              {categoryData.options && categoryData.options.length > 0 && (
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {isOptional ? `Optional ${categoryName} (Replaces one default weapon)` : 
+                     isSingle ? `Select ${categoryName} (Choose one)` : 
+                     `Additional ${categoryName} (Select any)`}
+                  </label>
+                  
+                  <div className="space-y-1">
+                    {/* Combine all options from all categories into a flat list, sorted alphabetically */}
+                    {sortedCategories.flatMap(category => 
+                      categorizedOptions[category]
+                    )
+                    .sort((a, b) => {
+                      // Sort alphabetically
+                      const nameA = a.equipment_name || '';
+                      const nameB = b.equipment_name || '';
+                      return nameA.localeCompare(nameB);
+                    })
+                    .map((option) => (
+                      <div key={option.id} className="flex items-center gap-2">
+                        {isSingle ? (
+                          <input
+                            type="radio"
+                            name={`equipment-selection-${categoryId}`}
+                            id={option.id}
+                            checked={selectedEquipmentIds.includes(option.id)}
+                            onChange={(e) => {
+                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                              const baseCost = selectedType?.total_cost || 0;
+                              
+                              // Get the option's cost
+                              const optionCost = option.cost || 0;
+                              
+                              if (e.target.checked) {
+                                // For single selection, replace previous selection in this category
+                                const prevSelectedId = selectedEquipmentIds.find(id => {
+                                  const prevOption = categoryData.options?.find((o: any) => o.id === id);
+                                  return !!prevOption;
+                                });
+                                
+                                let prevSelectedCost = 0;
+                                
+                                // Find cost of previously selected item if any
+                                if (prevSelectedId) {
+                                  const prevOption = categoryData.options?.find((o: any) => o.id === prevSelectedId);
+                                  prevSelectedCost = prevOption?.cost || 0;
+                                  
+                                  // Remove previous selection
+                                  setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== prevSelectedId));
+                                }
+                                
+                                // Add new selection
+                                setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                setFighterCost(String(parseInt(fighterCost || '0') - prevSelectedCost + optionCost));
+                              }
+                            }}
+                          />
+                        ) : (
+                          <Checkbox
+                            id={option.id}
+                            checked={selectedEquipmentIds.includes(option.id)}
+                            onCheckedChange={(checked) => {
+                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                              const baseCost = selectedType?.total_cost || 0;
+                              
+                              // Get the option's cost
+                              const optionCost = option.cost || 0;
+                              
+                              if (checked === true) {
+                                // For optional/multiple selection, add to existing selections
+                                setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
+                              } else {
+                                // Remove this option
+                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                                setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
+                              }
+                            }}
+                          />
+                        )}
+                        <label htmlFor={option.id} className="text-sm">
+                          {option.equipment_name || 'Loading...'}
+                          {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -314,14 +364,15 @@ export default function GangAdditions({
     let equipmentCost = 0;
     const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
     
-    if (selectedType?.equipment_selection?.weapons) {
-      const { weapons } = selectedType.equipment_selection;
-      
-      // Add cost for selected equipment
-      selectedEquipmentIds.forEach(id => {
-        const option = weapons.options?.find((opt: any) => opt.id === id);
-        if (option) {
-          equipmentCost += (option.cost || 0);
+    if (selectedType?.equipment_selection) {
+      const allCategories = Object.entries(selectedType.equipment_selection as EquipmentSelection);
+      allCategories.forEach(([categoryId, categoryData]) => {
+        if (categoryData.options && Array.isArray(categoryData.options)) {
+          categoryData.options.forEach((option: GangEquipmentOption) => {
+            if (selectedEquipmentIds.includes(option.id)) {
+              equipmentCost += (option.cost || 0);
+            }
+          });
         }
       });
     }
@@ -338,14 +389,15 @@ export default function GangAdditions({
     let total = 0;
     const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
     
-    if (selectedType?.equipment_selection?.weapons?.options) {
-      const options = selectedType.equipment_selection.weapons.options;
-      
-      // Calculate costs from selected equipment IDs
-      selectedEquipmentIds.forEach(id => {
-        const option = options.find((opt: any) => opt.id === id);
-        if (option && option.cost) {
-          total += option.cost;
+    if (selectedType?.equipment_selection) {
+      const allCategories = Object.entries(selectedType.equipment_selection as EquipmentSelection);
+      allCategories.forEach(([categoryId, categoryData]) => {
+        if (categoryData.options && Array.isArray(categoryData.options)) {
+          categoryData.options.forEach((option: GangEquipmentOption) => {
+            if (selectedEquipmentIds.includes(option.id)) {
+              total += (option.cost || 0);
+            }
+          });
         }
       });
     }
@@ -380,37 +432,53 @@ export default function GangAdditions({
       const baseCost = selectedType?.cost || 0;
       const enteredCost = parseInt(fighterCost);
       
-      const weapons = selectedType?.equipment_selection?.weapons;
+      const equipmentSelection = selectedType?.equipment_selection as EquipmentSelection;
       
       let equipmentIds: string[] = [];
       
-      if (weapons) {
-        if (weapons.default) {
-          // Add all default equipment first
-          weapons.default.forEach(item => {
-            // Add the item multiple times based on quantity
-            for (let i = 0; i < item.quantity; i++) {
-              equipmentIds.push(item.id);
-            }
-          });
+      if (equipmentSelection) {
+        // Process each category (weapons, wargear, etc.)
+        Object.entries(equipmentSelection).forEach(([categoryId, categoryData]) => {
+          const selectType = categoryData.select_type || 'optional';
           
-          // If optional equipment is selected, replace ONE instance of the first default item
-          if (weapons.select_type === 'optional' && selectedEquipmentIds.length > 0) {
-            // Remove only one instance of the first default item
-            const firstDefaultId = weapons.default[0].id;
-            const indexToRemove = equipmentIds.indexOf(firstDefaultId);
-            if (indexToRemove !== -1) {
-              equipmentIds.splice(indexToRemove, 1);
+          if (selectType === 'optional' && categoryData.default && categoryData.default.length > 0) {
+            // For optional selection types, add all default equipment first
+            categoryData.default.forEach((item: EquipmentDefaultItem) => {
+              // Add the item multiple times based on quantity
+              for (let i = 0; i < item.quantity; i++) {
+                equipmentIds.push(item.id);
+              }
+            });
+            
+            // If the user selected an optional item from this category, replace ONE instance of the first default item
+            const selectedFromThisCategory = selectedEquipmentIds.find(id => 
+              categoryData.options?.some((opt: GangEquipmentOption) => opt.id === id)
+            );
+            
+            if (selectedFromThisCategory) {
+              // Remove only one instance of the first default item
+              const firstDefaultId = categoryData.default[0].id;
+              const indexToRemove = equipmentIds.indexOf(firstDefaultId);
+              if (indexToRemove !== -1) {
+                equipmentIds.splice(indexToRemove, 1);
+              }
+              
+              // Add the optional equipment
+              equipmentIds.push(selectedFromThisCategory);
             }
-            // Add the optional equipment
-            equipmentIds.push(selectedEquipmentIds[0]);
+          } else if (selectType === 'single' || selectType === 'multiple') {
+            // For single or multiple selection, just add the selected IDs
+            selectedEquipmentIds.forEach(id => {
+              // Only add if it belongs to this category
+              if (categoryData.options?.some((opt: GangEquipmentOption) => opt.id === id)) {
+                equipmentIds.push(id);
+              }
+            });
           }
-        } else if (weapons.select_type === 'single' || weapons.select_type === 'multiple') {
-          equipmentIds = selectedEquipmentIds;
-        }
+        });
       }
 
-      // Ensure equipmentIds includes user selections even if no weapons structure is defined
+      // Ensure equipmentIds includes user selections even if no proper structure is defined
       if (equipmentIds.length === 0 && selectedEquipmentIds.length > 0) {
         equipmentIds = [...selectedEquipmentIds];
       }
@@ -760,18 +828,30 @@ export default function GangAdditions({
         // Equipment selection required but not selected
         (() => {
           const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-          const weapons = selectedType?.equipment_selection?.weapons;
+          const equipmentSelection = selectedType?.equipment_selection as EquipmentSelection;
           
           // If no equipment selection feature, button should not be disabled
-          if (!weapons || !weapons.select_type) return false;
+          if (!equipmentSelection) return false;
           
-          // If 'single' type selection is required and there's a default weapons array that's empty,
-          // AND there are options available, require user to select one option
-          if (weapons.select_type === 'single' && 
-              Array.isArray(weapons.default) && weapons.default.length === 0 &&
-              Array.isArray(weapons.options) && weapons.options.length > 0 &&
-              selectedEquipmentIds.length === 0) {
-            return true;
+          // Check each category
+          for (const [categoryId, categoryData] of Object.entries(equipmentSelection)) {
+            const selectType = categoryData.select_type || 'optional';
+            
+            // If 'single' type selection is required and there's no default equipment
+            // AND there are options available, require user to select one option
+            if (selectType === 'single' && 
+                (!categoryData.default || categoryData.default.length === 0) &&
+                categoryData.options && categoryData.options.length > 0) {
+              
+              // Check if user selected an option from this category
+              const selectedFromCategory = selectedEquipmentIds.some(id => 
+                categoryData.options?.some((opt: GangEquipmentOption) => opt.id === id)
+              );
+              
+              if (!selectedFromCategory) {
+                return true; // Disable button if required selection is missing
+              }
+            }
           }
           
           return false;
