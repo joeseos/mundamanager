@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
-import { X, Plus, Trash2, Zap } from "lucide-react";
+import { X, Plus, Trash2 } from "lucide-react";
 import { Equipment } from '@/types/equipment';
 import { Button } from "@/components/ui/button";
 
@@ -62,80 +62,28 @@ export function AdminFighterEquipmentSelection({
   setEquipmentSelection,
   disabled
 }: AdminFighterEquipmentSelectionProps) {
-  const [selectedType, setSelectedType] = useState('');
   const [selectedMode, setSelectedMode] = useState<'optional' | 'single' | 'multiple'>('optional');
-  const [newCategoryName, setNewCategoryName] = useState('');
 
   // Generate a unique ID for a new category
   const generateCategoryId = (typeId: string) => {
     return `${typeId}_${Date.now()}`;
   };
   
-  // Add a new category
-  const addCategory = () => {
-    if (!selectedType) return;
-    
-    // Get the selected type details
-    const typeDetails = SELECTION_TYPES.find(type => type.id === selectedType);
-    if (!typeDetails) return;
-    
-    const id = generateCategoryId(selectedType);
-    
-    setEquipmentSelection(prev => ({
-      ...prev,
-      [id]: {
-        id,
-        name: typeDetails.name,
-        select_type: selectedMode,
-        default: selectedMode === 'optional' ? [] : undefined,
-        options: []
-      }
-    }));
-    
-    setSelectedType('');
-    setNewCategoryName('');
-  };
-  
   // Remove a category
   const removeCategory = (categoryId: string) => {
+    console.log('⚠️ REMOVING CATEGORY:', categoryId);
+    console.log('Current equipment selection state:', equipmentSelection);
+    console.log('Number of categories before removal:', Object.keys(equipmentSelection).length);
+    
     setEquipmentSelection(prev => {
       const newSelection = { ...prev };
       delete newSelection[categoryId];
+      
+      console.log('New selection after removal:', newSelection);
+      console.log('Number of categories after removal:', Object.keys(newSelection).length);
+      
       return newSelection;
     });
-  };
-  
-  // Add common categories
-  const addCommonCategories = () => {
-    let newSelection = { ...equipmentSelection };
-    
-    // Add weapons if not already present
-    const weaponsType = SELECTION_TYPES.find(type => type.id === 'weapons');
-    if (weaponsType && !isTypeAlreadyAdded('weapons')) {
-      const weaponsId = generateCategoryId('weapons');
-      newSelection[weaponsId] = {
-        id: weaponsId,
-        name: weaponsType.name,
-        select_type: 'optional',
-        default: [],
-        options: []
-      };
-    }
-    
-    // Add wargear if not already present
-    const wargearType = SELECTION_TYPES.find(type => type.id === 'wargear');
-    if (wargearType && !isTypeAlreadyAdded('wargear')) {
-      const wargearId = generateCategoryId('wargear');
-      newSelection[wargearId] = {
-        id: wargearId,
-        name: wargearType.name,
-        select_type: 'optional',
-        default: [],
-        options: []
-      };
-    }
-    
-    setEquipmentSelection(newSelection);
   };
   
   // Check if a type is already added
@@ -169,12 +117,34 @@ export function AdminFighterEquipmentSelection({
           </select>
           <Button
             onClick={() => {
-              // Open a second step to select the equipment category
-              // after the selection type is chosen
               const availableTypes = getAvailableSelectionTypes();
+              console.log('Available types for adding:', availableTypes);
+              
               if (availableTypes.length > 0) {
-                setSelectedType(availableTypes[0].id);
-                addCategory();
+                // Directly create a new category using the first available type
+                const typeDetails = availableTypes[0];
+                const id = generateCategoryId(typeDetails.id);
+                
+                console.log('Adding new category in single click:', {
+                  name: typeDetails.name,
+                  id: id,
+                  selectionType: selectedMode
+                });
+                
+                setEquipmentSelection(prev => {
+                  const newState = {
+                    ...prev,
+                    [id]: {
+                      id,
+                      name: typeDetails.name,
+                      select_type: selectedMode,
+                      default: selectedMode === 'optional' ? [] : undefined,
+                      options: []
+                    }
+                  };
+                  console.log('New equipment selection state:', newState);
+                  return newState;
+                });
               }
             }}
             disabled={disabled || getAvailableSelectionTypes().length === 0}
@@ -184,20 +154,6 @@ export function AdminFighterEquipmentSelection({
             <Plus className="h-4 w-4 mr-1" /> Add Category
           </Button>
         </div>
-        
-        {Object.keys(equipmentSelection).length === 0 && (
-          <div className="flex justify-center mt-2">
-            <Button
-              onClick={addCommonCategories}
-              disabled={disabled}
-              variant="secondary"
-              size="sm"
-              className="text-sm"
-            >
-              <Zap className="h-3 w-3 mr-1" /> Quick Add: Weapons & Wargear
-            </Button>
-          </div>
-        )}
       </div>
 
       {Object.keys(equipmentSelection).length === 0 ? (
@@ -241,32 +197,12 @@ export function AdminFighterEquipmentSelection({
 
             <div className="space-y-4 bg-white p-3 rounded-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Selection Type
-                </label>
-                <select
-                  value={category.select_type || ''}
-                  onChange={(e) => {
-                    const value = e.target.value as 'optional' | 'single' | 'multiple';
-                    setEquipmentSelection(prev => ({
-                      ...prev,
-                      [categoryId]: {
-                        ...prev[categoryId],
-                        select_type: value,
-                        default: value === 'optional' ? [] : undefined,
-                        options: prev[categoryId].options || []
-                      }
-                    }));
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={disabled}
-                >
-                  {SELECTION_MODES.map((mode) => (
-                    <option key={mode.value} value={mode.value}>
-                      {mode.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="block text-sm font-medium text-gray-700 mb-1">
+                  <span>Selection Type:</span>{' '}
+                  <span className="font-normal">
+                    {SELECTION_MODES.find(mode => mode.value === category.select_type)?.label || 'Optional (Replace Default)'}
+                  </span>
+                </div>
               </div>
 
               {category.select_type === 'optional' && (
