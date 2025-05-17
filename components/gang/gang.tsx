@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
@@ -30,8 +30,9 @@ import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import PrintModal from "@/components/print-modal";
-import { FiPrinter, FiShare2 } from 'react-icons/fi';
+import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { useShare } from '@/hooks/use-share';
+import html2canvas from 'html2canvas';
 
 interface VehicleType {
   id: string;
@@ -145,6 +146,7 @@ export default function Gang({
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
   const { shareUrl } = useShare();
+  const gangContentRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
@@ -222,6 +224,30 @@ export default function Gang({
     const d = new Date(date);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
+
+  // Screenshot with html2canvas
+  const handleScreenshot = async () => {
+    if (!gangContentRef.current) return;
+
+    await document.fonts.ready;
+
+    const canvas = await html2canvas(gangContentRef.current, {
+      scale: 1.3,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#000000', // for JPEG
+    });
+
+    const now = new Date();
+    const datePart = formatDate(now);
+    const timePart = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+    const filename = `${datePart}_${timePart}_${name.replace(/\s+/g, '_')}-MundaManager.jpg`;
+
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/jpeg', 0.85); // quality (0–1)
+    link.click();
+  };
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -800,8 +826,10 @@ const handleAlignmentChange = (value: string) => {
   };
 
   return (
-    <div className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}>
-
+    <div
+      ref={gangContentRef}
+      className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
+    >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Illustration */}
@@ -867,6 +895,16 @@ const handleAlignmentChange = (value: string) => {
             </div>
 
             <div className="flex flex-wrap justify-end -mr-[10px]">
+              {/* Sreenshot button */}
+              <Button
+                onClick={handleScreenshot}
+                variant="ghost"
+                size="icon"
+                className="print:hidden"
+                title="Share Gang"
+              >
+                <FiCamera className="w-5 h-5" />
+              </Button>
               {/* Share button */}
               <Button
                 onClick={() => shareUrl(name)}
