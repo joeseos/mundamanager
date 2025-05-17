@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "./campaign-battle-log-modal";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
+import { deleteBattleLog } from "@/app/lib/battle-logs";
+import Modal from "@/components/modal";
 
 interface Member {
   user_id: string;
@@ -92,16 +94,19 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>(({ 
-  campaignId, 
-  battles, 
-  isAdmin, 
-  onBattleAdd,
-  members,
-  noContainer = false,
-  hideAddButton = false
-}, ref) => {
+const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
+  const { 
+    campaignId, 
+    battles, 
+    isAdmin, 
+    onBattleAdd,
+    members,
+    noContainer = false,
+    hideAddButton = false
+  } = props;
+  
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const { toast } = useToast();
   
@@ -114,6 +119,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Map of gang IDs to gang names for lookup
   const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
+
+  // State for the selected battle (will be used for edit functionality)
+  const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
+  const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sort battles by date (newest first)
   const sortedBattles = useMemo(() => {
@@ -145,6 +155,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
+      setSelectedBattle(null);
       setShowBattleModal(true);
     }
   }));
@@ -298,6 +309,79 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     );
   };
 
+  // Edit battle handler
+  const handleEditBattle = (battle: Battle) => {
+    setSelectedBattle(battle);
+    setShowBattleModal(true);
+  };
+
+  // Delete battle handler
+  const handleDeleteBattle = (battle: Battle, e?: React.MouseEvent) => {
+    // Prevent any default actions or propagation
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Delete button clicked, prevented default', battle.id);
+    }
+    
+    setBattleToDelete(battle);
+    setShowDeleteModal(true);
+    return false; // Ensure no further action is taken
+  };
+
+  // Confirm delete battle
+  const confirmDeleteBattle = async () => {
+    if (!battleToDelete) return false;
+    
+    console.log('Confirming delete for battle', battleToDelete.id);
+    setIsDeleting(true);
+    
+    try {
+      console.log('Calling deleteBattleLog server action');
+      await deleteBattleLog(campaignId, battleToDelete.id);
+      console.log('Delete successful');
+      
+      // Close modal
+      setShowDeleteModal(false);
+      setBattleToDelete(null);
+      
+      // Delayed toast and refresh to avoid navigation conflicts
+      setTimeout(() => {
+        toast({
+          description: "Battle log deleted successfully"
+        });
+        
+        // Add a small delay before refreshing to ensure the delete has been processed
+        setTimeout(() => {
+          onBattleAdd(); // Refresh the battle list
+        }, 100);
+      }, 0);
+      
+      return true; // Return true for modal to close
+    } catch (error) {
+      console.error('Error deleting battle log:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to delete battle log"
+      });
+      return false; // Return false to keep modal open
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setShowBattleModal(false);
+    setSelectedBattle(null);
+  };
+
+  // Handle delete modal close
+  const handleDeleteModalClose = () => {
+    setShowDeleteModal(false);
+    setBattleToDelete(null);
+  };
+
   // The content to render
   const content = (
     <>
@@ -306,7 +390,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
           {isAdmin && !hideAddButton && (
             <Button
-              onClick={() => setShowBattleModal(true)}
+              onClick={() => {
+                setSelectedBattle(null);
+                setShowBattleModal(true);
+              }}
               className="bg-black hover:bg-gray-800 text-white"
               aria-label="Add battle log"
             >
@@ -318,7 +405,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {noContainer && isAdmin && !hideAddButton && (
         <div className="flex justify-end mb-4">
           <Button
-            onClick={() => setShowBattleModal(true)}
+            onClick={() => {
+              setSelectedBattle(null);
+              setShowBattleModal(true);
+            }}
             className="bg-black hover:bg-gray-800 text-white"
             aria-label="Add battle log"
           >
@@ -334,12 +424,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               <th className="px-4 py-2 text-left font-medium">Scenario</th>
               <th className="px-4 py-2 text-left font-medium">Gangs</th>
               <th className="px-4 py-2 text-left font-medium">Winner</th>
+              {isAdmin && <th className="px-4 py-2 text-left font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-gray-500 italic text-center">
+                <td colSpan={isAdmin ? 5 : 4} className="text-gray-500 italic text-center">
                   No battles recorded yet.
                 </td>
               </tr>
@@ -369,6 +460,30 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                       battle.winner_id === null ? "Draw" : (battle.winner?.gang_name || 'Unknown')
                     )}
                   </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2">
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => handleEditBattle(battle)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          aria-label="Edit battle"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={(e) => handleDeleteBattle(battle, e)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          aria-label="Delete battle"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -402,17 +517,40 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             Next
             <ChevronRight className="h-4 w-4" />
           </Button>
-            </div>
+        </div>
       )}
 
-      {/* Use the new Battle Log Modal component */}
+      {/* Battle Log Modal for Add/Edit */}
       <CampaignBattleLogModal
         campaignId={campaignId}
         availableGangs={availableGangs}
         isOpen={showBattleModal}
-        onClose={() => setShowBattleModal(false)}
+        onClose={handleModalClose}
         onSuccess={onBattleAdd}
+        battleToEdit={selectedBattle}
       />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <Modal
+          title="Delete Battle Log"
+          content={
+            <div>
+              <p className="mb-4">Are you sure you want to delete this battle log? This action cannot be undone.</p>
+              {battleToDelete && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                  <div><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</div>
+                  <div><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</div>
+                </div>
+              )}
+            </div>
+          }
+          onClose={handleDeleteModalClose}
+          onConfirm={confirmDeleteBattle}
+          confirmText={isDeleting ? "Deleting..." : "Delete"}
+          confirmDisabled={isDeleting}
+        />
+      )}
     </>
   );
 

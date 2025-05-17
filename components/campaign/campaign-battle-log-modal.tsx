@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/lib/battle-logs";
 
 interface Scenario {
   id: string;
@@ -25,6 +26,37 @@ interface Territory {
   controlled_by?: string; // gang_id of controlling gang
 }
 
+interface BattleParticipant {
+  role: 'attacker' | 'defender';
+  gang_id: string;
+}
+
+interface Battle {
+  id: string;
+  created_at: string;
+  updated_at?: string;
+  scenario_number?: number;
+  scenario_name?: string;
+  scenario?: string;
+  attacker_id?: string;
+  defender_id?: string;
+  winner_id?: string;
+  note?: string | null;
+  participants?: BattleParticipant[] | string;
+  attacker?: {
+    gang_id?: string;
+    gang_name: string;
+  };
+  defender?: {
+    gang_id?: string;
+    gang_name: string;
+  };
+  winner?: {
+    gang_id?: string;
+    gang_name: string;
+  };
+}
+
 interface CampaignBattleLogModalProps {
   campaignId: string;
   availableGangs: CampaignGang[];
@@ -32,6 +64,7 @@ interface CampaignBattleLogModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  battleToEdit?: Battle | null;
 }
 
 type GangRole = 'none' | 'attacker' | 'defender';
@@ -48,7 +81,8 @@ const CampaignBattleLogModal = ({
   territories = [],
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  battleToEdit = null
 }: CampaignBattleLogModalProps) => {
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
@@ -63,6 +97,9 @@ const CampaignBattleLogModal = ({
   const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
   const { toast } = useToast();
+
+  // Check if we're in edit mode
+  const isEditMode = !!battleToEdit;
 
   // Load battle data when modal opens
   useEffect(() => {
@@ -91,6 +128,11 @@ const CampaignBattleLogModal = ({
               return a.scenario_number - b.scenario_number;
             });
             setScenarios(sortedScenarios);
+            
+            // If in edit mode, populate form with battle data
+            if (battleToEdit) {
+              populateFormWithBattleData();
+            }
           }
         } catch (error) {
           console.error('Error loading battle data:', error);
@@ -113,7 +155,112 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId, toast]);
+  }, [isOpen, campaignId, toast, battleToEdit]);
+
+  // Populate form with battle data when editing
+  const populateFormWithBattleData = () => {
+    if (!battleToEdit) return;
+    
+    // Set scenario
+    // Look for a matching scenario in the list
+    const matchingScenario = scenarios.find(s => 
+      s.scenario_name === battleToEdit.scenario_name || 
+      s.scenario_name === battleToEdit.scenario
+    );
+    
+    if (matchingScenario) {
+      setSelectedScenario(matchingScenario.id);
+    } else {
+      // If no matching scenario, set as custom
+      setSelectedScenario('custom');
+      setCustomScenario(battleToEdit.scenario || battleToEdit.scenario_name || '');
+    }
+    
+    // Set gangs and roles
+    const newGangsInBattle: GangEntry[] = [];
+    
+    // Parse participants if it's a string
+    let participants = battleToEdit.participants;
+    if (participants && typeof participants === 'string') {
+      try {
+        participants = JSON.parse(participants);
+      } catch (e) {
+        console.error('Error parsing participants:', e);
+        participants = [];
+      }
+    }
+    
+    // If using the new data structure with participants
+    if (participants && Array.isArray(participants) && participants.length > 0) {
+      // Add gangs with roles from participants
+      participants.forEach((participant: BattleParticipant, index: number) => {
+        if (participant.gang_id) {
+          newGangsInBattle.push({
+            id: index + 1,
+            gangId: participant.gang_id,
+            role: participant.role as GangRole
+          });
+        }
+      });
+    } else {
+      // Fallback to old data structure
+      let idx = 1;
+      
+      if (battleToEdit.attacker_id || battleToEdit.attacker?.gang_id) {
+        const gangId = battleToEdit.attacker?.gang_id || battleToEdit.attacker_id || '';
+        if (gangId) {
+          newGangsInBattle.push({
+            id: idx++,
+            gangId,
+            role: 'attacker'
+          });
+        }
+      }
+      
+      if (battleToEdit.defender_id || battleToEdit.defender?.gang_id) {
+        const gangId = battleToEdit.defender?.gang_id || battleToEdit.defender_id || '';
+        if (gangId) {
+          newGangsInBattle.push({
+            id: idx++,
+            gangId,
+            role: 'defender'
+          });
+        }
+      }
+    }
+    
+    // If no gangs were added, use default
+    if (newGangsInBattle.length === 0) {
+      setGangsInBattle([
+        { id: 1, gangId: "", role: 'none' },
+        { id: 2, gangId: "", role: 'none' },
+      ]);
+    } else {
+      // Ensure at least 2 gang entries
+      while (newGangsInBattle.length < 2) {
+        newGangsInBattle.push({
+          id: newGangsInBattle.length + 1,
+          gangId: "",
+          role: 'none'
+        });
+      }
+      setGangsInBattle(newGangsInBattle);
+    }
+    
+    // Set winner
+    if (battleToEdit.winner_id === null) {
+      setWinner("draw");
+    } else if (battleToEdit.winner_id) {
+      setWinner(battleToEdit.winner_id);
+    } else if (battleToEdit.winner?.gang_id) {
+      setWinner(battleToEdit.winner.gang_id);
+    } else {
+      setWinner("");
+    }
+    
+    // Set notes
+    setNotes(battleToEdit.note || "");
+  };
 
   // Update available territories when winner changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,7 +342,7 @@ const CampaignBattleLogModal = ({
       .map(entry => entry.gangId);
   };
 
-  const handleAddBattle = async () => {
+  const handleSaveBattle = async () => {
     // Validate required fields
     if (selectedScenario === '') {
       toast({
@@ -270,39 +417,40 @@ const CampaignBattleLogModal = ({
       // Get a default attacker/defender if needed for the API
       const firstGangId = gangsInBattle.find(g => g.gangId)?.gangId || '';
 
-      // Post to the API endpoint
-      const response = await fetch('/api/campaigns/battles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Campaign-Id': campaignId
-        },
-        body: JSON.stringify({
-          scenario: scenarioName,
-          attacker_id: attackers.length > 0 ? attackers[0].gangId : firstGangId,
-          defender_id: defenders.length > 0 ? defenders[0].gangId : firstGangId,
-          winner_id: winner === "draw" ? null : winner,
-          note: notes || null,
-          participants: participants,
-          claimed_territories: selectedTerritories.length > 0 
-            ? selectedTerritories.map(id => ({ territory_id: id })) 
-            : []
-        }),
-      });
+      // Prepare battle data for API
+      const battleData: BattleLogParams = {
+        scenario: scenarioName,
+        attacker_id: attackers.length > 0 ? attackers[0].gangId : firstGangId,
+        defender_id: defenders.length > 0 ? defenders[0].gangId : firstGangId,
+        winner_id: winner === "draw" ? null : winner,
+        note: notes || null,
+        participants: participants,
+        claimed_territories: selectedTerritories.length > 0 
+          ? selectedTerritories.map(id => ({ territory_id: id })) 
+          : []
+      };
 
-      if (!response.ok) throw new Error('Failed to create battle log');
+      // Create or update battle based on mode
+      if (isEditMode && battleToEdit) {
+        await updateBattleLog(campaignId, battleToEdit.id, battleData);
+        toast({
+          description: "Battle log updated successfully"
+        });
+      } else {
+        await createBattleLog(campaignId, battleData);
+        toast({
+          description: "Battle log added successfully"
+        });
+      }
 
       onSuccess();
-      toast({
-        description: "Battle log added successfully"
-      });
       resetForm();
       return true;
     } catch (error) {
-      console.error('Error creating battle log:', error);
+      console.error(isEditMode ? 'Error updating battle log:' : 'Error creating battle log:', error);
       toast({
         variant: "destructive",
-        description: "Failed to create battle log"
+        description: isEditMode ? "Failed to update battle log" : "Failed to create battle log"
       });
       return false;
     }
@@ -356,7 +504,7 @@ const CampaignBattleLogModal = ({
 
   return (
     <Modal
-      title="Add Battle Log"
+      title={isEditMode ? "Edit Battle Log" : "Add Battle Log"}
       content={
         <div className="space-y-4">
           <div>
@@ -404,7 +552,7 @@ const CampaignBattleLogModal = ({
               
               // Filter out already selected gangs for this dropdown
               const availableGangsForThisEntry = availableGangs.filter(
-                gang => !selectedGangs.includes(gang.id)
+                gang => !selectedGangs.includes(gang.id) || gang.id === gangEntry.gangId
               );
               
               return (
@@ -566,8 +714,8 @@ const CampaignBattleLogModal = ({
         </div>
       }
       onClose={handleClose}
-      onConfirm={handleAddBattle}
-      confirmText="Save"
+      onConfirm={handleSaveBattle}
+      confirmText={isEditMode ? "Update" : "Save"}
       confirmDisabled={isLoadingBattleData || !formValid}
     />
   );
