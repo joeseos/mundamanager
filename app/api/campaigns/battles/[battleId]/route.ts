@@ -1,10 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+type Params = {
+  params: {
+    battleId: string
+  }
+}
 
 // PUT endpoint to update an existing battle log
 export async function PUT(
-  request: Request,
-  { params }: { params: { battleId: string } }
+  request: NextRequest,
+  { params }: Params
 ) {
   const supabase = await createClient();
   const battleId = params.battleId;
@@ -120,8 +126,8 @@ export async function PUT(
 
 // DELETE endpoint to remove a battle log
 export async function DELETE(
-  request: Request,
-  { params }: { params: { battleId: string } }
+  request: NextRequest,
+  { params }: Params
 ) {
   const supabase = await createClient();
   const battleId = params.battleId;
