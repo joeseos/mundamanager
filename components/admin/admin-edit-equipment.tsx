@@ -438,14 +438,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     setIsLoading(
       isEquipmentDetailsLoading ||
       isFighterTypesLoading ||
-      isWeaponsLoading ||
-      isGangTypesLoading
+      isWeaponsLoading
     );
   }, [
     isEquipmentDetailsLoading,
     isFighterTypesLoading,
-    isWeaponsLoading,
-    isGangTypesLoading
+    isWeaponsLoading
   ]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
@@ -835,13 +833,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 }
                               }}
                               className="w-full p-2 border rounded-md"
+                              disabled={isGangTypesLoading}
                             >
                               <option key="default" value="">Select a Gang Type</option>
-                              {gangTypeOptions.map((gang) => (
-                                <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                  {gang.gang_type}
-                                </option>
-                              ))}
+                              {isGangTypesLoading ? (
+                                <option>Loading...</option>
+                              ) : (
+                                gangTypeOptions.map((gang) => (
+                                  <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                    {gang.gang_type}
+                                  </option>
+                                ))
+                              )}
                             </select>
                           </div>
 
@@ -894,9 +897,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   }
                                 }
                               }}
-                              disabled={!selectedGangType || !discountValue || parseInt(discountValue) < 0}
+                              disabled={
+                                isGangTypesLoading ||
+                                !selectedGangType ||
+                                !discountValue ||
+                                parseInt(discountValue) < 0
+                              }
                             >
-                              Save Discount
+                              Save
                             </Button>
                           </div>
                         </div>
@@ -969,13 +977,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 }
                               }}
                               className="w-full p-2 border rounded-md"
+                              disabled={isGangTypesLoading}
                             >
                               <option key="default" value="">Select a Gang Type</option>
-                              {gangTypeOptions.map((gang) => (
-                                <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                  {gang.gang_type}
-                                </option>
-                              ))}
+                              {isGangTypesLoading ? (
+                                <option>Loading...</option>
+                              ) : (
+                                gangTypeOptions.map((gang) => (
+                                  <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                    {gang.gang_type}
+                                  </option>
+                                ))
+                              )}
                             </select>
                           </div>
 
@@ -1019,9 +1032,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   }
                                 }
                               }}
-                              disabled={!selectedAvailabilityGangType || !availabilityValue}
+                              disabled={
+                                isGangTypesLoading ||
+                                !selectedAvailabilityGangType ||
+                                !availabilityValue
+                              }
                             >
-                              Save Availability
+                              Save
                             </Button>
                           </div>
                         </div>
