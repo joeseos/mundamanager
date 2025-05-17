@@ -143,6 +143,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Only fetch skill sets when needed
   const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
 
+  // Add a ref to track if a category was manually removed
+  const userRemovedCategoryRef = useRef(false);
+
   // When fighter type or subtype values change from API, update the refs
   useEffect(() => {
     if (fighterTypeInputRef.current) {
@@ -796,6 +799,37 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
+  // Add a useEffect to validate equipment selection
+  useEffect(() => {
+    if (Object.keys(equipmentSelection).length > 0) {
+      console.log('Current equipment selection:', equipmentSelection);
+      // Validate structure of each category
+      Object.entries(equipmentSelection).forEach(([key, category]) => {
+        if (!category.select_type) {
+          console.warn(`Category ${key} missing select_type, fixing...`);
+          setEquipmentSelection(prev => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              select_type: 'optional'
+            }
+          }));
+        }
+        
+        if (!category.options) {
+          console.warn(`Category ${key} missing options array, fixing...`);
+          setEquipmentSelection(prev => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              options: []
+            }
+          }));
+        }
+      });
+    }
+  }, [equipmentSelection]);
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
@@ -897,6 +931,60 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         }
       }
 
+      // Log equipment selection state before preparing update data
+      console.log('Equipment selection before update:', equipmentSelection);
+      console.log('Equipment selection keys:', Object.keys(equipmentSelection));
+      console.log('Equipment selection values sample:', 
+        Object.keys(equipmentSelection).length > 0 ? 
+          Object.entries(equipmentSelection)[0] : 
+          'No equipment selection data'
+      );
+
+      // Prepare the equipment selection data for the update
+      const formattedEquipmentSelection = Object.keys(equipmentSelection).length > 0 ? 
+        Object.entries(equipmentSelection).reduce<Record<string, any>>((acc, [key, category]) => {
+          console.log(`Processing category ${key} with type ${category.select_type}`);
+          return {
+            ...acc,
+            [key]: {
+              select_type: category.select_type,
+              name: category.name,
+              default: category.default,
+              options: category.options?.map(option => ({
+                id: option.id,
+                cost: option.cost,
+                max_quantity: option.max_quantity,
+                replaces: option.replaces,
+                max_replace: option.max_replace
+              }))
+            }
+          };
+        }, {}) : 
+        null;
+
+      console.log('Formatted equipment selection:', formattedEquipmentSelection);
+      
+      // Ensure equipment selection format is compatible with the server's expectations
+      // by adding a weapons key if it doesn't exist
+      let finalEquipmentSelection = formattedEquipmentSelection;
+      if (finalEquipmentSelection && Object.keys(finalEquipmentSelection).length > 0) {
+        if (!('weapons' in finalEquipmentSelection)) {
+          console.log('Adding weapons key to ensure compatibility with server');
+          // Use the first category as the "weapons" category
+          const firstKey = Object.keys(finalEquipmentSelection)[0];
+          const firstCategory = finalEquipmentSelection[firstKey];
+          finalEquipmentSelection = {
+            ...finalEquipmentSelection,
+            weapons: {
+              select_type: firstCategory?.select_type || 'optional',
+              name: 'Weapons',
+              default: firstCategory?.default || [],
+              options: []
+            }
+          };
+        }
+      }
+
       const updateData = {
         id: fighterIdToUpdate,
         fighter_type: fighterType,
@@ -926,41 +1014,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
         trading_post_equipment: tradingPostEquipment,
-        equipment_selection: Object.keys(equipmentSelection).length > 0 ? 
-          Object.entries(equipmentSelection).reduce((acc, [key, category]) => {
-            return {
-              ...acc,
-              [key]: {
-                select_type: category.select_type,
-                name: category.name,
-                default: category.default,
-                options: category.options?.map(option => ({
-              id: option.id,
-              cost: option.cost,
-              max_quantity: option.max_quantity,
-              replaces: option.replaces,
-              max_replace: option.max_replace
-            }))
-          }
-            };
-          }, {}) : 
-          null,
+        equipment_selection: finalEquipmentSelection,
         updated_at: new Date().toISOString()
       };
 
       console.log('Sending update data:', updateData);
+      console.log('Equipment selection in update data:', updateData.equipment_selection);
       console.log('Selected sub-type and final fighter_sub_type_id:', {
         selectedSubTypeId,
         submittingSubTypeId: updateData.fighter_sub_type_id,
         originalSubTypeId: finalSubTypeId
       });
 
+      // Check if equipment selection is being properly included
+      const jsonData = JSON.stringify(updateData);
+      console.log('JSON data includes equipment_selection:', 
+        jsonData.includes('equipment_selection') && 
+        jsonData.includes(Object.keys(equipmentSelection)[0] || '')
+      );
+
       const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updateData),
+        body: jsonData,
       });
 
       if (!response.ok) {
@@ -1137,7 +1215,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     if (
       equipmentSelection && 
       Object.keys(equipmentSelection).length === 0 && 
-      selectedFighterTypeId
+      selectedFighterTypeId &&
+      !userRemovedCategoryRef.current // Only proceed if not a manual removal
     ) {
       console.log('Checking and converting equipment selection format if needed');
       
@@ -1177,6 +1256,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       };
       
       fetchCurrentData();
+    } else if (userRemovedCategoryRef.current) {
+      // Reset the flag after the state update
+      console.log('Resetting user removal flag');
+      userRemovedCategoryRef.current = false;
     }
   }, [selectedFighterTypeId, equipmentSelection]);
 
@@ -2126,9 +2209,17 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   Equipment Selection
                 </label>
                 <AdminFighterEquipmentSelection
+                  key={`equipment-selection-${selectedFighterTypeId}`}
                   equipment={equipment}
                   equipmentSelection={equipmentSelection}
-                  setEquipmentSelection={setEquipmentSelection}
+                  setEquipmentSelection={(newSelection) => {
+                    // Check if this is a removal operation (fewer categories than before)
+                    if (Object.keys(newSelection).length < Object.keys(equipmentSelection).length) {
+                      console.log('Category removal detected, setting flag to prevent API refetch');
+                      userRemovedCategoryRef.current = true;
+                    }
+                    setEquipmentSelection(newSelection);
+                  }}
                       disabled={!selectedFighterTypeId}
                 />
               </div>
