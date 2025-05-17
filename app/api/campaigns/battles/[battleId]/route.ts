@@ -1,17 +1,12 @@
 import { createClient } from "@/utils/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
-
-type Params = {
-  params: {
-    battleId: string
-  }
-}
+import { NextResponse } from "next/server";
 
 // PUT endpoint to update an existing battle log
 export async function PUT(
-  request: NextRequest,
-  { params }: Params
+  request: Request,
+  props: { params: Promise<{ battleId: string }> }
 ) {
+  const params = await props.params;
   const supabase = await createClient();
   const battleId = params.battleId;
   const campaignId = request.headers.get('X-Campaign-Id');
@@ -126,9 +121,10 @@ export async function PUT(
 
 // DELETE endpoint to remove a battle log
 export async function DELETE(
-  request: NextRequest,
-  { params }: Params
+  request: Request,
+  props: { params: Promise<{ battleId: string }> }
 ) {
+  const params = await props.params;
   const supabase = await createClient();
   const battleId = params.battleId;
   const campaignId = request.headers.get('X-Campaign-Id');
