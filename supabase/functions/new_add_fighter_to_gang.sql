@@ -130,12 +130,18 @@ BEGIN
     RAISE NOTICE 'Base cost from database: %', v_fighter_base_cost;
     
     -- Calculate cost of selected equipment from all equipment categories
-    SELECT COALESCE(SUM(option_cost), 0)
+    SELECT COALESCE(SUM(option_cost * quantity), 0)
     INTO v_total_equipment_cost
     FROM (
+      WITH equipment_counts AS (
+        SELECT equipment_id, COUNT(*) as quantity
+        FROM unnest(p_selected_equipment_ids) AS equipment_id
+        GROUP BY equipment_id
+      )
       -- Get selected equipment with costs from all categories in fighter_equipment_selections
-      SELECT DISTINCT 
+      SELECT 
         e.id, 
+        ec.quantity,
         COALESCE(
           (
             -- Look for the option in any category (weapons, wargear, etc.)
@@ -150,8 +156,8 @@ BEGIN
           e.cost
         ) AS option_cost,
         e.equipment_name
-      FROM unnest(p_selected_equipment_ids) AS equip_id
-      JOIN equipment e ON e.id = equip_id
+      FROM equipment_counts ec
+      JOIN equipment e ON e.id = ec.equipment_id
       -- Only include non-default equipment in the cost calculation
       WHERE NOT EXISTS (
         SELECT 1 
@@ -243,23 +249,30 @@ BEGIN
     v_fighter_id := v_inserted_fighter.id;
 
     -- Insert equipment with proper costs
-    WITH all_equipment_ids AS (
+    WITH equipment_counts AS (
+      -- Count how many of each equipment_id we have in the array
+      SELECT equipment_id, COUNT(*) as quantity
+      FROM unnest(p_selected_equipment_ids) AS equipment_id
+      GROUP BY equipment_id
+    ),
+    all_equipment_entries AS (
       -- Default equipment
-      SELECT DISTINCT equipment_id
+      SELECT equipment_id, 1 as quantity
       FROM fighter_defaults
       WHERE fighter_type_id = p_fighter_type_id
       AND equipment_id IS NOT NULL
       
-      UNION
+      UNION ALL
       
-      -- Selected equipment
-      SELECT DISTINCT unnest AS equipment_id
-      FROM unnest(p_selected_equipment_ids)
+      -- Selected equipment with quantities
+      SELECT equipment_id, quantity
+      FROM equipment_counts
     ),
     -- Get the costs from fighter_equipment_selections for selected equipment
     equipment_costs AS (
       SELECT 
         ae.equipment_id,
+        ae.quantity,
         CASE 
           WHEN ae.equipment_id = ANY(p_selected_equipment_ids) THEN
             COALESCE(
@@ -277,17 +290,22 @@ BEGIN
             )
           ELSE 0  -- Default equipment should have 0 original cost
         END AS original_cost
-      FROM all_equipment_ids ae
+      FROM all_equipment_entries ae
       JOIN equipment e ON e.id = ae.equipment_id
+    ),
+    expanded_equipment AS (
+      -- Create multiple rows based on quantity
+      SELECT equipment_id, original_cost
+      FROM equipment_costs ec, generate_series(1, ec.quantity)
     ),
     inserted_equipment AS (
       INSERT INTO fighter_equipment (fighter_id, equipment_id, original_cost, purchase_cost)
       SELECT 
         v_fighter_id,
-        ec.equipment_id,
-        ec.original_cost, -- Store the cost from fighter_equipment_selections
+        ee.equipment_id,
+        ee.original_cost, -- Store the cost from fighter_equipment_selections
         0      -- Always 0 purchase cost
-      FROM equipment_costs ec
+      FROM expanded_equipment ee
       RETURNING id, equipment_id, original_cost
     )
     SELECT 
