@@ -1321,7 +1321,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         );
                       }
                     }}
-                    placeholder="e.g. Vatborn"
+                    placeholder="e.g. Subjugator"
                     className="w-full"
                     disabled={!selectedSubTypeId}
                   />
