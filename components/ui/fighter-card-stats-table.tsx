@@ -73,6 +73,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
     return <p>No characteristics available</p>;
   }
 
+  // viewMode
+  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
+
   // Define the order of stats based on fighter type
   const statOrder = isCrew
     ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
@@ -134,13 +137,13 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   return (
     <div className="w-full">
-      <table className={`w-full text-[10px] sm:text-sm border-collapse ${isCrew ? '-mt-3' : ''}`}>
+      <table className={`w-full text-[11px] border-collapse ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
         <thead>
           {/* Conditionally Render Toughness Header Row */}
-          {isCrew && (
+          {isCrew && viewMode === 'normal' && (
             <tr>
               <th colSpan={1}></th>{/* Empty column before Toughness */}
-              <th colSpan={3} className="text-[10px] sm:text-xs font-semibold text-center print:hidden">
+              <th colSpan={3} className="text-[11px] sm:text-xs font-semibold text-center print:hidden">
                 Toughness
               </th>
             </tr>
@@ -150,7 +153,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
             {Object.keys(orderedStats).map((key) => (
               <th
                 key={key}
-                className={`font-semibold text-center p-1 border-b-[1px] border-[#a05236]
+                className={`${pClass} font-semibold text-center border-b-[1px] border-[#a05236]
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
                   ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
@@ -183,7 +186,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
             {Object.entries(orderedStats).map(([key, value]) => (
               <td
                 key={key}
-                className={`text-center p-1
+                className={`${pClass} text-center
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
                   ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
