@@ -157,7 +157,7 @@ export default function Gang({
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(initialName)
   const [editedCredits, setEditedCredits] = useState('');
-  const [editedReputation, setEditedReputation] = useState((initialReputation ?? 0).toString())
+  const [editedReputation, setEditedReputation] = useState('');
   const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
   const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
@@ -286,7 +286,7 @@ const handleAlignmentChange = (value: string) => {
   const handleSave = async () => {
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
-      const operation = creditsDifference >= 0 ? 'add' : 'subtract';
+      const reputationDifference = parseInt(editedReputation) || 0;
 
       // Optimistically update the UI before the API request completes
       const prevName = name;
@@ -306,7 +306,7 @@ const handleAlignmentChange = (value: string) => {
       setAlignment(editedAlignment);
       setAllianceId(editedAllianceId === '' ? null : editedAllianceId);
       setAllianceName(allianceList.find(a => a.id === editedAllianceId)?.alliance_name || "");
-      setReputation(parseInt(editedReputation));
+      setReputation(prevReputation + reputationDifference);
       setMeat(parseInt(editedMeat));
       setExplorationPoints(parseInt(editedExplorationPoints));
       setGangIsVariant(editedGangIsVariant);
@@ -321,10 +321,11 @@ const handleAlignmentChange = (value: string) => {
         body: JSON.stringify({
           name: editedName,
           credits: Math.abs(creditsDifference),
-          operation: operation,
+          credits_operation: creditsDifference >= 0 ? 'add' : 'subtract',
           alignment: editedAlignment,
           alliance_id: editedAllianceId === '' ? null : editedAllianceId,
-          reputation: parseInt(editedReputation),
+          reputation: Math.abs(reputationDifference),
+          reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints),
           gang_variants: editedGangVariants.map(v => v.id),
@@ -510,7 +511,7 @@ const handleAlignmentChange = (value: string) => {
     setEditedName(name);
     setEditedCredits('');
     setEditedAlignment(alignment);
-    setEditedReputation(reputation?.toString() || '0');
+    setEditedReputation('');
     setEditedMeat(meat?.toString() || '0');
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
     setEditedGangIsVariant(gangIsVariant);
@@ -571,25 +572,29 @@ const handleAlignmentChange = (value: string) => {
             setEditedCredits(value);
           }}
           className="flex-1"
-          placeholder="Enter amount (use a negative value to subtract)"
+          placeholder="Add or remove credits (e.g. 25 or -50)"
         />
         <p className="text-sm text-gray-500">
           Current credits: {credits}
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Reputation
-        </label>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Reputation</p>
         <Input
           type="tel"
           inputMode="url"
           pattern="-?[0-9]+"
           value={editedReputation}
           onChange={(e) => setEditedReputation(e.target.value)}
+          className="flex-1"
+          placeholder="Add or remove reputation (e.g. 1 or -2)"
         />
+        <p className="text-sm text-gray-500">
+          Current reputation: {reputation}
+        </p>
       </div>
+
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
