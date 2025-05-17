@@ -9,6 +9,9 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  campaign_gang_id?: string;
+  user_id?: string;
+  campaign_member_id?: string;
 }
 
 interface TerritoryGangModalProps {
@@ -36,10 +39,15 @@ export default function TerritoryGangModal({
   useEffect(() => {
     const loadGangs = async () => {
       try {
-        // First get campaign_gangs entries
+        // First get campaign_gangs entries, joining with campaign_members for member-specific gangs
         const { data: campaignGangs, error: campaignGangsError } = await supabase
           .from('campaign_gangs')
-          .select('gang_id')
+          .select(`
+            id,
+            gang_id,
+            user_id,
+            campaign_member_id
+          `)
           .eq('campaign_id', campaignId);
 
         if (campaignGangsError) throw campaignGangsError;
@@ -58,7 +66,19 @@ export default function TerritoryGangModal({
 
         if (gangsError) throw gangsError;
 
-        setAvailableGangs(gangs || []);
+        // Combine the data with user information
+        const enhancedGangs = gangs?.map(gang => {
+          // Find the campaign_gang entry for this gang
+          const campaignGang = campaignGangs.find(cg => cg.gang_id === gang.id);
+          return {
+            ...gang,
+            campaign_gang_id: campaignGang?.id,
+            user_id: campaignGang?.user_id,
+            campaign_member_id: campaignGang?.campaign_member_id
+          };
+        }) || [];
+
+        setAvailableGangs(enhancedGangs);
       } catch (error) {
         console.error('Error loading gangs:', error);
       } finally {

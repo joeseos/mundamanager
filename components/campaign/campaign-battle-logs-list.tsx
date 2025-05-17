@@ -10,6 +10,7 @@ import { deleteBattleLog } from "@/app/lib/battle-logs";
 import Modal from "@/components/modal";
 
 interface Member {
+  id?: string;
   user_id: string;
   username: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -29,6 +30,7 @@ interface Member {
     gang_name: string;
     status: string | null;
     rating?: number;
+    campaign_member_id?: string;
   }[];
 }
 
@@ -72,6 +74,8 @@ interface Scenario {
 interface CampaignGang {
   id: string;
   name: string;
+  campaign_member_id?: string;
+  user_id?: string;
 }
 
 interface CampaignBattleLogsListProps {
@@ -170,10 +174,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       members.forEach(member => {
         if (member.gangs && member.gangs.length > 0) {
           member.gangs.forEach(gang => {
-            if (!gangsMap.has(gang.gang_id)) {
-              gangsMap.set(gang.gang_id, {
+            // Create a unique key for each gang instance that includes member instance info
+            const gangKey = gang.gang_id;
+            
+            if (!gangsMap.has(gangKey)) {
+              gangsMap.set(gangKey, {
                 id: gang.gang_id,
-                name: gang.gang_name
+                name: gang.gang_name,
+                // Store additional data for reference if needed
+                campaign_member_id: member.id || gang.campaign_member_id,
+                user_id: member.user_id
               });
               gangNamesMap.set(gang.gang_id, gang.gang_name);
             }

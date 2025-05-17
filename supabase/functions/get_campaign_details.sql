@@ -158,6 +158,7 @@ SELECT json_build_object(
     ), '[]'::json),
     'members', COALESCE((
         SELECT json_agg(json_build_object(
+            'id', mfc.id,
             'user_id', mfc.user_id,
             'username', p.username,
             'role', mfc.role,
@@ -182,7 +183,8 @@ SELECT json_build_object(
                 FROM campaign_gangs_filtered cgf
                 LEFT JOIN gangs g ON cgf.gang_id = g.id
                 LEFT JOIN fighter_details fd ON fd.gang_id = g.id
-                WHERE cgf.user_id = mfc.user_id
+                WHERE (cgf.campaign_member_id = mfc.id OR 
+                       (cgf.campaign_member_id IS NULL AND cgf.user_id = mfc.user_id))
             ), '[]'::json)
         ))
         FROM members_for_campaign mfc
