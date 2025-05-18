@@ -119,30 +119,6 @@ export default function TerritoryGangModal({
               </option>
             ))}
           </select>
-
-          {/* Gang list with links */}
-          <div className="mt-4 border-t pt-4">
-            <p className="text-sm font-medium mb-2">View gang details:</p>
-            <div className="max-h-40 overflow-y-auto">
-              <ul className="space-y-2">
-                {availableGangs.map((gang) => (
-                  <li key={gang.id} className="flex justify-between items-center">
-                    <span className="text-sm">
-                      {gang.name} - {gang.gang_type}
-                    </span>
-                    <Link 
-                      href={`/gang/${gang.id}`}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 px-2 py-1 rounded transition-colors"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      View
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
         </>
       )}
     </div>
