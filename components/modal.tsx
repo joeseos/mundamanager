@@ -12,6 +12,7 @@ interface ModalProps {
   confirmText?: string;
   confirmDisabled?: boolean;
   headerContent?: React.ReactNode;
+  hideCancel?: boolean;
 }
 
 export default function Modal({ 
@@ -23,7 +24,8 @@ export default function Modal({
   onConfirm,
   confirmText = 'Confirm',
   confirmDisabled = false,
-  headerContent
+  headerContent,
+  hideCancel
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -82,16 +84,18 @@ export default function Modal({
 
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className={`px-4 py-2 border rounded hover:bg-gray-100 ${
-                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              Cancel
-            </button>
+            {!hideCancel && (
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className={`px-4 py-2 border rounded hover:bg-gray-100 ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Cancel
+              </button>
+              )}
             <button
               type="button"
               onClick={(e) => handleConfirm(e)}

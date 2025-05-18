@@ -6,6 +6,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "r
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "./campaign-battle-log-modal";
 import { ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
+import { BiSolidNotepad } from "react-icons/bi";
 import { deleteBattleLog } from "@/app/lib/battle-logs";
 import Modal from "@/components/modal";
 
@@ -112,6 +113,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [showBattleModal, setShowBattleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [activeNote, setActiveNote] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Pagination state
@@ -221,7 +224,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (participants.every(p => !p.gang_id)) {
         return <span className="text-gray-500">None</span>;
       }
-      
+
+      participants = [...participants].sort((a, b) => {
+        const roleOrder = { attacker: 0, defender: 1 };
+        const roleA = roleOrder[a.role] ?? 99;
+        const roleB = roleOrder[b.role] ?? 99;
+
+        if (roleA !== roleB) return roleA - roleB;
+
+        const nameA = getGangName(a.gang_id).toLowerCase();
+        const nameB = getGangName(b.gang_id).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
       return (
         <div className="space-y-1">
           {participants.map((participant, index) => {
@@ -240,19 +255,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             
             return (
               <div key={index}>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  <Link 
-                    href={`/gang/${participant.gang_id}`}
-                    className="hover:text-gray-600 transition-colors flex items-center"
-                  >
-                    {getGangName(participant.gang_id)}
-                    {roleColor && (
-                      <span className={`ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                        {roleLetter}
-                      </span>
-                    )}
-                  </Link>
-                </span>
+                <div className="flex items-center space-x-1">
+                  <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                    {roleLetter}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    <Link
+                      href={`/gang/${participant.gang_id}`}
+                      className="hover:text-gray-600 transition-colors"
+                    >
+                      {getGangName(participant.gang_id)}
+                    </Link>
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -292,6 +307,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     if (gangs.length === 0) {
       return <span className="text-gray-500">None</span>;
     }
+
+    gangs.sort((a, b) => {
+      const roleOrder = { attacker: 0, defender: 1 };
+      const roleA = roleOrder[a.role as 'attacker' | 'defender'] ?? 99;
+      const roleB = roleOrder[b.role as 'attacker' | 'defender'] ?? 99;
+
+      if (roleA !== roleB) return roleA - roleB;
+
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    });
     
     return (
       <div className="space-y-1">
@@ -301,17 +326,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           
           return (
             <div key={index}>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                <Link 
-                  href={`/gang/${gang.id}`}
-                  className="hover:text-gray-600 transition-colors flex items-center"
-                >
-                  {gang.name}
-                  <span className={`ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                    {roleLetter}
-                  </span>
-                </Link>
-              </span>
+              <div className="flex items-center space-x-1">
+                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                  {roleLetter}
+                </span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  <Link
+                    href={`/gang/${gang.id}`}
+                    className="hover:text-gray-600 transition-colors"
+                  >
+                    {gang.name}
+                  </Link>
+                </span>
+              </div>
             </div>
           );
         })}
@@ -427,14 +454,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       )}
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs md:text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-2 text-left font-medium">Date</th>
-              <th className="px-4 py-2 text-left font-medium">Scenario</th>
-              <th className="px-4 py-2 text-left font-medium">Gangs</th>
-              <th className="px-4 py-2 text-left font-medium">Winner</th>
-              {isAdmin && <th className="px-4 py-2 text-left font-medium">Actions</th>}
+              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
+              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
+              <th className="px-7 py-2 text-left font-medium">Gangs</th>
+              <th className="px-2 py-2 text-left font-medium">Winner</th>
+              <th className="px-2 py-2 text-left font-medium">Report</th>
+              {isAdmin && <th className="px-2 py-2 text-right font-medium">Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -447,16 +475,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             ) : (
               currentBattles.map((battle) => (
                 <tr key={battle.id} className="border-b">
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-2 align-top max-w-[5rem]">
                     {formatDate(battle.created_at)}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-2 align-top max-w-[8rem]">
                     {battle.scenario || battle.scenario_name || 'N/A'}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-2 align-top">
                     {getGangsWithRoles(battle)}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-2 align-top">
                     {battle.winner?.gang_id ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                         <Link 
@@ -466,13 +494,29 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                           {battle.winner.gang_name || 'Unknown'}
                         </Link>
                       </span>
+                    ) : battle.winner_id === null ? (
+                      <span className="ml-2 text-xs">Draw</span>
                     ) : (
-                      battle.winner_id === null ? "Draw" : (battle.winner?.gang_name || 'Unknown')
+                      <span className="ml-2 text-xs">{battle.winner?.gang_name || 'Unknown'}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    {battle.note && (
+                      <button
+                        onClick={() => {
+                          setActiveNote(battle.note || '');
+                          setShowNoteModal(true);
+                        }}
+                        className="text-gray-700 hover:text-black"
+                        aria-label="View note"
+                      >
+                        <BiSolidNotepad className="text-lg" />
+                      </button>
                     )}
                   </td>
                   {isAdmin && (
-                    <td className="px-4 py-2">
-                      <div className="flex space-x-2">
+                    <td className="px-2 py-2 align-top text-right">
+                      <div className="flex justify-end space-x-2">
                         <Button
                           onClick={() => handleEditBattle(battle)}
                           variant="outline"
@@ -559,6 +603,26 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           onConfirm={confirmDeleteBattle}
           confirmText={isDeleting ? "Deleting..." : "Delete"}
           confirmDisabled={isDeleting}
+        />
+      )}
+      {showNoteModal && (
+        <Modal
+          title="Battle Report"
+          content={
+            <div className="whitespace-pre-wrap text-sm text-gray-800">
+              {activeNote}
+            </div>
+          }
+          onClose={() => {
+            setShowNoteModal(false);
+            setActiveNote(null);
+          }}
+          onConfirm={() => {
+            setShowNoteModal(false);
+            setActiveNote(null);
+          }}
+          confirmText="Close"
+          hideCancel
         />
       )}
     </>
