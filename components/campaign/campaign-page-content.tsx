@@ -584,7 +584,14 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   {isAdmin && (
                     <Button
                       className="bg-black hover:bg-gray-800 text-white"
-                      onClick={() => setShowEditModal(true)}
+                      onClick={() => {
+                        // Update form state with current campaign values
+                        setCampaignName(campaignData.campaign_name);
+                        setMeatEnabled(campaignData.has_meat);
+                        setExplorationEnabled(campaignData.has_exploration_points);
+                        setScavengingEnabled(campaignData.has_scavenging_rolls);
+                        setShowEditModal(true);
+                      }}
                     >
                       Edit
                     </Button>
@@ -940,11 +947,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   <label className="block text-sm font-medium mb-1">Campaign Name</label>
                   <input
                     type="text"
-                    value={campaignData.campaign_name}
-                    onChange={(e) => setCampaignData(prev => ({
-                      ...prev,
-                      campaign_name: e.target.value
-                    }))}
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
                     className="w-full p-2 border rounded"
                   />
                 </div>
@@ -952,33 +956,24 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={campaignData.has_meat}
-                      onChange={(e) => setCampaignData(prev => ({
-                        ...prev,
-                        has_meat: e.target.checked
-                      }))}
+                      checked={meatEnabled}
+                      onChange={(e) => setMeatEnabled(e.target.checked)}
                     />
                     <span>Meat</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={campaignData.has_exploration_points}
-                      onChange={(e) => setCampaignData(prev => ({
-                        ...prev,
-                        has_exploration_points: e.target.checked
-                      }))}
+                      checked={explorationEnabled}
+                      onChange={(e) => setExplorationEnabled(e.target.checked)}
                     />
                     <span>Exploration Points</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      checked={campaignData.has_scavenging_rolls}
-                      onChange={(e) => setCampaignData(prev => ({
-                        ...prev,
-                        has_scavenging_rolls: e.target.checked
-                      }))}
+                      checked={scavengingEnabled}
+                      onChange={(e) => setScavengingEnabled(e.target.checked)}
                     />
                     <span>Scavenging Rolls</span>
                   </label>
