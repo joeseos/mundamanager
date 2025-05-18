@@ -434,12 +434,12 @@ const CampaignBattleLogModal = ({
       if (isEditMode && battleToEdit) {
         await updateBattleLog(campaignId, battleToEdit.id, battleData);
         toast({
-          description: "Battle log updated successfully"
+          description: "Battle report updated successfully"
         });
       } else {
         await createBattleLog(campaignId, battleData);
         toast({
-          description: "Battle log added successfully"
+          description: "Battle report added successfully"
         });
       }
 
@@ -447,10 +447,10 @@ const CampaignBattleLogModal = ({
       resetForm();
       return true;
     } catch (error) {
-      console.error(isEditMode ? 'Error updating battle log:' : 'Error creating battle log:', error);
+      console.error(isEditMode ? 'Error updating battle report:' : 'Error creating battle report:', error);
       toast({
         variant: "destructive",
-        description: isEditMode ? "Failed to update battle log" : "Failed to create battle log"
+        description: isEditMode ? "Failed to update battle report" : "Failed to create battle report"
       });
       return false;
     }
@@ -504,12 +504,13 @@ const CampaignBattleLogModal = ({
 
   return (
     <Modal
-      title={isEditMode ? "Edit Battle Log" : "Add Battle Log"}
+      title={isEditMode ? "Edit Battle Report" : "Add Battle Report"}
+      helper="Fields marked with * are required."
       content={
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Scenario
+              Scenario *
             </label>
             <select 
               className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
@@ -544,7 +545,7 @@ const CampaignBattleLogModal = ({
 
           <div className="space-y-4">
             <label className="block text-sm font-medium text-gray-700">
-              Gangs
+              Gangs *
             </label>
             {gangsInBattle.map((gangEntry) => {
               // Get list of gangs already selected in other entries
@@ -645,7 +646,7 @@ const CampaignBattleLogModal = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Winner
+              Winner *
             </label>
             <select
               className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
@@ -701,7 +702,7 @@ const CampaignBattleLogModal = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
+              Report
             </label>
             <Textarea
               placeholder="Add any additional details about the battle..."
