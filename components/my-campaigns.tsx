@@ -23,7 +23,7 @@ export default function MyCampaigns() {
       ) : (
         <ul className="space-y-2">
           {campaigns.map((campaign) => (
-            <li key={campaign.id}>
+            <li key={campaign.campaign_member_id}>
               <Link href={`/campaigns/${campaign.id}`} className="flex items-center p-3 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
                 <div className="flex-grow">
                   <span className="font-medium text-black">{campaign.campaign_name}</span>

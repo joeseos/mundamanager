@@ -3,6 +3,7 @@ DROP FUNCTION IF EXISTS get_user_campaigns(UUID);
 CREATE OR REPLACE FUNCTION get_user_campaigns(user_id UUID)
 RETURNS TABLE (
     id UUID,
+    campaign_member_id UUID,
     campaign_name TEXT,
     campaign_type TEXT,
     campaign_type_id UUID,
@@ -17,6 +18,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         c.id,
+        cm.id as campaign_member_id,
         c.campaign_name,
         ct.campaign_type_name as campaign_type,
         c.campaign_type_id,
