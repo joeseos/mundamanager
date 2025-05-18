@@ -5,10 +5,13 @@ import { createClient } from "@/utils/supabase/client";
 
 type Campaign = {
   id: string;
+  campaign_member_id: string;
   campaign_name: string;
   campaign_type: string;
   campaign_type_id: string;
   created_at: string;
+  role?: string;
+  status?: string;
 };
 
 type CampaignsContextType = {
