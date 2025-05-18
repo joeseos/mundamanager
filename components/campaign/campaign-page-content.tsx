@@ -71,6 +71,7 @@ interface CampaignData {
   campaign_name: string;
   campaign_type_name: string;
   campaign_type_id: string;
+  description: string;
   created_at: string;
   updated_at: string | null;
   has_meat: boolean;
@@ -101,6 +102,7 @@ interface CampaignData {
 
 interface CampaignPageContentProps {
   campaignData: {
+    description: string;
     id: string;
     campaign_name: string;
     campaign_type_id: string;
@@ -195,6 +197,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     campaign_name: campaignData.campaign_name,
     campaign_type: campaignData.campaign_type_name,
     campaign_type_id: campaignData.campaign_type_id,
+    campain_desctiption: campaignData.description,
     created_at: campaignData.created_at,
     updated_at: campaignData.updated_at,
     has_meat: campaignData.has_meat,
@@ -591,6 +594,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   )}
                 </div>
                 <h2 className="text-gray-600 text-lg mb-4">{campaignData.campaign_type_name}</h2>
+                <h3>{campaignData.description}</h3>
                 <div className="flex flex-row items-center justify-between text-xs text-gray-500">
                   <div>
                     <span>Created: </span>
@@ -944,6 +948,18 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     onChange={(e) => setCampaignData(prev => ({
                       ...prev,
                       campaign_name: e.target.value
+                    }))}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Campaign description</label>
+                  <input
+                    type="text"
+                    value={campaignData.description ?? ""}
+                    onChange={(e) => setCampaignData(prev => ({
+                      ...prev,
+                      description: e.target.value
                     }))}
                     className="w-full p-2 border rounded"
                   />
