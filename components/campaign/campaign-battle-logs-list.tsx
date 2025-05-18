@@ -385,7 +385,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Delayed toast and refresh to avoid navigation conflicts
       setTimeout(() => {
         toast({
-          description: "Battle log deleted successfully"
+          description: "Battle report deleted successfully"
         });
         
         // Add a small delay before refreshing to ensure the delete has been processed
@@ -396,10 +396,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       
       return true; // Return true for modal to close
     } catch (error) {
-      console.error('Error deleting battle log:', error);
+      console.error('Error deleting battle report:', error);
       toast({
         variant: "destructive",
-        description: "Failed to delete battle log"
+        description: "Failed to delete battle report"
       });
       return false; // Return false to keep modal open
     } finally {
@@ -424,7 +424,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     <>
       {!noContainer && (
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
           {isAdmin && !hideAddButton && (
             <Button
               onClick={() => {
@@ -432,7 +432,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 setShowBattleModal(true);
               }}
               className="bg-black hover:bg-gray-800 text-white"
-              aria-label="Add battle log"
+              aria-label="Add battle report"
             >
               Add
             </Button>
@@ -447,7 +447,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               setShowBattleModal(true);
             }}
             className="bg-black hover:bg-gray-800 text-white"
-            aria-label="Add battle log"
+            aria-label="Add battle report"
           >
             Add
           </Button>
@@ -587,10 +587,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <Modal
-          title="Delete Battle Log"
+          title="Delete Battle Report"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle log? This action cannot be undone.</p>
+              <p className="mb-4">Are you sure you want to delete this battle report? This action cannot be undone.</p>
               {battleToDelete && (
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
                   <div><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</div>

@@ -556,7 +556,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <span className="ml-2">Battle Logs</span>
+            <span className="ml-2">Battle Log</span>
           </button>
           <button
             onClick={() => setActiveTab(3)}
@@ -716,10 +716,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           </div>
         </div>
 
-        {/* Battle Logs Section */}
+        {/* Battle Log Section */}
               <div>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
           {isAdmin && (
             <Button
               className="bg-black hover:bg-gray-800 text-white"
@@ -854,11 +854,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
             </div>
           )}
 
-          {/* Battle Logs tab content */}
+          {/* Battle Log tab content */}
           {activeTab === 2 && (
             <div>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
                 {isAdmin && (
                   <Button
                     className="bg-black hover:bg-gray-800 text-white"
