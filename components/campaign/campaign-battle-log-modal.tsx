@@ -128,11 +128,6 @@ const CampaignBattleLogModal = ({
               return a.scenario_number - b.scenario_number;
             });
             setScenarios(sortedScenarios);
-            
-            // If in edit mode, populate form with battle data
-            if (battleToEdit) {
-              populateFormWithBattleData();
-            }
           }
         } catch (error) {
           console.error('Error loading battle data:', error);
@@ -155,7 +150,13 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId, toast, battleToEdit]);
+  }, [isOpen, campaignId, toast]);
+
+  useEffect(() => {
+    if (isOpen && battleToEdit && scenarios.length > 0) {
+      populateFormWithBattleData();
+    }
+  }, [isOpen, battleToEdit, scenarios]);
 
   // Populate form with battle data when editing
   const populateFormWithBattleData = () => {
@@ -523,7 +524,7 @@ const CampaignBattleLogModal = ({
               {scenarios.map(scenario => (
                 <option key={scenario.id} value={scenario.id}>
                   {scenario.scenario_number !== null 
-                    ? `(${scenario.scenario_number}) ${scenario.scenario_name}`
+                    ? `${scenario.scenario_number}. ${scenario.scenario_name}`
                     : scenario.scenario_name}
                 </option>
               ))}
