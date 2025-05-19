@@ -4,9 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DeleteGangButton from "./delete-gang-button";
-import { Weapon } from '@/types/weapon';
-import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
-import { Equipment } from '@/types/equipment';
+import { FighterProps } from '@/types/fighter';
 import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
@@ -16,12 +14,9 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { createClient } from '@/utils/supabase/client';
 import { allianceRank } from "@/utils/allianceRank";
-import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -195,6 +190,10 @@ export default function Gang({
     if (!vehicles || vehicles.length === 0) return 0;
     return vehicles.reduce((total, vehicle) => total + (vehicle.cost || 0), 0);
   }, [vehicles]);
+
+  // Calculate the total value of the Stash
+  const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
+
 
   // view mode
   useEffect(() => {
@@ -999,7 +998,7 @@ const handleAlignmentChange = (value: string) => {
               />
               <StatItem
                 label="Wealth"
-                value={rating + credits + unassignedVehiclesValue}
+                value={rating + credits + unassignedVehiclesValue + totalStashValue}
                 isEditing={false}
                 editedValue={typeof rating === 'number' ? rating.toString() : '0'}
                 onChange={() => {}}
