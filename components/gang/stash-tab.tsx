@@ -250,7 +250,7 @@ export default function GangInventory({
           <p className="text-gray-500 italic text-center">No items in stash.</p>
         ) : (
           <>
-            <div className="mb-4">
+            <div className="mb-2">
               <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
                 <div className="w-4 mr-5" />
                 <div className="flex-grow">Name</div>
@@ -281,6 +281,11 @@ export default function GangInventory({
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Add the total value display */}
+            <div className="flex justify-end mb-2 pr-2">
+              <span className="text-sm font-normal">Total Value: {stash.reduce((sum, item) => sum + (item.cost || 0), 0)}</span>
             </div>
 
             <div className="px-0">
