@@ -65,7 +65,7 @@ export default function MemberSearchBar({
           .from('profiles')
           .select('id, username')
           .ilike('username', `%${query}%`)
-          .limit(5);
+          .limit(10);
 
         if (profilesError) throw profilesError;
 
@@ -160,7 +160,7 @@ export default function MemberSearchBar({
       .from('profiles')
       .select('id, username')
       .ilike('username', `%${query}%`)
-      .limit(5);
+      .limit(10);
 
     return profilesData || [];
   };
