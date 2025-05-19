@@ -30,6 +30,7 @@ interface Member {
     gang_name: string;
     status: string | null;
     rating?: number;
+    reputation?: number;
   }[];
   index?: number;
 }
@@ -539,7 +540,7 @@ export default function MembersTable({
     <div className="space-y-4">
       <p className="text-sm text-gray-600">Select a gang to add to the campaign:</p>
       <div className="space-y-2">
-        {userGangs.map(gang => (
+        {[...userGangs].sort((a, b) => a.name.localeCompare(b.name)).map(gang => (
           <button
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
@@ -612,57 +613,23 @@ export default function MembersTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-2 text-left font-medium">Member</th>
-              <th className="px-4 py-2 text-left font-medium">Role</th>
-              <th className="px-4 py-2 text-left font-medium">Gang</th>
-              <th className="px-4 py-2 text-left font-medium">Rating</th>
-              {isAdmin && <th className="px-4 py-2 text-right"></th>}
+              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Gang</th>
+              <th className="px-2 py-2 text-left font-medium max-w-[3rem]">Player</th>
+              <th className="px-2 py-2 text-left font-medium max-w-[3.5rem]">Role</th>
+              <th className="px-2 py-2 text-left font-medium">Rating</th>
+              <th className="px-2 py-2 text-left font-medium">Reputation</th>
+              {isAdmin && <th className="px-2 py-2 text-right"></th>}
             </tr>
           </thead>
           <tbody>
             {sortedMembers.map((member, index) => (
               <tr key={`${member.user_id}-${index}`} className="border-b last:border-0">
-                <td className="px-4 py-2">
-                  <span className="font-medium">{member.profile.username}</span>
-                </td>
-                <td className="px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    {isAdmin && member.user_id !== currentUserId ? (
-                      <button
-                        onClick={() => {
-                          setRoleChange({
-                            memberId: member.user_id,
-                            username: member.profile.username,
-                            currentRole: member.role || 'MEMBER',
-                            newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
-                          });
-                          setShowRoleModal(true);
-                        }}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
-                      >
-                        {formatRole(member.role)}
-                        <svg 
-                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {formatRole(member.role)}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2">
+                <td className="px-2 py-2 max-w-[8rem]">
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        <Link 
-                          href={`/gang/${member.gangs[0].gang_id}`} 
+                        <Link
+                          href={`/gang/${member.gangs[0].gang_id}`}
                           className="hover:text-gray-600 transition-colors"
                         >
                           {member.gangs[0].gang_name}
@@ -701,13 +668,53 @@ export default function MembersTable({
                     </div>
                   )}
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-2 py-2 max-w-[3rem]">
+                  <span className="text-xs font-medium">{member.profile.username}</span>
+                </td>
+                <td className="px-2 py-2 max-w-[3.5rem]">
+                  <div className="flex items-center gap-2">
+                    {isAdmin && member.user_id !== currentUserId ? (
+                      <button
+                        onClick={() => {
+                          setRoleChange({
+                            memberId: member.user_id,
+                            username: member.profile.username,
+                            currentRole: member.role || 'MEMBER',
+                            newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                          });
+                          setShowRoleModal(true);
+                        }}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                      >
+                        {formatRole(member.role)}
+                        <svg 
+                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {formatRole(member.role)}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-2 py-2">
                   <span className="text-gray-500">
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
+                <td className="px-2 py-2">
+                  <span className="text-gray-500">
+                    {member.gangs[0]?.reputation ?? "-"}
+                  </span>
+                </td>
                 {isAdmin && (
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-2 py-2 text-right">
                     <Button
                       variant="destructive"
                       size="sm"
@@ -728,50 +735,17 @@ export default function MembersTable({
         </table>
       </div>
 
+      {/* Mobile rendering */}
       <div className="md:hidden space-y-4">
         {sortedMembers.map((member, index) => (
           <div key={`${member.user_id}-${index}`} className="bg-white rounded-lg border p-4">
             <div className="flex justify-between items-start mb-2">
-              <span className="font-medium text-base">{member.profile.username}</span>
-              {isAdmin && member.user_id !== currentUserId ? (
-                <button
-                  onClick={() => {
-                    setRoleChange({
-                      memberId: member.user_id,
-                      username: member.profile.username,
-                      currentRole: member.role || 'MEMBER',
-                      newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
-                    });
-                    setShowRoleModal(true);
-                  }}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
-                >
-                  {formatRole(member.role)}
-                  <svg 
-                    className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  {formatRole(member.role)}
-                </span>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Gang</span>
                 <div>
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        <Link 
-                          href={`/gang/${member.gangs[0].gang_id}`} 
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-medium bg-gray-100 text-gray-800">
+                        <Link
+                          href={`/gang/${member.gangs[0].gang_id}`}
                           className="hover:text-gray-600 transition-colors"
                         >
                           {member.gangs[0].gang_name}
@@ -811,11 +785,54 @@ export default function MembersTable({
                   )}
                 </div>
               </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500 text-base">Player</span>
+                <div className="text-sm text-base">
+                  {member.profile.username}
+                  {isAdmin && member.user_id !== currentUserId ? (
+                    <button
+                      onClick={() => {
+                        setRoleChange({
+                          memberId: member.user_id,
+                          username: member.profile.username,
+                          currentRole: member.role || 'MEMBER',
+                          newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                        });
+                        setShowRoleModal(true);
+                      }}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                    >
+                      {formatRole(member.role)}
+                      <svg
+                        className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    {formatRole(member.role)}
+                  </span>
+                )}
+              </div>
+            </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Rating</span>
                 <span className="text-sm text-gray-500">
                   {member.gangs[0]?.rating || "-"}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Reputation</span>
+                <span className="text-sm text-gray-500">
+                  {member.gangs[0]?.reputation ?? "-"}
                 </span>
               </div>
 
@@ -871,7 +888,7 @@ export default function MembersTable({
 
       {showRoleModal && (
         <Modal
-          title="Change Member Role"
+          title="Change Player Role"
           content={roleModalContent}
           onClose={() => {
             setShowRoleModal(false);
@@ -885,14 +902,14 @@ export default function MembersTable({
 
       {showRemoveMemberModal && (
         <Modal
-          title="Remove Member from Campaign"
+          title="Remove Player from Campaign"
           content={removeMemberModalContent}
           onClose={() => {
             setShowRemoveMemberModal(false);
             setMemberToRemove(null);
           }}
           onConfirm={handleRemoveMember}
-          confirmText="Remove Member"
+          confirmText="Remove Player"
           confirmDisabled={false}
         />
       )}
