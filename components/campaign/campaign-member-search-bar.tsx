@@ -169,7 +169,7 @@ export default function MemberSearchBar({
     <div className="relative mb-4">
       <Input
         type="text"
-        placeholder="Search to add member"
+        placeholder="Search for a player's name to invite"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full"

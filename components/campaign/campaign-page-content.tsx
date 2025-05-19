@@ -49,6 +49,7 @@ interface Member {
     gang_name: string;
     status: string | null;
     rating?: number;
+    reputation?: number;
   }[];
 }
 
@@ -612,7 +613,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
               {/* Campaign Members Section */}
               <div className="mb-8">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Members</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs & Players</h2>
           {isAdmin && (
             <MemberSearchBar
               campaignId={campaignData.id}

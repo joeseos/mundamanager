@@ -178,7 +178,8 @@ SELECT json_build_object(
                     'gang_id', cgf.gang_id,
                     'gang_name', g.name,
                     'status', cgf.status,
-                    'rating', fd.gang_rating
+                    'rating', fd.gang_rating,
+                    'reputation', g.reputation
                 ))
                 FROM campaign_gangs_filtered cgf
                 LEFT JOIN gangs g ON cgf.gang_id = g.id
