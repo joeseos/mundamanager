@@ -3,6 +3,7 @@ DROP FUNCTION IF EXISTS get_user_campaigns(UUID);
 CREATE OR REPLACE FUNCTION get_user_campaigns(user_id UUID)
 RETURNS TABLE (
     id UUID,
+    campaign_member_id UUID,
     campaign_name TEXT,
     campaign_type TEXT,
     campaign_type_id UUID,
@@ -15,8 +16,9 @@ BEGIN
     RAISE NOTICE 'Getting campaigns for user: %', user_id;
 
     RETURN QUERY
-    SELECT 
+    SELECT DISTINCT ON (c.id)
         c.id,
+        cm.id as campaign_member_id,
         c.campaign_name,
         ct.campaign_type_name as campaign_type,
         c.campaign_type_id,
@@ -26,7 +28,8 @@ BEGIN
     FROM campaigns c
     JOIN campaign_types ct ON ct.id = c.campaign_type_id
     JOIN campaign_members cm ON cm.campaign_id = c.id
-    WHERE cm.user_id = get_user_campaigns.user_id;  -- Specify the function parameter explicitly
+    WHERE cm.user_id = get_user_campaigns.user_id
+    ORDER BY c.id, cm.created_at DESC;  -- Order by creation date to get the most recent entry
 
     -- Log if no results were found
     IF NOT FOUND THEN

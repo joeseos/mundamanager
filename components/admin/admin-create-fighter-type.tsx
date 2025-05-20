@@ -535,7 +535,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   type="text"
                   value={subTypeName}
                   onChange={(e) => setSubTypeName(e.target.value)}
-                  placeholder="e.g. Vatborn"
+                  placeholder="e.g. Subjugator (leave blank to use the Default sub-type)"
                   className="w-full"
                 />
               </div>

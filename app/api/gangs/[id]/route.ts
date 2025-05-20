@@ -59,11 +59,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const supabase = await createClient();
   const { 
     name,
-    credits, 
-    operation, 
+    operation,
+    credits,
+    credits_operation,
     alignment,
     alliance_id,
     reputation,
+    reputation_operation,
     meat,
     exploration_points,
     note,
@@ -149,11 +151,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       updates.alliance_id = alliance_id;
     }
 
-    // Add reputation if provided
-    if (reputation !== undefined) {
-      updates.reputation = reputation;
-    }
-
     // Add meat if provided
     if (meat !== undefined) {
       updates.meat = meat;
@@ -164,19 +161,30 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       updates.exploration_points = exploration_points;
     }
 
-    // Add credits if provided
-    if (credits !== undefined && operation) {
+    // Adjust credits and/or reputation if needed
+    if (
+      (credits !== undefined && credits_operation) ||
+      (reputation !== undefined && reputation_operation)
+    ) {
       const { data: currentGang, error: gangFetchError } = await supabase
         .from("gangs")
-        .select('credits')
-        .eq('id', params.id)
+        .select("credits, reputation")
+        .eq("id", params.id)
         .single();
 
       if (gangFetchError) throw gangFetchError;
 
-      updates.credits = operation === 'add' 
-        ? (currentGang.credits || 0) + credits
-        : (currentGang.credits || 0) - credits;
+      if (credits !== undefined && credits_operation) {
+        updates.credits = credits_operation === 'add'
+          ? (currentGang.credits || 0) + credits
+          : (currentGang.credits || 0) - credits;
+      }
+
+      if (reputation !== undefined && reputation_operation) {
+        updates.reputation = reputation_operation === 'add'
+          ? (currentGang.reputation || 0) + reputation
+          : (currentGang.reputation || 0) - reputation;
+      }
     }
 
     if (gang_variants !== undefined) {

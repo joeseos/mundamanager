@@ -1,16 +1,19 @@
 import React, { useMemo } from 'react';
 import { Weapon, WeaponProfile } from '@/types/weapon';
-import { TbHexagonLetterM } from "react-icons/tb";
 
 interface WeaponTableProps {
   weapons: Weapon[];
   entity?: 'crew' | 'vehicle';
+  viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
-const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
+const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) => {
   if (!weapons || weapons.length === 0) {
     return <p>No weapons available.</p>;
   }
+
+  // viewMode
+  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
 
   // Memoize formatting functions
   const formatters = useMemo(() => ({
@@ -96,30 +99,29 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
         </colgroup>
         <thead>
           <tr>
-            <th className="text-left p-1 align-bottom" rowSpan={2}>
+            <th className={`${pClass} text-left align-bottom`} rowSpan={2}>
               {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
             </th>
-            <th className="text-center p-1 print:hidden" colSpan={2}>Rng</th>
-            <th className="text-center p-1 print:hidden" colSpan={2}>Acc</th>
-            <th className="text-center p-1" colSpan={5}></th>
+            <th className={`${pClass} text-center print:hidden`} colSpan={2}>Rng</th>
+            <th className={`${pClass} text-center print:hidden`} colSpan={2}>Acc</th>
+            <th className={`${pClass} text-center`} colSpan={5}></th>
           </tr>
           <tr>
-            <th className="text-center p-1 border-l border-black">S</th>
-            <th className="text-center p-1">L</th>
-            <th className="text-center p-1 border-l border-black">S</th>
-            <th className="text-center p-1">L</th>
-            <th className="text-center p-1 border-l border-black">Str</th>
-            <th className="text-center p-1 border-l border-black">AP</th>
-            <th className="text-center p-1 border-l border-black">D</th>
-            <th className="text-center p-1 border-l border-black">Am</th>
-            <th className="text-left p-1 border-l border-black">Traits</th>
+            <th className={`${pClass} text-center border-l border-black`}>S</th>
+            <th className={`${pClass} text-center`}>L</th>
+            <th className={`${pClass} text-center border-l border-black`}>S</th>
+            <th className={`${pClass} text-center`}>L</th>
+            <th className={`${pClass} text-center border-l border-black`}>Str</th>
+            <th className={`${pClass} text-center border-l border-black`}>AP</th>
+            <th className={`${pClass} text-center border-l border-black`}>D</th>
+            <th className={`${pClass} text-center border-l border-black`}>Am</th>
+            <th className={`${pClass} text-left border-l border-black`}>Traits</th>
           </tr>
         </thead>
         <tbody>
           {variantBlocks.map((block, blockIdx) => {
             const { weaponName, isMasterCrafted, baseProfiles, specials } = block;
 
-            // group identical base names (Boltgun vs Flamer on combi)
             const baseGroups: Record<string, WeaponProfile[]> = {};
             baseProfiles.forEach((bp) => {
               (baseGroups[bp.profile_name] = baseGroups[bp.profile_name] || []).push(bp);
@@ -128,7 +130,6 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
             const maxDuplicate = Math.max(...Object.values(baseGroups).map((arr) => arr.length));
             const multipleBaseNames = baseDistinct.length > 1;
 
-            // special rows ordered by sort_order then name
             const specialRows = Array.from(specials.values()).sort((a, b) => {
               const aOrder = (a as any).sort_order ?? 0;
               const bOrder = (b as any).sort_order ?? 0;
@@ -153,7 +154,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
 
               return (
                 <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>
-                  <td className="text-left p-1 align-top">
+                  <td className={`${pClass} text-left align-top`}>
                     <div className="table-weapons-truncate">
                       {rowIdx === 0 && !profile.profile_name.startsWith('-') ? (
                         <>
@@ -166,31 +167,31 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity }) => {
                       )}
                     </div>
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatValue(profile.range_short)}
                   </td>
-                  <td className="text-center p-1 whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center whitespace-nowrap align-top`}>
                     {formatters.formatValue(profile.range_long)}
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatAccuracy(profile.acc_short)}
                   </td>
-                  <td className="text-center p-1 whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center whitespace-nowrap align-top`}>
                     {formatters.formatAccuracy(profile.acc_long)}
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatStrength(profile.strength)}
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatAp(profile.ap)}
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatValue(profile.damage)}
                   </td>
-                  <td className="text-center p-1 border-l border-black whitespace-nowrap align-top">
+                  <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatAmmo(profile.ammo)}
                   </td>
-                  <td className="text-left p-1 border-l border-black whitespace-normal align-top">
+                  <td className={`${pClass} text-left border-l border-black whitespace-normal align-top`}>
                     {traitsList.join(', ')}
                   </td>
                 </tr>

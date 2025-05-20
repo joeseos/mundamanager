@@ -12,6 +12,7 @@ interface ModalProps {
   confirmText?: string;
   confirmDisabled?: boolean;
   headerContent?: React.ReactNode;
+  hideCancel?: boolean;
 }
 
 export default function Modal({ 
@@ -23,12 +24,19 @@ export default function Modal({
   onConfirm,
   confirmText = 'Confirm',
   confirmDisabled = false,
-  headerContent
+  headerContent,
+  hideCancel
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (e?: React.MouseEvent) => {
     if (!onConfirm) return;
+    
+    // Prevent any form submission
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
     setIsSubmitting(true);
     try {
@@ -61,6 +69,7 @@ export default function Modal({
           <div className="flex items-center gap-3">
             {headerContent}
             <button
+              type="button"
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 text-xl"
             >
@@ -75,17 +84,21 @@ export default function Modal({
 
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+            {!hideCancel && (
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className={`px-4 py-2 border rounded hover:bg-gray-100 ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Cancel
+              </button>
+              )}
             <button
-              onClick={onClose}
-              disabled={isSubmitting}
-              className={`px-4 py-2 border rounded hover:bg-gray-100 ${
-                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
+              type="button"
+              onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}
               className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
                 (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''

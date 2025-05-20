@@ -190,7 +190,7 @@ export default function Campaign({
     <div>
       {(userRole === 'OWNER' || userRole === 'ARBITRATOR') ? (
         <Tabs 
-          tabTitles={['Campaign', 'Territories', 'Battle Logs', 'Notes']}
+          tabTitles={['Campaign', 'Territories', 'Battle Log', 'Notes']}
           tabIcons={[
             <FiMap key="campaign" />,
             <FaCity  key="territories" />,

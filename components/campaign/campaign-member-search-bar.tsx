@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast"
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface Member {
+  id?: string;
   user_id: string;
   username: string;
   role: MemberRole;
@@ -64,11 +65,11 @@ export default function MemberSearchBar({
           .from('profiles')
           .select('id, username')
           .ilike('username', `%${query}%`)
-          .limit(5);
+          .limit(10);
 
         if (profilesError) throw profilesError;
 
-        // Transform profile data to Member type
+        // Transform profile data to Member type without filtering existing members
         const transformedResults: Member[] = (profilesData || []).map(profile => ({
           user_id: profile.id,
           username: profile.username,
@@ -86,12 +87,7 @@ export default function MemberSearchBar({
           gangs: []
         }));
 
-        // Filter out users that are already members
-        const filteredResults = transformedResults.filter(
-          profile => !campaignMembers.some(member => member.user_id === profile.user_id)
-        );
-
-        setSearchResults(filteredResults);
+        setSearchResults(transformedResults);
       } catch (error) {
         console.error('Error searching users:', error);
         setSearchResults([]);
@@ -113,7 +109,9 @@ export default function MemberSearchBar({
         throw new Error('Not authenticated');
       }
 
-      const { error } = await supabase
+      console.log("Adding member:", member);
+
+      const { data, error } = await supabase
         .from('campaign_members')
         .insert({
           campaign_id: campaignId,
@@ -121,11 +119,23 @@ export default function MemberSearchBar({
           role: 'MEMBER',
           invited_at: new Date().toISOString(),
           invited_by: user.id
-        });
+        }).select();
 
       if (error) throw error;
 
-      onMemberAdd(member);
+      console.log("Database response:", data);
+      
+      // Ensure a fresh instance with empty gangs array
+      const newMember = {
+        ...member,
+        // If we have an ID from the database response, use it
+        id: data?.[0]?.id,
+        gangs: []  // Start with empty gangs array for the new instance
+      };
+
+      console.log("New member with ID:", newMember);
+
+      onMemberAdd(newMember);
       toast({
         description: `Added ${member.username} to the campaign`
       });
@@ -150,19 +160,16 @@ export default function MemberSearchBar({
       .from('profiles')
       .select('id, username')
       .ilike('username', `%${query}%`)
-      .limit(5);
+      .limit(10);
 
-    // Filter out existing members using the provided campaignMembers
-    return profilesData?.filter(profile => 
-      !campaignMembers.some(member => member.user_id === profile.id)
-    ) || [];
+    return profilesData || [];
   };
 
   return (
     <div className="relative mb-4">
       <Input
         type="text"
-        placeholder="Search to add member"
+        placeholder="Search for a player's name to invite"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full"

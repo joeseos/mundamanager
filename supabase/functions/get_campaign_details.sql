@@ -100,9 +100,8 @@ SELECT json_build_object(
             'created_at', cb.created_at,
             'attacker_id', cb.attacker_id,
             'defender_id', cb.defender_id,
-            'scenario_id', cb.scenario_id,
-            'scenario_number', s.scenario_number,
-            'scenario_name', s.scenario_name,
+            'scenario', COALESCE(cb.scenario, s.scenario_name || CASE WHEN s.scenario_number IS NOT NULL THEN ' (#' || s.scenario_number || ')' ELSE '' END),
+            'participants', cb.participants,
             'note', cb.note,
             'winner_id', cb.winner_id,
             'winner', (
@@ -159,6 +158,7 @@ SELECT json_build_object(
     ), '[]'::json),
     'members', COALESCE((
         SELECT json_agg(json_build_object(
+            'id', mfc.id,
             'user_id', mfc.user_id,
             'username', p.username,
             'role', mfc.role,
@@ -178,12 +178,14 @@ SELECT json_build_object(
                     'gang_id', cgf.gang_id,
                     'gang_name', g.name,
                     'status', cgf.status,
-                    'rating', fd.gang_rating
+                    'rating', fd.gang_rating,
+                    'reputation', g.reputation
                 ))
                 FROM campaign_gangs_filtered cgf
                 LEFT JOIN gangs g ON cgf.gang_id = g.id
                 LEFT JOIN fighter_details fd ON fd.gang_id = g.id
-                WHERE cgf.user_id = mfc.user_id
+                WHERE (cgf.campaign_member_id = mfc.id OR 
+                       (cgf.campaign_member_id IS NULL AND cgf.user_id = mfc.user_id))
             ), '[]'::json)
         ))
         FROM members_for_campaign mfc

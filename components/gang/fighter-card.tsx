@@ -445,21 +445,21 @@ const FighterCard = memo(function FighterCard({
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
             <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={weapons} />
+              <WeaponTable weapons={weapons} viewMode={viewMode}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
             <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={weapons} entity="crew" />
+              <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
             </div>
           )}
 
           {/* Add vehicle weapons section */}
           {isCrew && vehicleWeapons.length > 0 && (
             <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
-              <WeaponTable weapons={vehicleWeapons} entity="vehicle" />
+              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} />
             </div>
           )}
 

@@ -10,6 +10,7 @@ import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
+import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption } from "@/components/admin/admin-fighter-equipment-selection";
 
 interface FighterSubType {
   id: string;
@@ -40,15 +41,6 @@ interface Skill {
   id: string;
   skill_name: string;
   skill_type_id: string;
-}
-
-interface EquipmentOption {
-  id: string;
-  cost: number;
-  max_quantity: number;
-  equipment_name?: string;
-  replaces?: string[];
-  max_replace?: number;
 }
 
 interface Fighter {
@@ -124,13 +116,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
   const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [equipmentSelection, setEquipmentSelection] = useState<{
-    weapons?: {
-      default?: Array<{ id: string; quantity: number }>;
-      options?: EquipmentOption[];
-      select_type: 'optional' | 'single' | 'multiple';
-    };
-  }>({ weapons: { select_type: 'optional' } });
+  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
 
   // Add a new state variable to track the sub-type name
   const [subTypeName, setSubTypeName] = useState('');
@@ -144,6 +130,21 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
   const subTypeNameInputRef = useRef<HTMLInputElement>(null);
   const specialSkillsInputRef = useRef<HTMLInputElement>(null);
+  
+  // Add a ref to track if equipment categories have been loaded
+  const hasLoadedEquipmentCategoriesRef = useRef(false);
+  
+  // Add a flag ref to prevent duplicate fetches
+  const isFetchingFighterClassesRef = useRef(false);
+  
+  // Add a flag ref to prevent duplicate fetches
+  const isFetchingFighterTypeDetailsRef = useRef(false);
+
+  // Only fetch skill sets when needed
+  const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
+
+  // Add a ref to track if a category was manually removed
+  const userRemovedCategoryRef = useRef(false);
 
   // When fighter type or subtype values change from API, update the refs
   useEffect(() => {
@@ -165,6 +166,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   }, [specialSkills]);
 
   const { toast } = useToast();
+
+  // Preload equipment data when the component mounts
+  useEffect(() => {
+    // Fetch equipment data right away
+    const preloadEquipment = async () => {
+      try {
+        if (!hasLoadedEquipmentCategoriesRef.current) {
+          console.log('Preloading equipment data on mount');
+          await fetchEquipmentByCategory();
+        }
+      } catch (error) {
+        console.error('Error preloading equipment:', error);
+      }
+    };
+    
+    preloadEquipment();
+  }, []);
 
   // Only fetch gang types when the modal opens
   useEffect(() => {
@@ -275,12 +293,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // NOTE: We've removed the automatic equipment fetching, it will be loaded on-demand 
   // when needed (e.g., when opening dialogs that need equipment data)
 
-  // Add a flag ref to prevent duplicate fetches
-  const isFetchingFighterClassesRef = useRef(false);
-
-  // Only fetch skill sets when needed
-  const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
-
   const fetchSkillTypes = async () => {
     // Only fetch if we haven't already loaded the data
     if (hasLoadedSkillTypesRef.current) {
@@ -288,19 +300,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         return;
       }
       
+    console.log('Fetching skill sets...');
     try {
-      console.log('Fetching skill sets');
         const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch skill sets: ${response.status} ${response.statusText}`);
+      }
+      
         const data = await response.json();
+      console.log(`Loaded ${data.length} skill sets`);
         setSkillTypes(data);
       hasLoadedSkillTypesRef.current = true;
+      return data;
       } catch (error) {
         console.error('Error fetching skill sets:', error);
         toast({
-          description: 'Failed to load skill sets',
+        description: 'Failed to load skill sets. Some features may be limited.',
           variant: "destructive"
         });
+      // Don't throw, just report the error and continue
+      return null;
       }
     };
 
@@ -375,9 +394,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
     fetchFighterSubTypes();
   }, [toast, selectedFighterTypeId]);
-
-  // Add another ref flag for fighter type details fetch
-  const isFetchingFighterTypeDetailsRef = useRef(false);
 
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
@@ -488,28 +504,48 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Set equipment selection
       if (data.equipment_selection) {
-        setEquipmentSelection({
-          weapons: {
-            select_type: data.equipment_selection.weapons?.select_type || 'optional',
-            default: data.equipment_selection.weapons?.default || [],
-            options: data.equipment_selection.weapons?.options?.map((option: any) => ({
+        const newEquipmentSelection: EquipmentSelection = {};
+        
+        // Handle legacy data format (weapons only)
+        if (data.equipment_selection.weapons) {
+          newEquipmentSelection['weapons'] = {
+            id: 'weapons',
+            name: 'Weapons',
+            select_type: data.equipment_selection.weapons.select_type || 'optional',
+            default: data.equipment_selection.weapons.default || [],
+            options: data.equipment_selection.weapons.options?.map((option: any) => ({
               id: option.id,
               cost: option.cost,
               max_quantity: option.max_quantity,
               replaces: option.replaces,
               max_replace: option.max_replace
             })) || []
+          };
+        }
+        
+        // Handle new categories format if present
+        Object.entries(data.equipment_selection).forEach(([key, value]: [string, any]) => {
+          if (key !== 'weapons' && value && typeof value === 'object') {
+            newEquipmentSelection[key] = {
+              id: key,
+              name: value.name || key,
+              select_type: value.select_type || 'optional',
+              default: value.default || [],
+              options: value.options?.map((option: any) => ({
+                id: option.id,
+                cost: option.cost,
+                max_quantity: option.max_quantity,
+                replaces: option.replaces,
+                max_replace: option.max_replace
+              })) || []
+            };
           }
         });
+        
+        setEquipmentSelection(newEquipmentSelection);
       } else {
-        // Reset to default state if no equipment selection
-        setEquipmentSelection({ 
-          weapons: { 
-            select_type: 'optional',
-            default: [],
-            options: []
-          } 
-        });
+        // Reset to empty object if no equipment selection
+        setEquipmentSelection({});
       }
 
       return data;
@@ -711,14 +747,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setIsLoading(true);
     
     try {
-      // When a sub-type is selected, load equipment data if needed
+      // Equipment data should already be loaded by now, but check just in case
       if (!hasLoadedEquipmentCategoriesRef.current) {
-        fetchEquipmentByCategory();
+        console.log('Equipment data not yet loaded, loading now...');
+        await fetchEquipmentByCategory();
       }
       
       // If we need to load skill sets, do it now
       if (!hasLoadedSkillTypesRef.current) {
-        fetchSkillTypes();
+        console.log('Skill types not yet loaded, loading now...');
+        await fetchSkillTypes();
       }
       
       // Find the option in available sub-types
@@ -726,7 +764,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       // If we have an option and it has a fighterId, fetch details
       if (selectedOption && selectedOption.fighterId) {
-        setSelectedFighterTypeId(selectedOption.fighterId); // <-- Add this line
+        setSelectedFighterTypeId(selectedOption.fighterId);
         // Set sub-type name if it's not the default option, otherwise clear it
         if (subTypeId !== "default") {
           setSubTypeName(selectedOption.sub_type_name);
@@ -760,6 +798,37 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIsLoading(false);
     }
   };
+
+  // Add a useEffect to validate equipment selection
+  useEffect(() => {
+    if (Object.keys(equipmentSelection).length > 0) {
+      console.log('Current equipment selection:', equipmentSelection);
+      // Validate structure of each category
+      Object.entries(equipmentSelection).forEach(([key, category]) => {
+        if (!category.select_type) {
+          console.warn(`Category ${key} missing select_type, fixing...`);
+          setEquipmentSelection(prev => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              select_type: 'optional'
+            }
+          }));
+        }
+        
+        if (!category.options) {
+          console.warn(`Category ${key} missing options array, fixing...`);
+          setEquipmentSelection(prev => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              options: []
+            }
+          }));
+        }
+      });
+    }
+  }, [equipmentSelection]);
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -862,6 +931,60 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         }
       }
 
+      // Log equipment selection state before preparing update data
+      console.log('Equipment selection before update:', equipmentSelection);
+      console.log('Equipment selection keys:', Object.keys(equipmentSelection));
+      console.log('Equipment selection values sample:', 
+        Object.keys(equipmentSelection).length > 0 ? 
+          Object.entries(equipmentSelection)[0] : 
+          'No equipment selection data'
+      );
+
+      // Prepare the equipment selection data for the update
+      const formattedEquipmentSelection = Object.keys(equipmentSelection).length > 0 ? 
+        Object.entries(equipmentSelection).reduce<Record<string, any>>((acc, [key, category]) => {
+          console.log(`Processing category ${key} with type ${category.select_type}`);
+          return {
+            ...acc,
+            [key]: {
+              select_type: category.select_type,
+              name: category.name,
+              default: category.default,
+              options: category.options?.map(option => ({
+                id: option.id,
+                cost: option.cost,
+                max_quantity: option.max_quantity,
+                replaces: option.replaces,
+                max_replace: option.max_replace
+              }))
+            }
+          };
+        }, {}) : 
+        null;
+
+      console.log('Formatted equipment selection:', formattedEquipmentSelection);
+      
+      // Ensure equipment selection format is compatible with the server's expectations
+      // by adding a weapons key if it doesn't exist
+      let finalEquipmentSelection = formattedEquipmentSelection;
+      if (finalEquipmentSelection && Object.keys(finalEquipmentSelection).length > 0) {
+        if (!('weapons' in finalEquipmentSelection)) {
+          console.log('Adding weapons key to ensure compatibility with server');
+          // Use the first category as the "weapons" category
+          const firstKey = Object.keys(finalEquipmentSelection)[0];
+          const firstCategory = finalEquipmentSelection[firstKey];
+          finalEquipmentSelection = {
+            ...finalEquipmentSelection,
+            weapons: {
+              select_type: firstCategory?.select_type || 'optional',
+              name: 'Weapons',
+              default: firstCategory?.default || [],
+              options: []
+            }
+          };
+        }
+      }
+
       const updateData = {
         id: fighterIdToUpdate,
         fighter_type: fighterType,
@@ -891,35 +1014,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
         trading_post_equipment: tradingPostEquipment,
-        equipment_selection: equipmentSelection.weapons ? {
-          weapons: {
-            select_type: equipmentSelection.weapons.select_type,
-            default: equipmentSelection.weapons.default,
-            options: equipmentSelection.weapons.options?.map(option => ({
-              id: option.id,
-              cost: option.cost,
-              max_quantity: option.max_quantity,
-              replaces: option.replaces,
-              max_replace: option.max_replace
-            }))
-          }
-        } : null,
+        equipment_selection: finalEquipmentSelection,
         updated_at: new Date().toISOString()
       };
 
       console.log('Sending update data:', updateData);
+      console.log('Equipment selection in update data:', updateData.equipment_selection);
       console.log('Selected sub-type and final fighter_sub_type_id:', {
         selectedSubTypeId,
         submittingSubTypeId: updateData.fighter_sub_type_id,
         originalSubTypeId: finalSubTypeId
       });
 
+      // Check if equipment selection is being properly included
+      const jsonData = JSON.stringify(updateData);
+      console.log('JSON data includes equipment_selection:', 
+        jsonData.includes('equipment_selection') && 
+        jsonData.includes(Object.keys(equipmentSelection)[0] || '')
+      );
+
       const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updateData),
+        body: jsonData,
       });
 
       if (!response.ok) {
@@ -985,9 +1104,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     ));
   };
 
-  // Add a ref to track if equipment categories have been loaded
-  const hasLoadedEquipmentCategoriesRef = useRef(false);
-
   const fetchEquipmentByCategory = async () => {
     // Only fetch if we haven't already loaded the data
     if (hasLoadedEquipmentCategoriesRef.current && Object.keys(equipmentByCategory).length > 0) {
@@ -995,12 +1111,24 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return;
     }
 
+    console.log('Starting to fetch equipment categories');
+    // Track our loading state locally to ensure we don't conflict with other operations
+    const wasLoading = isLoading;
+    if (!wasLoading) {
+      setIsLoading(true);
+    }
+
     try {
-      console.log('Fetching equipment categories');
+      console.log('Fetching equipment data from API...');
+      
       // Fetch all equipment from the API
       const response = await fetch('/api/admin/equipment');
-      if (!response.ok) throw new Error('Failed to fetch equipment');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch equipment: ${response.status} ${response.statusText}`);
+      }
+      
       const equipmentData = await response.json();
+      console.log(`Fetched ${equipmentData.length} equipment items`);
       
       // Cast the data for the main equipment state
       const equipmentWithIds = equipmentData.map((item: any) => ({
@@ -1046,12 +1174,29 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       
       setEquipmentByCategory(groupedByCategory);
       hasLoadedEquipmentCategoriesRef.current = true;
+      console.log('Equipment data successfully loaded and categorized');
+      
+      // Also pre-load skill types
+      if (!hasLoadedSkillTypesRef.current) {
+        console.log('Loading skill types alongside equipment');
+        await fetchSkillTypes();
+      }
+      
+      return equipmentWithIds;
     } catch (error) {
       console.error('Error fetching equipment categories:', error);
       toast({
-        description: 'Failed to load equipment categories',
+        description: 'Failed to load equipment categories. Please try again.',
         variant: "destructive"
       });
+      // Re-throw to allow caller to handle the error
+      throw error;
+    } finally {
+      // Only reset loading state if we set it
+      if (!wasLoading) {
+        setIsLoading(false);
+      }
+      console.log('Equipment fetch process completed');
     }
   };
 
@@ -1061,6 +1206,62 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     // The actual value is read from the ref on blur
     // This is deliberately empty to avoid any performance overhead
   };
+
+  // Add this useEffect after the existing useEffects to handle backward compatibility
+
+  // Convert old equipment_selection format to new format if necessary
+  useEffect(() => {
+    // Check if we have old format data (weapons property as an object)
+    if (
+      equipmentSelection && 
+      Object.keys(equipmentSelection).length === 0 && 
+      selectedFighterTypeId &&
+      !userRemovedCategoryRef.current // Only proceed if not a manual removal
+    ) {
+      console.log('Checking and converting equipment selection format if needed');
+      
+      const fetchCurrentData = async () => {
+        try {
+          const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`);
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          if (!data.equipment_selection) return;
+          
+          // Handle case where we have old format (just weapons property)
+          if (
+            typeof data.equipment_selection === 'object' && 
+            data.equipment_selection.weapons && 
+            !data.equipment_selection.weapons.id
+          ) {
+            console.log('Converting old equipment_selection format to new format');
+            
+            // Create new format
+            const newEquipmentSelection: EquipmentSelection = {
+              weapons: {
+                id: 'weapons',
+                name: 'Weapons',
+                select_type: data.equipment_selection.weapons.select_type || 'optional',
+                default: data.equipment_selection.weapons.default || [],
+                options: data.equipment_selection.weapons.options || []
+              }
+            };
+            
+            // Update state with new format
+            setEquipmentSelection(newEquipmentSelection);
+          }
+        } catch (error) {
+          console.error('Error converting equipment selection format:', error);
+        }
+      };
+      
+      fetchCurrentData();
+    } else if (userRemovedCategoryRef.current) {
+      // Reset the flag after the state update
+      console.log('Resetting user removal flag');
+      userRemovedCategoryRef.current = false;
+    }
+  }, [selectedFighterTypeId, equipmentSelection]);
 
   return (
     <div 
@@ -1203,7 +1404,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         );
                       }
                     }}
-                    placeholder="e.g. Vatborn"
+                    placeholder="e.g. Subjugator"
                     className="w-full"
                     disabled={!selectedSubTypeId}
                   />
@@ -2007,222 +2208,20 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Equipment Selection
                 </label>
-                <div className="space-y-4 border rounded-lg p-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Selection Type
-                    </label>
-                    <select
-                      value={equipmentSelection?.weapons?.select_type || ''}
-                      onChange={(e) => {
-                        const value = e.target.value as 'optional' | 'single' | 'multiple';
-                        setEquipmentSelection(prev => ({
-                          weapons: {
-                            select_type: value,
-                            default: value === 'optional' ? [] : undefined,
-                            options: []
-                          }
-                        }));
-                      }}
-                      className="w-full p-2 border rounded-md"
+                <AdminFighterEquipmentSelection
+                  key={`equipment-selection-${selectedFighterTypeId}`}
+                  equipment={equipment}
+                  equipmentSelection={equipmentSelection}
+                  setEquipmentSelection={(newSelection) => {
+                    // Check if this is a removal operation (fewer categories than before)
+                    if (Object.keys(newSelection).length < Object.keys(equipmentSelection).length) {
+                      console.log('Category removal detected, setting flag to prevent API refetch');
+                      userRemovedCategoryRef.current = true;
+                    }
+                    setEquipmentSelection(newSelection);
+                  }}
                       disabled={!selectedFighterTypeId}
-                    >
-                      <option value="">Select type</option>
-                      <option value="optional">Optional (Replace Default)</option>
-                      <option value="single">Single Selection</option>
-                      <option value="multiple">Multiple Selection</option>
-                    </select>
-                  </div>
-
-                  {equipmentSelection?.weapons?.select_type === 'optional' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Default Equipment
-                      </label>
-                      <div className="flex gap-2 mb-2">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (!value) return;
-
-                            setEquipmentSelection(prev => ({
-                              weapons: {
-                                ...prev.weapons!,
-                                default: [
-                                  ...(prev.weapons?.default || []),
-                                  { id: value, quantity: 1 }
-                                ]
-                              }
-                            }));
-                            e.target.value = "";
-                          }}
-                          className="w-full p-2 border rounded-md"
-                          disabled={!selectedFighterTypeId}
-                        >
-                          <option value="">Add default equipment</option>
-                          {equipment
-                            .filter(item => !equipmentSelection?.weapons?.default?.some(d => d.id === item.id))
-                            .map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.equipment_name}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        {equipmentSelection?.weapons?.default?.map((item, index) => {
-                          const equip = equipment.find(e => e.id === item.id);
-                          return (
-                            <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                              <div className="flex items-center gap-2">
-                                <div>
-                                  <label className="block text-xs text-gray-500">Number</label>
-                                  <input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) => {
-                                      const quantity = parseInt(e.target.value) || 1;
-                                      setEquipmentSelection(prev => ({
-                                        weapons: {
-                                          ...prev.weapons!,
-                                          default: prev.weapons?.default?.map((d, i) =>
-                                            i === index ? { ...d, quantity } : d
-                                          )
-                                        }
-                                      }));
-                                    }}
-                                    min="1"
-                                    className="w-16 p-1 border rounded"
-                                  />
-                                </div>
-                                <span>x {equip?.equipment_name}</span>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setEquipmentSelection(prev => ({
-                                    weapons: {
-                                      ...prev.weapons!,
-                                      default: prev.weapons?.default?.filter((_, i) => i !== index)
-                                    }
-                                  }));
-                                }}
-                                className="ml-auto hover:bg-gray-100 p-1 rounded"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {equipmentSelection?.weapons?.select_type && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {equipmentSelection.weapons.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
-                      </label>
-                      <div className="flex gap-2 mb-2">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (!value) return;
-
-                            setEquipmentSelection(prev => ({
-                              weapons: {
-                                ...prev.weapons!,
-                                options: [
-                                  ...(prev?.weapons?.options || []),
-                                  { id: value, cost: 0, max_quantity: 1 }
-                                ]
-                              }
-                            }));
-                            e.target.value = "";
-                          }}
-                          className="w-full p-2 border rounded-md"
-                          disabled={!selectedFighterTypeId}
-                        >
-                          <option value="">Add equipment option</option>
-                          {equipment
-                            .filter(item => !equipmentSelection?.weapons?.options?.some(o => o.id === item.id))
-                            .map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.equipment_name}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        {equipmentSelection?.weapons?.options?.map((item, index) => {
-                          const equip = equipment.find(e => e.id === item.id);
-                          return (
-                            <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                              <span>{equip?.equipment_name}</span>
-                              <div className="ml-auto flex items-center gap-4">
-                                <div>
-                                  <label className="block text-xs text-gray-500">Cost</label>
-                                  <input
-                                    type="number"
-                                    value={item.cost}
-                                    onChange={(e) => {
-                                      const cost = parseInt(e.target.value) || 0;
-                                      setEquipmentSelection(prev => ({
-                                        weapons: {
-                                          ...prev.weapons!,
-                                          options: prev?.weapons?.options?.map((o, i) =>
-                                            i === index ? { ...o, cost } : o
-                                          )
-                                        }
-                                      }));
-                                    }}
-                                    placeholder="Cost"
-                                    className="w-20 p-1 border rounded"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs text-gray-500">Max Number</label>
-                                  <input
-                                    type="number"
-                                    value={item.max_quantity}
-                                    onChange={(e) => {
-                                      const max_quantity = parseInt(e.target.value) || 1;
-                                      setEquipmentSelection(prev => ({
-                                        weapons: {
-                                          ...prev.weapons!,
-                                          options: prev?.weapons?.options?.map((o, i) =>
-                                            i === index ? { ...o, max_quantity } : o
-                                          )
-                                        }
-                                      }));
-                                    }}
-                                    placeholder="Max"
-                                    min="1"
-                                    className="w-16 p-1 border rounded"
-                                  />
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setEquipmentSelection(prev => ({
-                                      weapons: {
-                                        ...prev.weapons!,
-                                        options: prev?.weapons?.options?.filter((_, i) => i !== index)
-                                      }
-                                    }));
-                                  }}
-                                  className="hover:bg-gray-100 p-1 rounded self-end"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                />
               </div>
             </>
           )}

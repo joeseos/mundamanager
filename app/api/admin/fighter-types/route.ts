@@ -454,6 +454,11 @@ export async function PUT(request: Request) {
 
     const data = await request.json();
     console.log('Received update data:', data);
+    console.log('Equipment selection data received:', {
+      exists: !!data.equipment_selection,
+      keys: data.equipment_selection ? Object.keys(data.equipment_selection) : [],
+      content: data.equipment_selection
+    });
 
     // Update fighter type
     const { error: updateError } = await supabase
@@ -596,16 +601,28 @@ export async function PUT(request: Request) {
 
     // Handle equipment selection
     if (data.equipment_selection) {
+      console.log('Processing equipment selection:', data.equipment_selection);
+      
       // First delete any existing selection
       const { error: deleteError } = await supabase
         .from('fighter_equipment_selections')
         .delete()
         .eq('fighter_type_id', id);
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        console.error('Error deleting existing equipment selection:', deleteError);
+        throw deleteError;
+      }
+
+      // Check if we have any content in the equipment selection
+      const hasSelection = data.equipment_selection && 
+        Object.keys(data.equipment_selection).length > 0;
+        
+      console.log('Has equipment selection content:', hasSelection);
+      console.log('Equipment selection keys:', Object.keys(data.equipment_selection || {}));
 
       // Then insert the new selection if it has content
-      if (data.equipment_selection.weapons) {
+      if (hasSelection) {
         const { error: insertError } = await supabase
           .from('fighter_equipment_selections')
           .insert({
@@ -613,8 +630,18 @@ export async function PUT(request: Request) {
             equipment_selection: data.equipment_selection
           });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Error inserting equipment selection:', insertError);
+          console.error('Equipment selection data that failed:', data.equipment_selection);
+          throw insertError;
+        } else {
+          console.log('Successfully saved equipment selection data');
+        }
+      } else {
+        console.log('No equipment selection content to insert');
       }
+    } else {
+      console.log('No equipment_selection field in the update data');
     }
 
     // Handle trading post equipment
@@ -779,7 +806,10 @@ export async function POST(request: Request) {
 
     // Add this section to handle equipment selection
     if (data.equipment_selection) {
-      if (data.equipment_selection.weapons) {
+      // Check if we have any content in the equipment selection
+      if (Object.keys(data.equipment_selection).length > 0) {
+        console.log('Saving equipment selection data');
+        
         const { error: insertError } = await supabase
           .from('fighter_equipment_selections')
           .insert({
@@ -787,7 +817,12 @@ export async function POST(request: Request) {
             equipment_selection: data.equipment_selection
           });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Error inserting equipment selection:', insertError);
+          throw insertError;
+        }
+      } else {
+        console.log('Equipment selection object is empty, not saving');
       }
     }
 

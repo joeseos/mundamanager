@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
+import { LuX } from "react-icons/lu";
 
 interface ItemModalProps {
   title: string;
@@ -201,8 +202,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const mountedRef = useRef(true);
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
@@ -524,13 +526,45 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   const toggleCategory = async (category: Category) => {
-    const newExpandedCategory = expandedCategory === category.category_name ? null : category.category_name;
-    setExpandedCategory(newExpandedCategory);
+    const isExpanded = expandedCategories.has(category.category_name);
+    const newSet = new Set(expandedCategories);
 
-    if (newExpandedCategory && !equipment[category.category_name]) {
-      await fetchCategoryEquipment(category.category_name, category.category_name);
+    if (isExpanded) {
+      newSet.delete(category.category_name);
+    } else {
+      newSet.add(category.category_name);
+      if (!equipment[category.category_name]) {
+        await fetchCategoryEquipment(category.category_name, category.category_name);
+      }
     }
+
+    setExpandedCategories(newSet);
   };
+
+  useEffect(() => {
+    if (!searchQuery) return;
+
+    const matching = new Set<string>();
+
+    for (const category of categories) {
+      const items = equipment[category.category_name] || [];
+      const match = items.some(item =>
+        item.equipment_name.toLowerCase().includes(searchQuery)
+      );
+      if (match) {
+        matching.add(category.category_name);
+        if (!items.length) {
+          fetchCategoryEquipment(category.category_name, category.category_name);
+        }
+      }
+    }
+
+    setExpandedCategories(prev => {
+      const updated = new Set(prev);
+      matching.forEach(cat => updated.add(cat));
+      return updated;
+    });
+  }, [searchQuery, categories, equipment]);
 
   const handleOverlayClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -661,10 +695,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setAvailableCategories(cachedFighterTPCategories);
     }
 
-    if (expandedCategory) {
-      fetchCategoryEquipment(expandedCategory, expandedCategory);
-    }
+    expandedCategories.forEach(category =>
+      fetchCategoryEquipment(category, category)
+    );
   }, [equipmentListType]);
+
+  useEffect(() => {
+    if (!availableCategories.length || !session) return;
+
+    availableCategories.forEach((categoryName) => {
+      if (!equipment[categoryName]) {
+        fetchCategoryEquipment(categoryName, categoryName);
+      }
+    });
+  }, [availableCategories, session]);
 
   return (
     <div
@@ -736,6 +780,26 @@ const ItemModal: React.FC<ItemModalProps> = ({
               Unrestricted
             </label>
           </div>
+          <div className="mt-1 flex justify-center">
+            <div className="relative w-[250px]">
+              <input
+                type="text"
+                placeholder="Search equipment..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
+                className="w-full px-3 py-2 pr-8 border rounded-md text-sm"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black text-xl leading-none"
+                  aria-label="Clear search"
+                >
+                  <LuX size={20} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div>
@@ -768,19 +832,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   <span>{category.category_name}</span>
                   <ChevronRight
                     className={`h-4 w-4 transition-transform duration-200 ${
-                      expandedCategory === category.category_name ? "rotate-90" : ""
+                      expandedCategories.has(category.category_name) ? "rotate-90" : ""
                     }`}
                   />
                 </Button>
 
-                {expandedCategory === category.category_name && (
+                {expandedCategories.has(category.category_name) && (
                   <div className="bg-gray-50">
                     {categoryLoadingStates[category.category_name] ? (
                       <div className="flex justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                       </div>
                     ) : equipment[category.category_name]?.length ? (
-                      equipment[category.category_name].map((item) => {
+                      equipment[category.category_name]
+                        .filter(item => item.equipment_name.toLowerCase().includes(searchQuery))
+                        .map((item) => {
                         const affordable = canAffordEquipment(item);
                         const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
 
