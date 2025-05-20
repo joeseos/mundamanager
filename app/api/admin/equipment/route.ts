@@ -35,9 +35,9 @@ interface FighterTypeEquipment {
   equipment_id: string;
 }
 
-interface GangDiscount {
+interface GangAdjustedCost {
   gang_type_id: string;
-  discount: number;
+  adjusted_cost: number;
 }
 
 interface EquipmentAvailability {
@@ -68,15 +68,15 @@ export async function GET(request: Request) {
 
       if (error) throw error;
 
-      // First fetch the discounts
-      const { data: discounts, error: discountsError } = await supabase
+      // First fetch the adjustedCosts
+      const { data: adjustedCosts, error: adjustedCostsError } = await supabase
         .from('equipment_discounts')
-        .select('discount, gang_type_id')
+        .select('adjusted_cost, gang_type_id')
         .eq('equipment_id', id)
         .is('fighter_type_id', null);
 
-      if (discountsError) throw discountsError;
-      console.log('Fetched discounts:', discounts);
+      if (adjustedCostsError) throw adjustedCostsError;
+      console.log('Fetched adjustedCosts:', adjustedCosts);
 
       // Fetch equipment availabilities
       const { data: availabilities, error: availabilitiesError } = await supabase
@@ -107,21 +107,21 @@ export async function GET(request: Request) {
       );
       console.log('Gang type map:', Object.fromEntries(gangTypeMap));
 
-      // Format the discounts with null check
-      interface DiscountData {
-        discount: string;
+      // Format the adjustedCosts with null check
+      interface AdjustedCostData {
+        adjusted_cost: string;
         gang_type_id: string | null;
       }
 
-      const formattedDiscounts = (discounts as DiscountData[] || [])
+      const formattedAdjustedCosts = (adjustedCosts as AdjustedCostData[] || [])
         .filter(d => d.gang_type_id !== null)
         .map(d => ({
           gang_type: gangTypeMap.get(d.gang_type_id!) || '',
           gang_type_id: d.gang_type_id!,
-          discount: parseInt(d.discount)
+          adjusted_cost: parseInt(d.adjusted_cost)
         }));
 
-      console.log('Formatted discounts:', formattedDiscounts);
+      console.log('Formatted adjustedCosts:', formattedAdjustedCosts);
 
       // Format the availabilities with null check
       interface AvailabilityData {
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         ...equipment,
-        gang_discounts: formattedDiscounts,
+        gang_adjusted_costs: formattedAdjustedCosts,
         equipment_availabilities: formattedAvailabilities || [],
         vehicle_profiles: vehicleProfiles
       });
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
       weapon_profiles,
       vehicle_profiles,
       fighter_types,
-      gang_discounts,
+      gang_adjusted_costs,
       equipment_availabilities
     } = data;
 
@@ -314,20 +314,20 @@ export async function POST(request: Request) {
       if (fighterTypesError) throw fighterTypesError;
     }
 
-    // Handle gang discounts if provided
-    if (gang_discounts && gang_discounts.length > 0) {
-      const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+    // Handle gang adjustedCosts if provided
+    if (gang_adjusted_costs && gang_adjusted_costs.length > 0) {
+      const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
         equipment_id: equipment.id,
-        gang_type_id: discount.gang_type_id,
-        discount: discount.discount.toString(),
+        gang_type_id: adjusted_cost.gang_type_id,
+        adjusted_cost: adjusted_cost.adjusted_cost.toString(),
         fighter_type_id: null
       }));
 
-      const { error: discountsError } = await supabase
+      const { error: adjustedCostsError } = await supabase
         .from('equipment_discounts')
-        .insert(discountRecords);
+        .insert(adjustedCostRecords);
       
-      if (discountsError) throw discountsError;
+      if (adjustedCostsError) throw adjustedCostsError;
     }
 
     // Handle equipment availabilities if provided
@@ -391,7 +391,7 @@ export async function PUT(request: Request) {
       weapon_profiles,
       vehicle_profiles,
       fighter_types,
-      gang_discounts
+      gang_adjusted_costs
     } = data;
 
     // Update equipment
@@ -541,19 +541,19 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Handle gang discounts
-    if (gang_discounts) {
-      // First, delete existing discounts for this equipment
+    // Handle Gang adjustedCosts
+    if (gang_adjusted_costs) {
+      // First, delete existing adjustedCosts for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_discounts')
         .delete()
         .eq('equipment_id', id)
-        .is('fighter_type_id', null); // Only delete gang-level discounts
+        .is('fighter_type_id', null); // Only delete gang-level adjustedCosts
 
       if (deleteError) throw deleteError;
 
-      // If there are new discounts to add
-      if (gang_discounts.length > 0) {
+      // If there are new adjustedCosts to add
+      if (gang_adjusted_costs.length > 0) {
         // First get the gang type IDs
         const { data: gangTypes, error: gangTypesError } = await supabase
           .from('gang_types')
@@ -572,18 +572,18 @@ export async function PUT(request: Request) {
           (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
         );
 
-        // Add type for the discount in the map function
-        const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+        // Add type for the adjustedCost in the map function
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
           equipment_id: id,
-          gang_type_id: discount.gang_type_id,
-          discount: discount.discount.toString(),
+          gang_type_id: adjusted_cost.gang_type_id,
+          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
           fighter_type_id: null
         }));
 
-        if (discountRecords.length > 0) {
+        if (adjustedCostRecords.length > 0) {
           const { error: insertError } = await supabase
             .from('equipment_discounts')
-            .insert(discountRecords);
+            .insert(adjustedCostRecords);
 
           if (insertError) throw insertError;
         }
@@ -634,7 +634,7 @@ export async function PATCH(request: Request) {
       weapon_profiles,
       vehicle_profiles,
       fighter_types,
-      gang_discounts,
+      gang_adjusted_costs,
       equipment_availabilities
     } = data;
 
@@ -785,19 +785,19 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Handle gang discounts
-    if (gang_discounts) {
-      // First, delete existing discounts for this equipment
+    // Handle Gang adjustedCosts
+    if (gang_adjusted_costs) {
+      // First, delete existing adjustedCosts for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_discounts')
         .delete()
         .eq('equipment_id', id)
-        .is('fighter_type_id', null); // Only delete gang-level discounts
+        .is('fighter_type_id', null); // Only delete gang-level adjustedCosts
 
       if (deleteError) throw deleteError;
 
-      // If there are new discounts to add
-      if (gang_discounts.length > 0) {
+      // If there are new adjustedCosts to add
+      if (gang_adjusted_costs.length > 0) {
         // First get the gang type IDs
         const { data: gangTypes, error: gangTypesError } = await supabase
           .from('gang_types')
@@ -816,18 +816,18 @@ export async function PATCH(request: Request) {
           (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
         );
 
-        // Add type for the discount in the map function
-        const discountRecords = gang_discounts.map((discount: GangDiscount) => ({
+        // Add type for the adjusted_cost in the map function
+        const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
           equipment_id: id,
-          gang_type_id: discount.gang_type_id,
-          discount: discount.discount.toString(),
+          gang_type_id: adjusted_cost.gang_type_id,
+          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
           fighter_type_id: null
         }));
 
-        if (discountRecords.length > 0) {
+        if (adjustedCostRecords.length > 0) {
           const { error: insertError } = await supabase
             .from('equipment_discounts')
-            .insert(discountRecords);
+            .insert(adjustedCostRecords);
 
           if (insertError) throw insertError;
         }

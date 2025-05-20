@@ -78,11 +78,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
   const [equipmentDiscounts, setEquipmentDiscounts] = useState<{
     equipment_id: string;
-    discount: number;
+    adjusted_cost: number;
   }[]>([]);
-  const [selectedDiscountEquipment, setSelectedDiscountEquipment] = useState('');
-  const [discountAmount, setDiscountAmount] = useState('');
-  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
+  const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
+  const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
+  const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
   const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
   const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
@@ -417,22 +417,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     }
   };
 
-  const handleAddDiscount = () => {
-    if (!selectedDiscountEquipment || !discountAmount) return;
+  const handleAddAdjustedCost = () => {
+    if (!selectedAdjustedCostEquipment || !adjustedCostAmount) return;
     
-    const newDiscount = {
-      equipment_id: selectedDiscountEquipment,
-      discount: parseInt(discountAmount)
+    const newAdjustedCost = {
+      equipment_id: selectedAdjustedCostEquipment,
+      adjusted_cost: parseInt(adjustedCostAmount)
     };
 
-    setEquipmentDiscounts([...equipmentDiscounts, newDiscount]);
-    setSelectedDiscountEquipment('');
-    setDiscountAmount('');
+    setEquipmentDiscounts([...equipmentDiscounts, newAdjustedCost]);
+    setSelectedAdjustedCostEquipment('');
+    setAdjustedCostAmount('');
   };
 
-  const handleRemoveDiscount = (equipmentId: string) => {
+  const handleRemoveAdjustedCost = (equipmentId: string) => {
     setEquipmentDiscounts(equipmentDiscounts.filter(
-      discount => discount.equipment_id !== equipmentId
+      adjusted_cost => adjusted_cost.equipment_id !== equipmentId
     ));
   };
 
@@ -965,33 +965,33 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div className="col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipment Discounts
+                Equipment Adjusted Costs
               </label>
               <Button
-                onClick={() => setShowDiscountDialog(true)}
+                onClick={() => setShowAdjustedCostDialog(true)}
                 variant="outline"
                 size="sm"
                 className="mb-2"
                 disabled={!selectedGangType}
               >
-                Add Equipment Discount
+                Add Equipment Adjusted Cost
               </Button>
 
               {equipmentDiscounts.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {equipmentDiscounts.map((discount) => {
-                    const item = equipment.find(e => e.id === discount.equipment_id);
+                  {equipmentDiscounts.map((adjusted_cost) => {
+                    const item = equipment.find(e => e.id === adjusted_cost.equipment_id);
                     if (!item) return null;
                     
                     return (
                       <div 
-                        key={discount.equipment_id}
+                        key={adjusted_cost.equipment_id}
                         className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                       >
-                        <span>{item.equipment_name} (-{discount.discount} credits)</span>
+                        <span>{item.equipment_name} ({adjusted_cost.adjusted_cost} credits)</span>
                         <button
                           onClick={() => setEquipmentDiscounts(prev => 
-                            prev.filter(d => d.equipment_id !== discount.equipment_id)
+                            prev.filter(d => d.equipment_id !== adjusted_cost.equipment_id)
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
@@ -1003,33 +1003,33 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 </div>
               )}
 
-              {showDiscountDialog && (
+              {showAdjustedCostDialog && (
                 <div 
                   className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
-                      setShowDiscountDialog(false);
-                      setSelectedDiscountEquipment("");
-                      setDiscountAmount("");
+                      setShowAdjustedCostDialog(false);
+                      setSelectedAdjustedCostEquipment("");
+                      setAdjustedCostAmount("");
                     }
                   }}
                 >
                   <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                    <h3 className="text-xl font-bold mb-4">Equipment Discount Menu</h3>
-                    <p className="text-sm text-gray-500 mb-4">Select equipment and enter a discount</p>
+                    <h3 className="text-xl font-bold mb-4">Equipment Adjusted Cost Menu</h3>
+                    <p className="text-sm text-gray-500 mb-4">Select equipment and enter an adjusted cost</p>
                     
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium mb-1">Equipment</label>
                         <select
-                          value={selectedDiscountEquipment}
-                          onChange={(e) => setSelectedDiscountEquipment(e.target.value)}
+                          value={selectedAdjustedCostEquipment}
+                          onChange={(e) => setSelectedAdjustedCostEquipment(e.target.value)}
                           className="w-full p-2 border rounded-md"
                         >
                           <option value="">Select equipment</option>
                           {equipment
                             .filter(item => !equipmentDiscounts.some(
-                              discount => discount.equipment_id === item.id
+                              adjusted_cost => adjusted_cost.equipment_id === item.id
                             ))
                             .map((item) => (
                               <option key={item.id} value={item.id}>
@@ -1040,12 +1040,12 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Discount (credits)</label>
+                        <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
                         <Input
                           type="number"
-                          value={discountAmount}
-                          onChange={(e) => setDiscountAmount(e.target.value)}
-                          placeholder="Enter discount in credits"
+                          value={adjustedCostAmount}
+                          onChange={(e) => setAdjustedCostAmount(e.target.value)}
+                          placeholder="Enter adjusted cost in credits"
                           min="0"
                           onKeyDown={(e) => {
                             if (e.key === '-') {
@@ -1059,35 +1059,35 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         <Button
                           variant="outline"
                           onClick={() => {
-                            setShowDiscountDialog(false);
-                            setSelectedDiscountEquipment("");
-                            setDiscountAmount("");
+                            setShowAdjustedCostDialog(false);
+                            setSelectedAdjustedCostEquipment("");
+                            setAdjustedCostAmount("");
                           }}
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={() => {
-                            if (selectedDiscountEquipment && discountAmount) {
-                              const discount = parseInt(discountAmount);
-                              if (discount >= 0) {
+                            if (selectedAdjustedCostEquipment && adjustedCostAmount) {
+                              const adjusted_cost = parseInt(adjustedCostAmount);
+                              if (adjusted_cost >= 0) {
                                 setEquipmentDiscounts(prev => [
                                   ...prev,
                                   {
-                                    equipment_id: selectedDiscountEquipment,
-                                    discount
+                                    equipment_id: selectedAdjustedCostEquipment,
+                                    adjusted_cost
                                   }
                                 ]);
-                                setShowDiscountDialog(false);
-                                setSelectedDiscountEquipment("");
-                                setDiscountAmount("");
+                                setShowAdjustedCostDialog(false);
+                                setSelectedAdjustedCostEquipment("");
+                                setAdjustedCostAmount("");
                               }
                             }
                           }}
-                          disabled={!selectedDiscountEquipment || !discountAmount || parseInt(discountAmount) < 0}
+                          disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
                           className="bg-black hover:bg-gray-800 text-white"
                         >
-                          Save Discount
+                          Save Adjusted Cost
                         </Button>
                       </div>
                     </div>

@@ -13,7 +13,7 @@ DECLARE
   updated_gang JSONB;
   new_vehicle_equipment JSONB;
   base_cost INTEGER;
-  discounted_cost INTEGER;
+  adjusted_cost_final INTEGER;
   default_profile RECORD;
   current_gang_credits INTEGER;
   v_new_vehicle_equipment_id UUID;
@@ -21,7 +21,7 @@ DECLARE
   v_gang_type_id UUID;
   v_gang RECORD;
   v_vehicle RECORD;
-  v_discount numeric;
+  v_adjusted_cost numeric;
   result JSONB;
   final_purchase_cost INTEGER;
 BEGIN
@@ -47,19 +47,19 @@ BEGIN
   v_gang_type_id := v_gang.gang_type_id;
   current_gang_credits := v_gang.credits;
 
-  -- Get the discount value if it exists
-  SELECT discount::numeric INTO v_discount
+  -- Get the adjusted_cost value if it exists
+  SELECT adjusted_cost::numeric INTO v_adjusted_cost
   FROM equipment_discounts ed
-  WHERE ed.equipment_id = buy_equipment_for_vehicle.equipment_id 
+  WHERE ed.equipment_id = buy_equipment_for_vehicle.equipment_id
   AND ed.gang_type_id = v_gang_type_id;
 
   -- Get the equipment base cost
-  SELECT 
+  SELECT
     e.cost::integer as base_cost,
-    CASE 
-      WHEN v_discount IS NOT NULL THEN (e.cost::integer - v_discount::integer)
+    CASE
+      WHEN v_adjusted_cost IS NOT NULL THEN v_adjusted_cost::integer
       ELSE e.cost::integer
-    END as discounted_cost,
+    END as adjusted_cost_final,
     e.equipment_type,
     wp.*
   INTO default_profile
@@ -72,11 +72,11 @@ BEGIN
   END IF;
 
   base_cost := default_profile.base_cost;
-  discounted_cost := default_profile.discounted_cost;
+  adjusted_cost_final := default_profile.adjusted_cost_final;
   v_equipment_type := default_profile.equipment_type;
 
   -- Determine final purchase cost (manual or calculated)
-  final_purchase_cost := COALESCE(manual_cost, discounted_cost);
+  final_purchase_cost := COALESCE(manual_cost, adjusted_cost_final);
 
   -- Check if gang has enough credits using the final purchase cost
   IF current_gang_credits < final_purchase_cost THEN

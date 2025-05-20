@@ -44,10 +44,10 @@ interface VehicleProfile {
   handling?: string;
 }
 
-interface GangDiscount {
+interface GangAdjustedCost {
   gang_type: string;
   gang_type_id: string;
-  discount: number;
+  adjusted_cost: number;
 }
 
 interface EquipmentAvailability {
@@ -70,7 +70,7 @@ interface Equipment {
   weapon_profiles?: WeaponProfile[];
   vehicle_profiles?: VehicleProfile[];
   fighter_types?: string[];
-  gang_discounts?: GangDiscount[];
+  gang_adjusted_costs?: GangAdjustedCost[];
   equipment_availabilities?: EquipmentAvailability[];
 }
 
@@ -120,10 +120,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedFighterTypes, setSelectedFighterTypes] = useState<string[]>([]);
   const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
-  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
+  const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
-  const [discountValue, setDiscountValue] = useState("");
-  const [gangDiscounts, setGangDiscounts] = useState<GangDiscount[]>([]);
+  const [adjustedCostValue, setAdjustedCostValue] = useState("");
+  const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
   const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
@@ -205,7 +205,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           is_default_profile: true,
           sort_order: 1
         }]);
-        setGangDiscounts([]);
+        setGangAdjustedCosts([]);
         setEquipmentAvailabilities([]);
         return;
       }
@@ -230,12 +230,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentType(data.equipment_type);
         setCoreEquipment(data.core_equipment || false);
 
-        // Set gang discounts if they exist
-        if (data.gang_discounts) {
-          setGangDiscounts(data.gang_discounts.map((d: any) => ({
+        // Set Gang adjusted cost if they exist
+        if (data.gang_adjusted_costs) {
+          setGangAdjustedCosts(data.gang_adjusted_costs.map((d: any) => ({
             gang_type: d.gang_type,
             gang_type_id: d.gang_type_id,
-            discount: d.discount
+            adjusted_cost: d.adjusted_cost
           })));
         }
 
@@ -412,7 +412,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   // Add this useEffect to fetch gang types
   useEffect(() => {
     const fetchGangTypes = async () => {
-      if (showDiscountDialog || showAvailabilityDialog) {
+      if (showAdjustedCostDialog || showAvailabilityDialog) {
         setIsGangTypesLoading(true);
         try {
           const response = await fetch('/api/admin/gang-types');
@@ -432,7 +432,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     };
 
     fetchGangTypes();
-  }, [showDiscountDialog, showAvailabilityDialog, toast]);
+  }, [showAdjustedCostDialog, showAvailabilityDialog, toast]);
 
   useEffect(() => {
     setIsLoading(
@@ -562,9 +562,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           }))
         } : {}),
         ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
-        gang_discounts: gangDiscounts.map(d => ({
+        gang_adjusted_costs: gangAdjustedCosts.map(d => ({
           gang_type_id: d.gang_type_id,
-          discount: d.discount
+          adjusted_cost: d.adjusted_cost
         })),
         equipment_availabilities: equipmentAvailabilities.map(a => ({
           gang_type_id: a.gang_type_id,
@@ -776,7 +776,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     Cost per Gang
                   </label>
                   <Button
-                    onClick={() => setShowDiscountDialog(true)}
+                    onClick={() => setShowAdjustedCostDialog(true)}
                     variant="outline"
                     size="sm"
                     className="mb-2"
@@ -784,16 +784,16 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     Add Gang
                   </Button>
 
-                  {gangDiscounts.length > 0 && (
+                  {gangAdjustedCosts.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {gangDiscounts.map((discount, index) => (
+                      {gangAdjustedCosts.map((adjusted_cost, index) => (
                         <div
                           key={index}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                         >
-                          <span>{discount.gang_type} (-{discount.discount} credits)</span>
+                          <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
                           <button
-                            onClick={() => setGangDiscounts(prev =>
+                            onClick={() => setGangAdjustedCosts(prev =>
                               prev.filter((_, i) => i !== index)
                             )}
                             className="hover:text-red-500 focus:outline-none"
@@ -805,21 +805,21 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     </div>
                   )}
 
-                  {showDiscountDialog && (
+                  {showAdjustedCostDialog && (
                     <div
                       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
                       onClick={(e) => {
                         // Only close if clicking the backdrop (not the dialog itself)
                         if (e.target === e.currentTarget) {
-                          setShowDiscountDialog(false);
+                          setShowAdjustedCostDialog(false);
                           setSelectedGangType("");
-                          setDiscountValue("");
+                          setAdjustedCostValue("");
                         }
                       }}
                     >
                       <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
                         <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter the discounted cost</p>
+                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter the adjusted cost</p>
 
                         <div className="space-y-4">
                           <div>
@@ -849,11 +849,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium mb-1">Discounted Cost</label>
+                            <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
                             <Input
                               type="number"
-                              value={discountValue}
-                              onChange={(e) => setDiscountValue(e.target.value)}
+                              value={adjustedCostValue}
+                              onChange={(e) => setAdjustedCostValue(e.target.value)}
                               placeholder="E.g. 120"
                               min="0"
                               onKeyDown={(e) => {
@@ -868,31 +868,31 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             <Button
                               variant="outline"
                               onClick={() => {
-                                setShowDiscountDialog(false);
+                                setShowAdjustedCostDialog(false);
                                 setSelectedGangType("");
-                                setDiscountValue("");
+                                setAdjustedCostValue("");
                               }}
                             >
                               Cancel
                             </Button>
                             <Button
                               onClick={() => {
-                                if (selectedGangType && discountValue) {
-                                  const discount = parseInt(discountValue);
-                                  if (discount >= 0) {
+                                if (selectedGangType && adjustedCostValue) {
+                                  const adjusted_cost = parseInt(adjustedCostValue);
+                                  if (adjusted_cost >= 0) {
                                     const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
                                     if (selectedGang) {
-                                      setGangDiscounts(prev => [
+                                      setGangAdjustedCosts(prev => [
                                         ...prev,
                                         {
                                           gang_type: selectedGang.gang_type,
                                           gang_type_id: selectedGang.gang_type_id,
-                                          discount
+                                          adjusted_cost
                                         }
                                       ]);
-                                      setShowDiscountDialog(false);
+                                      setShowAdjustedCostDialog(false);
                                       setSelectedGangType("");
-                                      setDiscountValue("");
+                                      setAdjustedCostValue("");
                                     }
                                   }
                                 }
@@ -900,8 +900,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               disabled={
                                 isGangTypesLoading ||
                                 !selectedGangType ||
-                                !discountValue ||
-                                parseInt(discountValue) < 0
+                                !adjustedCostValue ||
+                                parseInt(adjustedCostValue) < 0
                               }
                             >
                               Save

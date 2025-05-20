@@ -17,6 +17,7 @@ returns table (
     availability text,
     base_cost numeric,
     discounted_cost numeric,
+    adjusted_cost numeric,
     equipment_category text,
     equipment_type text,
     created_at timestamptz,
@@ -39,6 +40,11 @@ as $$
             then e.cost::numeric - ed.discount::numeric
             else e.cost::numeric
         end as discounted_cost,
+        case
+            when ed.adjusted_cost is not null
+            then ed.adjusted_cost::numeric
+            else e.cost::numeric
+        end as adjusted_cost,
         e.equipment_category,
         e.equipment_type,
         e.created_at,

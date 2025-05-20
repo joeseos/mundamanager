@@ -24,6 +24,7 @@ export interface Equipment {
   cost: number;
   base_cost?: number;
   discounted_cost?: number;
+  adjusted_cost?: number;
   trading_post_category?: string;
   availability?: string | null;
   equipment_category?: string;

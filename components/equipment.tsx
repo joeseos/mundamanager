@@ -37,6 +37,7 @@ interface RawEquipmentData {
   availability: string | null;
   base_cost: number;
   discounted_cost: number;
+  adjusted_cost: number;
   equipment_category: string;
   equipment_type: 'weapon' | 'wargear';
   created_at: string;
@@ -61,7 +62,7 @@ interface Category {
 }
 
 function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
-  const [manualCost, setManualCost] = useState<string>(String(item.discounted_cost ?? item.cost));
+  const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
@@ -73,7 +74,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
   };
 
   useEffect(() => {
-    const baseCost = item.discounted_cost ?? item.cost;
+    const baseCost = item.adjusted_cost ?? item.cost;
     const newCost = isMasterCrafted && item.equipment_type === 'weapon' 
       ? calculateMasterCraftedCost(baseCost)
       : baseCost;
@@ -491,9 +492,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
           ...item,
           equipment_id: item.id,
           fighter_equipment_id: '',
-          cost: item.discounted_cost,
+          cost: item.adjusted_cost,
           base_cost: item.base_cost,
-          discounted_cost: item.discounted_cost,
+          adjusted_cost: item.adjusted_cost,
           equipment_type: item.equipment_type as 'weapon' | 'wargear',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false
@@ -573,7 +574,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [onClose]);
 
   const canAffordEquipment = (item: Equipment) => {
-    return gangCredits >= (item.discounted_cost ?? item.cost);
+    return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
   const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true) => {
@@ -623,7 +624,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       // Use the rating cost from the backend response
-      // This value will be the discounted_cost when use_base_cost_for_rating is true
+      // This value will be the adjusted_cost when use_base_cost_for_rating is true
       // or the manual_cost when use_base_cost_for_rating is false
       const ratingCost = data.rating_cost;
       
@@ -636,7 +637,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         manualCost,
         useBaseCostForRating,
         baseCost: item.base_cost,
-        discountedCost: item.discounted_cost,
+        adjustedCost: item.adjusted_cost,
         ratingCost,
         responseRatingCost: data.rating_cost,
         equipmentRecord,
@@ -848,7 +849,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                         .filter(item => item.equipment_name.toLowerCase().includes(searchQuery))
                         .map((item) => {
                         const affordable = canAffordEquipment(item);
-                        const hasDiscount = (item.discounted_cost ?? item.cost) < (item.base_cost ?? item.cost);
+                        const hasAdjustedCost = (item.adjusted_cost ?? item.cost) < (item.base_cost ?? item.cost);
 
                         return (
                           <div
@@ -860,10 +861,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             </div>
 
                             <div className="flex items-center gap-2">
-                              {item.discounted_cost !== undefined && item.discounted_cost < (item.base_cost ?? item.cost) ? (
+                              {item.adjusted_cost !== undefined && item.adjusted_cost < (item.base_cost ?? item.cost) ? (
                                 <div className="flex items-center gap-1">
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500 text-white">
-                                    <span className="text-[10px] font-medium">{item.discounted_cost ?? item.cost}</span>
+                                    <span className="text-[10px] font-medium">{item.adjusted_cost ?? item.cost}</span>
                                   </div>
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
                                     <span className="text-[10px] font-medium">{item.base_cost}</span>
