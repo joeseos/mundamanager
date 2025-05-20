@@ -61,7 +61,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           equipment_discounts:equipment_discounts(
             equipment_id,
-            discount
+            adjusted_cost
           )
         `)
         .in('id', fighterTypeIds);
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           equipment_discounts:equipment_discounts(
             equipment_id,
-            discount
+            adjusted_cost
           )
         `)
         .eq('id', id)
@@ -184,7 +184,7 @@ export async function GET(request: Request) {
         equipment_list: equipmentList?.map(e => e.equipment_id) || [],
         equipment_discounts: fighterType.equipment_discounts?.map(d => ({
           equipment_id: d.equipment_id,
-          discount: d.discount
+          adjusted_cost: d.adjusted_cost
         })) || [],
         equipment_selection: equipmentSelection?.equipment_selection || null,
         trading_post_equipment: tradingPostData?.equipment_tradingpost || []
@@ -225,7 +225,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           equipment_discounts:equipment_discounts(
             equipment_id,
-            discount
+            adjusted_cost
           )
         `)
         .eq('fighter_type', fighter_type)
@@ -337,7 +337,7 @@ export async function GET(request: Request) {
               equipment_list: equipmentList?.map(e => e.equipment_id) || [],
               equipment_discounts: fighter.equipment_discounts?.map((d: any) => ({
                 equipment_id: d.equipment_id,
-                discount: d.discount
+                adjusted_cost: d.adjusted_cost
               })) || [],
               equipment_selection: equipmentSelectionData?.equipment_selection || null,
               trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
@@ -410,7 +410,7 @@ export async function GET(request: Request) {
         is_gang_addition,
         equipment_discounts:equipment_discounts(
           equipment_id,
-          discount
+          adjusted_cost
         )
       `)
       .order('gang_type', { ascending: true })
@@ -567,9 +567,9 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Handle equipment discounts
+    // Handle equipment adjusted costs
     if (data.equipment_discounts) {
-      // First, delete existing discounts for this fighter type
+      // First, delete existing adjusted costs for this fighter type
       const { error: deleteError } = await supabase
         .from('equipment_discounts')
         .delete()
@@ -577,22 +577,22 @@ export async function PUT(request: Request) {
 
       if (deleteError) throw deleteError;
 
-      // If there are new discounts to add
+      // If there are new ones to add
       if (data.equipment_discounts.length > 0) {
-        const discountRecords = data.equipment_discounts.map((discount: {
+        const adjustedCostRecords = data.equipment_discounts.map((adjusted_cost: {
           equipment_id: string;
-          discount: number;
+          adjusted_cost: number;
         }) => ({
-          equipment_id: discount.equipment_id,
+          equipment_id: adjusted_cost.equipment_id,
           fighter_type_id: id,
-          discount: discount.discount.toString(),
-          gang_type_id: null // Set to null since this is a fighter type discount
+          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
+          gang_type_id: null // Set to null since this is a fighter type adjusted_cost
         }));
 
-        if (discountRecords.length > 0) {
+        if (adjustedCostRecords.length > 0) {
           const { error: insertError } = await supabase
             .from('equipment_discounts')
-            .insert(discountRecords);
+            .insert(adjustedCostRecords);
 
           if (insertError) throw insertError;
         }
@@ -742,23 +742,23 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
-    // Handle equipment discounts if provided
+    // Handle equipment adjusted costs if provided
     if (data.equipment_discounts && data.equipment_discounts.length > 0) {
-      const discountRecords = data.equipment_discounts.map((discount: {
+      const adjustedCostRecords = data.equipment_discounts.map((adjusted_cost: {
         equipment_id: string;
-        discount: number;
+        adjusted_cost: number;
       }) => ({
-        equipment_id: discount.equipment_id,
+        equipment_id: adjusted_cost.equipment_id,
         fighter_type_id: newFighterType.id,
-        discount: discount.discount.toString(),
-        gang_type_id: null // Set to null since this is a fighter type discount
+        adjusted_cost: adjusted_cost.adjusted_cost.toString(),
+        gang_type_id: null // Set to null since this is a fighter type adjusted_cost
       }));
 
-      const { error: discountError } = await supabase
+      const { error: adjustedCostError } = await supabase
         .from('equipment_discounts')
-        .insert(discountRecords);
+        .insert(adjustedCostRecords);
 
-      if (discountError) throw discountError;
+      if (adjustedCostError) throw adjustedCostError;
     }
 
     // Handle default equipment if provided
