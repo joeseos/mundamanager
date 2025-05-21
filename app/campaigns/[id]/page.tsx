@@ -13,7 +13,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   const userId = user?.id;
 
   // Get campaign role from headers (set by middleware)
-  const headersList = headers();
+  const headersList = await headers();
   const campaignRole = headersList.get('x-campaign-role') || 'MEMBER';
   const isCampaignAdmin = campaignRole === 'ARBITRATOR';
   const isCampaignOwner = campaignRole === 'OWNER';
@@ -39,9 +39,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       <CampaignErrorBoundary>
         <CampaignPageContent 
           campaignData={campaignData} 
-          userId={userId} 
-          isCampaignAdmin={isCampaignAdmin}
-          isCampaignOwner={isCampaignOwner}
+          userId={userId}
           campaignRole={campaignRole}
         />
       </CampaignErrorBoundary>
