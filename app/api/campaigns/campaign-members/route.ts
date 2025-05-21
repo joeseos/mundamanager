@@ -15,14 +15,15 @@ export async function PATCH(request: Request) {
     }
 
     // Check if the user making the request is the OWNER
-    const { data: requesterRole } = await supabase
+    const { data: requesterRoles } = await supabase
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
 
-    if (requesterRole?.role !== 'OWNER') {
+    const isOwner = requesterRoles?.some((row: { role: string }) => row.role === 'OWNER');
+
+    if (!isOwner) {
       return NextResponse.json(
         { error: "Only the campaign owner can change roles" }, 
         { status: 403 }
@@ -35,8 +36,7 @@ export async function PATCH(request: Request) {
       .update({ role: newRole })
       .eq('campaign_id', campaignId)
       .eq('user_id', userId)
-      .select()
-      .single();
+      .select();
 
     if (error) throw error;
 

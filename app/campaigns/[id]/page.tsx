@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import CampaignPageContent from "@/components/campaign/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
+import { headers } from 'next/headers';
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -10,6 +11,12 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   // Get the user data once at the page level
   const { data: { user } } = await supabase.auth.getUser();
   const userId = user?.id;
+
+  // Get campaign role from headers (set by middleware)
+  const headersList = headers();
+  const campaignRole = headersList.get('x-campaign-role') || 'MEMBER';
+  const isCampaignAdmin = campaignRole === 'ARBITRATOR';
+  const isCampaignOwner = campaignRole === 'OWNER';
 
   try {
     const { data, error } = await supabase
@@ -33,6 +40,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         <CampaignPageContent 
           campaignData={campaignData} 
           userId={userId} 
+          isCampaignAdmin={isCampaignAdmin}
+          isCampaignOwner={isCampaignOwner}
+          campaignRole={campaignRole}
         />
       </CampaignErrorBoundary>
     );

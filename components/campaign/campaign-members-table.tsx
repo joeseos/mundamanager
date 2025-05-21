@@ -55,6 +55,9 @@ interface MembersTableProps {
   members: Member[];
   userId?: string;
   onMemberUpdate: () => void;
+  isCampaignAdmin: boolean;
+  isCampaignOwner: boolean;
+  campaignRole: string;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -75,7 +78,10 @@ export default function MembersTable({
   isAdmin,
   members,
   userId,
-  onMemberUpdate
+  onMemberUpdate,
+  isCampaignAdmin,
+  isCampaignOwner,
+  campaignRole
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showGangModal, setShowGangModal] = useState(false)
@@ -255,6 +261,15 @@ export default function MembersTable({
   const handleRoleChange = async () => {
     if (!roleChange) return false;
 
+    // Only campaign owners and arbitrators can change roles
+    if (!isCampaignOwner && !isCampaignAdmin) {
+      toast({
+        variant: "destructive",
+        description: "You don't have permission to change roles"
+      });
+      return false;
+    }
+
     try {
       const response = await fetch('/api/campaigns/campaign-members', {
         method: 'PATCH',
@@ -292,11 +307,23 @@ export default function MembersTable({
     if (!memberToRemove) return false;
     console.log("Removing member:", memberToRemove);
 
-    // Check if member is OWNER, prevent deletion
+    // Prevent deleting the last owner
     if (memberToRemove.role === 'OWNER') {
+      const ownerCount = members.filter(m => m.role === 'OWNER').length;
+      if (ownerCount <= 1) {
+        toast({
+          variant: "destructive",
+          description: "Cannot remove the last owner of the campaign"
+        });
+        return false;
+      }
+    }
+
+    // Only campaign owners and arbitrators can remove members
+    if (!isCampaignOwner && !isCampaignAdmin) {
       toast({
         variant: "destructive",
-        description: "Cannot remove the Owner of a campaign"
+        description: "You don't have permission to remove members"
       });
       return false;
     }
@@ -616,7 +643,7 @@ export default function MembersTable({
               <th className="px-4 py-2 text-left font-medium">Role</th>
               <th className="px-4 py-2 text-left font-medium">Gang</th>
               <th className="px-4 py-2 text-left font-medium">Rating</th>
-              {isAdmin && <th className="px-4 py-2 text-right"></th>}
+              {(isCampaignOwner || isCampaignAdmin) && <th className="px-4 py-2 text-right"></th>}
             </tr>
           </thead>
           <tbody>
@@ -627,7 +654,7 @@ export default function MembersTable({
                 </td>
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2">
-                    {isAdmin && member.user_id !== currentUserId ? (
+                    {(isCampaignOwner || isCampaignAdmin) && member.user_id !== currentUserId ? (
                       <button
                         onClick={() => {
                           setRoleChange({
@@ -667,7 +694,7 @@ export default function MembersTable({
                         >
                           {member.gangs[0].gang_name}
                         </Link>
-                        {(currentUserId === member.user_id || isAdmin) && (
+                        {(currentUserId === member.user_id || isCampaignOwner || isCampaignAdmin) && (
                           <button
                             onClick={() => {
                               setGangToRemove({
@@ -688,7 +715,7 @@ export default function MembersTable({
                     </div>
                   ) : (
                     <div className="flex items-center">
-                      {(currentUserId === member.user_id || isAdmin) ? (
+                      {(currentUserId === member.user_id || isCampaignOwner || isCampaignAdmin) ? (
                         <button
                           onClick={() => handleGangClick(member)}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
@@ -706,7 +733,7 @@ export default function MembersTable({
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
-                {isAdmin && (
+                {(isCampaignOwner || isCampaignAdmin) && (
                   <td className="px-4 py-2 text-right">
                     <Button
                       variant="destructive"
@@ -716,7 +743,7 @@ export default function MembersTable({
                         setMemberToRemove({...member, index});
                         setShowRemoveMemberModal(true);
                       }}
-                      disabled={member.role === 'OWNER'}
+                      disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                     >
                       Remove
                     </Button>
@@ -733,7 +760,7 @@ export default function MembersTable({
           <div key={`${member.user_id}-${index}`} className="bg-white rounded-lg border p-4">
             <div className="flex justify-between items-start mb-2">
               <span className="font-medium text-base">{member.profile.username}</span>
-              {isAdmin && member.user_id !== currentUserId ? (
+              {(isCampaignOwner || isCampaignAdmin) && member.user_id !== currentUserId ? (
                 <button
                   onClick={() => {
                     setRoleChange({
@@ -776,7 +803,7 @@ export default function MembersTable({
                         >
                           {member.gangs[0].gang_name}
                         </Link>
-                        {(currentUserId === member.user_id || isAdmin) && (
+                        {(currentUserId === member.user_id || isCampaignOwner || isCampaignAdmin) && (
                           <button
                             onClick={() => {
                               setGangToRemove({
@@ -797,7 +824,7 @@ export default function MembersTable({
                     </div>
                   ) : (
                     <div className="flex items-center">
-                      {(currentUserId === member.user_id || isAdmin) ? (
+                      {(currentUserId === member.user_id || isCampaignOwner || isCampaignAdmin) ? (
                         <button
                           onClick={() => handleGangClick(member)}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
@@ -819,7 +846,7 @@ export default function MembersTable({
                 </span>
               </div>
 
-              {isAdmin && (
+              {(isCampaignOwner || isCampaignAdmin) && (
                 <div className="flex justify-end mt-3">
                   <Button
                     variant="destructive"
@@ -829,7 +856,7 @@ export default function MembersTable({
                       setMemberToRemove({...member, index});
                       setShowRemoveMemberModal(true);
                     }}
-                    disabled={member.role === 'OWNER'}
+                    disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                   >
                     Remove
                   </Button>

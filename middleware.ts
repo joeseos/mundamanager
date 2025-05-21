@@ -84,6 +84,36 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Handle campaign routes
+  if (request.nextUrl.pathname.startsWith('/campaigns/')) {
+    const campaignId = request.nextUrl.pathname.split('/')[2];
+    
+    // Skip role check for campaign creation
+    if (request.nextUrl.pathname === '/campaigns/new') {
+      return res;
+    }
+
+    // Get user's role in the campaign
+    const { data: campaignMember } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', user.id)
+      .single();
+
+    const campaignRole = campaignMember?.role;
+
+    // Add campaign role to request headers for use in components
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-campaign-role', campaignRole || 'MEMBER');
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
   return res;
 }
 

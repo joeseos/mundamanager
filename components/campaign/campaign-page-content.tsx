@@ -133,6 +133,7 @@ interface CampaignPageContentProps {
     }[];
   };
   userId?: string;
+  campaignRole?: string;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -141,7 +142,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData, userId }: CampaignPageContentProps) {
+export default function CampaignPageContent({ campaignData: initialCampaignData, userId, campaignRole }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
@@ -162,10 +163,17 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   // Determine user role based on userId
   useEffect(() => {
     if (userId) {
-      // Find user's role from campaign members
-      const memberData = campaignData.members.find(m => m.user_id === userId);
-      if (memberData) {
-        setUserRole(memberData.role);
+      // Find all roles for this user in the campaign
+      const userRoles = campaignData.members.filter(m => m.user_id === userId).map(m => m.role);
+      if (userRoles.length > 0) {
+        // Set the highest privilege role for userRole state (for isAdmin, etc.)
+        if (userRoles.includes('OWNER')) {
+          setUserRole('OWNER');
+        } else if (userRoles.includes('ARBITRATOR')) {
+          setUserRole('ARBITRATOR');
+        } else {
+          setUserRole('MEMBER');
+        }
       }
     }
   }, [campaignData.members, userId]);
@@ -632,6 +640,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   members={campaignData.members}
             userId={userId}
             onMemberUpdate={refreshData}
+            isCampaignAdmin={isAdmin}
+            isCampaignOwner={isAdmin}
+            campaignRole={userRole}
           />
         </div>
 
