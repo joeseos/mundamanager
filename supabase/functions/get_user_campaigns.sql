@@ -8,6 +8,7 @@ RETURNS TABLE (
     campaign_type TEXT,
     campaign_type_id UUID,
     created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE,
     role TEXT,
     status TEXT
 ) AS $$
@@ -23,6 +24,7 @@ BEGIN
         ct.campaign_type_name as campaign_type,
         c.campaign_type_id,
         c.created_at,
+        c.updated_at,
         cm.role,
         cm.status
     FROM campaigns c
