@@ -15,7 +15,7 @@ import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-l
 import { FiMap } from "react-icons/fi";
 import { FaCity } from "react-icons/fa";
 import { LuSwords, LuClipboard } from "react-icons/lu";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@/app/lib/utils";
 import { RxDashboard, RxLayers } from "react-icons/rx";
@@ -160,6 +160,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const isLoadingRef = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
 
   // Determine user role based on userId
   useEffect(() => {
@@ -525,6 +527,35 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     }
   };
 
+  // Add handleDeleteCampaign for the delete modal
+  const handleDeleteCampaign = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', campaignData.id);
+
+      if (error) throw error;
+
+      toast({
+        description: "Campaign deleted successfully"
+      });
+
+      router.push('/campaigns');
+      return true;
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to delete campaign"
+      });
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -579,28 +610,101 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           {/* Campaign tab content */}
           {activeTab === 0 && (
             <>
-              {/* Campaign header - shown only on Campaign tab */}
+              {/* Campaign header with Edit button and modal logic */}
               <div className="mb-8 border-b pb-4">
                 <div className="flex justify-between items-start">
-                  <h1 className="text-xl md:text-2xl font-bold mb-2">{campaignData.campaign_name}</h1>
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-bold mb-2">{campaignData.campaign_name}</h1>
+                    <h2 className="text-gray-600 text-lg mb-4">{campaignData.campaign_type_name}</h2>
+                  </div>
                   {isAdmin && (
-                    <Button
-                      className="bg-black hover:bg-gray-800 text-white"
-                      onClick={() => {
-                        // Update form state with current campaign values
-                        setCampaignName(campaignData.campaign_name);
-                        setMeatEnabled(campaignData.has_meat);
-                        setExplorationEnabled(campaignData.has_exploration_points);
-                        setScavengingEnabled(campaignData.has_scavenging_rolls);
-                        setShowEditModal(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
+                    <>
+                      <Button
+                        className="bg-black hover:bg-gray-800 text-white"
+                        onClick={() => setShowEditModal(true)}
+                      >
+                        Edit
+                      </Button>
+                      {showEditModal && (
+                        <Modal
+                          title="Edit Campaign"
+                          content={
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Campaign Name</label>
+                                <input
+                                  type="text"
+                                  value={campaignName}
+                                  onChange={(e) => setCampaignName(e.target.value)}
+                                  className="w-full p-2 border rounded"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={meatEnabled}
+                                    onChange={(e) => setMeatEnabled(e.target.checked)}
+                                  />
+                                  <span>Meat</span>
+                                </label>
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={explorationEnabled}
+                                    onChange={(e) => setExplorationEnabled(e.target.checked)}
+                                  />
+                                  <span>Exploration Points</span>
+                                </label>
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={scavengingEnabled}
+                                    onChange={(e) => setScavengingEnabled(e.target.checked)}
+                                  />
+                                  <span>Scavenging Rolls</span>
+                                </label>
+                              </div>
+                              {userRole === 'OWNER' && (
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setShowEditModal(false);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  className="w-full mt-2"
+                                >
+                                  Delete Campaign
+                                </Button>
+                              )}
+                            </div>
+                          }
+                          onClose={() => setShowEditModal(false)}
+                          onConfirm={handleSave}
+                          confirmText="Save Changes"
+                        />
+                      )}
+                      {showDeleteModal && (
+                        <Modal
+                          title="Delete Campaign"
+                          content={
+                            <div>
+                              <p>Are you sure you want to delete this campaign?</p>
+                              <br />
+                              <p>This action cannot be undone and will remove all campaign data including territories, members, and gang assignments.</p>
+                            </div>
+                          }
+                          onClose={() => setShowDeleteModal(false)}
+                          onConfirm={handleDeleteCampaign}
+                          confirmText="Delete Campaign"
+                          confirmDisabled={isDeleting}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
-                <h2 className="text-gray-600 text-lg mb-4">{campaignData.campaign_type_name}</h2>
-                <div className="flex flex-row items-center justify-between text-xs text-gray-500">
+                {/* Move the date row here, outside the left column, to span full width */}
+                <div className="flex flex-row items-center justify-between text-xs text-gray-500 w-full mt-1">
                   <div>
                     <span>Created: </span>
                     <span>{formatDate(campaignData.created_at)}</span>
@@ -611,6 +715,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   </div>
                 </div>
               </div>
+              {/* End campaign header and modal logic */}
 
               {/* Campaign Members Section */}
               <div className="mb-8">
@@ -940,54 +1045,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
               }
             }}
             confirmText="Delete"
-          />
-        )}
-
-        {showEditModal && (
-          <Modal
-            title="Edit Campaign"
-            content={
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Campaign Name</label>
-                  <input
-                    type="text"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={meatEnabled}
-                      onChange={(e) => setMeatEnabled(e.target.checked)}
-                    />
-                    <span>Meat</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={explorationEnabled}
-                      onChange={(e) => setExplorationEnabled(e.target.checked)}
-                    />
-                    <span>Exploration Points</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={scavengingEnabled}
-                      onChange={(e) => setScavengingEnabled(e.target.checked)}
-                    />
-                    <span>Scavenging Rolls</span>
-                  </label>
-                </div>
-              </div>
-            }
-            onClose={() => setShowEditModal(false)}
-            onConfirm={handleSave}
-            confirmText="Save Changes"
           />
         )}
       </div>
