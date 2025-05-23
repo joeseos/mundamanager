@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, Edit, Sword, Car, X, BookOpen } from "lucide-react";
+import { Users, Edit, Sword, Car, X, BookOpen, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
 import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
@@ -15,6 +15,7 @@ import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
+import { AdminPublishNotificationModal } from "@/components/admin/admin-publish-notification";
 
 // Add this CSS class to remove arrows from number inputs while keeping numeric validation
 const numericInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -35,6 +36,7 @@ export default function AdminPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
+  const [showPublishNotification, setShowPublishNotification] = useState(false);
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -240,6 +242,12 @@ export default function AdminPage() {
       description:"Edit a skill or skill set",
       action: () => setShowEditSkill(true),
       icon: Edit
+    },
+    {
+      title: "Publish Notification",
+      description: "Send a notification to all users",
+      action: () => setShowPublishNotification(true),
+      icon: Bell
     }
   ];
 
@@ -969,6 +977,12 @@ export default function AdminPage() {
                 }
               }}
               confirmText="Update Vehicle Type"
+            />
+          )}
+          {showPublishNotification && (
+            <AdminPublishNotificationModal
+              onClose={() => setShowPublishNotification(false)}
+              onSubmit={() => setShowPublishNotification(false)}
             />
           )}
         </main>
