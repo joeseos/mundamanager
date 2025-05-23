@@ -134,6 +134,7 @@ interface CampaignPageContentProps {
     }[];
   };
   userId?: string;
+  campaignRole?: string;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -142,7 +143,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData, userId }: CampaignPageContentProps) {
+export default function CampaignPageContent({ campaignData: initialCampaignData, userId, campaignRole }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
@@ -630,9 +631,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           <MembersTable
             campaignId={campaignData.id}
             isAdmin={isAdmin}
-                  members={campaignData.members}
+            members={campaignData.members}
             userId={userId}
             onMemberUpdate={refreshData}
+            isCampaignAdmin={userRole === 'ARBITRATOR'}
+            isCampaignOwner={userRole === 'OWNER'}
+            campaignRole={campaignRole || ''}
           />
         </div>
 

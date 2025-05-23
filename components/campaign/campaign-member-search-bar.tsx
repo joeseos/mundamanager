@@ -109,14 +109,28 @@ export default function MemberSearchBar({
         throw new Error('Not authenticated');
       }
 
-      console.log("Adding member:", member);
+      // Check if the user already exists in the campaign
+      const { data: existingMembers, error: existingError } = await supabase
+        .from('campaign_members')
+        .select('role')
+        .eq('campaign_id', campaignId)
+        .eq('user_id', member.user_id);
+
+      if (existingError) throw existingError;
+
+      // Use the existing role if found, otherwise default to 'MEMBER'
+      const role = existingMembers && existingMembers.length > 0
+        ? existingMembers[0].role
+        : 'MEMBER';
+
+      console.log("Adding member:", member, "with role:", role);
 
       const { data, error } = await supabase
         .from('campaign_members')
         .insert({
           campaign_id: campaignId,
           user_id: member.user_id,
-          role: 'MEMBER',
+          role: role,
           invited_at: new Date().toISOString(),
           invited_by: user.id
         }).select();
@@ -130,6 +144,7 @@ export default function MemberSearchBar({
         ...member,
         // If we have an ID from the database response, use it
         id: data?.[0]?.id,
+        role: role,
         gangs: []  // Start with empty gangs array for the new instance
       };
 

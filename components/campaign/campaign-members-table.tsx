@@ -56,6 +56,9 @@ interface MembersTableProps {
   members: Member[];
   userId?: string;
   onMemberUpdate: () => void;
+  isCampaignAdmin: boolean;
+  isCampaignOwner: boolean;
+  campaignRole: string;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -76,7 +79,10 @@ export default function MembersTable({
   isAdmin,
   members,
   userId,
-  onMemberUpdate
+  onMemberUpdate,
+  isCampaignAdmin,
+  isCampaignOwner,
+  campaignRole
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showGangModal, setShowGangModal] = useState(false)
@@ -255,7 +261,14 @@ export default function MembersTable({
 
   const handleRoleChange = async () => {
     if (!roleChange) return false;
-
+    // Only campaign owners and arbitrators can change roles
+    if (!isCampaignOwner && !isCampaignAdmin) {
+      toast({
+        variant: "destructive",
+        description: "You don't have permission to change roles"
+      });
+      return false;
+    }
     try {
       const response = await fetch('/api/campaigns/campaign-members', {
         method: 'PATCH',
@@ -268,12 +281,10 @@ export default function MembersTable({
           newRole: roleChange.newRole
         }),
       });
-
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to update role');
       }
-
       onMemberUpdate();
       toast({
         description: `Updated ${roleChange.username}'s role to ${roleChange.newRole}`
@@ -292,16 +303,26 @@ export default function MembersTable({
   const handleRemoveMember = async () => {
     if (!memberToRemove) return false;
     console.log("Removing member:", memberToRemove);
-
-    // Check if member is OWNER, prevent deletion
+    // Prevent deleting the last owner
     if (memberToRemove.role === 'OWNER') {
+      const ownerCount = members.filter(m => m.role === 'OWNER').length;
+      // Only block if this is the last OWNER
+      if (ownerCount <= 1) {
+        toast({
+          variant: "destructive",
+          description: "Cannot remove the last owner of the campaign"
+        });
+        return false;
+      }
+    }
+    // Only campaign owners and arbitrators can remove members
+    if (!isCampaignOwner && !isCampaignAdmin) {
       toast({
         variant: "destructive",
-        description: "Cannot remove the Owner of a campaign"
+        description: "You don't have permission to remove members"
       });
       return false;
     }
-
     try {
       // If we have the specific member ID, use that to identify and remove gangs
       if (memberToRemove.id) {
@@ -723,7 +744,7 @@ export default function MembersTable({
                         setMemberToRemove({...member, index});
                         setShowRemoveMemberModal(true);
                       }}
-                      disabled={member.role === 'OWNER'}
+                      disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                     >
                       Remove
                     </Button>
@@ -846,7 +867,7 @@ export default function MembersTable({
                       setMemberToRemove({...member, index});
                       setShowRemoveMemberModal(true);
                     }}
-                    disabled={member.role === 'OWNER'}
+                    disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                   >
                     Remove
                   </Button>
