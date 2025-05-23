@@ -26,10 +26,9 @@ BEGIN
   END IF;
   
   -- Determine if the fighter uses flat costs based on fighter_class
-  -- For Ganger or Crew fighter classes, use flat costs
+  -- Only Gangers use flat costs now
   v_uses_flat_cost := 
-    v_fighter_class = 'Ganger' OR 
-    v_fighter_class = 'Crew';
+    v_fighter_class = 'Ganger';
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -79,7 +78,7 @@ BEGIN
       etc.base_xp_cost,
       -- Calculate XP cost based on fighter class and characteristic
       CASE
-        -- For Gangers and Crew: fixed 6 XP cost
+        -- For Gangers: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
@@ -87,7 +86,7 @@ BEGIN
       END as xp_cost,
       -- Calculate credits increase based on fighter class and characteristic
       CASE
-        -- For Gangers and Crew: credits based on advancement table
+        -- For Gangers: credits based on advancement table
         WHEN v_uses_flat_cost THEN
           CASE
             -- Weapon Skill or Ballistic Skill
