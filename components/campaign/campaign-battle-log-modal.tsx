@@ -65,6 +65,7 @@ interface CampaignBattleLogModalProps {
   onClose: () => void;
   onSuccess: () => void;
   battleToEdit?: Battle | null;
+  userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
 type GangRole = 'none' | 'attacker' | 'defender';
@@ -82,7 +83,8 @@ const CampaignBattleLogModal = ({
   isOpen,
   onClose,
   onSuccess,
-  battleToEdit = null
+  battleToEdit = null,
+  userRole = 'MEMBER'
 }: CampaignBattleLogModalProps) => {
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
@@ -100,6 +102,20 @@ const CampaignBattleLogModal = ({
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
+  
+  // Check if user has admin permissions (OWNER or ARBITRATOR)
+  const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
+  
+  // If in edit mode and user is not admin, show error and close modal
+  useEffect(() => {
+    if (isOpen && isEditMode && !isAdmin) {
+      toast({
+        variant: "destructive",
+        description: "You don't have permission to edit battle logs."
+      });
+      onClose();
+    }
+  }, [isOpen, isEditMode, isAdmin, onClose, toast]);
 
   // Load battle data when modal opens
   useEffect(() => {
@@ -344,6 +360,15 @@ const CampaignBattleLogModal = ({
   };
 
   const handleSaveBattle = async () => {
+    // Prevent non-admin users from updating existing battles
+    if (isEditMode && !isAdmin) {
+      toast({
+        variant: "destructive",
+        description: "You don't have permission to edit battle logs."
+      });
+      return false;
+    }
+    
     // Validate required fields
     if (selectedScenario === '') {
       toast({

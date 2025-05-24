@@ -276,7 +276,9 @@ function EditCampaignModal({
 
 export default function CampaignPageContent({ campaignData: initialCampaignData, userId, campaignRole }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
-  const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>('MEMBER');
+  const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>(
+    campaignRole === 'OWNER' || campaignRole === 'ARBITRATOR' ? campaignRole : 'MEMBER'
+  );
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -296,10 +298,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       // Find user's role from campaign members
       const memberData = campaignData.members.find(m => m.user_id === userId);
       if (memberData) {
+        console.log('User role from member data:', memberData.role);
         setUserRole(memberData.role);
       }
     }
-  }, [campaignData.members, userId]);
+    
+    // Log the campaign role received from props
+    console.log('Campaign role from props:', campaignRole);
+    console.log('User ID:', userId);
+  }, [campaignData.members, userId, campaignRole]);
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -557,6 +564,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     loadGangDetails();
   }, [campaignData.id]); // Only run when campaign ID changes, not on every territory update
 
+  // Helper for checking if user is admin (owner or arbitrator)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
   const handleCampaignUpdate = (updatedData: {
@@ -654,8 +662,16 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   // Add this function to handle the Add button click
   const handleAddBattleLog = () => {
+    console.log('Add battle log button clicked');
+    console.log('User role:', userRole);
+    console.log('Is admin:', isAdmin);
+    console.log('battleLogsRef exists:', !!battleLogsRef.current);
+    
     if (battleLogsRef.current) {
+      console.log('Opening battle log modal via ref');
       battleLogsRef.current.openAddModal();
+    } else {
+      console.error('battleLogsRef.current is null');
     }
   };
 
@@ -957,14 +973,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
               <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
-          {isAdmin && (
-            <Button
-              className="bg-black hover:bg-gray-800 text-white"
-              onClick={handleAddBattleLog}
-            >
-              Add
-            </Button>
-          )}
+          <Button
+            className="bg-black hover:bg-gray-800 text-white"
+            onClick={handleAddBattleLog}
+          >
+            Add
+          </Button>
         </div>
         <div id="campaign-battle-logs">
           <CampaignBattleLogsList
@@ -1095,14 +1109,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
-                {isAdmin && (
-                  <Button
-                    className="bg-black hover:bg-gray-800 text-white"
-                    onClick={handleAddBattleLog}
-                  >
-                    Add
-                  </Button>
-                )}
+                <Button
+                  className="bg-black hover:bg-gray-800 text-white"
+                  onClick={handleAddBattleLog}
+                >
+                  Add
+                </Button>
               </div>
               <div id="campaign-battle-logs">
                 <CampaignBattleLogsList

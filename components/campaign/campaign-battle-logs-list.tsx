@@ -162,8 +162,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
+      console.log('openAddModal called in CampaignBattleLogsList');
       setSelectedBattle(null);
       setShowBattleModal(true);
+      console.log('showBattleModal set to true');
     }
   }));
 
@@ -348,6 +350,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Edit battle handler
   const handleEditBattle = (battle: Battle) => {
+    // Only allow admins to edit battle logs
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        description: "You don't have permission to edit battle logs."
+      });
+      return;
+    }
+    
     setSelectedBattle(battle);
     setShowBattleModal(true);
   };
@@ -409,6 +420,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Handle modal close
   const handleModalClose = () => {
+    console.log('handleModalClose called, closing battle modal');
     setShowBattleModal(false);
     setSelectedBattle(null);
   };
@@ -425,7 +437,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {!noContainer && (
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
-          {isAdmin && !hideAddButton && (
+          {!hideAddButton && (
             <Button
               onClick={() => {
                 setSelectedBattle(null);
@@ -439,7 +451,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           )}
         </div>
       )}
-      {noContainer && isAdmin && !hideAddButton && (
+      {noContainer && !hideAddButton && (
         <div className="flex justify-end mb-4">
           <Button
             onClick={() => {
@@ -582,6 +594,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         onClose={handleModalClose}
         onSuccess={onBattleAdd}
         battleToEdit={selectedBattle}
+        userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
       />
 
       {/* Delete Confirmation Modal */}
