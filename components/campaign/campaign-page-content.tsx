@@ -738,7 +738,73 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
             isAdmin={isAdmin}
             members={campaignData.members}
             userId={userId}
-            onMemberUpdate={refreshData}
+            onMemberUpdate={(args: { 
+              removedUserId?: string; 
+              removedGangIds?: string[];
+              updatedMember?: Member;
+            }) => {
+              const { removedUserId, removedGangIds } = args;
+              
+              // Update local state to remove the gang from territories
+              setCampaignData(prev => {
+                // If we have specific gang IDs that were removed
+                if (Array.isArray(removedGangIds) && removedGangIds.length > 0) {
+                  // Get the territories that need to be updated
+                  const territoriesToUpdate = prev.territories.filter(t => 
+                    t.gang_id && removedGangIds.includes(t.gang_id)
+                  );
+
+                  // If no territories need updating, return the previous state
+                  if (territoriesToUpdate.length === 0) {
+                    return prev;
+                  }
+
+                  // Update only the specific territory instances that had these gangs
+                  return {
+                    ...prev,
+                    territories: prev.territories.map(t => {
+                      // Only update if this specific territory instance had one of the removed gangs
+                      if (t.gang_id && removedGangIds.includes(t.gang_id)) {
+                        return {
+                          ...t,
+                          gang_id: null,
+                          owning_gangs: []
+                        };
+                      }
+                      return t;
+                    })
+                  };
+                }
+                
+                // If we have a user ID whose gangs were removed
+                if (removedUserId) {
+                  const member = prev.members.find(m => m.user_id === removedUserId);
+                  if (!member) return prev;
+
+                  const userGangIds = member.gangs.map((g: { gang_id: string }) => g.gang_id);
+                  
+                  // Update only the territories that were controlled by this user's gangs
+                  return {
+                    ...prev,
+                    territories: prev.territories.map(t => {
+                      if (t.gang_id && userGangIds.includes(t.gang_id)) {
+                        return {
+                          ...t,
+                          gang_id: null,
+                          owning_gangs: []
+                        };
+                      }
+                      return t;
+                    })
+                  };
+                }
+                
+                return prev;
+              });
+              
+              // Still call refreshData to ensure server state is synced
+              refreshData();
+            }}
             isCampaignAdmin={userRole === 'ARBITRATOR'}
             isCampaignOwner={userRole === 'OWNER'}
             campaignRole={campaignRole || ''}
@@ -754,15 +820,13 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 <tr className="bg-gray-50 border-b">
                   <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
                   <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
-                  {isAdmin && (
-                    <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
-                  )}
+                  <th className="w-[100px] px-4 py-2 text-right font-medium whitespace-nowrap"></th>
                 </tr>
               </thead>
               <tbody>
                 {campaignData.territories.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 3 : 2} className="text-gray-500 italic text-center">
+                    <td colSpan={3} className="text-gray-500 italic text-center py-4">
                       No territories in this campaign
                     </td>
                   </tr>
@@ -776,31 +840,32 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                       </td>
                       <td className="w-3/5 px-4 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {territory.owning_gangs?.map(gang => (
-                            <div 
-                              key={gang.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                            >
-                              <Link 
-                                href={`/gang/${gang.id}`} 
-                                className="hover:text-gray-600 transition-colors"
+                          {territory.owning_gangs && territory.owning_gangs.length > 0 ? (
+                            territory.owning_gangs.map(gang => (
+                              <div 
+                                key={gang.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                               >
-                                {gang.name}
-                              </Link>
-                              {isAdmin && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveGang(territory.id, gang.id);
-                                  }}
-                                  className="ml-1 hover:text-gray-900 transition-colors"
+                                <Link 
+                                  href={`/gang/${gang.id}`} 
+                                  className="hover:text-gray-600 transition-colors"
                                 >
-                                  <X size={12} />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          {isAdmin && !territory.gang_id && (
+                                  {gang.name}
+                                </Link>
+                                {isAdmin && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveGang(territory.id, gang.id);
+                                    }}
+                                    className="ml-1 hover:text-gray-900 transition-colors"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          ) : isAdmin && (
                             <button
                               onClick={() => {
                                 setSelectedTerritory(territory);
@@ -813,8 +878,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                           )}
                         </div>
                       </td>
-                      {isAdmin && (
-                        <td className="w-1/5 px-4 py-2 text-right">
+                      <td className="w-[100px] px-4 py-2 text-right">
+                        {isAdmin && (
                           <Button
                             variant="destructive"
                             size="sm"
@@ -823,8 +888,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                           >
                             Delete
                           </Button>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -891,15 +956,13 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     <tr className="bg-gray-50 border-b">
                       <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
                       <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
-                      {isAdmin && (
-                        <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
-                      )}
+                      <th className="w-[100px] px-4 py-2 text-right font-medium whitespace-nowrap"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {campaignData.territories.length === 0 ? (
                       <tr>
-                        <td colSpan={isAdmin ? 3 : 2} className="text-gray-500 italic text-center">
+                        <td colSpan={3} className="text-gray-500 italic text-center py-4">
                           No territories in this campaign
                         </td>
                       </tr>
@@ -913,31 +976,32 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                           </td>
                           <td className="w-3/5 px-4 py-2">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {territory.owning_gangs?.map(gang => (
-                                <div 
-                                  key={gang.id}
-                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                                >
-                                  <Link 
-                                    href={`/gang/${gang.id}`} 
-                                    className="hover:text-gray-600 transition-colors"
+                              {territory.owning_gangs && territory.owning_gangs.length > 0 ? (
+                                territory.owning_gangs.map(gang => (
+                                  <div 
+                                    key={gang.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                                   >
-                                    {gang.name}
-                                  </Link>
-                                  {isAdmin && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveGang(territory.id, gang.id);
-                                      }}
-                                      className="ml-1 hover:text-gray-900 transition-colors"
+                                    <Link 
+                                      href={`/gang/${gang.id}`} 
+                                      className="hover:text-gray-600 transition-colors"
                                     >
-                                      <X size={12} />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                              {isAdmin && !territory.gang_id && (
+                                      {gang.name}
+                                    </Link>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveGang(territory.id, gang.id);
+                                        }}
+                                        className="ml-1 hover:text-gray-900 transition-colors"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))
+                              ) : isAdmin && (
                                 <button
                                   onClick={() => {
                                     setSelectedTerritory(territory);
@@ -950,8 +1014,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                               )}
                             </div>
                           </td>
-                          {isAdmin && (
-                            <td className="w-1/5 px-4 py-2 text-right">
+                          <td className="w-[100px] px-4 py-2 text-right">
+                            {isAdmin && (
                               <Button
                                 variant="destructive"
                                 size="sm"
@@ -960,8 +1024,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                               >
                                 Delete
                               </Button>
-                            </td>
-                          )}
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}
