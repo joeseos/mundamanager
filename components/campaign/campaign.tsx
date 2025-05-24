@@ -56,13 +56,8 @@ export default function Campaign({
   const router = useRouter();
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null>(null);
   const supabase = createClient();
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [campaignName, setCampaignName] = useState(campaign_name);
-  const [meatEnabled, setMeatEnabled] = useState(has_meat);
-  const [explorationEnabled, setExplorationEnabled] = useState(has_exploration_points);
-  const [scavengingEnabled, setScavengingEnabled] = useState(has_scavenging_rolls);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
@@ -105,47 +100,6 @@ export default function Campaign({
     checkUserRole();
   }, [id, userId, onRoleChange]);
 
-  const handleSave = async () => {
-    try {
-      const now = new Date().toISOString();
-      
-      const { error } = await supabase
-        .from('campaigns')
-        .update({
-          campaign_name: campaignName,
-          has_meat: meatEnabled,
-          has_exploration_points: explorationEnabled,
-          has_scavenging_rolls: scavengingEnabled,
-          updated_at: now,
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-      
-      onUpdate?.({
-        campaign_name: campaignName,
-        has_meat: meatEnabled,
-        has_exploration_points: explorationEnabled,
-        has_scavenging_rolls: scavengingEnabled,
-        updated_at: now,
-      });
-      
-      toast({
-        description: "Campaign settings updated successfully",
-      });
-      
-      setShowEditModal(false);
-      return true;
-    } catch (error) {
-      console.error('Error updating campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to update campaign settings",
-      });
-      return false;
-    }
-  };
-
   const handleDeleteCampaign = async () => {
     setIsDeleting(true);
     try {
@@ -175,13 +129,24 @@ export default function Campaign({
     }
   };
 
-  // Utility function to get current campaign data for updates
+  const handleEditClick = () => {
+    if (onUpdate) {
+      onUpdate({
+        campaign_name,
+        has_meat,
+        has_exploration_points,
+        has_scavenging_rolls,
+        updated_at: updated_at || created_at
+      });
+    }
+  };
+
   const getCampaignUpdateData = () => {
     return {
-      campaign_name: campaignName,
-      has_meat: meatEnabled,
-      has_exploration_points: explorationEnabled,
-      has_scavenging_rolls: scavengingEnabled,
+      campaign_name,
+      has_meat,
+      has_exploration_points,
+      has_scavenging_rolls,
       updated_at: new Date().toISOString()
     };
   };
@@ -207,7 +172,7 @@ export default function Campaign({
               {(userRole === 'OWNER' || userRole === 'ARBITRATOR') && (
                 <Button
                   className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-black text-white hover:bg-gray-800"
-                  onClick={() => setShowEditModal(true)}
+                  onClick={handleEditClick}
                 >
                   Edit
                 </Button>
@@ -239,7 +204,6 @@ export default function Campaign({
                   campaignId={id}
                   campaignTypeId={campaign_type_id}
                   onTerritoryAdd={(territory) => {
-                    // Call the parent's onUpdate function to trigger a refresh
                     if (onUpdate) {
                       onUpdate({
                         ...getCampaignUpdateData(),
@@ -274,66 +238,6 @@ export default function Campaign({
             </div>
           </div>
         </div>
-      )}
-
-      {showEditModal && (
-        <Modal
-          title="Edit Campaign"
-          content={
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Campaign Name</label>
-                <input
-                  type="text"
-                  value={campaignName}
-                  onChange={(e) => setCampaignName(e.target.value)}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={meatEnabled}
-                    onChange={(e) => setMeatEnabled(e.target.checked)}
-                  />
-                  <span>Meat</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={explorationEnabled}
-                    onChange={(e) => setExplorationEnabled(e.target.checked)}
-                  />
-                  <span>Exploration Points</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={scavengingEnabled}
-                    onChange={(e) => setScavengingEnabled(e.target.checked)}
-                  />
-                  <span>Scavenging Rolls</span>
-                </label>
-              </div>
-              {userRole === 'OWNER' && (
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setShowDeleteModal(true);
-                  }}
-                  className="w-full mt-2"
-                >
-                  Delete Campaign
-                </Button>
-              )}
-            </div>
-          }
-          onClose={() => setShowEditModal(false)}
-          onConfirm={handleSave}
-          confirmText="Save Changes"
-        />
       )}
 
       {showDeleteModal && (
