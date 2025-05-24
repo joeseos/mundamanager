@@ -208,15 +208,17 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="pl-4 pr-2 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-              <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
-              <th className="w-[30px] px-4 py-2"></th>
+              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
+              {isAdmin && (
+                <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
+              )}
             </tr>
           </thead>
           <tbody>
             {filteredTerritories.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-gray-500 italic text-center">No territories found.</td>
+                <td colSpan={isAdmin ? 3 : 2} className="px-4 py-2 text-gray-500 italic text-center">No territories found.</td>
               </tr>
             ) : (
               filteredTerritories.map((territory) => {
@@ -225,20 +227,22 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="pl-4 pr-2 py-1.5 align-middle sm:w-[300px] max-w-[300px]">
+                    <td className="w-2/5 px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
                     </td>
-                    <td className="px-2 py-1.5 align-middle text-gray-500">{typeName}</td>
-                    <td className="pl-2 pr-4 py-1.5 text-right align-middle w-[30px]">
-                      <Button
-                        onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
-                        size="sm"
-                        disabled={isAdding === territory.id}
-                        className="text-xs px-1.5 h-6 bg-black hover:bg-gray-800 text-white"
-                      >
-                        Add
-                      </Button>
-                    </td>
+                    <td className="w-2/5 px-4 py-2 text-gray-500">{typeName}</td>
+                    {isAdmin && (
+                      <td className="w-1/5 px-4 py-2 text-right">
+                        <Button
+                          onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
+                          size="sm"
+                          disabled={isAdding === territory.id}
+                          className="text-xs px-1.5 h-6"
+                        >
+                          Add
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

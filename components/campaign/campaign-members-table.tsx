@@ -55,7 +55,11 @@ interface MembersTableProps {
   isAdmin: boolean;
   members: Member[];
   userId?: string;
-  onMemberUpdate: () => void;
+  onMemberUpdate: (args: { 
+    removedUserId?: string; 
+    removedGangIds?: string[];
+    updatedMember?: Member;
+  }) => void;
   isCampaignAdmin: boolean;
   isCampaignOwner: boolean;
   campaignRole: string;
@@ -240,7 +244,9 @@ export default function MembersTable({
         throw new Error('Missing member ID and index');
       }
 
-      onMemberUpdate();
+      onMemberUpdate({
+        updatedMember: selectedMember
+      });
       toast({
         description: `Added ${selectedGang.name} to the campaign`
       });
@@ -285,7 +291,12 @@ export default function MembersTable({
         const data = await response.json();
         throw new Error(data.error || 'Failed to update role');
       }
-      onMemberUpdate();
+      onMemberUpdate({
+        updatedMember: {
+          ...selectedMember!,
+          role: roleChange.newRole
+        }
+      });
       toast({
         description: `Updated ${roleChange.username}'s role to ${roleChange.newRole}`
       });
@@ -466,7 +477,10 @@ export default function MembersTable({
         if (error) throw error;
       }
 
-      onMemberUpdate();
+      onMemberUpdate({
+        removedUserId: memberToRemove.user_id,
+        removedGangIds: memberToRemove.gangs.map(g => g.gang_id)
+      });
       toast({
         description: `Removed ${memberToRemove.profile.username} from the campaign`
       });
@@ -486,7 +500,16 @@ export default function MembersTable({
     console.log("Removing gang with details:", gangToRemove);
 
     try {
-      // If gangToRemove contains a member index and we have an ID, use that directly
+      // First, update any territories controlled by this gang in this campaign
+      const { error: territoryError } = await supabase
+        .from('campaign_territories')
+        .update({ gang_id: null })
+        .eq('campaign_id', campaignId)
+        .eq('gang_id', gangToRemove.gangId);
+        
+      if (territoryError) throw territoryError;
+
+      // Then proceed with removing the gang from the campaign
       if (gangToRemove.id) {
         console.log("Using gang ID directly:", gangToRemove.id);
         
@@ -496,9 +519,7 @@ export default function MembersTable({
           .eq('id', gangToRemove.id);
         
         if (error) throw error;
-      }
-      // If gangToRemove contains a member index, find the specific entry
-      else if (gangToRemove.memberIndex !== undefined) {
+      } else if (gangToRemove.memberIndex !== undefined) {
         console.log("Finding gang by member index:", gangToRemove.memberIndex);
         
         const { data: memberEntries, error: fetchMemberError } = await supabase
@@ -540,7 +561,9 @@ export default function MembersTable({
         if (error) throw error;
       }
 
-      onMemberUpdate();
+      onMemberUpdate({
+        removedGangIds: [gangToRemove.gangId]
+      });
       toast({
         description: `Removed ${gangToRemove.gangName} from the campaign`
       });
