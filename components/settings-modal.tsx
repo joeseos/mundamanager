@@ -34,9 +34,10 @@ export function NotificationsSection({ userId }: { userId: string }) {
 interface SettingsModalProps {
   user: SupabaseUser;
   isAdmin?: boolean;
+  username?: string;
 }
 
-export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
+export default function SettingsModal({ user, isAdmin, username }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -107,8 +108,8 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
           collisionPadding={20}
         >
           <div className="px-2 py-1.5 text-sm text-gray-500">
-            Signed in as:<br />
-            <span className="font-medium text-gray-900">{user.email}</span>
+
+            <span className="text-xl font-medium text-gray-900">{username || user.email}</span>
           </div>
 
           <DropdownMenuSeparator />
