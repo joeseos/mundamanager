@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,17 +13,15 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
-import Modal from "@/components/modal";
-import { Input } from "@/components/ui/input";
 import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
-import { Settings, LogOut, User, Bell, Info, Menu } from 'lucide-react';
+import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
 import { FaUsers } from "react-icons/fa6";
-import { FiMap, FiPrinter } from "react-icons/fi";
+import { FiMap } from "react-icons/fi";
 
-// Import the notifications content component with SSR disabled
+// Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
   ssr: false
 });
@@ -42,13 +40,7 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
-  const [showPrintModal, setShowPrintModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
-  const [printOptions, setPrintOptions] = useState({
-    includeGangCard: true,
-    includeAdditionalDetails: true,
-    includeInactiveFighters: true,
-  });
 
   // Notification handler for all notifications
   const onNotifications = useCallback(
@@ -71,53 +63,6 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
     onUnreadCountChange,
   });
 
-  const printModalContent = (
-    <div className="space-y-4">
-      <div className="block text-sm font-medium text-gray-700">Included features</div>
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="includeGangCard"
-          checked={printOptions.includeGangCard}
-          onChange={(e) =>
-            setPrintOptions(prev => ({ ...prev, includeGangCard: e.target.checked }))
-          }
-        />
-        <label htmlFor="includeGangCard" className="text-sm">
-          Gang Card
-        </label>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="includeAdditionalDetails"
-          checked={printOptions.includeAdditionalDetails}
-          onChange={(e) =>
-            setPrintOptions(prev => ({ ...prev, includeAdditionalDetails: e.target.checked }))
-          }
-        />
-        <label htmlFor="includeAdditionalDetails" className="text-sm">
-          Gang Additional Details
-        </label>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="includeInactiveFighters"
-          checked={printOptions.includeInactiveFighters}
-          onChange={(e) =>
-            setPrintOptions(prev => ({ ...prev, includeInactiveFighters: e.target.checked }))
-          }
-        />
-        <label htmlFor="includeInactiveFighters" className="text-sm">
-          Inactive Fighters
-        </label>
-      </div>
-    </div>
-  );
-
   const handleLogout = async () => {
     setOpen(false);
     await supabase.auth.signOut();
@@ -132,23 +77,6 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
 
   const handleLinkClick = () => {
     setOpen(false);
-  };
-
-  const disableLinksForPrint = () => {
-    document.querySelectorAll('a').forEach(link => {
-      link.setAttribute('data-href', link.getAttribute('href') || '');
-      link.removeAttribute('href');
-    });
-  };
-
-  const restoreLinksAfterPrint = () => {
-    document.querySelectorAll('a').forEach(link => {
-      const originalHref = link.getAttribute('data-href');
-      if (originalHref) {
-        link.setAttribute('href', originalHref);
-        link.removeAttribute('data-href');
-      }
-    });
   };
 
   return (
@@ -213,16 +141,6 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
             </Link>
           </DropdownMenuItem>
 
-          <DropdownMenuItem asChild onClick={() => {
-            setOpen(false);
-            setShowPrintModal(true);
-          }}>
-            <div className="w-full cursor-pointer">
-              <FiPrinter className="mr-2 h-4 w-4" />
-              Print
-            </div>
-          </DropdownMenuItem>
-
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/about" className="w-full cursor-pointer">
               <Info className="mr-2 h-4 w-4" />
@@ -252,45 +170,6 @@ export default function SettingsModal({ user, isAdmin }: SettingsModalProps) {
             Logout
           </DropdownMenuItem>
         </DropdownMenuContent>
-
-        {showPrintModal && (
-          <Modal
-            title="Print Options"
-            helper="The options below apply only when printing a Gang page."
-            content={printModalContent}
-            onClose={() => setShowPrintModal(false)}
-            onConfirm={() => {
-              setShowPrintModal(false);
-
-              const gangCard = document.getElementById('gang_card');
-              const details = document.getElementById('gang_card_additional_details');
-              const inactiveFighters = document.querySelectorAll('#is_inactive');
-
-              if (gangCard) gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
-              if (details) details.style.display = printOptions.includeAdditionalDetails ? '' : 'none';
-              inactiveFighters.forEach(el => {
-                (el as HTMLElement).style.display = printOptions.includeInactiveFighters ? '' : 'none';
-              });
-
-              disableLinksForPrint();
-
-              // Delay print slightly to let DOM update
-              setTimeout(() => {
-                window.print();
-
-                restoreLinksAfterPrint();
-
-                // Reset visibility after print
-                if (gangCard) gangCard.style.display = '';
-                if (details) details.style.display = '';
-                inactiveFighters.forEach(el => {
-                  (el as HTMLElement).style.display = '';
-                });
-              }, 100);
-            }}
-            confirmText="Print"
-          />
-        )}
       </DropdownMenu>
     </div>
   );
