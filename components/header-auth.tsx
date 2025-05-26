@@ -14,14 +14,17 @@ export default async function HeaderAuth() {
 
   // Fetch user's role if logged in
   let isAdmin = false;
+  let username: string | undefined = undefined;
+
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('user_role')
+      .select('user_role, username')
       .eq('id', user.id)
       .single();
     
     isAdmin = profile?.user_role === 'admin';
+    username = profile?.username;
   }
 
   return (
@@ -41,7 +44,7 @@ export default async function HeaderAuth() {
         </Link>
         {user ? (
           <div className="mr-2">
-            <SettingsModal user={user} isAdmin={isAdmin} />
+            <SettingsModal user={user} isAdmin={isAdmin} username={username} />
           </div>
         ) : null}
       </div>
