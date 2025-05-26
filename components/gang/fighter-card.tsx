@@ -495,6 +495,30 @@ const FighterCard = memo(function FighterCard({
                 <div className="min-w-[0px] text-sm break-words">
                   {Array.isArray(vehicle?.special_rules) ? vehicle.special_rules.join(', ') : ''}
                 </div>
+
+                {/* Vehicle effect, lasting damage */}
+                {vehicle.effects && vehicle.effects["lasting damages"].length > 0 && (
+                  <>
+                    <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Damage</div>
+                    <div className="min-w-[0px] text-sm break-words">
+                      {Object.entries(
+                        vehicle.effects["lasting damages"]
+                          .slice()
+                          .sort((a, b) => {
+                            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                            return dateA - dateB;
+                          })
+                          .reduce<Record<string, number>>((acc, damage) => {
+                            acc[damage.effect_name] = (acc[damage.effect_name] || 0) + 1;
+                            return acc;
+                          }, {})
+                      )
+                        .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
+                        .join(', ')}
+                    </div>
+                  </>
+                )}
               </>
             )}
 
