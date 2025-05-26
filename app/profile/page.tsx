@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
+import { NotificationsSection } from "../../components/settings-modal";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -73,6 +74,12 @@ export default async function ProfilePage() {
                 {new Date(user.created_at).toLocaleDateString()}
               </div>
             </div>
+          </div>
+          
+          {/* Notifications */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-3">Notifications</h3>
+            <NotificationsSection userId={user.id} />
           </div>
         </div>
       </div>
