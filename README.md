@@ -195,6 +195,45 @@ interface Fighter {
    fighter.effects.user.push(userMod);
    ```
 
+## Notification System
+
+### Overview
+The notification system provides real-time notifications to users for various application events. Notifications support different types (info, warning, error, invite) with appropriate visual indicators.
+
+### Features
+- Real-time notifications using Supabase Realtime
+- Different notification types with distinct visual styling
+- Automatic marking of notifications as read when viewed
+- Notification deletion capability
+- Database-driven notification storage
+
+### Data Structure
+```typescript
+// Core notification interface
+interface Notification {
+  id: string;
+  text: string;
+  type: 'info' | 'warning' | 'error' | 'invite';
+  created_at: string;
+  dismissed: boolean;
+  link: string | null;
+}
+```
+
+### Database Integration
+- Notifications are stored in the `notifications` table
+- Database triggers automatically create notifications for specific events
+- Example functions:
+  - `notify_campaign_member_added()`: Creates notifications when users are invited to campaigns
+- Example triggers:
+  - `trigger_campaign_member_notification`: Fires the notification function when new campaign members are added
+
+### Implementation
+- Global notification store manages application-wide notification state
+- Notification hooks provide real-time updates and management functions
+- Notification API endpoints for secure server-side operations
+- Profile page integration for reviewing all notifications
+
 ## Data Architecture
 
 ```typescript

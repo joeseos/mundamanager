@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
-import Campaign from "@/components/campaign/campaign";
 import TerritoryGangModal from "@/components/campaign/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
@@ -22,6 +21,7 @@ import { RxDashboard, RxLayers } from "react-icons/rx";
 import { MdPlace } from "react-icons/md";
 import TerritoryList from "@/components/campaign/campaign-territory-list";
 import { CampaignBattleLogsListRef } from "@/components/campaign/campaign-battle-logs-list";
+import CampaignEditModal from "@/components/campaign/campaign-edit-modal";
 
 interface Gang {
   id: string;
@@ -143,137 +143,6 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-// Add this EditCampaignModal component before the main CampaignPageContent component
-interface EditCampaignModalProps {
-  isOpen: boolean;
-  campaignData: {
-    id: string;
-    campaign_name: string;
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-  };
-  onClose: () => void;
-  onSave: (updatedData: {
-    campaign_name: string;
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-  }) => Promise<boolean>;
-  isOwner: boolean;
-  onDeleteClick: () => void;
-}
-
-function EditCampaignModal({
-  isOpen,
-  campaignData,
-  onClose,
-  onSave,
-  isOwner,
-  onDeleteClick
-}: EditCampaignModalProps) {
-  // Local state for form values - initialized from props
-  const [formValues, setFormValues] = useState({
-    campaignName: campaignData.campaign_name,
-    meatEnabled: campaignData.has_meat,
-    explorationEnabled: campaignData.has_exploration_points,
-    scavengingEnabled: campaignData.has_scavenging_rolls,
-  });
-
-  // Reset form values when campaign data changes or when modal opens
-  useEffect(() => {
-    setFormValues({
-      campaignName: campaignData.campaign_name,
-      meatEnabled: campaignData.has_meat,
-      explorationEnabled: campaignData.has_exploration_points,
-      scavengingEnabled: campaignData.has_scavenging_rolls,
-    });
-  }, [campaignData, isOpen]);
-
-  // Handler for form submission
-  const handleSubmit = async () => {
-    const result = await onSave({
-      campaign_name: formValues.campaignName,
-      has_meat: formValues.meatEnabled,
-      has_exploration_points: formValues.explorationEnabled,
-      has_scavenging_rolls: formValues.scavengingEnabled,
-    });
-    return result;
-  };
-
-  // Don't render anything if modal is not open
-  if (!isOpen) return null;
-
-  return (
-    <Modal
-      title="Edit Campaign"
-      content={
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Campaign Name</label>
-            <input
-              type="text"
-              value={formValues.campaignName}
-              onChange={(e) => setFormValues(prev => ({
-                ...prev,
-                campaignName: e.target.value
-              }))}
-              className="w-full p-2 border rounded"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formValues.meatEnabled}
-                onChange={(e) => setFormValues(prev => ({
-                  ...prev,
-                  meatEnabled: e.target.checked
-                }))}
-              />
-              <span>Meat</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formValues.explorationEnabled}
-                onChange={(e) => setFormValues(prev => ({
-                  ...prev,
-                  explorationEnabled: e.target.checked
-                }))}
-              />
-              <span>Exploration Points</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formValues.scavengingEnabled}
-                onChange={(e) => setFormValues(prev => ({
-                  ...prev,
-                  scavengingEnabled: e.target.checked
-                }))}
-              />
-              <span>Scavenging Rolls</span>
-            </label>
-          </div>
-          {isOwner && (
-            <Button
-              variant="destructive"
-              onClick={onDeleteClick}
-              className="w-full mt-2"
-            >
-              Delete Campaign
-            </Button>
-          )}
-        </div>
-      }
-      onClose={onClose}
-      onConfirm={handleSubmit}
-      confirmText="Save Changes"
-    />
-  );
-}
-
 export default function CampaignPageContent({ campaignData: initialCampaignData, userId, campaignRole }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [userRole, setUserRole] = useState<'OWNER' | 'ARBITRATOR' | 'MEMBER'>(
@@ -289,7 +158,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const isLoadingRef = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
   // Determine user role based on userId
@@ -648,7 +516,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       });
       
       setShowEditModal(false);
-      refreshData();
       return true;
     } catch (error) {
       console.error('Error updating campaign:', error);
@@ -672,35 +539,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       battleLogsRef.current.openAddModal();
     } else {
       console.error('battleLogsRef.current is null');
-    }
-  };
-
-  // Add handleDeleteCampaign for the delete modal
-  const handleDeleteCampaign = async () => {
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('campaigns')
-        .delete()
-        .eq('id', campaignData.id);
-
-      if (error) throw error;
-
-      toast({
-        description: "Campaign deleted successfully"
-      });
-
-      router.push('/campaigns');
-      return true;
-    } catch (error) {
-      console.error('Error deleting campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to delete campaign"
-      });
-      return false;
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -1180,16 +1018,18 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
         )}
 
         {/* Replace the inline modal with our new component */}
-        <EditCampaignModal 
+        <CampaignEditModal 
           isOpen={showEditModal}
-          campaignData={campaignData}
+          campaignData={{
+            id: campaignData.id,
+            campaign_name: campaignData.campaign_name,
+            has_meat: campaignData.has_meat,
+            has_exploration_points: campaignData.has_exploration_points,
+            has_scavenging_rolls: campaignData.has_scavenging_rolls
+          }}
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}
           isOwner={userRole === 'OWNER'}
-          onDeleteClick={() => {
-            setShowEditModal(false);
-            setShowDeleteModal(true);
-          }}
         />
       </div>
     </main>
