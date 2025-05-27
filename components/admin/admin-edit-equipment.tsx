@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
 import { X } from "lucide-react";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { AdminFighterEffects } from "./admin-fighter-effects";
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -129,6 +130,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availabilityValue, setAvailabilityValue] = useState("");
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
+  const [fighterEffects, setFighterEffects] = useState<any[]>([]);
 
   const { toast } = useToast();
 
@@ -569,7 +571,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_availabilities: equipmentAvailabilities.map(a => ({
           gang_type_id: a.gang_type_id,
           availability: a.availability
-        }))
+        })),
+        fighter_effects: fighterEffects
       };
 
       const response = await fetch(`/api/admin/equipment?id=${selectedEquipmentId}`, {
@@ -1048,7 +1051,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
-
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1110,6 +1112,22 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Fighter Effects Section - Add this section before the weapon profiles section */}
+              {selectedEquipmentId && (
+                <div className="col-span-3">
+                  <AdminFighterEffects 
+                    equipmentId={selectedEquipmentId} 
+                    onUpdate={() => {
+                      // No toast needed as effects show directly in UI
+                    }}
+                    onChange={(effects) => {
+                      console.log('Fighter effects changed:', effects);
+                      setFighterEffects(effects);
+                    }}
+                  />
                 </div>
               )}
 

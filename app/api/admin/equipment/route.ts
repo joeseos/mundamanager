@@ -635,7 +635,8 @@ export async function PATCH(request: Request) {
       vehicle_profiles,
       fighter_types,
       gang_adjusted_costs,
-      equipment_availabilities
+      equipment_availabilities,
+      fighter_effects
     } = data;
 
     // Update equipment
@@ -863,6 +864,190 @@ export async function PATCH(request: Request) {
           // Log but don't throw on insert error
           if (insertError) {
             console.warn('Error inserting into equipment_availability:', insertError);
+          }
+        }
+      }
+    }
+
+    // Handle fighter effects if provided
+    if (fighter_effects) {
+      console.log('Handling fighter effects for equipment:', id);
+
+      if (Array.isArray(fighter_effects)) {
+        // Get existing effect IDs for this equipment to determine what to delete
+        const { data: existingEffects, error: fetchError } = await supabase
+          .from('fighter_effect_types')
+          .select('id')
+          .eq('type_specific_data->equipment_id', id);
+
+        if (fetchError) {
+          console.error('Error fetching existing effects:', fetchError);
+        } else {
+          // Create a set of current effect IDs from the request
+          const currentEffectIds = new Set(fighter_effects.map(effect => effect.id));
+          
+          // Find effects to delete (existing effects not in the current list)
+          const effectsToDelete = (existingEffects || [])
+            .filter(existing => existing.id && !currentEffectIds.has(existing.id))
+            .map(effect => effect.id);
+          
+          // Delete effects that are no longer in the list
+          if (effectsToDelete.length > 0) {
+            console.log('Deleting removed effects:', effectsToDelete);
+            
+            // First delete associated modifiers
+            for (const effectId of effectsToDelete) {
+              const { error: deleteModifiersError } = await supabase
+                .from('fighter_effect_type_modifiers')
+                .delete()
+                .eq('fighter_effect_type_id', effectId);
+              
+              if (deleteModifiersError) {
+                console.error('Error deleting modifiers for effect', effectId, ':', deleteModifiersError);
+              }
+            }
+            
+            // Then delete the effects themselves
+            const { error: deleteEffectsError } = await supabase
+              .from('fighter_effect_types')
+              .delete()
+              .in('id', effectsToDelete);
+            
+            if (deleteEffectsError) {
+              console.error('Error deleting effects:', deleteEffectsError);
+            }
+          }
+        }
+      }
+
+      // Process fighter effects
+      for (const effect of fighter_effects) {
+        const isNewEffect = effect.id.indexOf('temp-') === 0;
+        
+        if (isNewEffect) {
+          // Create new effect
+          console.log('Creating new fighter effect for equipment:', id);
+          
+          // Create fighter effect type
+          const { data: newEffect, error: createEffectError } = await supabase
+            .from('fighter_effect_types')
+            .insert({
+              effect_name: effect.effect_name,
+              fighter_effect_category_id: effect.fighter_effect_category_id,
+              type_specific_data: { equipment_id: id }
+            })
+            .select()
+            .single();
+          
+          if (createEffectError) {
+            console.error('Error creating fighter effect:', createEffectError);
+            continue; // Skip to next effect
+          }
+          
+          // Create modifiers for this effect
+          if (effect.modifiers && effect.modifiers.length > 0) {
+            const modifiersToCreate = effect.modifiers.map((modifier: any) => ({
+              fighter_effect_type_id: newEffect.id,
+              stat_name: modifier.stat_name,
+              default_numeric_value: modifier.default_numeric_value
+            }));
+            
+            const { error: createModifiersError } = await supabase
+              .from('fighter_effect_type_modifiers')
+              .insert(modifiersToCreate);
+            
+            if (createModifiersError) {
+              console.error('Error creating modifiers:', createModifiersError);
+            }
+          }
+        } else {
+          // Handle existing effect and its modifiers
+          console.log('Handling existing fighter effect:', effect.id);
+          
+          // First update the effect
+          const { error: updateEffectError } = await supabase
+            .from('fighter_effect_types')
+            .update({
+              effect_name: effect.effect_name,
+              fighter_effect_category_id: effect.fighter_effect_category_id,
+              type_specific_data: { equipment_id: id }
+            })
+            .eq('id', effect.id);
+          
+          if (updateEffectError) {
+            console.error('Error updating fighter effect:', updateEffectError);
+            continue; // Skip to next effect
+          }
+          
+          if (effect.modifiers) {
+            // Get existing modifiers for this effect
+            const { data: existingModifiers, error: fetchModifiersError } = await supabase
+              .from('fighter_effect_type_modifiers')
+              .select('id')
+              .eq('fighter_effect_type_id', effect.id);
+            
+            if (fetchModifiersError) {
+              console.error('Error fetching existing modifiers:', fetchModifiersError);
+            } else {
+              // Create a set of current modifier IDs from the request
+              const currentModifierIds = new Set(
+                effect.modifiers
+                  .filter((mod: any) => mod.id && mod.id.indexOf('temp-') !== 0)
+                  .map((mod: any) => mod.id)
+              );
+              
+              // Find modifiers to delete (existing modifiers not in the current list)
+              const modifiersToDelete = (existingModifiers || [])
+                .filter(existing => existing.id && !currentModifierIds.has(existing.id))
+                .map(modifier => modifier.id);
+              
+              // Delete modifiers that are no longer in the list
+              if (modifiersToDelete.length > 0) {
+                console.log('Deleting removed modifiers:', modifiersToDelete);
+                
+                const { error: deleteModifiersError } = await supabase
+                  .from('fighter_effect_type_modifiers')
+                  .delete()
+                  .in('id', modifiersToDelete);
+                
+                if (deleteModifiersError) {
+                  console.error('Error deleting modifiers:', deleteModifiersError);
+                }
+              }
+            }
+            
+            // Handle individual modifiers
+            for (const modifier of effect.modifiers) {
+              const isNewModifier = !modifier.id || modifier.id.indexOf('temp-') === 0;
+              
+              if (isNewModifier) {
+                // Create new modifier
+                const { error: createModifierError } = await supabase
+                  .from('fighter_effect_type_modifiers')
+                  .insert({
+                    fighter_effect_type_id: effect.id,
+                    stat_name: modifier.stat_name,
+                    default_numeric_value: modifier.default_numeric_value
+                  });
+                
+                if (createModifierError) {
+                  console.error('Error creating modifier:', createModifierError);
+                }
+              } else {
+                // Update existing modifier
+                const { error: updateModifierError } = await supabase
+                  .from('fighter_effect_type_modifiers')
+                  .update({
+                    stat_name: modifier.stat_name,
+                    default_numeric_value: modifier.default_numeric_value
+                  })
+                  .eq('id', modifier.id);
+                
+                if (updateModifierError) {
+                  console.error('Error updating modifier:', updateModifierError);
+                }
+              }
+            }
           }
         }
       }
