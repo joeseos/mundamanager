@@ -289,7 +289,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'Side': vehicleStats?.side,
       'Rear': vehicleStats?.rear,
       'HP': vehicleStats?.hull_points,
-      'Hnd': vehicleStats?.handling ? `${vehicleStats.handling}+` : '*',
+      'Hnd': `${vehicleStats?.handling}+`,
       'Sv': `${vehicleStats?.save}+`,
       'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
       'Ld': `${modifiedStats.leadership}+`,

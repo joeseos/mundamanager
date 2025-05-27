@@ -196,6 +196,7 @@ BEGIN
                                             'side', vep.side,
                                             'rear', vep.rear,
                                             'hull_points', vep.hull_points,
+                                            'handling', vep.handling,
                                             'save', vep.save,
                                             'profile_name', vep.profile_name,
                                             'upgrade_type', vep.upgrade_type
