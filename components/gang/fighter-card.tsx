@@ -497,7 +497,7 @@ const FighterCard = memo(function FighterCard({
                 </div>
 
                 {/* Vehicle effect, lasting damage */}
-                {vehicle.effects && vehicle.effects["lasting damages"].length > 0 && (
+                {vehicle.effects && vehicle.effects["lasting damages"] && vehicle.effects["lasting damages"].length > 0 && (
                   <>
                     <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Damage</div>
                     <div className="min-w-[0px] text-sm break-words">
