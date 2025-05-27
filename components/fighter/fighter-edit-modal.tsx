@@ -962,8 +962,11 @@ export function EditFighterModal({
   // Update the handleConfirm function
   const handleConfirm = async () => {
     try {
-      // Get the selected fighter type details
-      const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+      // Get the selected fighter type details - use existing if not explicitly changed
+      const selectedFighterType = selectedFighterTypeId ? 
+        fighterTypes.find(ft => ft.id === selectedFighterTypeId) : 
+        null;
+      
       // Get the selected sub-type details
       let selectedSubType = null;
       if (selectedSubTypeId && selectedFighterType?.typeClassKey) {
@@ -971,12 +974,9 @@ export function EditFighterModal({
         const subTypes = subTypesByFighterType.get(key) || [];
         selectedSubType = subTypes.find(st => st.id === selectedSubTypeId);
       }
+      
       // First, get the session for authentication
       const { data: { session } } = await supabase.auth.getSession();
-      
-      // Use fighter_class_id directly from the selected fighter type
-      // With no fallback mapping needed
-      const classId = selectedFighterType?.fighter_class_id || '';
       
       // Call onSubmit with all values, including sub-type fields
       await onSubmit({
@@ -984,13 +984,18 @@ export function EditFighterModal({
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: selectedFighterType?.fighter_class || formValues.fighter_class,
-        fighter_class_id: selectedFighterType?.fighter_class_id || formValues.fighter_class_id,
-        fighter_type: selectedFighterType?.fighter_type || formValues.fighter_type,
-        fighter_type_id: selectedFighterType?.id || formValues.fighter_type_id,
+        fighter_class: selectedFighterType ? selectedFighterType.fighter_class : formValues.fighter_class,
+        fighter_class_id: selectedFighterType ? selectedFighterType.fighter_class_id : formValues.fighter_class_id,
+        fighter_type: selectedFighterType ? selectedFighterType.fighter_type : formValues.fighter_type,
+        fighter_type_id: selectedFighterType ? selectedFighterType.id : formValues.fighter_type_id,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType && selectedSubType.id ? selectedSubType.fighter_sub_type : null,
-        fighter_sub_type_id: selectedSubType && selectedSubType.id ? selectedSubType.id : null
+        // Only send fighter_sub_type fields if explicitly changed OR if they already existed
+        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : 
+                          hasExplicitlySelectedType ? null : 
+                          (fighter as any).fighter_sub_type,
+        fighter_sub_type_id: selectedSubType ? selectedSubType.id : 
+                             hasExplicitlySelectedType ? null : 
+                             (fighter as any).fighter_sub_type_id
       });
       toast({
         description: 'Fighter updated successfully',
