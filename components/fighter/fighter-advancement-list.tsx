@@ -991,7 +991,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
             {(allAdvancements.length > 0) && (
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="px-1 py-1 text-left">Name</th>
+                  <th className="px-1 py-1 text-left w-[75%]">Name</th>
                   <th className="px-1 py-1 text-right">XP</th>
                   <th className="px-1 py-1 text-right">Cost</th>
                   <th className="px-1 py-1 text-right">Action</th>
