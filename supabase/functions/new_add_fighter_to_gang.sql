@@ -27,6 +27,7 @@ DECLARE
   v_total_equipment_cost INTEGER := 0;
   v_total_cost INTEGER;
   v_gang_credits INTEGER;
+  v_gang_type_id UUID;
   v_fighter_type TEXT;
   v_fighter_class TEXT;
   v_fighter_class_id UUID;
@@ -53,7 +54,7 @@ BEGIN
   -- Check if user is an admin using the existing helper function
   SELECT private.is_admin() INTO v_is_admin;
 
-  -- Get fighter type details, gang credits, and gang owner's user_id in a single query
+  -- Get fighter type details, gang credits, gang type, and gang owner's user_id in a single query
   WITH fighter_and_gang AS (
     SELECT 
       ft.fighter_type,
@@ -63,14 +64,17 @@ BEGIN
       ft.free_skill,
       CASE 
         WHEN p_cost IS NOT NULL THEN p_cost
-        ELSE ft.cost
+        ELSE COALESCE(ftgc.adjusted_cost, ft.cost)  -- Use adjusted cost if available
       END as fighter_cost,
-      ft.cost as fighter_base_cost,
+      COALESCE(ftgc.adjusted_cost, ft.cost) as fighter_base_cost,  -- Use adjusted cost as base
       g.credits as gang_credits,
+      g.gang_type_id,
       g.user_id as gang_owner_id
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     CROSS JOIN gangs g
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+        AND ftgc.gang_type_id = g.gang_type_id
     WHERE ft.id = p_fighter_type_id
     AND g.id = p_gang_id
   )
@@ -83,6 +87,7 @@ BEGIN
     fighter_cost,
     fighter_base_cost,
     gang_credits,
+    gang_type_id,
     gang_owner_id
   INTO 
     v_fighter_type,
@@ -93,6 +98,7 @@ BEGIN
     v_fighter_cost,
     v_fighter_base_cost,
     v_gang_credits,
+    v_gang_type_id,
     v_gang_owner_id
   FROM fighter_and_gang;
 
@@ -119,15 +125,11 @@ BEGIN
     DROP TABLE IF EXISTS temp_equipment;
     
     -- Log all inputs for debugging
-    RAISE NOTICE 'INPUTS: fighter_type_id: %, gang_id: %, cost: %, equipment_ids: %, use_base_cost: %', 
-      p_fighter_type_id, p_gang_id, p_cost, p_selected_equipment_ids, p_use_base_cost_for_rating;
+    RAISE NOTICE 'INPUTS: fighter_type_id: %, gang_id: %, gang_type_id: %, cost: %, equipment_ids: %, use_base_cost: %', 
+      p_fighter_type_id, p_gang_id, v_gang_type_id, p_cost, p_selected_equipment_ids, p_use_base_cost_for_rating;
     
-    -- Query and log the base cost directly
-    SELECT cost INTO v_fighter_base_cost 
-    FROM fighter_types 
-    WHERE id = p_fighter_type_id;
-    
-    RAISE NOTICE 'Base cost from database: %', v_fighter_base_cost;
+    -- Query and log the adjusted base cost
+    RAISE NOTICE 'Adjusted base cost: %', v_fighter_base_cost;
     
     -- Calculate cost of selected equipment from all equipment categories
     SELECT COALESCE(SUM(option_cost * quantity), 0)
@@ -171,10 +173,10 @@ BEGIN
     
     RAISE NOTICE 'Selected equipment cost: %', v_total_equipment_cost;
     
-    -- Calculate total expected cost for fighter
+    -- Calculate total expected cost for fighter (using adjusted base cost)
     v_expected_cost := v_fighter_base_cost + v_total_equipment_cost;
     
-    RAISE NOTICE 'COST BREAKDOWN: Base cost: %, Equipment cost: %, Expected total: %', 
+    RAISE NOTICE 'COST BREAKDOWN: Adjusted base cost: %, Equipment cost: %, Expected total: %', 
       v_fighter_base_cost, v_total_equipment_cost, v_expected_cost;
     
     -- Use the entered cost value for payment
@@ -419,9 +421,9 @@ BEGIN
         END,
       'free_skill', v_free_skill,
       'cost', p_cost,  -- User entered cost
-      'base_cost', v_fighter_base_cost,
+      'base_cost', v_fighter_base_cost,  -- Now shows adjusted base cost
       'equipment_cost', v_total_equipment_cost,
-      'expected_total', v_expected_cost,  -- Calculated expected total
+      'expected_total', v_expected_cost,  -- Calculated expected total (now with adjusted base)
       'rating_cost', v_rating_cost,  -- Rating cost based on checkbox
       'total_cost', v_total_cost,  -- Total cost paid
       'stats', jsonb_build_object(
@@ -455,4 +457,4 @@ $function$;
 -- Revoke and grant permissions
 REVOKE ALL ON FUNCTION new_add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID, BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION new_add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID, BOOLEAN) TO authenticated;
-GRANT EXECUTE ON FUNCTION new_add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID, BOOLEAN) TO service_role; 
+GRANT EXECUTE ON FUNCTION new_add_fighter_to_gang(TEXT, UUID, UUID, INTEGER, UUID[], UUID, BOOLEAN) TO service_role;

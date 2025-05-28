@@ -1100,6 +1100,7 @@ const handleAlignmentChange = (value: string) => {
               showModal={showGangAdditionsModal}
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
+              gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
             />
