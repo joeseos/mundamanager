@@ -46,6 +46,7 @@ interface GangAdditionsProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
   gangId: string;
+  gangTypeId: string;
   initialCredits: number;
   onFighterAdded: (newFighter: FighterProps, cost: number) => void;
 }
@@ -54,6 +55,7 @@ export default function GangAdditions({
   showModal,
   setShowModal,
   gangId,
+  gangTypeId,
   initialCredits,
   onFighterAdded,
 }: GangAdditionsProps) {
@@ -88,6 +90,7 @@ export default function GangAdditions({
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           },
           body: JSON.stringify({
+            "p_gang_type_id": gangTypeId,
             "p_is_gang_addition": true
           })
         }

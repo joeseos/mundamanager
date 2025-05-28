@@ -42,7 +42,8 @@ BEGIN
         ft.fighter_type,
         fc.class_name,
         ft.gang_type,
-        ft.cost,
+        -- Use adjusted_cost if available, otherwise use original cost
+        COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
         ft.gang_type_id,
         ft.special_rules::text[],
         ft.movement,
@@ -136,11 +137,14 @@ BEGIN
             WHERE fes.fighter_type_id = ft.id
             LIMIT 1
         ) AS equipment_selection,
-        ft.cost AS total_cost
+        -- Use adjusted_cost for total_cost if available, otherwise use original cost
+        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+        AND ftgc.gang_type_id = p_gang_type_id
     WHERE
-        (p_gang_type_id IS NULL OR ft.gang_type_id = p_gang_type_id)
-        AND (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
+        -- Removed the gang_type_id restriction for gang additions
+        (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
 END;
 $$;
