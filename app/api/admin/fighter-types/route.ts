@@ -118,6 +118,17 @@ export async function GET(request: Request) {
         );
       }
 
+      // Fetch gang-specific costs
+      const { data: gangTypeCosts, error: gangCostsError } = await supabase
+        .from('fighter_type_gang_cost')
+        .select('id, fighter_type_id, gang_type_id, adjusted_cost')
+        .eq('fighter_type_id', id);
+
+      if (gangCostsError) {
+        console.error('Error fetching gang-specific costs:', gangCostsError);
+        throw gangCostsError;
+      }
+
       // Fetch equipment selection
       const { data: equipmentSelection, error: equipmentSelectionError } = await supabase
         .from('fighter_equipment_selections')
@@ -187,7 +198,8 @@ export async function GET(request: Request) {
           adjusted_cost: d.adjusted_cost
         })) || [],
         equipment_selection: equipmentSelection?.equipment_selection || null,
-        trading_post_equipment: tradingPostData?.equipment_tradingpost || []
+        trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
+        gang_type_costs: gangTypeCosts || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -665,6 +677,40 @@ export async function PUT(request: Request) {
           });
 
         if (insertError) throw insertError;
+      }
+    }
+
+    // Handle gang-specific costs
+    if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
+      console.log('Processing gang-specific costs:', data.gang_type_costs);
+      
+      // First delete existing costs
+      const { error: deleteError } = await supabase
+        .from('fighter_type_gang_cost')
+        .delete()
+        .eq('fighter_type_id', id);
+        
+      if (deleteError) {
+        console.error('Error deleting existing gang-specific costs:', deleteError);
+        throw deleteError;
+      }
+      
+      // Then insert new costs if any exist
+      if (data.gang_type_costs.length > 0) {
+        const gangCostsToInsert = data.gang_type_costs.map((cost: any) => ({
+          fighter_type_id: id,
+          gang_type_id: cost.gang_type_id,
+          adjusted_cost: cost.adjusted_cost
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('fighter_type_gang_cost')
+          .insert(gangCostsToInsert);
+          
+        if (insertError) {
+          console.error('Error inserting gang-specific costs:', insertError);
+          throw insertError;
+        }
       }
     }
 
