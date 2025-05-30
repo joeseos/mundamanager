@@ -796,6 +796,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
                         else if (rank <= 79) groupLabel = "Psychoteric Whispers";
                         else if (rank <= 89) groupLabel = "Legendary Names";
+                        else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
 
                         if (!groups[groupLabel]) groups[groupLabel] = [];
                         groups[groupLabel].push(type);
