@@ -42,4 +42,14 @@ export const skillSetRank: { [key: string]: number } = {
   "improbable beatdowns": 81,
   "incredible drives": 82,
   "unbelievable escapes": 83,
+  //
+  "anglish mining clan": 90,
+  "scragfrid mining clan": 91,
+  "svardhol mining clan": 92,
+  "tapferkeit mining clan": 93,
+  "helmaeth mining clan": 94,
+  "snorrag mining clan": 95,
+  "trocken mining clan": 96,
+  "vossinki mining clan": 97,
+  "splinter mining clan": 98,
 };
