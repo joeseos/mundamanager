@@ -236,7 +236,7 @@ function CharacterStatsModal({
       { key: "I", name: "Initiative", value: `${fighter.initiative}+` },
       { key: "A", name: "Attacks", value: `${fighter.attacks}` },
       { key: "Ld", name: "Leadership", value: `${fighter.leadership}+` },
-      { key: "Cl", name: "Coolness", value: `${fighter.cool}+` },
+      { key: "Cl", name: "Cool", value: `${fighter.cool}+` },
       { key: "Wil", name: "Willpower", value: `${fighter.willpower}+` },
       { key: "Int", name: "Intelligence", value: `${fighter.intelligence}+` },
     ];
