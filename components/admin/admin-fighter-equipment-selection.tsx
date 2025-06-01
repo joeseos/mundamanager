@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Input } from "@/components/ui/input";
+import React, { useState, memo } from 'react';
 import { X, Plus, Trash2 } from "lucide-react";
 import { Equipment } from '@/types/equipment';
 import { Button } from "@/components/ui/button";
@@ -56,6 +55,91 @@ const SELECTION_MODES = [
   { value: 'multiple', label: 'Multiple Selection' },
 ];
 
+// Memoized row for equipment options to prevent unnecessary re-renders and improve performance in large lists
+const EquipmentOptionRow = memo(function EquipmentOptionRow({
+  equip,
+  item,
+  index,
+  categoryId,
+  disabled,
+  setEquipmentSelection
+}: {
+  equip: EquipmentWithId | undefined,
+  item: EquipmentOption,
+  index: number,
+  categoryId: string,
+  disabled: boolean,
+  setEquipmentSelection: AdminFighterEquipmentSelectionProps['setEquipmentSelection']
+}) {
+  return (
+    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+      <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
+      <div className="ml-auto flex items-center gap-4">
+        <div>
+          <label className="block text-xs text-gray-500">Cost</label>
+          <input
+            type="number"
+            defaultValue={item.cost}
+            onBlur={(e) => {
+              const cost = parseInt(e.target.value) || 0;
+              setEquipmentSelection(prev => ({
+                ...prev,
+                [categoryId]: {
+                  ...prev[categoryId],
+                  options: prev[categoryId].options?.map((o, i) =>
+                    i === index ? { ...o, cost } : o
+                  )
+                }
+              }));
+            }}
+            placeholder="Cost"
+            className="w-20 p-1 border rounded"
+            disabled={disabled}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500">Max Number</label>
+          <input
+            type="number"
+            defaultValue={item.max_quantity}
+            onBlur={(e) => {
+              const max_quantity = parseInt(e.target.value) || 1;
+              setEquipmentSelection(prev => ({
+                ...prev,
+                [categoryId]: {
+                  ...prev[categoryId],
+                  options: prev[categoryId].options?.map((o, i) =>
+                    i === index ? { ...o, max_quantity } : o
+                  )
+                }
+              }));
+            }}
+            placeholder="Max"
+            min="1"
+            className="w-16 p-1 border rounded"
+            disabled={disabled}
+          />
+        </div>
+        <button
+          onClick={() => {
+            setEquipmentSelection(prev => ({
+              ...prev,
+              [categoryId]: {
+                ...prev[categoryId],
+                options: prev[categoryId].options?.filter((_, i) => i !== index)
+              }
+            }));
+          }}
+          className="hover:bg-gray-100 p-1 rounded self-end"
+          disabled={disabled}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export function AdminFighterEquipmentSelection({
   equipment,
   equipmentSelection,
@@ -71,32 +155,11 @@ export function AdminFighterEquipmentSelection({
   
   // Remove a category
   const removeCategory = (categoryId: string) => {
-    console.log('⚠️ REMOVING CATEGORY:', categoryId);
-    console.log('Current equipment selection state:', equipmentSelection);
-    console.log('Number of categories before removal:', Object.keys(equipmentSelection).length);
-    
     setEquipmentSelection(prev => {
       const newSelection = { ...prev };
       delete newSelection[categoryId];
-      
-      console.log('New selection after removal:', newSelection);
-      console.log('Number of categories after removal:', Object.keys(newSelection).length);
-      
       return newSelection;
     });
-  };
-  
-  // Check if a type is already added
-  const isTypeAlreadyAdded = (typeId: string) => {
-    const typeName = SELECTION_TYPES.find(type => type.id === typeId)?.name;
-    return Object.values(equipmentSelection).some(
-      category => category.name === typeName
-    );
-  };
-  
-  // Get available selection types (those that haven't been added yet)
-  const getAvailableSelectionTypes = () => {
-    return SELECTION_TYPES.filter(type => !isTypeAlreadyAdded(type.id));
   };
 
   return (
@@ -117,37 +180,24 @@ export function AdminFighterEquipmentSelection({
           </select>
           <Button
             onClick={() => {
-              const availableTypes = getAvailableSelectionTypes();
-              console.log('Available types for adding:', availableTypes);
-              
-              if (availableTypes.length > 0) {
-                // Directly create a new category using the first available type
-                const typeDetails = availableTypes[0];
-                const id = generateCategoryId(typeDetails.id);
-                
-                console.log('Adding new category in single click:', {
-                  name: typeDetails.name,
-                  id: id,
-                  selectionType: selectedMode
-                });
-                
-                setEquipmentSelection(prev => {
-                  const newState = {
-                    ...prev,
-                    [id]: {
-                      id,
-                      name: typeDetails.name,
-                      select_type: selectedMode,
-                      default: selectedMode === 'optional' ? [] : undefined,
-                      options: []
-                    }
-                  };
-                  console.log('New equipment selection state:', newState);
-                  return newState;
-                });
-              }
+              // Always allow adding both types
+              const typeDetails = SELECTION_TYPES[0]; // Default to first type, but let user pick
+              const id = generateCategoryId(typeDetails.id);
+              setEquipmentSelection(prev => {
+                const newState = {
+                  ...prev,
+                  [id]: {
+                    id,
+                    name: typeDetails.name,
+                    select_type: selectedMode,
+                    default: selectedMode === 'optional' ? [] : undefined,
+                    options: []
+                  }
+                };
+                return newState;
+              });
             }}
-            disabled={disabled || getAvailableSelectionTypes().length === 0}
+            disabled={disabled}
             variant="outline"
             className="whitespace-nowrap"
           >
@@ -167,22 +217,35 @@ export function AdminFighterEquipmentSelection({
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-gray-700">{category.name || 'New Category'}</h3>
-                <Input
-                  type="text"
+                <select
                   value={category.name || ''}
                   onChange={(e) => {
-                    setEquipmentSelection(prev => ({
-                      ...prev,
-                      [categoryId]: {
-                        ...prev[categoryId],
-                        name: e.target.value
-                      }
-                    }));
+                    const newName = e.target.value;
+                    // Only update if the name actually changes
+                    if (newName === category.name) return;
+                    // Generate a new key based on the new name
+                    const newKey = `${newName.toLowerCase()}_${Date.now()}`;
+                    setEquipmentSelection(prev => {
+                      const current = prev[categoryId];
+                      const updated = {
+                        ...prev,
+                        [newKey]: {
+                          ...current,
+                          name: newName,
+                          id: newKey
+                        }
+                      };
+                      delete updated[categoryId];
+                      return updated;
+                    });
                   }}
-                  placeholder="Category name"
-                  className="w-[200px] h-8"
+                  className="w-[200px] h-8 border rounded p-1"
                   disabled={disabled}
-                />
+                >
+                  <option value="">Select category</option>
+                  <option value="Weapons">Weapons</option>
+                  <option value="Wargear">Wargear</option>
+                </select>
               </div>
               <Button
                 onClick={() => removeCategory(categoryId)}
@@ -341,71 +404,15 @@ export function AdminFighterEquipmentSelection({
                       category.options?.map((item, index) => {
                         const equip = equipment.find(e => e.id === item.id);
                         return (
-                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                            <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
-                            <div className="ml-auto flex items-center gap-4">
-                              <div>
-                                <label className="block text-xs text-gray-500">Cost</label>
-                                <input
-                                  type="number"
-                                  value={item.cost}
-                                  onChange={(e) => {
-                                    const cost = parseInt(e.target.value) || 0;
-                                    setEquipmentSelection(prev => ({
-                                      ...prev,
-                                      [categoryId]: {
-                                        ...prev[categoryId],
-                                        options: prev[categoryId].options?.map((o, i) =>
-                                          i === index ? { ...o, cost } : o
-                                        )
-                                      }
-                                    }));
-                                  }}
-                                  placeholder="Cost"
-                                  className="w-20 p-1 border rounded"
-                                  disabled={disabled}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500">Max Number</label>
-                                <input
-                                  type="number"
-                                  value={item.max_quantity}
-                                  onChange={(e) => {
-                                    const max_quantity = parseInt(e.target.value) || 1;
-                                    setEquipmentSelection(prev => ({
-                                      ...prev,
-                                      [categoryId]: {
-                                        ...prev[categoryId],
-                                        options: prev[categoryId].options?.map((o, i) =>
-                                          i === index ? { ...o, max_quantity } : o
-                                        )
-                                      }
-                                    }));
-                                  }}
-                                  placeholder="Max"
-                                  min="1"
-                                  className="w-16 p-1 border rounded"
-                                  disabled={disabled}
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setEquipmentSelection(prev => ({
-                                    ...prev,
-                                    [categoryId]: {
-                                      ...prev[categoryId],
-                                      options: prev[categoryId].options?.filter((_, i) => i !== index)
-                                    }
-                                  }));
-                                }}
-                                className="hover:bg-gray-100 p-1 rounded self-end"
-                                disabled={disabled}
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
+                          <EquipmentOptionRow
+                            key={item.id}
+                            equip={equip}
+                            item={item}
+                            index={index}
+                            categoryId={categoryId}
+                            disabled={disabled}
+                            setEquipmentSelection={setEquipmentSelection}
+                          />
                         );
                       })
                     ) : (
