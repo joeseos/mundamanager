@@ -24,14 +24,14 @@ DECLARE
   updated_gang JSONB;
   new_equipment JSONB;
   base_cost INTEGER;
-  adjusted_cost_final INTEGER;
+  discounted_cost INTEGER;
   default_profile RECORD;
   current_gang_credits INTEGER;
   v_new_equipment_id UUID;
   v_equipment_type TEXT;
   v_gang_type_id UUID;
   v_gang RECORD;
-  v_adjusted_cost numeric;
+  v_discount numeric;
   result JSONB;
   final_purchase_cost INTEGER;
   v_owner_type TEXT;
@@ -57,7 +57,7 @@ BEGIN
   IF equipment_id IS NULL THEN
     RAISE EXCEPTION 'equipment_id is required';
   END IF;
-
+  
   IF gang_id IS NULL THEN
     RAISE EXCEPTION 'gang_id is required';
   END IF;
@@ -68,19 +68,19 @@ BEGIN
   END IF;
 
   -- Set owner type for later use
-  v_owner_type := CASE
+  v_owner_type := CASE 
     WHEN fighter_id IS NOT NULL THEN 'fighter'
     ELSE 'vehicle'
   END;
 
   -- Security check: Verify user has access to the gang
   IF NOT EXISTS (
-    SELECT 1 FROM gangs g
-    WHERE g.id = gang_id
-    AND (g.user_id = v_user_id
+    SELECT 1 FROM gangs g 
+    WHERE g.id = gang_id 
+    AND (g.user_id = v_user_id 
       OR EXISTS (
-        SELECT 1 FROM profiles
-        WHERE profiles.id = v_user_id
+        SELECT 1 FROM profiles 
+        WHERE profiles.id = v_user_id 
         AND profiles.user_role = 'admin'
       )
     )
@@ -100,19 +100,19 @@ BEGIN
   v_gang_type_id := v_gang.gang_type_id;
   current_gang_credits := v_gang.credits;
 
-  -- Get the adjusted_cost value if it exists
-  SELECT adjusted_cost::numeric INTO v_adjusted_cost
+  -- Get the discount value if it exists
+  SELECT discount::numeric INTO v_discount
   FROM equipment_discounts ed
-  WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
+  WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id 
   AND ed.gang_type_id = v_gang_type_id;
 
   -- Get the equipment base cost
-  SELECT
+  SELECT 
     e.cost::integer as base_cost,
-    CASE
-      WHEN v_adjusted_cost IS NOT NULL THEN v_adjusted_cost::integer
+    CASE 
+      WHEN v_discount IS NOT NULL THEN (e.cost::integer - v_discount::integer)
       ELSE e.cost::integer
-    END as adjusted_cost_final,
+    END as discounted_cost,
     e.equipment_type,
     wp.*
   INTO default_profile
@@ -125,12 +125,12 @@ BEGIN
   END IF;
 
   base_cost := default_profile.base_cost;
-  adjusted_cost_final := default_profile.adjusted_cost_final;
+  discounted_cost := default_profile.discounted_cost;
   v_equipment_type := default_profile.equipment_type;
 
   -- Determine final purchase cost (manual or calculated)
   -- This is the cost that will be deducted from gang credits
-  final_purchase_cost := COALESCE(manual_cost, adjusted_cost_final);
+  final_purchase_cost := COALESCE(manual_cost, discounted_cost);
 
   -- Check if gang has enough credits using the final purchase cost
   IF current_gang_credits < final_purchase_cost THEN
@@ -143,9 +143,9 @@ BEGIN
     -- For master-crafted weapons, we need to apply the 25% increase to the base cost
     IF v_equipment_type = 'weapon' AND master_crafted = TRUE THEN
       -- Increase by 25% and round up to nearest 5
-      rating_cost := CEIL((adjusted_cost_final * 1.25) / 5) * 5;
+      rating_cost := CEIL((discounted_cost * 1.25) / 5) * 5;
     ELSE
-      rating_cost := adjusted_cost_final;  -- Using adjusted_cost_final when use_base_cost_for_rating is true
+      rating_cost := discounted_cost;  -- Using discounted_cost when use_base_cost_for_rating is true
     END IF;
   ELSE
     rating_cost := final_purchase_cost;  -- Using manual_cost (when provided) for rating
@@ -265,6 +265,7 @@ BEGIN
             'movement', vep.movement,
             'hull_points', vep.hull_points,
             'save', vep.save,
+            'handling', vep.handling,
             'profile_name', vep.profile_name,
             'upgrade_type', vep.upgrade_type
           )
