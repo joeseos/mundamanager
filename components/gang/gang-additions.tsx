@@ -71,6 +71,7 @@ export default function GangAdditions({
   const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
+  const [isAdding, setIsAdding] = useState(false);
 
   // Fetch gang addition types if needed when component mounts
   useEffect(() => {
@@ -288,35 +289,28 @@ export default function GangAdditions({
                             name={`equipment-selection-${categoryId}`}
                             id={option.id}
                             checked={selectedEquipmentIds.includes(option.id)}
-                            onChange={(e) => {
-                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                              const baseCost = selectedType?.total_cost || 0;
-                              
-                              // Get the option's cost
-                              const optionCost = option.cost || 0;
-                              
-                              if (e.target.checked) {
-                                // For single selection, replace previous selection in this category
-                                const prevSelectedId = selectedEquipmentIds.find(id => {
-                                  const prevOption = categoryData.options?.find((o: any) => o.id === id);
-                                  return !!prevOption;
-                                });
-                                
-                                let prevSelectedCost = 0;
-                                
-                                // Find cost of previously selected item if any
-                                if (prevSelectedId) {
-                                  const prevOption = categoryData.options?.find((o: any) => o.id === prevSelectedId);
-                                  prevSelectedCost = prevOption?.cost || 0;
-                                  
-                                  // Remove previous selection
-                                  setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== prevSelectedId));
-                                }
-                                
-                                // Add new selection
-                                setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
-                                setFighterCost(String(parseInt(fighterCost || '0') - prevSelectedCost + optionCost));
-                              }
+                            onChange={() => {
+                              // Only one can be selected in this category
+                              setSelectedEquipmentIds((prev) => {
+                                // Remove all previous selections for this category
+                                const filtered = prev.filter(id =>
+                                  !categoryData.options?.some((o: any) => o.id === id)
+                                );
+                                return [...filtered, option.id];
+                              });
+
+                              // Update cost using functional update
+                              setFighterCost((prevCost) => {
+                                // Find previous selection in this category
+                                const prevSelectedId = selectedEquipmentIds.find(id =>
+                                  categoryData.options?.some((o: any) => o.id === id)
+                                );
+                                const prevSelectedCost = prevSelectedId
+                                  ? categoryData.options?.find((o: any) => o.id === prevSelectedId)?.cost || 0
+                                  : 0;
+                                const optionCost = option.cost || 0;
+                                return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
+                              });
                             }}
                           />
                         ) : (
@@ -415,8 +409,12 @@ export default function GangAdditions({
   };
 
   const handleAddFighter = async () => {
+    if (isAdding) return;
+    setIsAdding(true);
+
     if (!selectedGangAdditionTypeId || !fighterName || fighterCost === '') {
       setFetchError('Please fill in all fields');
+      setIsAdding(false);
       return false;
     }
 
@@ -427,6 +425,7 @@ export default function GangAdditions({
       
       if (!user) {
         setFetchError('You must be logged in to add a fighter');
+        setIsAdding(false);
         return false;
       }
 
@@ -640,6 +639,7 @@ export default function GangAdditions({
     } catch (error) {
       console.error('Error adding fighter:', error);
       setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
+      setIsAdding(false);
       return false;
     }
   };
@@ -825,38 +825,26 @@ export default function GangAdditions({
       onConfirm={handleAddFighter}
       confirmText="Add Fighter"
       confirmDisabled={
-        // Basic required fields
+        isAdding ||
         !selectedGangAdditionTypeId || !fighterName || !fighterCost || 
-        
         // Equipment selection required but not selected
         (() => {
           const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
           const equipmentSelection = selectedType?.equipment_selection as EquipmentSelection;
-          
-          // If no equipment selection feature, button should not be disabled
           if (!equipmentSelection) return false;
-          
-          // Check each category
           for (const [categoryId, categoryData] of Object.entries(equipmentSelection)) {
             const selectType = categoryData.select_type || 'optional';
-            
-            // If 'single' type selection is required and there's no default equipment
-            // AND there are options available, require user to select one option
             if (selectType === 'single' && 
                 (!categoryData.default || categoryData.default.length === 0) &&
                 categoryData.options && categoryData.options.length > 0) {
-              
-              // Check if user selected an option from this category
               const selectedFromCategory = selectedEquipmentIds.some(id => 
                 categoryData.options?.some((opt: GangEquipmentOption) => opt.id === id)
               );
-              
               if (!selectedFromCategory) {
-                return true; // Disable button if required selection is missing
+                return true;
               }
             }
           }
-          
           return false;
         })()
       }
