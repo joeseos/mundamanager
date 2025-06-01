@@ -527,6 +527,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (data.equipment_selection) {
         const newEquipmentSelection: EquipmentSelection = {};
         
+        // Add logging to debug equipment selection loading
+        console.log('Loaded equipment_selection from API:', data.equipment_selection);
         // Handle legacy data format (weapons only)
         if (data.equipment_selection.weapons) {
           newEquipmentSelection['weapons'] = {
@@ -543,12 +545,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             })) || []
           };
         }
-        
         // Handle new categories format if present
         Object.entries(data.equipment_selection).forEach(([key, value]: [string, any]) => {
           if (key !== 'weapons' && value && typeof value === 'object') {
             newEquipmentSelection[key] = {
-              id: key,
+              id: key, // <--- ensure this is always set
               name: value.name || key,
               select_type: value.select_type || 'optional',
               default: value.default || [],
@@ -562,7 +563,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             };
           }
         });
-        
+        // Log the constructed newEquipmentSelection
+        console.log('Constructed newEquipmentSelection:', newEquipmentSelection);
+        console.log('newEquipmentSelection before set:', newEquipmentSelection);
         setEquipmentSelection(newEquipmentSelection);
       } else {
         // Reset to empty object if no equipment selection
@@ -1197,59 +1200,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add this useEffect after the existing useEffects to handle backward compatibility
 
-  // Convert old equipment_selection format to new format if necessary
-  useEffect(() => {
-    // Check if we have old format data (weapons property as an object)
-    if (
-      equipmentSelection && 
-      Object.keys(equipmentSelection).length === 0 && 
-      selectedFighterTypeId &&
-      !userRemovedCategoryRef.current // Only proceed if not a manual removal
-    ) {
-      console.log('Checking and converting equipment selection format if needed');
-      
-      const fetchCurrentData = async () => {
-        try {
-          const response = await fetch(`/api/admin/fighter-types?id=${selectedFighterTypeId}`);
-          if (!response.ok) return;
-          
-          const data = await response.json();
-          if (!data.equipment_selection) return;
-          
-          // Handle case where we have old format (just weapons property)
-          if (
-            typeof data.equipment_selection === 'object' && 
-            data.equipment_selection.weapons && 
-            !data.equipment_selection.weapons.id
-          ) {
-            console.log('Converting old equipment_selection format to new format');
-            
-            // Create new format
-            const newEquipmentSelection: EquipmentSelection = {
-              weapons: {
-                id: 'weapons',
-                name: 'Weapons',
-                select_type: data.equipment_selection.weapons.select_type || 'optional',
-                default: data.equipment_selection.weapons.default || [],
-                options: data.equipment_selection.weapons.options || []
-              }
-            };
-            
-            // Update state with new format
-            setEquipmentSelection(newEquipmentSelection);
-          }
-        } catch (error) {
-          console.error('Error converting equipment selection format:', error);
-        }
-      };
-      
-      fetchCurrentData();
-    } else if (userRemovedCategoryRef.current) {
-      // Reset the flag after the state update
-      console.log('Resetting user removal flag');
-      userRemovedCategoryRef.current = false;
-    }
-  }, [selectedFighterTypeId, equipmentSelection]);
 
   const handleAddGangCost = () => {
     if (!selectedGangTypeForCost || !gangAdjustedCost) return;
