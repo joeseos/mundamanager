@@ -265,6 +265,7 @@ BEGIN
             'movement', vep.movement,
             'hull_points', vep.hull_points,
             'save', vep.save,
+            'handling', vep.handling,
             'profile_name', vep.profile_name,
             'upgrade_type', vep.upgrade_type
           )
