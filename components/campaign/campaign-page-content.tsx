@@ -238,24 +238,27 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       if (!gangDetails) throw new Error('Gang not found');
 
       // Update local state
-      setCampaignData(prev => ({
-        ...prev,
-        territories: prev.territories.map(t => 
-          t.id === selectedTerritory.id
-            ? {
-                ...t,
-                gang_id: gangId,
-                owning_gangs: [
-                  { 
-                    id: gangDetails.id, 
-                    name: gangDetails.name,
-                    gang_type: 'Unknown' // Or get from somewhere if needed
-                  }
-                ]
-              }
-            : t
-        )
-      }));
+      setCampaignData(prev => {
+        const updated = {
+          ...prev,
+          territories: prev.territories.map(t => 
+            t.id === selectedTerritory.id
+              ? {
+                  ...t,
+                  gang_id: gangId,
+                  owning_gangs: [
+                    { 
+                      id: gangDetails.id, 
+                      name: gangDetails.name,
+                      gang_type: 'Unknown' // Or get from somewhere if needed
+                    }
+                  ]
+                }
+              : t
+          )
+        };
+        return updated;
+      });
 
       toast({
         description: "Gang assigned to territory successfully"
@@ -430,7 +433,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     };
 
     loadGangDetails();
-  }, [campaignData.id]); // Only run when campaign ID changes, not on every territory update
+  }, [campaignData.territories]); // Run when territories change
 
   // Helper for checking if user is admin (owner or arbitrator)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
