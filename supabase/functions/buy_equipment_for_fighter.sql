@@ -48,6 +48,7 @@ DECLARE
   v_collections_data JSONB;
   v_final_result JSONB;
   v_has_effect BOOLEAN := FALSE;
+  v_fighter_type_id UUID;
   rating_cost INTEGER;
 BEGIN
   -- Get the authenticated user's ID
@@ -100,11 +101,22 @@ BEGIN
   v_gang_type_id := v_gang.gang_type_id;
   current_gang_credits := v_gang.credits;
 
-  -- Get the adjusted_cost value if it exists
+  -- Get fighter_type_id if this is for a fighter
+  IF v_owner_type = 'fighter' THEN
+    SELECT fighter_type_id INTO v_fighter_type_id
+    FROM fighters
+    WHERE id = buy_equipment_for_fighter.fighter_id;
+  END IF;
+
+  -- Get the adjusted_cost value if it exists (considering both gang and fighter type discounts)
   SELECT adjusted_cost::numeric INTO v_adjusted_cost
   FROM equipment_discounts ed
   WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
-  AND ed.gang_type_id = v_gang_type_id;
+  AND (
+    (ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
+    OR 
+    (ed.fighter_type_id = v_fighter_type_id AND ed.gang_type_id IS NULL)
+  );
 
   -- Get the equipment base cost
   SELECT
@@ -140,15 +152,15 @@ BEGIN
   -- Determine the cost to use for fighter rating based on the use_base_cost_for_rating flag
   -- This value will be returned as rating_cost and used for fighter rating calculations
   IF use_base_cost_for_rating THEN
-    -- For master-crafted weapons, we need to apply the 25% increase to the base cost
+    -- For master-crafted weapons, we need to apply the 25% increase to the adjusted cost
     IF v_equipment_type = 'weapon' AND master_crafted = TRUE THEN
       -- Increase by 25% and round up to nearest 5
       rating_cost := CEIL((adjusted_cost_final * 1.25) / 5) * 5;
     ELSE
-      rating_cost := adjusted_cost_final;  -- Using adjusted_cost_final when use_base_cost_for_rating is true
+      rating_cost := adjusted_cost_final;  -- Using adjusted_cost_final (discounted price)
     END IF;
   ELSE
-    rating_cost := final_purchase_cost;  -- Using manual_cost (when provided) for rating
+    rating_cost := base_cost;  -- Using original base cost for rating when unchecked
   END IF;
 
   -- Get owner details for response based on owner type
