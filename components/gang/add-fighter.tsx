@@ -159,38 +159,40 @@ export default function AddFighter({
       const actualCost = enteredCost === 0 && useBaseCostForRating ? actualBaseCost : enteredCost;
 
       const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            p_gang_id: gangId,
-            p_fighter_type_id: fighterTypeIdToUse,
-            p_fighter_name: fighterName,
-            p_cost: enteredCost,
-            p_selected_equipment_ids: selectedEquipmentIds,
-            p_user_id: user.id,
-            p_use_base_cost_for_rating: useBaseCostForRating
-          })
-        }
-      );
+  'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+    },
+    body: JSON.stringify({
+      p_gang_id: gangId,
+      p_fighter_type_id: fighterTypeIdToUse,
+      p_fighter_name: fighterName,
+      p_cost: enteredCost,
+      p_selected_equipment_ids: selectedEquipmentIds,
+      p_user_id: user.id,
+      p_use_base_cost_for_rating: useBaseCostForRating
+    })
+  }
+);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.message?.includes('Not enough credits')) {
-          throw new Error('Not enough credits to add this fighter');
-        }
-        throw new Error('Failed to add fighter');
-      }
+if (!response.ok) {
+  const errorData = await response.json();
+  throw new Error(errorData.message || 'Failed to add fighter');
+}
 
-      const data = await response.json();
+const data = await response.json();
 
-      if (!data?.fighter_id) {
-        throw new Error('Failed to add fighter');
-      }
+// Check for error in the JSON response (from our consistent error handling)
+if (data.error) {
+  throw new Error(data.error);
+}
+
+if (!data?.fighter_id) {
+  throw new Error('Failed to add fighter');
+}
 
       // Log the returned data to see what's available
       console.log('Fighter added, server response:', data);
