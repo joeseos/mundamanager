@@ -18,7 +18,7 @@ import dynamic from 'next/dynamic';
 
 // Icons
 import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
-import { FaUsers } from "react-icons/fa6";
+import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { FiMap } from "react-icons/fi";
 
 // Import the notifications' content component with SSR disabled
@@ -148,6 +148,26 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
               About
             </Link>
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <div className="pb-1">
+            <div className="flex gap-2">
+              <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+                <FaDiscord className="h-4 w-4" />
+
+              </a>
+              <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+                <FaPatreon className="h-4 w-4" />
+
+              </a>
+
+              <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+                <FaGithub className="h-4 w-4" />
+
+              </a>
+            </div>
+          </div>
 
           {isAdmin && (
             <>
