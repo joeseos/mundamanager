@@ -8,6 +8,7 @@ import MyGangs from '@/components/my-gangs';
 import { CreateGangButton } from '@/components/create-gang-modal';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { unstable_noStore } from 'next/cache';
+import { FaDiscord, FaPatreon } from "react-icons/fa6";
 
 export default async function Home() {
   // Ensure we never use stale data
@@ -36,9 +37,18 @@ export default async function Home() {
               <p className="text-gray-600 mb-4">
                 Munda Manager is a comprehensive gang management tool for Necromunda, helping you keep track of your gangs, fighters, and campaigns.
               </p>
-              <p className="text-red-600 font-bold mb-4">
-                Please note, Munda Manager is still in development and not quite ready yet.
-              </p>
+              <div>
+                <div className="flex gap-2">
+                  <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+                    <FaDiscord className="mr-2 h-4 w-4" />
+                    Discord
+                  </a>
+                  <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+                    <FaPatreon className="mr-2 h-4 w-4" />
+                    Patreon
+                  </a>
+                </div>
+              </div>
             </div>
             <CreateGangButton />
           </div>
