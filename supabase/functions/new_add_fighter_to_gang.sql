@@ -188,6 +188,11 @@ BEGIN
     ELSE
       v_rating_cost := p_cost;
     END IF;
+
+    -- Check if gang has enough credits for the payment BEFORE inserting fighter
+    IF v_total_cost > 0 AND v_gang_credits < v_total_cost THEN
+      RETURN json_build_object('error', 'Not enough credits to add this fighter');
+    END IF;
     
     -- Insert the fighter with the correct credits value for rating
     INSERT INTO fighters (
@@ -379,11 +384,6 @@ BEGIN
     -- Debug information for troubleshooting
     RAISE NOTICE 'FINAL VALUES: p_cost: %, v_total_cost: %, v_rating_cost: %, fighter credits: %', 
       p_cost, v_total_cost, v_rating_cost, v_inserted_fighter.credits;
-
-    -- Check if gang has enough credits for the payment
-    IF v_total_cost > 0 AND v_gang_credits < v_total_cost THEN
-      RAISE EXCEPTION 'Not enough credits to add this fighter (Cost: %, Available: %)', v_total_cost, v_gang_credits;
-    END IF;
 
     -- Update gang credits - subtract the entered cost value
     IF v_total_cost > 0 THEN
