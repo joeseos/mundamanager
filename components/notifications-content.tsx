@@ -1,24 +1,28 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { CircleAlert, Info, TriangleAlert, Trash2, UserPlus } from 'lucide-react';
+import { CircleAlert, Info, TriangleAlert, Trash2, UserPlus, Check, X } from 'lucide-react';
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
 import Modal from '@/components/modal';
+import { Button } from '@/components/ui/button';
+import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite';
+  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request';
   created_at: string;
   dismissed: boolean;
   link: string | null;
+  sender_id?: string; // Add sender_id for friend requests
 };
 
 export default function NotificationsContent({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/profile';
@@ -38,6 +42,34 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     realtime: true,
     isProfilePage,
   });
+
+  // Handle friend request acceptance
+  const handleAcceptFriendRequest = async (notificationId: string, senderId: string) => {
+    setProcessingRequest(notificationId);
+    try {
+      await acceptFriendRequest(senderId, userId);
+      await deleteNotification(notificationId);
+      router.refresh();
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Handle friend request decline
+  const handleDeclineFriendRequest = async (notificationId: string, senderId: string) => {
+    setProcessingRequest(notificationId);
+    try {
+      await declineFriendRequest(senderId, userId);
+      await deleteNotification(notificationId);
+      router.refresh();
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
 
   // Handle deleting a notification
   const handleDelete = async () => {
@@ -74,7 +106,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite') => {
+  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request') => {
     switch (type) {
       case 'error':
         return <CircleAlert className="h-5 w-5 text-red-500" />;
@@ -82,6 +114,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <TriangleAlert className="h-5 w-5 text-amber-500" />;
       case 'invite':
         return <UserPlus className="h-5 w-5 text-indigo-500" />;
+      case 'friend_request':
+        return <UserPlus className="h-5 w-5 text-green-500" />;
       default:
         return <Info className="h-5 w-5 text-blue-500" />;
     }
@@ -106,10 +140,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   notification.dismissed 
                     ? "bg-gray-50" 
                     : "hover:bg-gray-50",
-                  notification.link && "cursor-pointer"
+                  notification.link && notification.type !== 'friend_request' && "cursor-pointer"
                 )}
                 onClick={() => {
-                  if (notification.link) {
+                  // Only navigate on click if it's not a friend request and has a link
+                  if (notification.link && notification.type !== 'friend_request') {
                     router.push(notification.link);
                     if (!notification.dismissed) {
                       dismissNotification(notification.id);
@@ -117,26 +152,59 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                   }
                 }}
               >
-                <div className="flex items-center">
-                  <div className="mr-3 flex-shrink-0">
+                <div className="flex items-start">
+                  <div className="mr-3 flex-shrink-0 mt-0.5">
                     {getNotificationIcon(notification.type)}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm mb-1">{notification.text}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 mb-2">
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNotificationToDelete(notification.id);
-                    }}
-                    className="ml-2 p-1 flex-shrink-0 text-gray-400 hover:text-red-500"
-                    aria-label="Delete notification"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {/* Friend Request Action Buttons (moved to the right, now using Button) */}
+                  {notification.type === 'friend_request' && notification.sender_id && (
+                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptFriendRequest(notification.id, notification.sender_id!);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeclineFriendRequest(notification.id, notification.sender_id!);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <X className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
+                      </Button>
+                    </div>
+                  )}
+                  {notification.type !== 'friend_request' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNotificationToDelete(notification.id);
+                      }}
+                      className="ml-2 p-1 flex-shrink-0 text-gray-400 hover:text-red-500"
+                      aria-label="Delete notification"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

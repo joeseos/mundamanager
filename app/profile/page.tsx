@@ -2,6 +2,8 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
 import { NotificationsSection } from "../../components/settings-modal";
+import FriendsSearchBar from "@/components/profile/friends";
+import { getFriendsAndRequests } from "@/app/lib/friends";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -24,6 +26,9 @@ export default async function ProfilePage() {
   if (error) {
     console.error('Error fetching profile:', error);
   }
+
+  // Fetch all friends and requests
+  const friends = await getFriendsAndRequests(user.id);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -74,6 +79,12 @@ export default async function ProfilePage() {
                 {new Date(user.created_at).toLocaleDateString()}
               </div>
             </div>
+          </div>
+          
+          {/* Friends Section */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-3">Friends</h3>
+            <FriendsSearchBar userId={user.id} initialFriends={friends} />
           </div>
           
           {/* Notifications */}

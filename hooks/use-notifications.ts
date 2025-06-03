@@ -9,6 +9,7 @@ type Notification = {
   created_at: string;
   dismissed: boolean;
   link: string | null;
+  sender_id: string;
 };
 
 // Global notification store to ensure all components use the same notification data
@@ -88,7 +89,7 @@ export function useFetchNotifications({
 
       const { data } = await supabase
         .from('notifications')
-        .select('id, text, dismissed, type, created_at, link')
+        .select('id, text, dismissed, type, created_at, link, sender_id')
         .eq('receiver_id', userId)
         .gt('expires_at', now)
         .order('created_at', { ascending: false })
