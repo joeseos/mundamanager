@@ -105,19 +105,13 @@ export function AdminFighterTradingPost({
                       )}
                     >
                       <div className="flex items-center">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           id={`category-${category}`}
                           checked={allChecked}
-                          ref={el => {
-                            if (el) el.indeterminate = someChecked;
-                          }}
-                          className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
-                          onChange={(e) => {
-                            e.stopPropagation();
+                          onCheckedChange={(checked) => {
                             const itemIds = items.map(item => item.id);
                             const nonExclusiveIds = items.filter(item => item.availability !== 'E').map(item => item.id);
-                            if (e.target.checked) {
+                            if (checked) {
                               setTradingPostEquipment((prev: string[]) => {
                                 if (excludeExclusive) {
                                   return Array.from(new Set([...prev, ...nonExclusiveIds]));
@@ -132,6 +126,7 @@ export function AdminFighterTradingPost({
                               );
                             }
                           }}
+                          onClick={(e) => e.stopPropagation()}
                         />
                         <label
                           htmlFor={`category-${category}`}
@@ -167,13 +162,11 @@ export function AdminFighterTradingPost({
                             className="border-t px-4 py-2 flex items-center justify-between"
                           >
                             <div className="flex items-center flex-1">
-                              <input
-                                type="checkbox"
+                              <Checkbox
                                 id={`trading-post-${item.id}`}
-                                className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
                                 checked={tradingPostEquipment.includes(item.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
                                     setTradingPostEquipment([...tradingPostEquipment, item.id]);
                                   } else {
                                     setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
