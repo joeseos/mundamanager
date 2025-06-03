@@ -36,13 +36,15 @@ interface MemberSearchBarProps {
   campaignMembers: Member[];
   onMemberAdd: (member: Member) => void;
   disabled?: boolean;
+  acceptedFriends?: { id: string; username: string }[];
 }
 
 export default function MemberSearchBar({
   campaignId,
   campaignMembers,
   onMemberAdd,
-  disabled = false
+  disabled = false,
+  acceptedFriends = []
 }: MemberSearchBarProps) {
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -51,42 +53,36 @@ export default function MemberSearchBar({
   const supabase = createClient()
   const { toast } = useToast()
 
-  // Search functionality
+  // Search functionality (only among accepted friends)
   useEffect(() => {
     const searchUsers = async () => {
       if (query.trim() === '') {
         setSearchResults([])
         return
       }
-
       setIsLoading(true)
       try {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .ilike('username', `%${query}%`)
-          .limit(10);
-
-        if (profilesError) throw profilesError;
-
-        // Transform profile data to Member type without filtering existing members
-        const transformedResults: Member[] = (profilesData || []).map(profile => ({
-          user_id: profile.id,
-          username: profile.username,
+        // Filter accepted friends by query
+        const filtered = acceptedFriends.filter(friend =>
+          friend.username.toLowerCase().includes(query.toLowerCase())
+        );
+        // Transform to Member type
+        const transformedResults: Member[] = filtered.map(friend => ({
+          user_id: friend.id,
+          username: friend.username,
           role: 'MEMBER',
           status: null,
           invited_at: new Date().toISOString(),
           joined_at: null,
           invited_by: '',
           profile: {
-            id: profile.id,
-            username: profile.username,
+            id: friend.id,
+            username: friend.username,
             updated_at: new Date().toISOString(),
             user_role: 'user'
           },
           gangs: []
         }));
-
         setSearchResults(transformedResults);
       } catch (error) {
         console.error('Error searching users:', error);
@@ -95,10 +91,9 @@ export default function MemberSearchBar({
         setIsLoading(false);
       }
     };
-
     const debounceTimer = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounceTimer);
-  }, [query, campaignMembers]);
+  }, [query, campaignMembers, acceptedFriends]);
 
   const handleAddMember = async (member: Member) => {
     setIsAdding(true)
