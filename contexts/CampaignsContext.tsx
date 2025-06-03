@@ -10,6 +10,7 @@ type Campaign = {
   campaign_type: string;
   campaign_type_id: string;
   created_at: string;
+  updated_at: string;
   role?: string;
   status?: string;
 };
@@ -47,13 +48,13 @@ export const CampaignsProvider: React.FC<CampaignsProviderProps> = ({ children, 
   const fetchCampaigns = async () => {
     try {
       setIsLoading(true);
-      
+
       if (!userId) {
         console.error('No user ID provided');
         setError('Authentication required');
         return;
       }
-      
+
       const { data, error: rpcError } = await supabase
         .rpc('get_user_campaigns', {
           user_id: userId
@@ -87,4 +88,4 @@ export const CampaignsProvider: React.FC<CampaignsProviderProps> = ({ children, 
       {children}
     </CampaignsContext.Provider>
   );
-}; 
+};
