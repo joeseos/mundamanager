@@ -14,7 +14,7 @@ Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns wi
 ## Tech Stack
 
 - **Framework:** Next.js 15.3.1 (App Router)
-- **Database:** Supabase
+- **Database:** PostgreSQL
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui
