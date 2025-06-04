@@ -34,7 +34,7 @@ BEGIN
                     'skill_type_id', s.skill_type_id,
                     'skill_type_name', st.name,
                     'available_acquisition_types', CASE 
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect') 
+                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute') 
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
