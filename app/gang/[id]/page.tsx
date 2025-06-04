@@ -318,6 +318,7 @@ interface GangDataState {
     gang_type_id: string;
     gang_type: string;
     gang_type_image_url: string;
+    gang_colour: string;
     credits: number;
     reputation: number;
     meat: number;
