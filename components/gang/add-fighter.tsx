@@ -262,7 +262,7 @@ if (!data?.fighter_id) {
           injuries: [],
           advancements: [],
           bionics: [],
-          cybernetics: [],
+          cyberteknika: [],
           user: []
         },
         base_stats: {

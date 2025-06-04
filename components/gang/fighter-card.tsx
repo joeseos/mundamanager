@@ -33,7 +33,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
     injuries: FighterEffect[]; 
     advancements: FighterEffect[];
     bionics: FighterEffect[];
-    cybernetics: FighterEffect[];
+    cyberteknika: FighterEffect[];
     user: FighterEffect[];
   };
   note?: string;
@@ -254,8 +254,8 @@ const FighterCard = memo(function FighterCard({
       effects: {
         injuries: effects?.injuries || [],
         advancements: effects?.advancements || [],
-        bionics: effects?.bionics || [], // Add missing arrays
-        cybernetics: effects?.cybernetics || [], // Add missing arrays
+        bionics: effects?.bionics || [],
+        cyberteknika: effects?.cyberteknika || [],
         user: effects?.user || []
       },
       base_stats: {
