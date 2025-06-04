@@ -50,7 +50,7 @@ The fighter effects system manages all modifications to fighter statistics throu
 - Injuries
 - Advancements
 - Bionics
-- Cybernetics
+- Cyberteknika
 - Vehicle Lasting Damages
 - User modifications
 
@@ -74,7 +74,7 @@ interface Fighter {
     injuries: FighterEffect[];
     advancements: FighterEffect[];
     bionics: FighterEffect[];
-    cybernetics: FighterEffect[];
+    cyberteknika: FighterEffect[];
     vehicle_damages: FighterEffect[];
     user: FighterEffect[];
   }
@@ -102,7 +102,7 @@ interface Fighter {
      const adjustedStats = { ...fighter.base_stats };
 
      // Process all effect categories
-     ['injuries', 'advancements', 'bionics', 'cybernetics', 'vehicle_damages', 'user'].forEach(category => {
+     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'vehicle_damages', 'user'].forEach(category => {
        fighter.effects[category]?.forEach(effect => {
          effect.fighter_effect_modifiers?.forEach(modifier => {
            const statName = modifier.stat_name.toLowerCase();

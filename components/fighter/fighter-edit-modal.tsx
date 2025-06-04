@@ -317,7 +317,7 @@ function CharacterStatsModal({
     processEffects(fighter.effects?.injuries);
     processEffects(fighter.effects?.advancements);
     processEffects(fighter.effects?.bionics);
-    processEffects(fighter.effects?.cybernetics);
+    processEffects(fighter.effects?.cyberteknika);
     processEffects(fighter.effects?.user);
     
     // Return total (base + existing modifiers)
@@ -462,7 +462,7 @@ function calculateStatModifiers(fighter: Fighter, statKey: string): number {
   processEffects(fighter.effects?.injuries);
   processEffects(fighter.effects?.advancements);
   processEffects(fighter.effects?.bionics);
-  processEffects(fighter.effects?.cybernetics);
+  processEffects(fighter.effects?.cyberteknika);
   processEffects(fighter.effects?.user);
   
   return totalModifier;
@@ -924,8 +924,8 @@ export function EditFighterModal({
           injuries: cleanFighter.effects?.injuries || [],
           advancements: cleanFighter.effects?.advancements || [],
           bionics: cleanFighter.effects?.bionics || [],
-          cybernetics: cleanFighter.effects?.cybernetics || [],
-          user: result.effects || [] // Update with the actual user effects from server
+          cyberteknika: cleanFighter.effects?.cyberteknika || [],
+          user: result.effects || []
         }
       };
       

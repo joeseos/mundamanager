@@ -81,7 +81,7 @@ interface FighterDetailsCardProps {
     injuries: FighterEffect[]; 
     advancements: FighterEffect[];
     bionics: FighterEffect[];
-    cybernetics: FighterEffect[];
+    cyberteknika: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -228,7 +228,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       injuries: effects?.injuries || [],
       advancements: effects?.advancements || [],
       bionics: effects?.bionics || [],
-      cybernetics: effects?.cybernetics || [],
+      cyberteknika: effects?.cyberteknika || [],
       user: effects?.user || []
     },
     fighter_class,

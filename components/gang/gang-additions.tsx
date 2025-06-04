@@ -594,7 +594,7 @@ export default function GangAdditions({
           injuries: [] as FighterEffect[],
           advancements: [] as FighterEffect[],
           bionics: [] as FighterEffect[],
-          cybernetics: [] as FighterEffect[],
+          cyberteknika: [] as FighterEffect[],
           user: [] as FighterEffect[]
         },
         base_stats: {
