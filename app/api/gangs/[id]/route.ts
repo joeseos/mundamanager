@@ -63,6 +63,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     credits,
     credits_operation,
     alignment,
+    gang_colour,
     alliance_id,
     reputation,
     reputation_operation,
@@ -144,6 +145,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         );
       }
       updates.alignment = alignment;
+    }
+
+    // Add gang_colour if provided
+    if (gang_colour !== undefined) {
+      updates.gang_colour = gang_colour;
     }
 
     // Add alliance_id if provided
