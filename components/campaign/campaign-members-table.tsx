@@ -28,6 +28,8 @@ interface Member {
     id: string;
     gang_id: string;
     gang_name: string;
+    gang_type: string;
+    gang_colour: string;
     status: string | null;
     rating?: number;
     reputation?: number;
@@ -151,7 +153,7 @@ export default function MembersTable({
     try {
       const { data: gangs, error } = await supabase
         .from('gangs')
-        .select('id, name, gang_type')
+        .select('id, name, gang_type, gang_colour')
         .eq('user_id', userId);
 
       if (error) throw error;
@@ -657,7 +659,7 @@ export default function MembersTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Gang</th>
+              <th className="px-4 py-2 text-left font-medium max-w-[8rem]">Gang</th>
               <th className="px-2 py-2 text-left font-medium max-w-[3rem]">Player</th>
               <th className="px-2 py-2 text-left font-medium max-w-[3.5rem]">Role</th>
               <th className="px-2 py-2 text-left font-medium">Rating</th>
@@ -671,7 +673,11 @@ export default function MembersTable({
                 <td className="px-2 py-2 max-w-[8rem]">
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                        style={{
+                          color: member.gangs[0]?.gang_colour || '#000000'
+                        }}
+                      >
                         <Link
                           href={`/gang/${member.gangs[0].gang_id}`}
                           className="hover:text-gray-600 transition-colors"
@@ -787,7 +793,9 @@ export default function MembersTable({
                 <div>
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-gray-100"
+                        style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
+                      >
                         <Link
                           href={`/gang/${member.gangs[0].gang_id}`}
                           className="hover:text-gray-600 transition-colors"

@@ -27,6 +27,7 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  gang_colour: string;
 }
 
 interface Member {
@@ -47,6 +48,8 @@ interface Member {
     id: string;
     gang_id: string;
     gang_name: string;
+    gang_type: string;
+    gang_colour: string;
     status: string | null;
     rating?: number;
     reputation?: number;
@@ -189,7 +192,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
         return {
           id: gang.gang_id,
           name: gang.gang_name,
-          // Add other needed fields
+          gang_type: gang.gang_type || 'Unknown',
+          gang_colour: gang.gang_colour || '#000000'
         };
       }
     }
@@ -251,7 +255,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     { 
                       id: gangDetails.id, 
                       name: gangDetails.name,
-                      gang_type: 'Unknown' // Or get from somewhere if needed
+                      gang_type: 'Unknown', // Or get from somewhere if needed
+                      gang_colour: gangDetails.gang_colour
                     }
                   ]
                 }
@@ -399,7 +404,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
         const { data: gangs, error } = await supabase
           .from('gangs')
-          .select('id, name, gang_type')
+          .select('id, name, gang_type, gang_colour')
           .in('id', gangIds);
 
         if (error) throw error;
@@ -413,7 +418,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           const territoryGangs = gang ? [{
             id: gang.id,
             name: gang.name,
-            gang_type: gang.gang_type
+            gang_type: gang.gang_type,
+            gang_colour: gang.gang_colour
           }] : [];
 
           return {
@@ -794,7 +800,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                             territory.owning_gangs.map(gang => (
                               <div 
                                 key={gang.id}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                                style={{ color: gang.gang_colour || '#000000' }}
                               >
                                 <Link 
                                   href={`/gang/${gang.id}`} 
@@ -808,9 +815,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                                       e.stopPropagation();
                                       handleRemoveGang(territory.id, gang.id);
                                     }}
-                                    className="ml-1 hover:text-gray-900 transition-colors"
+                                    className="ml-1 text-gray-400 hover:text-gray-600"
                                   >
-                                    <X size={12} />
+                                    ×
                                   </button>
                                 )}
                               </div>
@@ -926,9 +933,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                             <div className="flex items-center gap-2 flex-wrap">
                               {territory.owning_gangs && territory.owning_gangs.length > 0 ? (
                                 territory.owning_gangs.map(gang => (
-                                  <div 
+                                  <div
                                     key={gang.id}
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                                    style={{ color: gang.gang_colour || '#000000' }}
                                   >
                                     <Link 
                                       href={`/gang/${gang.id}`} 
@@ -942,9 +950,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                                           e.stopPropagation();
                                           handleRemoveGang(territory.id, gang.id);
                                         }}
-                                        className="ml-1 hover:text-gray-900 transition-colors"
+                                        className="ml-1 text-gray-400 hover:text-gray-600"
                                       >
-                                        <X size={12} />
+                                        ×
                                       </button>
                                     )}
                                   </div>

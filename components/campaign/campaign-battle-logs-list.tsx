@@ -29,6 +29,7 @@ interface Member {
     id: string;
     gang_id: string;
     gang_name: string;
+    gang_colour?: string;
     status: string | null;
     rating?: number;
     campaign_member_id?: string;
@@ -126,6 +127,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Map of gang IDs to gang names for lookup
   const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
+  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(new Map());
 
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
@@ -175,6 +177,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Extract unique gangs from all members
       const gangsMap = new Map<string, CampaignGang>();
       const gangNamesMap = new Map<string, string>();
+      const gangColourMap = new Map<string, string>();
       
       members.forEach(member => {
         if (member.gangs && member.gangs.length > 0) {
@@ -191,6 +194,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 user_id: member.user_id
               });
               gangNamesMap.set(gang.gang_id, gang.gang_name);
+              gangColourMap.set(gang.gang_id, gang.gang_colour || '#000000');
             }
           });
         }
@@ -198,6 +202,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       
       setAvailableGangs(Array.from(gangsMap.values()));
       setGangNameMap(gangNamesMap);
+      setGangColourMap(gangColourMap);
     }
   }, [members]);
 
@@ -205,6 +210,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const getGangName = (gangId: string | undefined): string => {
     if (!gangId) return "Unknown";
     return gangNameMap.get(gangId) || "Unknown";
+  };
+
+  const getGangColour = (gangId: string | undefined): string => {
+    if (!gangId) return '#000000';
+    return gangColourMap.get(gangId) || '#000000';
   };
 
   // Get all gangs with their roles for a battle
@@ -261,7 +271,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
                     {roleLetter}
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                    style={{ color: getGangColour(participant.gang_id) }}
+                  >
                     <Link
                       href={`/gang/${participant.gang_id}`}
                       className="hover:text-gray-600 transition-colors"
@@ -490,16 +502,22 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   <td className="px-2 py-2 align-top max-w-[5rem]">
                     {formatDate(battle.created_at)}
                   </td>
+
                   <td className="px-2 py-2 align-top max-w-[8rem]">
                     {battle.scenario || battle.scenario_name || 'N/A'}
                   </td>
+
                   <td className="px-2 py-2 align-top">
                     {getGangsWithRoles(battle)}
                   </td>
+
                   <td className="px-2 py-2 align-top">
                     {battle.winner?.gang_id ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        <Link 
+                      <span
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                        style={{ color: getGangColour(battle.winner.gang_id) }}
+                      >
+                        <Link
                           href={`/gang/${battle.winner.gang_id}`}
                           className="hover:text-gray-600 transition-colors"
                         >
@@ -512,6 +530,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                       <span className="ml-2 text-xs">{battle.winner?.gang_name || 'Unknown'}</span>
                     )}
                   </td>
+
                   <td className="px-2 py-2 align-top">
                     {battle.note && (
                       <button
@@ -641,7 +660,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     </>
   );
 
-  // Return with or without container based on prop
+  // Return with or without a container based on prop
   return noContainer ? content : (
     <div className="bg-white shadow-md rounded-lg p-4">
       {content}

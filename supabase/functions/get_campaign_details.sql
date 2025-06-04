@@ -177,6 +177,7 @@ SELECT json_build_object(
                     'id', cgf.id,
                     'gang_id', cgf.gang_id,
                     'gang_name', g.name,
+                    'gang_colour', g.gang_colour,
                     'status', cgf.status,
                     'rating', fd.gang_rating,
                     'reputation', g.reputation
