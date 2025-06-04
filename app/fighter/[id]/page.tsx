@@ -107,7 +107,7 @@ interface Fighter {
     injuries: FighterEffect[];
     advancements: FighterEffect[];
     bionics: FighterEffect[];
-    cybernetics: FighterEffect[];
+    cyberteknika: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -384,7 +384,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             injuries: result.fighter.effects?.injuries || [],
             advancements: result.fighter.effects?.advancements || [],
             bionics: result.fighter.effects?.bionics || [],
-            cybernetics: result.fighter.effects?.cybernetics || [],
+            cyberteknika: result.fighter.effects?.cyberteknika || [],
             user: result.fighter.effects?.user || []
           }
         },
@@ -1783,7 +1783,7 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             injuries: updatedFighter.effects?.injuries || prev.fighter.effects.injuries,
             advancements: updatedFighter.effects?.advancements || prev.fighter.effects.advancements,
             bionics: updatedFighter.effects?.bionics || prev.fighter.effects.bionics,
-            cybernetics: updatedFighter.effects?.cybernetics || prev.fighter.effects.cybernetics,
+            cyberteknika: updatedFighter.effects?.cyberteknika || prev.fighter.effects.cyberteknika,
             user: updatedFighter.effects?.user || prev.fighter.effects.user
           }
         }
@@ -1925,7 +1925,13 @@ export default function FighterPage(props: { params: Promise<{ id: string }> }) 
             recovery={fighterData.fighter?.recovery}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter.effects || { injuries: [], advancements: [] }}
+            effects={fighterData.fighter.effects || { 
+              injuries: [], 
+              advancements: [], 
+              bionics: [], 
+              cyberteknika: [], 
+              user: [] 
+            }}
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
