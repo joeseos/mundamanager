@@ -357,6 +357,16 @@ GangPage (Server Component)
 - Hydration-safe rendering
 - Proper loading states
 
+## Issues
+
+For bug reports, feature requests, or help, please join our **[Discord Community](https://discord.gg/FrqEWShQd7)**.
+
+## Support
+
+If you enjoy using Munda Manager, consider:
+- Supporting us on [Patreon](https://patreon.com/mundamanager)
+- Buying us a coffee at [Buy Me a Coffee](https://buymeacoffee.com/mundamanager)
+
 ## Contributing
 
 1. Fork the repository
@@ -365,11 +375,7 @@ GangPage (Server Component)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## Support
-
-If you enjoy using Munda Manager, consider:
-- Supporting us on [Patreon](https://patreon.com/mundamanager)
-- Buying us a coffee at [Buy Me a Coffee](https://buymeacoffee.com/mundamanager)
+For questions about contributing, feel free to ask in our [Discord server](https://discord.gg/FrqEWShQd7).
 
 ## License
 
