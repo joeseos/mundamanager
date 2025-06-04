@@ -61,7 +61,7 @@ export default function TerritoryGangModal({
         // Then get the gang details
         const { data: gangs, error: gangsError } = await supabase
           .from('gangs')
-          .select('id, name, gang_type')
+          .select('id, name, gang_type, gang_colour')
           .in('id', campaignGangs.map(cg => cg.gang_id));
 
         if (gangsError) throw gangsError;
