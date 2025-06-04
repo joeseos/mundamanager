@@ -28,6 +28,7 @@ import PrintModal from "@/components/print-modal";
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
+import { HexColorPicker } from "react-colorful";
 
 interface VehicleType {
   id: string;
@@ -69,6 +70,7 @@ interface GangProps {
   gang_type_id: string;
   gang_type?: string;
   gang_type_image_url: string;
+  gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
   meat: number | null;
@@ -114,6 +116,7 @@ export default function Gang({
   gang_type_id,
   gang_type,
   gang_type_image_url,
+  gang_colour: initialGangColour,
   credits: initialCredits, 
   reputation: initialReputation,
   meat: initialMeat,
@@ -151,6 +154,7 @@ export default function Gang({
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(initialName)
+  const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
   const [editedCredits, setEditedCredits] = useState('');
   const [editedReputation, setEditedReputation] = useState('');
   const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
@@ -176,7 +180,8 @@ export default function Gang({
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
-
+  const [showColourPickerModal, setShowColourPickerModal] = useState(false);
+  const [editedGangColour, setEditedGangColour] = useState(gangColour);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
     if (typeof window !== 'undefined') {
@@ -298,6 +303,7 @@ const handleAlignmentChange = (value: string) => {
       const prevExplorationPoints = explorationPoints;
       const prevGangVariants = [...gangVariants];
       const prevGangIsVariant = gangIsVariant;
+      const prevGangColour = gangColour;
 
       // Update state optimistically
       setName(editedName);
@@ -310,6 +316,7 @@ const handleAlignmentChange = (value: string) => {
       setExplorationPoints(parseInt(editedExplorationPoints));
       setGangIsVariant(editedGangIsVariant);
       setGangVariants(editedGangVariants);
+      setGangColour(editedGangColour);
       fetchFighterTypes(editedGangVariants);
 
       const response = await fetch(`/api/gangs/${id}`, {
@@ -328,6 +335,7 @@ const handleAlignmentChange = (value: string) => {
           meat: parseInt(editedMeat),
           exploration_points: parseInt(editedExplorationPoints),
           gang_variants: editedGangVariants.map(v => v.id),
+          gang_colour: editedGangColour,
         }),
       });
 
@@ -343,6 +351,7 @@ const handleAlignmentChange = (value: string) => {
         setExplorationPoints(prevExplorationPoints);
         setGangIsVariant(prevGangIsVariant);
         setGangVariants(prevGangVariants);
+        setGangColour(prevGangColour);
         
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -546,17 +555,33 @@ const handleAlignmentChange = (value: string) => {
         />
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Alignment</p>
-        <select
-          value={editedAlignment || ''}
-          onChange={(e) => handleAlignmentChange(e.target.value)}
-          className="w-full p-2 border rounded"
-        >
-          <option value="">Select Alignment</option>
-          <option value="Law Abiding">Law Abiding</option>
-          <option value="Outlaw">Outlaw</option>
-        </select>
+      <div className="flex flex-row gap-4">
+        {/* Alignment Section */}
+        <div className="flex-1 space-y-2">
+          <p className="text-sm font-medium">Alignment</p>
+          <select
+            value={editedAlignment || ''}
+            onChange={(e) => handleAlignmentChange(e.target.value)}
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select Alignment</option>
+            <option value="Law Abiding">Law Abiding</option>
+            <option value="Outlaw">Outlaw</option>
+          </select>
+        </div>
+
+        {/* Gang Colour Section */}
+        <div className="space-y-2">
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm font-medium">Gang Colour</p>
+            <div
+              className="w-8 h-8 rounded-full border border-black border-2 cursor-pointer"
+              style={{ backgroundColor: editedGangColour }}
+              title="Click to change colour"
+              onClick={() => setShowColourPickerModal(true)}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -1071,6 +1096,38 @@ const handleAlignmentChange = (value: string) => {
               }}
               onConfirm={handleSave}
               confirmText="Save Changes"
+            />
+          )}
+
+          {showColourPickerModal && (
+            <Modal
+              title="Select Gang Colour"
+              onClose={() => setShowColourPickerModal(false)}
+              onConfirm={() => setShowColourPickerModal(false)}
+              confirmText="Close"
+              content={
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <HexColorPicker color={editedGangColour} onChange={setEditedGangColour} />
+                  </div>
+                  <div className="flex justify-center">
+                    <input
+                      type="text"
+                      value={editedGangColour}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        // Allow only valid 7-character hex strings starting with "#"
+                        if (/^#([0-9A-Fa-f]{0,6})$/.test(val)) {
+                          setEditedGangColour(val);
+                        }
+                      }}
+                      className="w-32 text-center font-mono border rounded p-1 text-sm"
+                      maxLength={7}
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+              }
             />
           )}
 

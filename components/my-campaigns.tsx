@@ -12,6 +12,13 @@ export default function MyCampaigns() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
 
+  // Sort by most recent of updated_at (fallback to created_at)
+  const sortedCampaigns = [...campaigns].sort((a, b) => {
+    const dateA = new Date(a.updated_at || a.created_at).getTime();
+    const dateB = new Date(b.updated_at || b.created_at).getTime();
+    return dateB - dateA;
+  });
+
   if (isLoading) return <div className="text-center text-white">Loading campaigns...</div>
   if (error) return <div className="text-center text-red-500">{error}</div>
 
@@ -22,13 +29,13 @@ export default function MyCampaigns() {
         <p className="text-center text-gray-500">No campaigns created yet.</p>
       ) : (
         <ul className="space-y-2">
-          {campaigns.map((campaign) => (
+          {sortedCampaigns.map((campaign) => (
             <li key={campaign.campaign_member_id}>
               <Link href={`/campaigns/${campaign.id}`} className="flex items-center p-3 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
                 <div className="flex-grow">
                   <span className="font-medium text-black">{campaign.campaign_name}</span>
                   <div className="text-sm text-gray-600">
-                    Type: {campaign.campaign_type} | Created: {formatDate(campaign.created_at)}
+                    {campaign.campaign_type} | Created: {formatDate(campaign.created_at)} — Last Updated: {formatDate(campaign.updated_at)}
                   </div>
                 </div>
               </Link>

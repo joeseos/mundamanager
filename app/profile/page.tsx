@@ -67,7 +67,7 @@ export default async function ProfilePage() {
                 Last Sign In
               </label>
               <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">
-                {new Date(user.last_sign_in_at || '').toLocaleDateString()}
+                {new Date(user.last_sign_in_at || '').toISOString().split('T')[0]}
               </div>
             </div>
 
@@ -76,7 +76,7 @@ export default async function ProfilePage() {
                 Account Created
               </label>
               <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">
-                {new Date(user.created_at).toLocaleDateString()}
+                {new Date(user.created_at).toISOString().split('T')[0]}
               </div>
             </div>
           </div>

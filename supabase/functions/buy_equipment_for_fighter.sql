@@ -160,7 +160,13 @@ BEGIN
       rating_cost := adjusted_cost_final;  -- Using adjusted_cost_final (discounted price)
     END IF;
   ELSE
-    rating_cost := base_cost;  -- Using original base cost for rating when unchecked
+    -- When unchecked: Use the actual cost paid by the user for rating
+    IF v_equipment_type = 'weapon' AND master_crafted = TRUE THEN
+      -- For master-crafted weapons, increase by 25% and round up to nearest 5
+      rating_cost := CEIL((final_purchase_cost * 1.25) / 5) * 5;
+    ELSE
+      rating_cost := final_purchase_cost;  -- Using the actual cost paid by the user
+    END IF;
   END IF;
 
   -- Get owner details for response based on owner type
