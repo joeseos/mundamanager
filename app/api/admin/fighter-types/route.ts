@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 
+// Add type guard at the top of the file
+function isNonEmptyArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
 // Get all fighter types
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -614,46 +619,57 @@ export async function PUT(request: Request) {
     // Handle equipment selection
     if (data.equipment_selection) {
       console.log('Processing equipment selection:', data.equipment_selection);
-      
-      // First delete any existing selection
+
+      // Check if we have any content in the equipment selection
+      const hasSelection = data.equipment_selection &&
+        (Object.values(data.equipment_selection.optional).some(isNonEmptyArray) ||
+         Object.values(data.equipment_selection.single).some(isNonEmptyArray) ||
+         Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
+
+      if (hasSelection) {
+        console.log('About to upsert equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
+        const { error: upsertError } = await supabase
+          .from('fighter_equipment_selections')
+          .upsert({
+            fighter_type_id: id,
+            equipment_selection: data.equipment_selection
+          }, {
+            onConflict: 'fighter_type_id',
+            ignoreDuplicates: false
+          });
+
+        if (upsertError) {
+          console.error('Error upserting equipment selection:', upsertError);
+          console.error('Equipment selection data that failed:', data.equipment_selection);
+          throw upsertError;
+        } else {
+          console.log('Successfully upserted equipment selection data');
+        }
+      } else {
+        // If no selection content, delete any existing row
+        const { error: deleteError } = await supabase
+          .from('fighter_equipment_selections')
+          .delete()
+          .eq('fighter_type_id', id);
+
+        if (deleteError) {
+          console.error('Error deleting empty equipment selection:', deleteError);
+          throw deleteError;
+        }
+        console.log('No equipment selection content, deleted any existing row');
+      }
+    } else {
+      // If no equipment_selection field, delete any existing row
       const { error: deleteError } = await supabase
         .from('fighter_equipment_selections')
         .delete()
         .eq('fighter_type_id', id);
 
       if (deleteError) {
-        console.error('Error deleting existing equipment selection:', deleteError);
+        console.error('Error deleting equipment selection:', deleteError);
         throw deleteError;
       }
-
-      // Check if we have any content in the equipment selection
-      const hasSelection = data.equipment_selection && 
-        Object.keys(data.equipment_selection).length > 0;
-        
-      console.log('Has equipment selection content:', hasSelection);
-      console.log('Equipment selection keys:', Object.keys(data.equipment_selection || {}));
-
-      // Then insert the new selection if it has content
-      if (hasSelection) {
-        const { error: insertError } = await supabase
-          .from('fighter_equipment_selections')
-          .insert({
-            fighter_type_id: id,
-            equipment_selection: data.equipment_selection
-          });
-
-        if (insertError) {
-          console.error('Error inserting equipment selection:', insertError);
-          console.error('Equipment selection data that failed:', data.equipment_selection);
-          throw insertError;
-        } else {
-          console.log('Successfully saved equipment selection data');
-        }
-      } else {
-        console.log('No equipment selection content to insert');
-      }
-    } else {
-      console.log('No equipment_selection field in the update data');
+      console.log('No equipment_selection field in update data, deleted any existing row');
     }
 
     // Handle trading post equipment
@@ -853,9 +869,13 @@ export async function POST(request: Request) {
     // Add this section to handle equipment selection
     if (data.equipment_selection) {
       // Check if we have any content in the equipment selection
-      if (Object.keys(data.equipment_selection).length > 0) {
-        console.log('Saving equipment selection data');
-        
+      const hasSelection = data.equipment_selection &&
+        (Object.values(data.equipment_selection.optional).some(isNonEmptyArray) ||
+         Object.values(data.equipment_selection.single).some(isNonEmptyArray) ||
+         Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
+
+      if (hasSelection) {
+        console.log('About to save equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
         const { error: insertError } = await supabase
           .from('fighter_equipment_selections')
           .insert({
