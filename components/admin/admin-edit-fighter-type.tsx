@@ -10,7 +10,7 @@ import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
-import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption } from "@/components/admin/admin-fighter-equipment-selection";
+import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import Modal from '@/components/modal';
 import { AdminFighterTradingPost } from "@/components/admin/admin-fighter-trading-post";
 
@@ -525,48 +525,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Set equipment selection
       if (data.equipment_selection) {
-        const newEquipmentSelection: EquipmentSelection = {};
-        
         // Add logging to debug equipment selection loading
         console.log('Loaded equipment_selection from API:', data.equipment_selection);
-        // Handle legacy data format (weapons only)
-        if (data.equipment_selection.weapons) {
-          newEquipmentSelection['weapons'] = {
-            id: 'weapons',
-            name: 'Weapons',
-            select_type: data.equipment_selection.weapons.select_type || 'optional',
-            default: data.equipment_selection.weapons.default || [],
-            options: data.equipment_selection.weapons.options?.map((option: any) => ({
-              id: option.id,
-              cost: option.cost,
-              max_quantity: option.max_quantity,
-              replaces: option.replaces,
-              max_replace: option.max_replace
-            })) || []
-          };
-        }
-        // Handle new categories format if present
-        Object.entries(data.equipment_selection).forEach(([key, value]: [string, any]) => {
-          if (key !== 'weapons' && value && typeof value === 'object') {
-            newEquipmentSelection[key] = {
-              id: key, // <--- ensure this is always set
-              name: value.name || key,
-              select_type: value.select_type || 'optional',
-              default: value.default || [],
-              options: value.options?.map((option: any) => ({
-                id: option.id,
-                cost: option.cost,
-                max_quantity: option.max_quantity,
-                replaces: option.replaces,
-                max_replace: option.max_replace
-              })) || []
-            };
-          }
-        });
-        // Log the constructed newEquipmentSelection
-        console.log('Constructed newEquipmentSelection:', newEquipmentSelection);
-        console.log('newEquipmentSelection before set:', newEquipmentSelection);
-        setEquipmentSelection(newEquipmentSelection);
+        
+        // Use the dataModelToGui function to properly convert the new format
+        const convertedEquipmentSelection = dataModelToGui(data.equipment_selection);
+        console.log('Converted equipment selection:', convertedEquipmentSelection);
+        setEquipmentSelection(convertedEquipmentSelection);
       } else {
         // Reset to empty object if no equipment selection
         setEquipmentSelection({});
@@ -1038,7 +1003,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
         trading_post_equipment: tradingPostEquipment,
-        equipment_selection: finalEquipmentSelection,
+        equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
         updated_at: new Date().toISOString()
       };

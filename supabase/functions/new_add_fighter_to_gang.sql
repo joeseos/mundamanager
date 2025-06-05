@@ -140,19 +140,101 @@ BEGIN
         FROM unnest(p_selected_equipment_ids) AS equipment_id
         GROUP BY equipment_id
       )
-      -- Get selected equipment with costs from all categories in fighter_equipment_selections
+      -- Get selected equipment with costs from new JSON structure
       SELECT 
         e.id, 
         ec.quantity,
         COALESCE(
+          -- Look in main equipment arrays (single, multiple, optional)
           (
-            -- Look for the option in any category (weapons, wargear, etc.)
-            SELECT (opt->>'cost')::integer
+            SELECT (item_data->>'cost')::integer
             FROM fighter_equipment_selections fes,
-                 jsonb_each(fes.equipment_selection) as category,
-                 jsonb_array_elements(category.value->'options') as opt
-            WHERE fes.fighter_type_id = p_fighter_type_id
-            AND opt->>'id' = e.id::text
+            jsonb_array_elements(fes.equipment_selection->'single'->'weapons') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (item_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'single'->'wargear') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (item_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (item_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (item_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (item_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') as item_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          -- Look in replacement arrays
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'single'->'weapons') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'single'->'wargear') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
+            LIMIT 1
+          ),
+          (
+            SELECT (repl_data->>'cost')::integer
+            FROM fighter_equipment_selections fes,
+            jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') as item_data,
+            jsonb_array_elements(item_data->'replacements') as repl_data
+            WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
             LIMIT 1
           ),
           e.cost
@@ -160,15 +242,6 @@ BEGIN
         e.equipment_name
       FROM equipment_counts ec
       JOIN equipment e ON e.id = ec.equipment_id
-      -- Only include non-default equipment in the cost calculation
-      WHERE NOT EXISTS (
-        SELECT 1 
-        FROM fighter_equipment_selections fes,
-             jsonb_each(fes.equipment_selection) as category,
-             jsonb_array_elements(category.value->'default') as def
-        WHERE fes.fighter_type_id = p_fighter_type_id 
-        AND def->>'id' = e.id::text
-      )
     ) e;
     
     RAISE NOTICE 'Selected equipment cost: %', v_total_equipment_cost;
@@ -283,14 +356,56 @@ BEGIN
         CASE 
           WHEN ae.equipment_id = ANY(p_selected_equipment_ids) THEN
             COALESCE(
+              -- Look in main equipment arrays
               (
-                -- Look for the option in any category (weapons, wargear, etc.)
-                SELECT (opt->>'cost')::integer
+                SELECT (item_data->>'cost')::integer
                 FROM fighter_equipment_selections fes,
-                     jsonb_each(fes.equipment_selection) as category,
-                     jsonb_array_elements(category.value->'options') as opt
-                WHERE fes.fighter_type_id = p_fighter_type_id
-                AND opt->>'id' = ae.equipment_id::text
+                jsonb_array_elements(fes.equipment_selection->'single'->'weapons') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              (
+                SELECT (item_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'single'->'wargear') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              (
+                SELECT (item_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              (
+                SELECT (item_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              (
+                SELECT (item_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              (
+                SELECT (item_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') as item_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
+                LIMIT 1
+              ),
+              -- Look in replacement arrays
+              (
+                SELECT (repl_data->>'cost')::integer
+                FROM fighter_equipment_selections fes,
+                jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') as item_data,
+                jsonb_array_elements(item_data->'replacements') as repl_data
+                WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = ae.equipment_id::text
                 LIMIT 1
               ),
               e.cost
