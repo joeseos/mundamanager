@@ -179,7 +179,7 @@ export default function MemberSearchBar({
     <div className="relative mb-4">
       <Input
         type="text"
-        placeholder="Search for a player's name to invite"
+        placeholder="Search friends (add in Profile)"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full"
