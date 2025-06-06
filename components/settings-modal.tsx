@@ -20,6 +20,7 @@ import dynamic from 'next/dynamic';
 import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { FiMap } from "react-icons/fi";
+import { MdOutlineColorLens } from "react-icons/md";
 
 // Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
@@ -139,6 +140,13 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
             <Link href="/campaigns" className="w-full cursor-pointer">
               <FiMap className="mr-2 h-4 w-4" />
               Campaigns
+            </Link>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem asChild onClick={handleLinkClick}>
+            <Link href="/customize" className="w-full cursor-pointer">
+              <MdOutlineColorLens className="mr-2 h-4 w-4" />
+              Customize
             </Link>
           </DropdownMenuItem>
 
