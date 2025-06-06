@@ -17,7 +17,6 @@ returns table (
     availability text,
     base_cost numeric,
     discounted_cost numeric,
-    adjusted_cost numeric,
     equipment_category text,
     equipment_type text,
     created_at timestamptz,
@@ -40,11 +39,6 @@ as $$
             then e.cost::numeric - ed.discount::numeric
             else e.cost::numeric
         end as discounted_cost,
-        case
-            when ed.adjusted_cost is not null
-            then ed.adjusted_cost::numeric
-            else e.cost::numeric
-        end as adjusted_cost,
         e.equipment_category,
         e.equipment_type,
         e.created_at,
@@ -77,7 +71,14 @@ as $$
              or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
              or fte.vehicle_type_id = get_equipment_with_discounts.fighter_type_id)
     where 
-        coalesce(e.core_equipment, false) = false
+        (
+            coalesce(e.core_equipment, false) = false
+            OR 
+            (
+                e.core_equipment = true 
+                AND fte.fighter_type_id is not null
+            )
+        )
         and
         (get_equipment_with_discounts.equipment_category is null 
          or trim(both from e.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
