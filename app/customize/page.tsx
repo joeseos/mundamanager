@@ -26,7 +26,7 @@ export default async function CustomizePage() {
           <div className="space-y-6">
             <section>
               <p className="text-gray-700">
-                Customize your Munda Manager experience with personalized settings and preferences.
+                Customize your Munda Manager experience with custom equipment, fighters and more.
               </p>
             </section>
 
