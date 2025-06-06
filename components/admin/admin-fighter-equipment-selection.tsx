@@ -413,16 +413,16 @@ export function AdminFighterEquipmentSelection({
                           });
                         } else {
                           // For single and multiple types, add to options array
-                          setEquipmentSelection(prev => ({
-                            ...prev,
-                            [categoryId]: {
-                              ...prev[categoryId],
-                              options: [
-                                ...(prev[categoryId].options || []),
-                                { id: value, cost: 0, max_quantity: 1 }
-                              ]
-                            }
-                          }));
+                        setEquipmentSelection(prev => ({
+                          ...prev,
+                          [categoryId]: {
+                            ...prev[categoryId],
+                            options: [
+                              ...(prev[categoryId].options || []),
+                              { id: value, cost: 0, max_quantity: 1 }
+                            ]
+                          }
+                        }));
                         }
                         e.target.value = "";
                       }}
@@ -455,7 +455,7 @@ export function AdminFighterEquipmentSelection({
                         <div className="space-y-2">
                           {category.default[0].replacements.map((item, index) => {
                             const equipmentItem = equipment.find(e => e.id === item.id);
-                            return (
+                        return (
                               <div key={item.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
                                 <span>{equipmentItem?.equipment_name || 'Unknown Equipment'}</span>
                                 <div className="ml-auto flex items-center gap-4">
@@ -546,7 +546,7 @@ export function AdminFighterEquipmentSelection({
                                       });
                                     }}
                                     className="hover:bg-gray-100 p-1 rounded self-end"
-                                    disabled={disabled}
+                            disabled={disabled}
                                   >
                                     <X className="h-4 w-4" />
                                   </button>
@@ -642,23 +642,23 @@ export function AdminFighterEquipmentSelection({
       )}
     </div>
   );
-}
+} 
 
 // --- Conversion helpers for new data model ---
 
-// New backend data model type
+// New backend data model type - updated to support grouped selections
 export interface EquipmentSelectionDataModel {
   optional: {
-    weapons: EquipmentOption[];
-    wargear: EquipmentOption[];
+    weapons: EquipmentOption[][];
+    wargear: EquipmentOption[][];
   };
   single: {
-    weapons: EquipmentOption[];
-    wargear: EquipmentOption[];
+    weapons: EquipmentOption[][];
+    wargear: EquipmentOption[][];
   };
   multiple: {
-    weapons: EquipmentOption[];
-    wargear: EquipmentOption[];
+    weapons: EquipmentOption[][];
+    wargear: EquipmentOption[][];
   };
 }
 
@@ -669,24 +669,35 @@ export function guiToDataModel(gui: EquipmentSelection): EquipmentSelectionDataM
     single: { weapons: [], wargear: [] },
     multiple: { weapons: [], wargear: [] },
   };
+  
   Object.values(gui).forEach(category => {
     const type = category.select_type;
     const name = (category.name || '').toLowerCase();
+    
     if ((type === 'optional' || type === 'single' || type === 'multiple') && (name === 'weapons' || name === 'wargear')) {
       if (type === 'optional') {
-        // Each default can have its own replacements array
-        result[type][name] = (category.default || []).map(def => ({
+        // For optional type, each default with its replacements becomes a group
+        const optionalGroup = (category.default || []).map(def => ({
           id: def.id,
           cost: 0,
           quantity: def.quantity,
           is_default: true,
           replacements: def.replacements || []
         }));
+        
+        if (optionalGroup.length > 0) {
+          result[type][name].push(optionalGroup);
+        }
       } else {
-        result[type][name] = category.options || [];
+        // For single and multiple types, all options become one group
+        const optionsGroup = category.options || [];
+        if (optionsGroup.length > 0) {
+          result[type][name].push(optionsGroup);
+        }
       }
     }
   });
+  
   return result;
 }
 
@@ -697,37 +708,40 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
   
   (['optional', 'single', 'multiple'] as const).forEach(type => {
     (['weapons', 'wargear'] as const).forEach(name => {
-      const options = data?.[type]?.[name] || [];
+      const groups = data?.[type]?.[name] || [];
       
-      if (options.length > 0) {
-        const id = `${name}_${type}_${idCounter++}`;
-        
-        if (type === 'optional') {
-          // For optional type, we need to handle defaults with replacements
-          const defaults = options.filter(opt => opt.is_default);
+      // Each group becomes a separate GUI category
+      groups.forEach((group, groupIndex) => {
+        if (group.length > 0) {
+          const id = `${name}_${type}_${idCounter++}`;
           
-          gui[id] = {
-            id,
-            name: name.charAt(0).toUpperCase() + name.slice(1),
-            select_type: type,
-            default: defaults.map(opt => ({
-              id: opt.id,
-              cost: opt.cost || 0,
-              quantity: opt.quantity || 1,
-              replacements: opt.replacements || []
-            })),
-            options: [] // Keep empty for optional type since replacements are in default
-          };
-        } else {
-          // For single and multiple types, use options as before
-          gui[id] = {
-            id,
-            name: name.charAt(0).toUpperCase() + name.slice(1),
-            select_type: type,
-            options: options,
-          };
+          if (type === 'optional') {
+            // For optional type, we need to handle defaults with replacements
+            const defaults = group.filter(opt => opt.is_default);
+            
+            gui[id] = {
+              id,
+              name: name.charAt(0).toUpperCase() + name.slice(1),
+              select_type: type,
+              default: defaults.map(opt => ({
+                id: opt.id,
+                cost: opt.cost || 0,
+                quantity: opt.quantity || 1,
+                replacements: opt.replacements || []
+              })),
+              options: [] // Keep empty for optional type since replacements are in default
+            };
+          } else {
+            // For single and multiple types, use group as options
+            gui[id] = {
+              id,
+              name: name.charAt(0).toUpperCase() + name.slice(1),
+              select_type: type,
+              options: group,
+            };
+          }
         }
-      }
+      });
     });
   });
   

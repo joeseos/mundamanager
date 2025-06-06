@@ -63,7 +63,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
     return equipmentSelection as EquipmentSelection;
   }
 
-  // If in new format, convert to old format
+  // If in new nested array format (current SQL output), convert to old format
   if (
     equipmentSelection &&
     typeof equipmentSelection === 'object' &&
@@ -73,61 +73,125 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
     let idCounter = 0;
     
     (['optional', 'single', 'multiple'] as const).forEach(selectType => {
-      const group = equipmentSelection[selectType];
-      if (group && typeof group === 'object') {
+      const typeGroup = equipmentSelection[selectType];
+      if (typeGroup && typeof typeGroup === 'object') {
         (['weapons', 'wargear'] as const).forEach(categoryName => {
-          const items = group[categoryName];
-          if (Array.isArray(items) && items.length > 0) {
-            const key = `${categoryName}_${selectType}_${idCounter++}`;
+          const categoryData = typeGroup[categoryName];
+          if (Array.isArray(categoryData) && categoryData.length > 0) {
             
-            if (selectType === 'optional') {
-              // For optional type, separate defaults and replacements
-              const defaults = items.filter((item: any) => item.is_default);
-              const allReplacements: GangEquipmentOption[] = [];
-              
-              // Collect all replacements from all defaults
-              defaults.forEach((defaultItem: any) => {
-                if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
-                  defaultItem.replacements.forEach((replacement: any) => {
-                    allReplacements.push({
-                      id: replacement.id,
-                      equipment_name: replacement.equipment_name,
-                      equipment_type: replacement.equipment_type,
-                      equipment_category: replacement.equipment_category,
-                      cost: replacement.cost || 0,
-                      max_quantity: replacement.max_quantity || 1
+            // Check if this is nested arrays (groups) or flat array
+            const isNestedArrays = categoryData.length > 0 && Array.isArray(categoryData[0]);
+            
+            if (isNestedArrays) {
+              // Handle nested arrays - each inner array is a separate group
+              categoryData.forEach((group: any[], groupIndex: number) => {
+                if (Array.isArray(group) && group.length > 0) {
+                  const key = `${categoryName}_${selectType}_${idCounter++}`;
+                  
+                  if (selectType === 'optional') {
+                    // For optional type, separate defaults and replacements
+                    const defaults = group.filter((item: any) => item.is_default);
+                    const allReplacements: GangEquipmentOption[] = [];
+                    
+                    // Collect all replacements from all defaults
+                    defaults.forEach((defaultItem: any) => {
+                      if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
+                        defaultItem.replacements.forEach((replacement: any) => {
+                          allReplacements.push({
+                            id: replacement.id,
+                            equipment_name: replacement.equipment_name,
+                            equipment_type: replacement.equipment_type,
+                            equipment_category: replacement.equipment_category,
+                            cost: replacement.cost || 0,
+                            max_quantity: replacement.max_quantity || 1
+                          });
+                        });
+                      }
                     });
-                  });
+                    
+                    result[key] = {
+                      name: `${categoryName.charAt(0).toUpperCase() + categoryName.slice(1)} ${groupIndex + 1}`,
+                      select_type: selectType,
+                      default: defaults.map((item: any) => ({
+                        id: item.id,
+                        equipment_name: item.equipment_name,
+                        equipment_type: item.equipment_type,
+                        equipment_category: item.equipment_category,
+                        quantity: item.quantity || 1
+                      })),
+                      options: allReplacements
+                    };
+                  } else {
+                    // For single and multiple types, use items as options
+                    result[key] = {
+                      name: `${categoryName.charAt(0).toUpperCase() + categoryName.slice(1)} ${groupIndex + 1}`,
+                      select_type: selectType,
+                      default: [],
+                      options: group.map((item: any) => ({
+                        id: item.id,
+                        equipment_name: item.equipment_name,
+                        equipment_type: item.equipment_type,
+                        equipment_category: item.equipment_category,
+                        cost: item.cost || 0,
+                        max_quantity: item.max_quantity || 1
+                      }))
+                    };
+                  }
                 }
               });
-              
-              result[key] = {
-                name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
-                select_type: selectType,
-                default: defaults.map((item: any) => ({
-                  id: item.id,
-                  equipment_name: item.equipment_name,
-                  equipment_type: item.equipment_type,
-                  equipment_category: item.equipment_category,
-                  quantity: item.quantity || 1
-                })),
-                options: allReplacements
-              };
             } else {
-              // For single and multiple types, use items as options
-              result[key] = {
-                name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
-                select_type: selectType,
-                default: [],
-                options: items.map((item: any) => ({
-                  id: item.id,
-                  equipment_name: item.equipment_name,
-                  equipment_type: item.equipment_type,
-                  equipment_category: item.equipment_category,
-                  cost: item.cost || 0,
-                  max_quantity: item.max_quantity || 1
-                }))
-              };
+              // Handle flat array (backward compatibility)
+              const key = `${categoryName}_${selectType}_${idCounter++}`;
+              
+              if (selectType === 'optional') {
+                // For optional type, separate defaults and replacements
+                const defaults = categoryData.filter((item: any) => item.is_default);
+                const allReplacements: GangEquipmentOption[] = [];
+                
+                // Collect all replacements from all defaults
+                defaults.forEach((defaultItem: any) => {
+                  if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
+                    defaultItem.replacements.forEach((replacement: any) => {
+                      allReplacements.push({
+                        id: replacement.id,
+                        equipment_name: replacement.equipment_name,
+                        equipment_type: replacement.equipment_type,
+                        equipment_category: replacement.equipment_category,
+                        cost: replacement.cost || 0,
+                        max_quantity: replacement.max_quantity || 1
+                      });
+                    });
+                  }
+                });
+                
+                result[key] = {
+                  name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
+                  select_type: selectType,
+                  default: defaults.map((item: any) => ({
+                    id: item.id,
+                    equipment_name: item.equipment_name,
+                    equipment_type: item.equipment_type,
+                    equipment_category: item.equipment_category,
+                    quantity: item.quantity || 1
+                  })),
+                  options: allReplacements
+                };
+              } else {
+                // For single and multiple types, use items as options
+                result[key] = {
+                  name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
+                  select_type: selectType,
+                  default: [],
+                  options: categoryData.map((item: any) => ({
+                    id: item.id,
+                    equipment_name: item.equipment_name,
+                    equipment_type: item.equipment_type,
+                    equipment_category: item.equipment_category,
+                    cost: item.cost || 0,
+                    max_quantity: item.max_quantity || 1
+                  }))
+                };
+              }
             }
           }
         });

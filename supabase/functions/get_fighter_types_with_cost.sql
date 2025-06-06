@@ -84,229 +84,517 @@ BEGIN
                         jsonb_build_object(
                             'single', jsonb_build_object(
                                 'wargear', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'wargear') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'single'->'wargear') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'single'->'wargear'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'wargear') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 ),
                                 'weapons', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'single'->'weapons') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'single'->'weapons') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'single'->'weapons'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'single'->'weapons') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 )
                             ),
                             'multiple', jsonb_build_object(
                                 'wargear', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'wargear') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'wargear') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'wargear'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 ),
                                 'weapons', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'multiple'->'weapons') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'multiple'->'weapons') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'multiple'->'weapons'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 )
                             ),
                             'optional', jsonb_build_object(
                                 'wargear', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'wargear') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'wargear') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'wargear'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'wargear') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 ),
                                 'weapons', COALESCE(
-                                    (
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', (item_data->>'id')::uuid,
-                                                'equipment_name', e.equipment_name,
-                                                'equipment_type', e.equipment_type,
-                                                'equipment_category', e.equipment_category,
-                                                'cost', (item_data->>'cost')::numeric,
-                                                'quantity', (item_data->>'quantity')::integer,
-                                                'is_default', (item_data->>'is_default')::boolean,
-                                                'replacements', COALESCE(
-                                                    (
-                                                        SELECT jsonb_agg(
-                                                            jsonb_build_object(
-                                                                'id', (repl->>'id')::uuid,
-                                                                'equipment_name', re.equipment_name,
-                                                                'equipment_type', re.equipment_type,
-                                                                'equipment_category', re.equipment_category,
-                                                                'cost', (repl->>'cost')::numeric,
-                                                                'max_quantity', (repl->>'max_quantity')::integer
+                                    CASE 
+                                        WHEN jsonb_typeof(fes.equipment_selection->'optional'->'weapons') = 'array' 
+                                             AND jsonb_array_length(fes.equipment_selection->'optional'->'weapons') > 0
+                                             AND jsonb_typeof(fes.equipment_selection->'optional'->'weapons'->0) = 'array'
+                                        THEN (
+                                            SELECT jsonb_agg(
+                                                (
+                                                    SELECT jsonb_agg(
+                                                        jsonb_build_object(
+                                                            'id', (item_data->>'id')::uuid,
+                                                            'equipment_name', e.equipment_name,
+                                                            'equipment_type', e.equipment_type,
+                                                            'equipment_category', e.equipment_category,
+                                                            'cost', (item_data->>'cost')::numeric,
+                                                            'quantity', (item_data->>'quantity')::integer,
+                                                            'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacements', COALESCE(
+                                                                (
+                                                                    SELECT jsonb_agg(
+                                                                        jsonb_build_object(
+                                                                            'id', (repl->>'id')::uuid,
+                                                                            'equipment_name', re.equipment_name,
+                                                                            'equipment_type', re.equipment_type,
+                                                                            'equipment_category', re.equipment_category,
+                                                                            'cost', (repl->>'cost')::numeric,
+                                                                            'max_quantity', (repl->>'max_quantity')::integer
+                                                                        )
+                                                                    )
+                                                                    FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                    LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                    WHERE re.id IS NOT NULL
+                                                                ),
+                                                                '[]'::jsonb
                                                             )
                                                         )
-                                                        FROM jsonb_array_elements(item_data->'replacements') AS repl
-                                                        LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
-                                                        WHERE re.id IS NOT NULL
-                                                    ),
-                                                    '[]'::jsonb
+                                                    )
+                                                    FROM jsonb_array_elements(group_data) AS item_data
+                                                    LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                                    WHERE e.id IS NOT NULL
                                                 )
                                             )
+                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS group_data
+                                            WHERE jsonb_array_length(group_data) > 0
                                         )
-                                        FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS item_data
-                                        LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
-                                        WHERE e.id IS NOT NULL
-                                    ),
+                                        ELSE (
+                                            SELECT CASE 
+                                                WHEN COUNT(*) > 0 THEN jsonb_build_array(jsonb_agg(
+                                                    jsonb_build_object(
+                                                        'id', (item_data->>'id')::uuid,
+                                                        'equipment_name', e.equipment_name,
+                                                        'equipment_type', e.equipment_type,
+                                                        'equipment_category', e.equipment_category,
+                                                        'cost', (item_data->>'cost')::numeric,
+                                                        'quantity', (item_data->>'quantity')::integer,
+                                                        'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacements', COALESCE(
+                                                            (
+                                                                SELECT jsonb_agg(
+                                                                    jsonb_build_object(
+                                                                        'id', (repl->>'id')::uuid,
+                                                                        'equipment_name', re.equipment_name,
+                                                                        'equipment_type', re.equipment_type,
+                                                                        'equipment_category', re.equipment_category,
+                                                                        'cost', (repl->>'cost')::numeric,
+                                                                        'max_quantity', (repl->>'max_quantity')::integer
+                                                                    )
+                                                                )
+                                                                FROM jsonb_array_elements(item_data->'replacements') AS repl
+                                                                LEFT JOIN equipment re ON re.id = (repl->>'id')::uuid
+                                                                WHERE re.id IS NOT NULL
+                                                            ),
+                                                            '[]'::jsonb
+                                                        )
+                                                    )
+                                                ))
+                                                ELSE '[]'::jsonb
+                                            END
+                                            FROM jsonb_array_elements(fes.equipment_selection->'optional'->'weapons') AS item_data
+                                            LEFT JOIN equipment e ON e.id = (item_data->>'id')::uuid
+                                            WHERE e.id IS NOT NULL
+                                        )
+                                    END,
                                     '[]'::jsonb
                                 )
                             )
