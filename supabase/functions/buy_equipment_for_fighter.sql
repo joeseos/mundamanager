@@ -3,8 +3,9 @@ DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID);
 
--- Then create our new function with vehicle support, user_id, fighter effect support, and use_base_cost_for_rating
+-- Then create our new function with vehicle support, user_id, fighter effect support, use_base_cost_for_rating, and custom equipment support
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   fighter_id UUID DEFAULT NULL,
   equipment_id UUID DEFAULT NULL,
@@ -12,7 +13,8 @@ CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   manual_cost INTEGER DEFAULT NULL,
   vehicle_id UUID DEFAULT NULL,
   master_crafted BOOLEAN DEFAULT FALSE,
-  use_base_cost_for_rating BOOLEAN DEFAULT TRUE
+  use_base_cost_for_rating BOOLEAN DEFAULT TRUE,
+  custom_equipment_id UUID DEFAULT NULL
 )
 RETURNS JSONB 
 SECURITY DEFINER
@@ -26,6 +28,7 @@ DECLARE
   base_cost INTEGER;
   adjusted_cost_final INTEGER;
   default_profile RECORD;
+  custom_equipment_record RECORD;
   current_gang_credits INTEGER;
   v_new_equipment_id UUID;
   v_equipment_type TEXT;
@@ -50,13 +53,15 @@ DECLARE
   v_has_effect BOOLEAN := FALSE;
   v_fighter_type_id UUID;
   rating_cost INTEGER;
+  v_is_custom_equipment BOOLEAN := FALSE;
+  v_equipment_name TEXT;
 BEGIN
   -- Get the authenticated user's ID
   v_user_id := auth.uid();
 
-  -- Validate required parameters
-  IF equipment_id IS NULL THEN
-    RAISE EXCEPTION 'equipment_id is required';
+  -- Validate required parameters - exactly one of equipment_id or custom_equipment_id must be provided
+  IF (equipment_id IS NULL AND custom_equipment_id IS NULL) OR (equipment_id IS NOT NULL AND custom_equipment_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Exactly one of equipment_id or custom_equipment_id must be provided. equipment_id: %, custom_equipment_id: %', equipment_id, custom_equipment_id;
   END IF;
 
   IF gang_id IS NULL THEN
@@ -67,6 +72,9 @@ BEGIN
   IF (fighter_id IS NULL AND vehicle_id IS NULL) OR (fighter_id IS NOT NULL AND vehicle_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Exactly one of fighter_id or vehicle_id must be provided';
   END IF;
+
+  -- Set flags for custom equipment
+  v_is_custom_equipment := custom_equipment_id IS NOT NULL;
 
   -- Set owner type for later use
   v_owner_type := CASE
@@ -108,37 +116,65 @@ BEGIN
     WHERE id = buy_equipment_for_fighter.fighter_id;
   END IF;
 
-  -- Get the adjusted_cost value if it exists (considering both gang and fighter type discounts)
-  SELECT adjusted_cost::numeric INTO v_adjusted_cost
-  FROM equipment_discounts ed
-  WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
-  AND (
-    (ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
-    OR 
-    (ed.fighter_type_id = v_fighter_type_id AND ed.gang_type_id IS NULL)
-  );
+  -- Handle custom equipment vs regular equipment
+  IF v_is_custom_equipment THEN
+    -- Get custom equipment details
+    SELECT
+      ce.cost::integer as base_cost,
+      ce.cost::integer as adjusted_cost_final,
+      ce.equipment_type,
+      ce.equipment_name
+    INTO custom_equipment_record
+    FROM custom_equipment ce
+    WHERE ce.id = buy_equipment_for_fighter.custom_equipment_id
+    AND ce.user_id = v_user_id; -- Security: only allow user's own custom equipment
 
-  -- Get the equipment base cost
-  SELECT
-    e.cost::integer as base_cost,
-    CASE
-      WHEN v_adjusted_cost IS NOT NULL THEN v_adjusted_cost::integer
-      ELSE e.cost::integer
-    END as adjusted_cost_final,
-    e.equipment_type,
-    wp.*
-  INTO default_profile
-  FROM equipment e
-  LEFT JOIN weapon_profiles wp ON wp.weapon_id = e.id
-  WHERE e.id = buy_equipment_for_fighter.equipment_id;
+    IF custom_equipment_record IS NULL THEN
+      RAISE EXCEPTION 'Custom equipment not found or not accessible. custom_equipment_id: %, user_id: %', custom_equipment_id, v_user_id;
+    END IF;
 
-  IF default_profile IS NULL THEN
-    RAISE EXCEPTION 'Equipment not found';
+    base_cost := custom_equipment_record.base_cost;
+    adjusted_cost_final := custom_equipment_record.adjusted_cost_final;
+    v_equipment_type := custom_equipment_record.equipment_type;
+    v_equipment_name := custom_equipment_record.equipment_name;
+
+    -- Custom equipment doesn't have weapon profiles, so set default_profile to NULL
+    default_profile := NULL;
+  ELSE
+    -- Get the adjusted_cost value if it exists (considering both gang and fighter type discounts)
+    SELECT adjusted_cost::numeric INTO v_adjusted_cost
+    FROM equipment_discounts ed
+    WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
+    AND (
+      (ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
+      OR 
+      (ed.fighter_type_id = v_fighter_type_id AND ed.gang_type_id IS NULL)
+    );
+
+    -- Get the equipment base cost
+    SELECT
+      e.cost::integer as base_cost,
+      CASE
+        WHEN v_adjusted_cost IS NOT NULL THEN v_adjusted_cost::integer
+        ELSE e.cost::integer
+      END as adjusted_cost_final,
+      e.equipment_type,
+      e.equipment_name,
+      wp.*
+    INTO default_profile
+    FROM equipment e
+    LEFT JOIN weapon_profiles wp ON wp.weapon_id = e.id
+    WHERE e.id = buy_equipment_for_fighter.equipment_id;
+
+    IF default_profile IS NULL THEN
+      RAISE EXCEPTION 'Regular equipment not found. equipment_id: %', equipment_id;
+    END IF;
+
+    base_cost := default_profile.base_cost;
+    adjusted_cost_final := default_profile.adjusted_cost_final;
+    v_equipment_type := default_profile.equipment_type;
+    v_equipment_name := default_profile.equipment_name;
   END IF;
-
-  base_cost := default_profile.base_cost;
-  adjusted_cost_final := default_profile.adjusted_cost_final;
-  v_equipment_type := default_profile.equipment_type;
 
   -- Determine final purchase cost (manual or calculated)
   -- This is the cost that will be deducted from gang credits
@@ -210,6 +246,7 @@ BEGIN
     fighter_id,
     vehicle_id,
     equipment_id,
+    custom_equipment_id,
     original_cost,
     purchase_cost,
     created_at,
@@ -222,6 +259,7 @@ BEGIN
     fighter_id,
     vehicle_id,
     buy_equipment_for_fighter.equipment_id,
+    buy_equipment_for_fighter.custom_equipment_id,
     base_cost,
     rating_cost, -- Use rating_cost for purchase_cost based on the flag
     now(),
@@ -234,13 +272,14 @@ BEGIN
   )
   RETURNING id INTO v_new_equipment_id;
 
-  -- Build the response JSON based on equipment type
-  IF v_equipment_type = 'weapon' THEN
+  -- Build the response JSON based on equipment type and whether it's custom
+  IF v_equipment_type = 'weapon' AND NOT v_is_custom_equipment THEN
     SELECT jsonb_build_object(
       'id', fe.id,
       'fighter_id', fe.fighter_id,
       'vehicle_id', fe.vehicle_id,
       'equipment_id', fe.equipment_id,
+      'custom_equipment_id', fe.custom_equipment_id,
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
       'user_id', fe.user_id,
@@ -261,21 +300,23 @@ BEGIN
     FROM fighter_equipment fe
     WHERE fe.id = v_new_equipment_id;
   ELSE
+    -- For wargear, custom equipment, or any non-weapon equipment
     SELECT jsonb_build_object(
       'id', fe.id,
       'fighter_id', fe.fighter_id,
       'vehicle_id', fe.vehicle_id,
       'equipment_id', fe.equipment_id,
+      'custom_equipment_id', fe.custom_equipment_id,
       'purchase_cost', fe.purchase_cost,
       'original_cost', fe.original_cost,
       'user_id', fe.user_id,
       'is_master_crafted', fe.is_master_crafted,
       'wargear_details', jsonb_build_object(
-        'name', e.equipment_name,
-        'cost', e.cost
+        'name', v_equipment_name,
+        'cost', base_cost
       ),
       'vehicle_profile', CASE 
-        WHEN v_owner_type = 'vehicle' THEN
+        WHEN v_owner_type = 'vehicle' AND NOT v_is_custom_equipment THEN
           jsonb_build_object(
             'front', vep.front,
             'side', vep.side,
@@ -291,7 +332,7 @@ BEGIN
       END
     ) INTO new_equipment
     FROM fighter_equipment fe
-    JOIN equipment e ON e.id = fe.equipment_id
+    LEFT JOIN equipment e ON e.id = fe.equipment_id
     LEFT JOIN vehicle_equipment_profiles vep ON vep.equipment_id = fe.equipment_id
     WHERE fe.id = v_new_equipment_id;
   END IF;
@@ -317,8 +358,8 @@ BEGIN
   v_final_result := v_collections_data;
 
   -- Check if there are any fighter effects associated with this equipment
-  -- Only apply effects if this is for a fighter (not a vehicle)
-  IF v_owner_type = 'fighter' THEN
+  -- Only apply effects if this is for a fighter (not a vehicle) and not custom equipment
+  IF v_owner_type = 'fighter' AND NOT v_is_custom_equipment THEN
     -- Find fighter effect type that references this equipment
     SELECT fet.*, fec.id as category_id INTO v_effect_type_record
     FROM fighter_effect_types fet
@@ -407,6 +448,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) TO authenticated;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN) TO service_role;
+REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) TO service_role;

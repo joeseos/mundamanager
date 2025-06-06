@@ -34,6 +34,7 @@ export interface Equipment {
   vehicle_equipment_profiles?: VehicleEquipmentProfile[];
   master_crafted?: boolean;
   is_master_crafted?: boolean;
+  is_custom?: boolean;
   equipment_effect?: {
     id: string;
     effect_name: string;
