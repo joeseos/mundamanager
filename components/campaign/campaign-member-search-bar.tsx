@@ -36,15 +36,13 @@ interface MemberSearchBarProps {
   campaignMembers: Member[];
   onMemberAdd: (member: Member) => void;
   disabled?: boolean;
-  acceptedFriends?: { id: string; username: string }[];
 }
 
 export default function MemberSearchBar({
   campaignId,
   campaignMembers,
   onMemberAdd,
-  disabled = false,
-  acceptedFriends = []
+  disabled = false
 }: MemberSearchBarProps) {
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -53,7 +51,7 @@ export default function MemberSearchBar({
   const supabase = createClient()
   const { toast } = useToast()
 
-  // Search functionality (only among accepted friends)
+  // Search functionality using API route
   useEffect(() => {
     const searchUsers = async () => {
       if (query.trim() === '') {
@@ -62,38 +60,48 @@ export default function MemberSearchBar({
       }
       setIsLoading(true)
       try {
-        // Filter accepted friends by query
-        const filtered = acceptedFriends.filter(friend =>
-          friend.username.toLowerCase().includes(query.toLowerCase())
-        );
-        // Transform to Member type
-        const transformedResults: Member[] = filtered.map(friend => ({
-          user_id: friend.id,
-          username: friend.username,
-          role: 'MEMBER',
-          status: null,
-          invited_at: new Date().toISOString(),
-          joined_at: null,
-          invited_by: '',
-          profile: {
-            id: friend.id,
-            username: friend.username,
-            updated_at: new Date().toISOString(),
-            user_role: 'user'
-          },
-          gangs: []
-        }));
+        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to search users')
+        }
+
+        const profilesData = await response.json()
+
+        // Transform to Member type (allow existing members to be added again)
+        const transformedResults: Member[] = (profilesData || [])
+          .map((profile: { id: string; username: string }) => ({
+            user_id: profile.id,
+            username: profile.username,
+            role: 'MEMBER' as MemberRole,
+            status: null,
+            invited_at: new Date().toISOString(),
+            joined_at: null,
+            invited_by: '',
+            profile: {
+              id: profile.id,
+              username: profile.username,
+              updated_at: new Date().toISOString(),
+              user_role: 'user'
+            },
+            gangs: []
+          }));
+        
         setSearchResults(transformedResults);
       } catch (error) {
         console.error('Error searching users:', error);
         setSearchResults([]);
+        toast({
+          variant: "destructive",
+          description: "Failed to search users"
+        });
       } finally {
         setIsLoading(false);
       }
     };
     const debounceTimer = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounceTimer);
-  }, [query, campaignMembers, acceptedFriends]);
+  }, [query, toast]);
 
   const handleAddMember = async (member: Member) => {
     setIsAdding(true)
@@ -162,24 +170,11 @@ export default function MemberSearchBar({
     }
   };
 
-  // Only search for new members, use existing data for filtering
-  const searchUsers = async (query: string) => {
-    if (query.trim() === '') return [];
-    
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .ilike('username', `%${query}%`)
-      .limit(10);
-
-    return profilesData || [];
-  };
-
   return (
     <div className="relative mb-4">
       <Input
         type="text"
-        placeholder="Search friends (add in Profile)"
+        placeholder="Search users by username"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full"

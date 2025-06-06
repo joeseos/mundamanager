@@ -162,7 +162,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const router = useRouter();
-  const [acceptedFriends, setAcceptedFriends] = useState<{ id: string; username: string }[]>([]);
 
   // Determine user role based on userId
   useEffect(() => {
@@ -552,42 +551,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     }
   };
 
-  useEffect(() => {
-    const fetchAcceptedFriends = async () => {
-      if (!userId) return;
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('friends')
-        .select(`
-          requester_id,
-          addressee_id,
-          status,
-          requester_profile:requester_id(username),
-          addressee_profile:addressee_id(username)
-        `)
-        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-        .eq('status', 'accepted');
-      if (error) {
-        setAcceptedFriends([]);
-        return;
-      }
-      // Map to unique list of friends (other than self)
-      const friends = (data || []).map((f: any) => {
-        if (f.requester_id === userId) {
-          // Current user is requester, friend is addressee
-          return { id: f.addressee_id, username: f.addressee_profile?.username };
-        } else {
-          // Current user is addressee, friend is requester
-          return { id: f.requester_id, username: f.requester_profile?.username };
-        }
-      }).filter(f => f.id && f.username && f.id !== userId);
-      // Remove duplicates
-      const uniqueFriends = Array.from(new Map(friends.map(f => [f.id, f])).values());
-      setAcceptedFriends(uniqueFriends);
-    };
-    fetchAcceptedFriends();
-  }, [userId]);
-
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
@@ -686,7 +649,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 }));
                 refreshData();
               }}
-              acceptedFriends={acceptedFriends}
             />
           )}
           <MembersTable
