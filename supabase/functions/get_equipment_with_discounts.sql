@@ -77,7 +77,14 @@ as $$
              or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
              or fte.vehicle_type_id = get_equipment_with_discounts.fighter_type_id)
     where 
-        coalesce(e.core_equipment, false) = false
+                (
+            coalesce(e.core_equipment, false) = false
+            OR 
+            (
+                e.core_equipment = true 
+                AND fte.fighter_type_id is not null
+            )
+        )
         and
         (get_equipment_with_discounts.equipment_category is null 
          or trim(both from e.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
