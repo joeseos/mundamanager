@@ -277,7 +277,9 @@ async function processGangData(gangData: any) {
       type: item.type || 'equipment',
       equipment_type: item.equipment_type,
       equipment_category: item.equipment_category,
-      vehicle_id: item.vehicle_id
+      vehicle_id: item.vehicle_id,
+      equipment_id: item.equipment_id,
+      custom_equipment_id: item.custom_equipment_id
     })),
     vehicles: gangData.vehicles || [],
     positioning,
@@ -593,6 +595,9 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
           onStashUpdate={handleStashUpdate}
           onFighterUpdate={handleFighterUpdate}
           vehicles={gangData.processedData.vehicles || []}
+          gangTypeId={gangData.processedData.gang_type_id}
+          gangId={params.id}
+          gangCredits={gangData.processedData.credits}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}

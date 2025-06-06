@@ -79,14 +79,15 @@ BEGIN
                     json_agg(
                         json_build_object(
                             'fighter_equipment_id', fe.id,
-                            'equipment_id', e.id,
-                            'equipment_name', e.equipment_name,
-                            'equipment_type', e.equipment_type,
+                            'equipment_id', COALESCE(e.id, ce.id),
+                            'custom_equipment_id', ce.id,
+                            'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+                            'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
                             'purchase_cost', fe.purchase_cost,
                             'original_cost', fe.original_cost,
                             'is_master_crafted', fe.is_master_crafted
                         )
-                    ) FILTER (WHERE e.id IS NOT NULL)::text,
+                    ) FILTER (WHERE COALESCE(e.id, ce.id) IS NOT NULL)::text,
                     '[null]'
                 ),
                 '[]'
@@ -94,6 +95,7 @@ BEGIN
         FROM fighters f
         LEFT JOIN fighter_equipment fe ON fe.fighter_id = f.id
         LEFT JOIN equipment e ON e.id = fe.equipment_id
+        LEFT JOIN custom_equipment ce ON ce.id = fe.custom_equipment_id
         WHERE f.id = input_fighter_id
         GROUP BY f.id
     ),
@@ -125,7 +127,7 @@ BEGIN
                         FROM fighter_equipment fe2
                         JOIN equipment e2 ON e2.id = fe2.equipment_id
                         JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'body'
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'body' AND fe2.equipment_id IS NOT NULL
                     ),
                     'drive_slots', v.drive_slots,
                     'drive_slots_occupied', (
@@ -133,7 +135,7 @@ BEGIN
                         FROM fighter_equipment fe2
                         JOIN equipment e2 ON e2.id = fe2.equipment_id
                         JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'drive'
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'drive' AND fe2.equipment_id IS NOT NULL
                     ),
                     'engine_slots', v.engine_slots,
                     'engine_slots_occupied', (
@@ -141,7 +143,7 @@ BEGIN
                         FROM fighter_equipment fe2
                         JOIN equipment e2 ON e2.id = fe2.equipment_id
                         JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'engine'
+                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'engine' AND fe2.equipment_id IS NOT NULL
                     ),
                     'special_rules', v.special_rules,
                     'vehicle_name', v.vehicle_name,
@@ -179,9 +181,10 @@ BEGIN
                         SELECT COALESCE(json_agg(
                             json_build_object(
                                 'fighter_equipment_id', fe.id,
-                                'equipment_id', e.id,
-                                'equipment_name', e.equipment_name,
-                                'equipment_type', e.equipment_type,
+                                'equipment_id', COALESCE(e.id, ce.id),
+                                'custom_equipment_id', ce.id,
+                                'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+                                'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
                                 'purchase_cost', fe.purchase_cost,
                                 'original_cost', fe.original_cost,
                                 'is_master_crafted', fe.is_master_crafted,
@@ -208,7 +211,8 @@ BEGIN
                             )
                         ), '[]'::json)
                         FROM fighter_equipment fe
-                        JOIN equipment e ON e.id = fe.equipment_id
+                        LEFT JOIN equipment e ON e.id = fe.equipment_id
+                        LEFT JOIN custom_equipment ce ON ce.id = fe.custom_equipment_id
                         WHERE fe.vehicle_id = v.id
                     )
                 )

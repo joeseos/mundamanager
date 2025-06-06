@@ -12,7 +12,7 @@ RETURNS TABLE(
     reputation numeric, 
     meat numeric, 
     exploration_points numeric, 
-    rating numeric, 
+    rating numeric,
     alignment alignment,
     positioning jsonb, 
     note text, 
@@ -320,11 +320,12 @@ BEGIN
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
        JOIN fighter_equipment fe ON fe.equipment_id = wp.weapon_id
-       WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+       WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
           OR fe.vehicle_id IN (
              SELECT v.id FROM vehicles v 
              WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          )
+          ))
+       AND fe.equipment_id IS NOT NULL
    ),
    weapon_profiles_grouped AS (
        SELECT 
@@ -359,19 +360,22 @@ BEGIN
            json_agg(
                json_build_object(
                    'fighter_weapon_id', fe.id,
-                   'equipment_id', e.id,
-                   'equipment_name', e.equipment_name,
-                   'equipment_type', e.equipment_type,
-                   'equipment_category', e.equipment_category,
+                   'equipment_id', COALESCE(e.id, ce.id),
+                   'custom_equipment_id', ce.id,
+                   'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+                   'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
+                   'equipment_category', COALESCE(e.equipment_category, ce.equipment_category),
                    'cost', fe.purchase_cost,
-                   'weapon_profiles', CASE WHEN e.equipment_type = 'weapon' THEN 
+                   'weapon_profiles', CASE WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
                        COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = fe.id), '[]'::json)
                    ELSE NULL END
                )
            ) as equipment
        FROM fighter_equipment fe
-       JOIN equipment e ON e.id = fe.equipment_id
+       LEFT JOIN equipment e ON e.id = fe.equipment_id
+       LEFT JOIN custom_equipment ce ON ce.id = fe.custom_equipment_id
        WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+       AND (fe.equipment_id IS NOT NULL OR fe.custom_equipment_id IS NOT NULL)
        GROUP BY fe.fighter_id
    ),
    vehicle_equipment_profiles_agg AS (
@@ -423,23 +427,27 @@ BEGIN
            json_agg(
                json_build_object(
                    'vehicle_weapon_id', ve.id,
-                   'equipment_id', e.id,
-                   'equipment_name', e.equipment_name,
-                   'equipment_type', e.equipment_type,
-                   'equipment_category', e.equipment_category,
+                   'equipment_id', COALESCE(e.id, ce.id),
+                   'custom_equipment_id', ce.id,
+                   'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+                   'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
+                   'equipment_category', COALESCE(e.equipment_category, ce.equipment_category),
                    'cost', ve.purchase_cost,
-                   'weapon_profiles', CASE WHEN e.equipment_type = 'weapon' THEN 
+                   'weapon_profiles', CASE WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
                        COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = ve.id), '[]'::json)
                    ELSE NULL END,
-                   'vehicle_equipment_profiles', COALESCE(
-                       (SELECT vepa.profiles FROM vehicle_equipment_profiles_agg vepa 
-                        WHERE vepa.equipment_id = e.id),
-                       '[]'::json
-                   )
+                   'vehicle_equipment_profiles', CASE WHEN e.id IS NOT NULL THEN
+                       COALESCE(
+                           (SELECT vepa.profiles FROM vehicle_equipment_profiles_agg vepa 
+                            WHERE vepa.equipment_id = e.id),
+                           '[]'::json
+                       )
+                   ELSE '[]'::json END
                )
            ) as equipment
        FROM fighter_equipment ve
-       JOIN equipment e ON e.id = ve.equipment_id
+       LEFT JOIN equipment e ON e.id = ve.equipment_id
+       LEFT JOIN custom_equipment ce ON ce.id = ve.custom_equipment_id
        WHERE ve.vehicle_id IS NOT NULL
        AND ve.vehicle_id IN (
            SELECT v.id 
@@ -447,6 +455,7 @@ BEGIN
            WHERE v.gang_id = p_gang_id 
               OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
        )
+       AND (ve.equipment_id IS NOT NULL OR ve.custom_equipment_id IS NOT NULL)
        GROUP BY ve.vehicle_id
    ),
    gang_vehicles AS (
@@ -626,17 +635,19 @@ BEGIN
                    'id', gs.id,
                    'created_at', gs.created_at,
                    'equipment_id', gs.equipment_id,
-                   'equipment_name', e.equipment_name,
-                   'equipment_type', e.equipment_type,
-                   'equipment_category', e.equipment_category,
+                   'custom_equipment_id', gs.custom_equipment_id,
+                   'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+                   'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
+                   'equipment_category', COALESCE(e.equipment_category, ce.equipment_category),
                    'cost', gs.cost,
                    'type', 'equipment'
                )
            ) as stash_items
        FROM gang_stash gs
-       JOIN equipment e ON e.id = gs.equipment_id
+       LEFT JOIN equipment e ON e.id = gs.equipment_id
+       LEFT JOIN custom_equipment ce ON ce.id = gs.custom_equipment_id
        WHERE gs.gang_id = p_gang_id
-       AND gs.equipment_id IS NOT NULL
+       AND (gs.equipment_id IS NOT NULL OR gs.custom_equipment_id IS NOT NULL)
        GROUP BY gs.gang_id
    ),
    campaign_territories AS (

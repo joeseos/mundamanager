@@ -14,6 +14,7 @@ SET search_path = public, auth, private
 AS $$
 DECLARE
     v_equipment_id UUID;
+    v_custom_equipment_id UUID;
     v_gang_id UUID;
     v_cost NUMERIC;
     v_is_master_crafted BOOLEAN;
@@ -41,11 +42,13 @@ BEGIN
     -- Get the necessary information before deleting the fighter_equipment record
     SELECT 
         fe.equipment_id,
+        fe.custom_equipment_id,
         COALESCE(f.gang_id, v.gang_id) as gang_id,
         fe.purchase_cost,
         fe.is_master_crafted
     INTO 
         v_equipment_id,
+        v_custom_equipment_id,
         v_gang_id,
         v_cost,
         v_is_master_crafted
@@ -73,6 +76,7 @@ BEGIN
         created_at,
         gang_id,
         equipment_id,
+        custom_equipment_id,
         cost,
         is_master_crafted
     ) VALUES (
@@ -80,6 +84,7 @@ BEGIN
         NOW(),
         v_gang_id,
         v_equipment_id,
+        v_custom_equipment_id,
         v_cost,
         v_is_master_crafted
     )
