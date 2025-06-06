@@ -47,6 +47,7 @@ interface RawEquipmentData {
   fighter_weapon_id?: string;
   fighter_equipment_id: string;
   master_crafted?: boolean;
+  is_custom: boolean;
 }
 
 interface PurchaseModalProps {
@@ -497,7 +498,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           adjusted_cost: item.adjusted_cost,
           equipment_type: item.equipment_type as 'weapon' | 'wargear',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
-          master_crafted: item.master_crafted || false
+          master_crafted: item.master_crafted || false,
+          is_custom: item.is_custom
         }))
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
@@ -581,7 +583,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session) return;
     try {
       const requestBody = {
-        equipment_id: item.equipment_id,
+        ...(item.is_custom 
+          ? { custom_equipment_id: item.equipment_id }
+          : { equipment_id: item.equipment_id }
+        ),
         gang_id: gangId,
         manual_cost: manualCost,
         master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
