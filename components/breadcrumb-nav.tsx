@@ -251,6 +251,12 @@ export default function BreadcrumbNav({}: BreadcrumbNavProps) {
         { href: null, text: 'About' }
       ]
     }
+    if (pathNames[0] === 'customize') {
+      return [
+        { href: '/', text: <Home className="h-4 w-4" />, isHome: true },
+        { href: null, text: 'Customize' }
+      ]
+    }
     if (pathNames[0] === 'campaigns') {
       if (pathNames.length > 1) {
         return [
