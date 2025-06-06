@@ -29,6 +29,7 @@ BEGIN
     fe.fighter_id,
     fe.vehicle_id,
     fe.equipment_id,
+    fe.custom_equipment_id,
     fe.purchase_cost,
     CASE
       WHEN fe.fighter_id IS NOT NULL THEN f.gang_id
@@ -83,6 +84,7 @@ BEGIN
         'fighter_id', v_equipment_record.fighter_id,
         'vehicle_id', v_equipment_record.vehicle_id,
         'equipment_id', v_equipment_record.equipment_id,
+        'custom_equipment_id', v_equipment_record.custom_equipment_id,
         'sell_value', v_sell_value
       )
     );

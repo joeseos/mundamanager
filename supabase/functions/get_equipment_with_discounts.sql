@@ -22,12 +22,14 @@ returns table (
     equipment_type text,
     created_at timestamptz,
     fighter_type_equipment boolean,
-    equipment_tradingpost boolean
+    equipment_tradingpost boolean,
+    is_custom boolean
 )
 language sql
 security definer
 stable
 as $$
+    -- Regular equipment
     select 
         e.id,
         e.equipment_name,
@@ -61,7 +63,8 @@ as $$
                 and equip_id = e.id::text
             ) then true
             else false
-        end as equipment_tradingpost
+        end as equipment_tradingpost,
+        false as is_custom
     from equipment e
     -- Join with equipment_availability to get gang-specific availability
     left join equipment_availability ea on e.id = ea.equipment_id 
@@ -77,7 +80,7 @@ as $$
              or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
              or fte.vehicle_type_id = get_equipment_with_discounts.fighter_type_id)
     where 
-                (
+        (
             coalesce(e.core_equipment, false) = false
             OR 
             (
@@ -125,5 +128,27 @@ as $$
                     else false
                 end
             ) = get_equipment_with_discounts.equipment_tradingpost
-        );
+        )
+
+    UNION ALL
+
+    -- Custom equipment
+    select 
+        ce.id,
+        ce.equipment_name,
+        'Custom' as trading_post_category,
+        ce.availability as availability,
+        ce.cost::numeric as base_cost,
+        ce.cost::numeric as discounted_cost, -- No discounts for custom equipment
+        ce.cost::numeric as adjusted_cost,   -- No adjustments for custom equipment
+        ce.equipment_category,
+        ce.equipment_type,
+        ce.created_at,
+        true as fighter_type_equipment,      -- Custom equipment is available for fighters
+        true as equipment_tradingpost,       -- Custom equipment is available in trading post
+        true as is_custom
+    from custom_equipment ce
+    where 
+        (get_equipment_with_discounts.equipment_category is null 
+         or trim(both from ce.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
 $$;

@@ -9,6 +9,8 @@ import { StashItem } from '@/types/gang';
 import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
+import ChemAlchemyCreator from './chem-alchemy';
+import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -17,6 +19,9 @@ interface GangInventoryProps {
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
   vehicles?: VehicleProps[];
+  gangTypeId?: string;
+  gangId: string;
+  gangCredits: number;
 }
 
 export default function GangInventory({ 
@@ -25,7 +30,10 @@ export default function GangInventory({
   title = 'Gang Stash',
   onStashUpdate,
   onFighterUpdate,
-  vehicles = []
+  vehicles = [],
+  gangTypeId,
+  gangId,
+  gangCredits
 }: GangInventoryProps) {
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -33,6 +41,7 @@ export default function GangInventory({
   const [session, setSession] = useState<Session | null>(null);
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
+  const [showChemAlchemy, setShowChemAlchemy] = useState(false);
   const { toast } = useToast();
   
   const isVehicleExclusive = (item: StashItem) => 
@@ -242,145 +251,204 @@ export default function GangInventory({
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
-        
-        {stash.length === 0 ? (
-          <p className="text-gray-500 italic text-center">No items in stash.</p>
-        ) : (
-          <>
-            <div className="mb-2">
-              <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
-                <div className="w-4 mr-5" />
-                <div className="flex-grow">Name</div>
-                <div className="w-32 text-right">Category</div>
-                <div className="w-20 text-right mr-2">Value</div>
+    <>
+      <div className="container max-w-5xl w-full space-y-4 mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+            {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+              <Button
+                onClick={() => setShowChemAlchemy(true)}
+                variant="default"
+                size="sm"
+                className="font-medium"
+              >
+                Chem-Alchemy
+              </Button>
+            )}
+          </div>
+          
+          {stash.length === 0 ? (
+            <p className="text-gray-500 italic text-center">No items in stash.</p>
+          ) : (
+            <>
+              <div className="mb-2">
+                <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
+                  <div className="w-4 mr-5" />
+                  <div className="flex-grow">Name</div>
+                  <div className="w-32 text-right">Category</div>
+                  <div className="w-20 text-right mr-2">Value</div>
+                </div>
+                <div className="space-y-2 px-0">
+                  {stash.map((item, index) => (
+                    <label
+                      key={index}
+                      className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        name="stash-item"
+                        checked={selectedItem === index}
+                        onChange={() => setSelectedItem(index)}
+                        className="h-3 w-3 max-w-3 min-w-3 border-gray-300 text-black focus:ring-black mr-3"
+                      />
+                      <span className="flex-grow">{getItemName(item)}</span>
+                      <span className="w-32 text-right text-sm text-gray-600 whitespace-nowrap">
+                        {item.type === 'vehicle' 
+                          ? 'Vehicle' 
+                          : item.equipment_category || 'Equipment'
+                        }
+                      </span>
+                      <span className="w-20 text-right">{item.cost}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2 px-0">
-                {stash.map((item, index) => (
-                  <label
-                    key={index}
-                    className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="stash-item"
-                      checked={selectedItem === index}
-                      onChange={() => setSelectedItem(index)}
-                      className="h-3 w-3 max-w-3 min-w-3 border-gray-300 text-black focus:ring-black mr-3"
-                    />
-                    <span className="flex-grow">{getItemName(item)}</span>
-                    <span className="w-32 text-right text-sm text-gray-600 whitespace-nowrap">
-                      {item.type === 'vehicle' 
-                        ? 'Vehicle' 
-                        : item.equipment_category || 'Equipment'
-                      }
-                    </span>
-                    <span className="w-20 text-right">{item.cost}</span>
+
+              {/* Add the total value display */}
+              <div className="flex justify-end mb-2 pr-2">
+                <span className="text-sm font-normal">Total Value: {stash.reduce((sum, item) => sum + (item.cost || 0), 0)}</span>
+              </div>
+
+              <div className="px-0">
+                <div className="border-t pt-4">
+                  <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Fighter or Vehicle
+                    {selectedItem !== null && isVehicle(getSelectedStashItem()!) && (
+                      <span className="text-sm text-gray-500 ml-2">(Only Crew fighters can receive vehicles)</span>
+                    )}
                   </label>
-                ))}
-              </div>
-            </div>
+                  <select
+                    id="fighter-select"
+                    value={selectedFighter}
+                    onChange={handleFighterSelect}
+                    className={`w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4 
+                      ${selectedItem === null ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    disabled={selectedItem === null}
+                  >
+                    <option value="">
+                      {selectedItem !== null && 
+                        (isVehicleExclusive(getSelectedStashItem()!)
+                          ? "Select a vehicle"
+                          : isVehicleCompatible(getSelectedStashItem()!)
+                            ? "Select a fighter or vehicle"
+                            : "Select a fighter"
+                        )}
+                    </option>
+                    {selectedItem !== null && (
+                      <>
+                        {!isVehicleExclusive(getSelectedStashItem()!) && (
+                          <optgroup label="Fighters">
+                            {fighters.map((fighter) => {
+                              const isDisabled = selectedItem !== null &&
+                                               isVehicle(getSelectedStashItem()!) &&
+                                               !isCrew(fighter);
 
-            {/* Add the total value display */}
-            <div className="flex justify-end mb-2 pr-2">
-              <span className="text-sm font-normal">Total Value: {stash.reduce((sum, item) => sum + (item.cost || 0), 0)}</span>
-            </div>
-
-            <div className="px-0">
-              <div className="border-t pt-4">
-                <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Fighter or Vehicle
-                  {selectedItem !== null && isVehicle(getSelectedStashItem()!) && (
-                    <span className="text-sm text-gray-500 ml-2">(Only Crew fighters can receive vehicles)</span>
-                  )}
-                </label>
-                <select
-                  id="fighter-select"
-                  value={selectedFighter}
-                  onChange={handleFighterSelect}
-                  className={`w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4 
-                    ${selectedItem === null ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                  disabled={selectedItem === null}
-                >
-                  <option value="">
-                    {selectedItem !== null && 
-                      (isVehicleExclusive(getSelectedStashItem()!)
-                        ? "Select a vehicle"
-                        : isVehicleCompatible(getSelectedStashItem()!)
-                          ? "Select a fighter or vehicle"
-                          : "Select a fighter"
-                      )}
-                  </option>
-                  {selectedItem !== null && (
-                    <>
-                      {!isVehicleExclusive(getSelectedStashItem()!) && (
-                        <optgroup label="Fighters">
-                          {fighters.map((fighter) => {
-                            const isDisabled = selectedItem !== null &&
-                                             isVehicle(getSelectedStashItem()!) &&
-                                             !isCrew(fighter);
-
-                            return (
-                              <option
-                                key={fighter.id}
-                                value={fighter.id}
-                                disabled={isDisabled}
-                                className={isDisabled ? 'text-gray-400' : ''}
+                              return (
+                                <option
+                                  key={fighter.id}
+                                  value={fighter.id}
+                                  disabled={isDisabled}
+                                  className={isDisabled ? 'text-gray-400' : ''}
+                                >
+                                  {fighter.fighter_name} ({fighter.fighter_class}) - {fighter.credits} credits
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        {isVehicleCompatible(getSelectedStashItem()!) && (
+                          <optgroup label="Vehicles">
+                            {getAllVehicles().map((vehicle) => (
+                              <option 
+                                key={`vehicle-${vehicle.id}`}
+                                value={`vehicle-${vehicle.id}`}
                               >
-                                {fighter.fighter_name} ({fighter.fighter_class}) - {fighter.credits} credits
+                                {vehicle.vehicle_name || 'Unknown Vehicle'}
+                                {vehicle.vehicle_type ? ` (${vehicle.vehicle_type})` : ''}
+                                {vehicle.cost ? ` - ${vehicle.cost} credits` : ''}
                               </option>
-                            );
-                          })}
-                        </optgroup>
-                      )}
-                      {isVehicleCompatible(getSelectedStashItem()!) && (
-                        <optgroup label="Vehicles">
-                          {getAllVehicles().map((vehicle) => (
-                            <option 
-                              key={`vehicle-${vehicle.id}`}
-                              value={`vehicle-${vehicle.id}`}
-                            >
-                              {vehicle.vehicle_name || 'Unknown Vehicle'}
-                              {vehicle.vehicle_type ? ` (${vehicle.vehicle_type})` : ''}
-                              {vehicle.cost ? ` - ${vehicle.cost} credits` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </>
-                  )}
-                </select>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    )}
+                  </select>
 
-                <Button
-                  onClick={() => {
-                    console.log('Move button clicked', {
-                      selectedItem,
-                      selectedFighter,
-                      isLoading
-                    });
-                    handleMoveToFighter();
-                  }}
-                  disabled={
-                    selectedItem === null || 
-                    !selectedFighter || 
-                    isLoading || 
-                    (isVehicle(getSelectedStashItem()!) && 
-                     !isCrew(findFighter(selectedFighter)) && 
-                     !selectedFighter.startsWith('vehicle-')) ||
-                    (isVehicleExclusive(getSelectedStashItem()!) && !selectedFighter.startsWith('vehicle-')) ||
-                    (!selectedFighter.startsWith('vehicle-') && isVehicleExclusive(getSelectedStashItem()!))
-                  }
-                  className="w-full"
-                >
-                  Move to {selectedFighter?.startsWith('vehicle-') ? 'Vehicle' : 'Fighter'}
-                </Button>
+                  <Button
+                    onClick={() => {
+                      console.log('Move button clicked', {
+                        selectedItem,
+                        selectedFighter,
+                        isLoading
+                      });
+                      handleMoveToFighter();
+                    }}
+                    disabled={
+                      selectedItem === null || 
+                      !selectedFighter || 
+                      isLoading || 
+                      (isVehicle(getSelectedStashItem()!) && 
+                       !isCrew(findFighter(selectedFighter)) && 
+                       !selectedFighter.startsWith('vehicle-')) ||
+                      (isVehicleExclusive(getSelectedStashItem()!) && !selectedFighter.startsWith('vehicle-')) ||
+                      (!selectedFighter.startsWith('vehicle-') && isVehicleExclusive(getSelectedStashItem()!))
+                    }
+                    className="w-full"
+                  >
+                    Move to {selectedFighter?.startsWith('vehicle-') ? 'Vehicle' : 'Fighter'}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      <ChemAlchemyCreator
+        isOpen={showChemAlchemy}
+        onClose={() => setShowChemAlchemy(false)}
+        gangCredits={gangCredits}
+        onCreateChem={async (chem) => {
+          try {
+            const result = await createChemAlchemy({
+              name: chem.name,
+              type: chem.type,
+              effects: chem.effects,
+              totalCost: chem.totalCost,
+              gangId: gangId,
+              useBaseCostForRating: chem.useBaseCostForRating,
+              baseCost: chem.baseCost
+            });
+
+            if (result.success) {
+              toast({
+                title: "Elixir Created",
+                description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`,
+              });
+              
+              // The server action will revalidate the path, so the stash will update automatically
+              // But we can also trigger a manual refresh if needed
+              if (onStashUpdate) {
+                // Optionally refresh the stash data here
+              }
+            } else {
+              toast({
+                title: "Error",
+                description: result.error || "Failed to create elixir",
+                variant: "destructive",
+              });
+            }
+          } catch (error) {
+            console.error('Error creating chem-alchemy:', error);
+            toast({
+              title: "Error",
+              description: "Failed to create elixir",
+              variant: "destructive",
+            });
+          }
+        }}
+      />
+    </>
   );
 }

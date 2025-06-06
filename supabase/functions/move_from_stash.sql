@@ -11,12 +11,14 @@ AS $function$
 DECLARE
    v_gang_id UUID;
    v_equipment_id UUID;
+   v_custom_equipment_id UUID;
    v_cost NUMERIC;
    v_is_master_crafted BOOLEAN;
    v_debug_count INTEGER;
    v_weapon_profiles json;
    v_vehicle_profiles json;
    v_result jsonb;
+   v_is_custom_equipment BOOLEAN := FALSE;
 BEGIN
    IF p_fighter_id IS NULL AND p_vehicle_id IS NULL THEN
        RETURN json_build_object(
@@ -54,14 +56,24 @@ BEGIN
        );
    END IF;
 
-   SELECT gs.gang_id, gs.equipment_id, gs.cost::numeric, gs.is_master_crafted
-   INTO v_gang_id, v_equipment_id, v_cost, v_is_master_crafted
+   SELECT gs.gang_id, gs.equipment_id, gs.custom_equipment_id, gs.cost::numeric, gs.is_master_crafted
+   INTO v_gang_id, v_equipment_id, v_custom_equipment_id, v_cost, v_is_master_crafted
    FROM gang_stash gs
    WHERE gs.id = p_stash_id;
 
    -- Debug: Log the values we found
-   RAISE NOTICE 'Found gang_id: %, equipment_id: %, cost: %, is_master_crafted: %', 
-           v_gang_id, v_equipment_id, v_cost, v_is_master_crafted;
+   RAISE NOTICE 'Found gang_id: %, equipment_id: %, custom_equipment_id: %, cost: %, is_master_crafted: %', 
+           v_gang_id, v_equipment_id, v_custom_equipment_id, v_cost, v_is_master_crafted;
+
+   -- Determine if this is custom equipment
+   IF v_custom_equipment_id IS NOT NULL THEN
+       v_is_custom_equipment := TRUE;
+   ELSIF v_equipment_id IS NULL THEN
+       RETURN json_build_object(
+           'success', false,
+           'error', 'Stash item has neither equipment_id nor custom_equipment_id'
+       );
+   END IF;
 
    -- Check ownership based on provided ID
    IF p_fighter_id IS NOT NULL THEN
@@ -89,11 +101,12 @@ BEGIN
    -- Insert into fighter_equipment
    BEGIN
        INSERT INTO fighter_equipment (
-           fighter_id, vehicle_id, equipment_id, purchase_cost, created_at, is_master_crafted
+           fighter_id, vehicle_id, equipment_id, custom_equipment_id, purchase_cost, created_at, is_master_crafted
        ) VALUES (
            p_fighter_id,
            p_vehicle_id,
            v_equipment_id,
+           v_custom_equipment_id,
            v_cost,
            NOW(),
            v_is_master_crafted
@@ -119,51 +132,63 @@ BEGIN
    v_result := jsonb_build_object(
        'success', true,
        'message', CASE 
-           WHEN p_fighter_id IS NOT NULL THEN 'Equipment moved from stash to fighter'
-           ELSE 'Equipment moved from stash to vehicle'
+           WHEN p_fighter_id IS NOT NULL THEN 
+               CASE WHEN v_is_custom_equipment THEN 'Custom equipment moved from stash to fighter'
+                    ELSE 'Equipment moved from stash to fighter' END
+           ELSE 
+               CASE WHEN v_is_custom_equipment THEN 'Custom equipment moved from stash to vehicle'
+                    ELSE 'Equipment moved from stash to vehicle' END
        END,
        'stash_id', p_stash_id,
        'fighter_id', p_fighter_id,
        'vehicle_id', p_vehicle_id,
        'equipment_id', v_equipment_id,
+       'custom_equipment_id', v_custom_equipment_id,
        'cost', v_cost
    );
 
    -- For weapon profiles, include the is_master_crafted flag in each profile
-   SELECT json_agg(
-       jsonb_build_object(
-           'id', wp.id,
-           'profile_name', wp.profile_name,
-           'range_short', wp.range_short,
-           'range_long', wp.range_long,
-           'acc_short', wp.acc_short,
-           'acc_long', wp.acc_long,
-           'strength', wp.strength,
-           'damage', wp.damage,
-           'ap', wp.ap,
-           'ammo', wp.ammo,
-           'traits', wp.traits,
-           'weapon_id', wp.weapon_id,
-           'created_at', wp.created_at,
-           'weapon_group_id', wp.weapon_group_id,
-           'is_default_profile', wp.is_default_profile,
-           'is_master_crafted', v_is_master_crafted
+   -- Only fetch weapon profiles for regular equipment, not custom equipment
+   IF NOT v_is_custom_equipment THEN
+       SELECT json_agg(
+           jsonb_build_object(
+               'id', wp.id,
+               'profile_name', wp.profile_name,
+               'range_short', wp.range_short,
+               'range_long', wp.range_long,
+               'acc_short', wp.acc_short,
+               'acc_long', wp.acc_long,
+               'strength', wp.strength,
+               'damage', wp.damage,
+               'ap', wp.ap,
+               'ammo', wp.ammo,
+               'traits', wp.traits,
+               'weapon_id', wp.weapon_id,
+               'created_at', wp.created_at,
+               'weapon_group_id', wp.weapon_group_id,
+               'is_default_profile', wp.is_default_profile,
+               'is_master_crafted', v_is_master_crafted
+           )
        )
-   )
-   INTO v_weapon_profiles
-   FROM weapon_profiles wp
-   WHERE wp.weapon_id = v_equipment_id;
+       INTO v_weapon_profiles
+       FROM weapon_profiles wp
+       WHERE wp.weapon_id = v_equipment_id;
+
+       -- Check for vehicle equipment profiles
+       SELECT COALESCE(json_agg(vep), '[]'::json)
+       INTO v_vehicle_profiles
+       FROM vehicle_equipment_profiles vep
+       WHERE vep.equipment_id = v_equipment_id;
+   ELSE
+       -- For custom equipment, set profiles to empty arrays
+       v_weapon_profiles := '[]'::json;
+       v_vehicle_profiles := '[]'::json;
+   END IF;
 
    -- If no weapon profiles exist, set to empty array
    IF v_weapon_profiles IS NULL THEN
        v_weapon_profiles := '[]'::json;
    END IF;
-
-   -- Check for vehicle equipment profiles
-   SELECT COALESCE(json_agg(vep), '[]'::json)
-   INTO v_vehicle_profiles
-   FROM vehicle_equipment_profiles vep
-   WHERE vep.equipment_id = v_equipment_id;
 
    -- Add the relevant profile to the result if it exists
    IF v_weapon_profiles::jsonb != '[]'::jsonb THEN
