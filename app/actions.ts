@@ -14,11 +14,11 @@ export const signUpAction = async (formData: FormData) => {
   const supabase = await createClient();
 
   try {
-    // Check if username already exists
+    // Check if username already exists (case-insensitive)
     const { data: existingUser } = await supabase
       .from('profiles')
       .select('username')
-      .eq('username', username)
+      .ilike('username', username)
       .single();
 
     if (existingUser) {
