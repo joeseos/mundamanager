@@ -424,7 +424,7 @@ export default function GangAdditions({
               {categoryData.options && categoryData.options.length > 0 && (
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700">
-                    {isOptional ? `Optional ${categoryName} (Replaces one default weapon)` : 
+                    {isOptional ? `Optional ${categoryName} (Replaces one default)` : 
                      isSingle ? `Select ${categoryName} (Choose one)` : 
                      `Additional ${categoryName} (Select any)`}
                   </label>
