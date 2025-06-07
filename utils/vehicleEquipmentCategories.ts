@@ -10,6 +10,7 @@ export const vehicleCompatibleCategories: string[] = [
   'Basic Weapons',
   'Special Weapons',
   'Heavy Weapons',
+  'Status Items: Exotic Beasts',
 ];
 
 export const VEHICLE_EQUIPMENT_CATEGORIES = [
@@ -20,4 +21,5 @@ export const VEHICLE_EQUIPMENT_CATEGORIES = [
   "Cargo Loads",
   "Vehicle Upgrades",
   "Vehicle Wargear",
+  "Status Items: Exotic Beasts",
 ];
