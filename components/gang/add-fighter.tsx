@@ -154,9 +154,11 @@ export default function AddFighter({
       const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
       const actualBaseCost = selectedType?.total_cost || 0;
       
-      // Determine the actual cost to use in the optimistic update
-      // If entered cost is 0 and useBaseCostForRating is true, use the base cost
-      const actualCost = enteredCost === 0 && useBaseCostForRating ? actualBaseCost : enteredCost;
+      // Determine the actual cost to use for gang credits deduction (always what user entered)
+      const gangCreditsCost = enteredCost;
+      
+      // Determine the cost to use for fighter rating/display
+      const fighterDisplayCost = useBaseCostForRating ? actualBaseCost : enteredCost;
 
       const response = await fetch(
   'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
@@ -194,12 +196,8 @@ if (!data?.fighter_id) {
   throw new Error('Failed to add fighter');
 }
 
-      // Log the returned data to see what's available
-      console.log('Fighter added, server response:', data);
-
       // Use the rating_cost from the server if available, otherwise use our locally calculated cost
-      const displayCost = data.rating_cost || actualCost;
-      console.log('Using cost for display:', displayCost);
+      const displayCost = data.rating_cost || fighterDisplayCost;
 
       const newFighter = {
         id: data.fighter_id,
@@ -295,7 +293,7 @@ if (!data?.fighter_id) {
         }
       };
 
-      onFighterAdded(newFighter, actualCost);
+      onFighterAdded(newFighter, gangCreditsCost);
       closeModal();
 
       toast({
