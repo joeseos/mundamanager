@@ -6,6 +6,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
+import { List } from "@/components/ui/list";
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -378,102 +379,53 @@ export function SkillsList({
     fighter_injury_id: data.fighter_injury_id
   }));
 
-  return (
-    <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold mr-4">Skills</h2>
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={() => setIsAddSkillModalOpen(true)}
-            className="bg-black hover:bg-gray-800 text-white whitespace-nowrap"
-          >
-            Add
-          </Button>
-        </div>
-      </div>
+  // Custom empty message based on free_skill status
+  const getEmptyMessage = () => {
+    if (free_skill) {
+      return "Starting skill missing.";
+    }
+    return "No skills yet.";
+  };
 
-      <div className="overflow-x-auto">
-        <table className="w-full table-auto">
-          {(Object.keys(skills).length > 0) && (
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-1 py-1 text-left">Name</th>
-                <th className="px-1 py-1 text-right">Action</th>
-              </tr>
-            </thead>
-          )}
-          <tbody>
-            {skillsArray.length === 0 ? (
-              free_skill ? (
-                <tr>
-                  <td colSpan={2} className="text-center py-1">
-                    <div className="flex items-center justify-center gap-2 text-amber-700">
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 24 24" 
-                        fill="currentColor" 
-                        className="w-4 h-4"
-                      >
-                        <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                      </svg>
-                      Starting skill missing.
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <tr>
-                  <td colSpan={2} className="text-gray-500 italic text-center">
-                    No skills yet.
-                  </td>
-                </tr>
-              )
-            ) : (
-              <>
-                {skillsArray.map((skill) => (
-                  <tr key={skill.id} className="border-b">
-                    <td className="px-1 py-1">{skill.name}</td>
-                    <td className="px-1 py-1">
-                      <div className="flex justify-end">
-                        {skill.fighter_injury_id ? (
-                          <span className="text-gray-500 text-sm italic whitespace-nowrap">
-                            (added by injury)
-                          </span>
-                        ) : (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteClick(skill.id, skill.name)}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Delete
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {free_skill && (
-                  <tr>
-                    <td colSpan={2} className="text-center py-1">
-                      <div className="flex items-center justify-center gap-2 text-amber-700">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 24 24" 
-                          fill="currentColor" 
-                          className="w-4 h-4"
-                        >
-                          <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                        </svg>
-                        Starting skill missing.
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            )}
-          </tbody>
-        </table>
-      </div>
+  return (
+    <>
+      <List
+        title="Skills"
+        items={skillsArray}
+        columns={[
+          {
+            key: 'name',
+            label: 'Name',
+            width: '75%'
+          },
+          {
+            key: 'action_info',
+            label: 'Action',
+            align: 'right',
+            render: (value, item) => {
+              if (item.fighter_injury_id) {
+                return (
+                  <span className="text-gray-500 text-sm italic whitespace-nowrap">
+                    (added by injury)
+                  </span>
+                );
+              }
+              return null;
+            }
+          }
+        ]}
+        actions={[
+          {
+            label: 'Delete',
+            variant: 'destructive',
+            onClick: (item) => handleDeleteClick(item.id, item.name),
+            disabled: (item) => !!item.fighter_injury_id
+          }
+        ]}
+        onAdd={() => setIsAddSkillModalOpen(true)}
+        addButtonText="Add"
+        emptyMessage={getEmptyMessage()}
+      />
 
       {skillToDelete && (
         <Modal
@@ -497,6 +449,6 @@ export function SkillsList({
           isSubmitting={isSubmitting}
         />
       )}
-    </div>
+    </>
   );
 } 

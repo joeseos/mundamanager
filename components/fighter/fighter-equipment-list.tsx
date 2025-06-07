@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FighterWeaponsTable } from './fighter-weapons-list';
 import { useToast } from "@/components/ui/use-toast";
-import { Button } from '../ui/button';
 import Modal from '../modal';
 import { Equipment } from '@/types/equipment';
 import { createClient } from "@/utils/supabase/client";
+import { List } from "../ui/list";
 
 interface WeaponListProps {
   fighterId: string;
@@ -64,8 +63,6 @@ export function WeaponList({
   equipment = [],
   onAddEquipment
 }: WeaponListProps) {
-  // console.log('WeaponList props:', { fighterId, gangId, gangCredits, fighterCredits, equipment });
-  
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
@@ -241,37 +238,77 @@ export function WeaponList({
     }
   };
 
+  // Sort equipment: core equipment first, then by name
+  const sortedEquipment = [...equipment].sort((a, b) => {
+    if (a.core_equipment && !b.core_equipment) return -1;
+    if (!a.core_equipment && b.core_equipment) return 1;
+    return a.equipment_name.localeCompare(b.equipment_name);
+  });
+
+  // Transform equipment for List component
+  const listItems = sortedEquipment.map((item) => ({
+    id: item.fighter_equipment_id,
+    name: item.equipment_name,
+    cost: item.cost ?? 0,
+    core_equipment: item.core_equipment,
+    fighter_equipment_id: item.fighter_equipment_id,
+    equipment_id: item.equipment_id
+  }));
+
   return (
-    <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">Equipment</h2>
-        <Button 
-          onClick={onAddEquipment}
-          className="bg-black hover:bg-gray-800 text-white"
-        >
-          Add
-        </Button>
-      </div>
-      <FighterWeaponsTable 
-        equipment={equipment} 
-        onDeleteEquipment={(id: string, equipId: string) => setDeleteModalData({ 
-          id, 
-          equipmentId: equipId, 
-          name: equipment.find(e => e.fighter_equipment_id === id)?.equipment_name || 'equipment' 
-        })}
-        onSellEquipment={(fighterEquipmentId: string, equipmentId: string) => {
-          const item = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-          if (item) {
-            setSellModalData(item);
+    <>
+      <List
+        title="Equipment"
+        items={listItems}
+        columns={[
+          {
+            key: 'name',
+            label: 'Name',
+            width: '75%'
+          },
+          {
+            key: 'cost',
+            label: 'Cost',
+            align: 'right'
           }
-        }}
-        onStashEquipment={(fighterEquipmentId: string, equipmentId: string) => {
-          const item = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-          if (item) {
-            setStashModalData(item);
+        ]}
+        actions={[
+          {
+            label: 'Stash',
+            variant: 'outline',
+            onClick: (item) => {
+              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              if (equipment) {
+                setStashModalData(equipment);
+              }
+            },
+            disabled: (item) => item.core_equipment || isLoading
+          },
+          {
+            label: 'Sell',
+            variant: 'outline',
+            onClick: (item) => {
+              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              if (equipment) {
+                setSellModalData(equipment);
+              }
+            },
+            disabled: (item) => item.core_equipment || isLoading
+          },
+          {
+            label: 'Delete',
+            variant: 'destructive',
+            onClick: (item) => setDeleteModalData({
+              id: item.fighter_equipment_id,
+              equipmentId: item.equipment_id,
+              name: item.name
+            }),
+            disabled: (item) => item.core_equipment || isLoading
           }
-        }}
-        isLoading={isLoading}
+        ]}
+        onAdd={onAddEquipment}
+        addButtonText="Add"
+        emptyMessage="No equipment yet."
       />
 
       {deleteModalData && (
@@ -312,6 +349,6 @@ export function WeaponList({
           )}
         />
       )}
-    </div>
+    </>
   );
 }
