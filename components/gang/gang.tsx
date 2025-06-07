@@ -475,8 +475,8 @@ const handleAlignmentChange = (value: string) => {
   // Add the handler for when a fighter is added
   const handleFighterAdded = (newFighter: FighterProps, cost: number) => {
     setFighters(prev => [...prev, newFighter]);
-    setCredits(prev => prev - cost);
-    setRating(prev => prev + cost);
+    setCredits(prev => prev - cost); // Deduct what was actually paid
+    setRating(prev => prev + newFighter.credits); // Add the fighter's rating cost
   };
 
   const handleDeleteFighter = async (fighterId: string) => {
