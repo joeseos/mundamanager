@@ -5,6 +5,7 @@ import { FighterEffect, } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
+import { List } from "../ui/list";
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -207,71 +208,43 @@ export function InjuriesList({
   };
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">Lasting Injuries</h2>
-        <Button 
-          onClick={handleOpenModal}
-          className="bg-black hover:bg-gray-800 text-white"
-        >
-          Add
-        </Button>
-      </div>
-
-      <div>
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto">
-            {(injuries.length > 0) && (
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-1 py-1 text-left">Name</th>
-                  <th className="px-1 py-1 text-right">Action</th>
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {injuries.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="text-gray-500 italic text-center">
-                    No lasting injuries yet.
-                  </td>
-                </tr>
-              ) : (
-                injuries
-                  .sort((a, b) => {
-                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return dateA - dateB;
-                  })
-                  .map((injury) => (
-                    <tr key={injury.id} className="border-t">
-                      
-                      <td className="px-1 py-1">
-                        <span>{injury.effect_name}</span>
-                      </td>
-                      <td className="px-1 py-1">
-                        <div className="flex justify-end">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeleteModalData({
-                              id: injury.id,
-                              name: injury.effect_name
-                            })}
-                            disabled={isDeleting === injury.id}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <>
+      <List
+        title="Lasting Injuries"
+        items={injuries
+          .sort((a, b) => {
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateA - dateB;
+          })
+          .map((injury) => ({
+            id: injury.id,
+            name: injury.effect_name,
+            injury_id: injury.id
+          }))
+        }
+        columns={[
+          {
+            key: 'name',
+            label: 'Name',
+            width: '75%'
+          }
+        ]}
+        actions={[
+          {
+            label: 'Delete',
+            variant: 'destructive',
+            onClick: (item) => setDeleteModalData({
+              id: item.injury_id,
+              name: item.name
+            }),
+            disabled: (item) => isDeleting === item.injury_id
+          }
+        ]}
+        onAdd={handleOpenModal}
+        addButtonText="Add"
+        emptyMessage="No lasting injuries yet."
+      />
 
       {isAddModalOpen && (
         <Modal
@@ -391,6 +364,6 @@ export function InjuriesList({
           onConfirm={() => handleDeleteInjury(deleteModalData.id, deleteModalData.name)}
         />
       )}
-    </div>
+    </>
   );
 } 

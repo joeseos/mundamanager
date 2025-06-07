@@ -9,6 +9,7 @@ import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
+import { List } from "@/components/ui/list";
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -974,90 +975,68 @@ export const AdvancementsList = React.memo(function AdvancementsList({
     onAdvancementAdded();
   };
 
-  return (
-    <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">Advancements</h2>
-        <Button 
-          onClick={() => setIsAdvancementModalOpen(true)}
-          className="bg-black hover:bg-gray-800 text-white"
-        >
-          Add
-        </Button>
-      </div>
+  // Transform advancements for the List component
+  const transformedAdvancements = useMemo(() => {
+    return allAdvancements
+      .sort((a, b) => {
+        const dateA = a.created_at || ''; 
+        const dateB = b.created_at || '';
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      })
+      .map((advancement) => {
+        const specificData = typeof advancement.type_specific_data === 'string'
+          ? JSON.parse(advancement.type_specific_data || '{}')
+          : (advancement.type_specific_data || {});
+          
+        return {
+          id: advancement.id || `temp-${Math.random()}`,
+          name: advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
+                advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
+                `Characteristic - ${advancement.effect_name}`,
+          xp_cost: specificData.xp_cost || 0,
+          credits_increase: specificData.credits_increase || 0,
+          advancement_id: advancement.id
+        };
+      });
+  }, [allAdvancements]);
 
-      <div>
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto">
-            {(allAdvancements.length > 0) && (
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-1 py-1 text-left w-[75%]">Name</th>
-                  <th className="px-1 py-1 text-right">XP</th>
-                  <th className="px-1 py-1 text-right">Cost</th>
-                  <th className="px-1 py-1 text-right">Action</th>
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {allAdvancements.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-gray-500 italic text-center">
-                    No advancements yet.
-                  </td>
-                </tr>
-              ) : (
-                allAdvancements
-                  .sort((a, b) => {
-                    // Make sure both objects have created_at before comparing them
-                    const dateA = a.created_at || ''; 
-                    const dateB = b.created_at || '';
-                    return new Date(dateB).getTime() - new Date(dateA).getTime();
-                  })
-                  .map((advancement) => {
-                    const specificData = typeof advancement.type_specific_data === 'string'
-                      ? JSON.parse(advancement.type_specific_data || '{}')
-                      : (advancement.type_specific_data || {});
-                      
-                    return (
-                      <tr key={advancement.id || `temp-${Math.random()}`} className="border-t">
-                        <td className="px-1 py-1">
-                          <span>
-                            {advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
-                             advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
-                             `Characteristic - ${advancement.effect_name}`}
-                          </span>
-                        </td>
-                        <td className="px-1 py-1 text-right">
-                          {specificData.xp_cost || '0'}
-                        </td>
-                        <td className="px-1 py-1 text-right">
-                          {specificData.credits_increase || '0'}
-                        </td>
-                        <td className="px-1 py-1">
-                          <div className="flex justify-end">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => advancement.id ? setDeleteModalData({
-                                id: advancement.id,
-                                name: advancement.effect_name
-                              }) : null}
-                              disabled={isDeleting === advancement.id || !advancement.id}
-                              className="text-xs px-1.5 h-6"
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  return (
+    <>
+      <List
+        title="Advancements"
+        items={transformedAdvancements}
+        columns={[
+          {
+            key: 'name',
+            label: 'Name',
+            width: '50%'
+          },
+          {
+            key: 'xp_cost',
+            label: 'XP',
+            align: 'right'
+          },
+          {
+            key: 'credits_increase',
+            label: 'Cost',
+            align: 'right'
+          }
+        ]}
+        actions={[
+          {
+            label: 'Delete',
+            variant: 'destructive',
+            onClick: (item) => item.advancement_id ? setDeleteModalData({
+              id: item.advancement_id,
+              name: item.name
+            }) : null,
+            disabled: (item) => isDeleting === item.advancement_id || !item.advancement_id
+          }
+        ]}
+        onAdd={() => setIsAdvancementModalOpen(true)}
+        addButtonText="Add"
+        emptyMessage="No advancements yet."
+      />
 
       {/* Modals */}
       {isAdvancementModalOpen && (
@@ -1083,6 +1062,6 @@ export const AdvancementsList = React.memo(function AdvancementsList({
           onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.name)}
         />
       )}
-    </div>
+    </>
   );
 }); 

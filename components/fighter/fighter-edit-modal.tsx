@@ -837,13 +837,23 @@ export function EditFighterModal({
         
         if (realSubTypes.length > 0) {
           // If we have meaningful sub-types, show them in the dropdown
-          setAvailableSubTypes([
-            DEFAULT_SUB_TYPE_OPTION,
-            ...subTypes.map(subType => ({
+          // Filter out sub-types with empty IDs and ensure unique keys
+          const validSubTypes = subTypes
+            .filter(subType => subType.id && subType.id.trim() !== '')
+            .map((subType, index) => ({
               value: subType.id,
               label: subType.fighter_sub_type || 'Default',
               cost: subType.cost
-            }))
+            }));
+
+          // Remove duplicates based on value (ID)
+          const uniqueSubTypes = validSubTypes.filter((subType, index, self) => 
+            index === self.findIndex(s => s.value === subType.value)
+          );
+
+          setAvailableSubTypes([
+            DEFAULT_SUB_TYPE_OPTION,
+            ...uniqueSubTypes
           ]);
         } else {
           // If we only have default sub-types, don't show the dropdown
@@ -984,18 +994,18 @@ export function EditFighterModal({
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: selectedFighterType ? selectedFighterType.fighter_class : formValues.fighter_class,
-        fighter_class_id: selectedFighterType ? selectedFighterType.fighter_class_id : formValues.fighter_class_id,
-        fighter_type: selectedFighterType ? selectedFighterType.fighter_type : formValues.fighter_type,
-        fighter_type_id: selectedFighterType ? selectedFighterType.id : formValues.fighter_type_id,
+        fighter_class: selectedFighterType ? selectedFighterType.fighter_class : undefined,
+        fighter_class_id: selectedFighterType ? selectedFighterType.fighter_class_id : undefined,
+        fighter_type: selectedFighterType ? selectedFighterType.fighter_type : undefined,
+        fighter_type_id: selectedFighterType ? selectedFighterType.id : undefined,
         special_rules: formValues.special_rules,
         // Only send fighter_sub_type fields if explicitly changed OR if they already existed
         fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : 
                           hasExplicitlySelectedType ? null : 
-                          (fighter as any).fighter_sub_type,
+                          undefined,
         fighter_sub_type_id: selectedSubType ? selectedSubType.id : 
                              hasExplicitlySelectedType ? null : 
-                             (fighter as any).fighter_sub_type_id
+                             undefined
       });
       toast({
         description: 'Fighter updated successfully',

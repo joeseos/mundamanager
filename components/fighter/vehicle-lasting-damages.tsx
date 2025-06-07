@@ -5,6 +5,7 @@ import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { List } from "../ui/list";
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
@@ -259,76 +260,79 @@ export function VehicleDamagesList({
   }, [isRepairModalOpen, repairPercent, vehicle]);
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-wrap justify-between items-center mb-2">
-        <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => setIsRepairModalOpen(true)}
-            className="bg-white hover:bg-gray-100 text-black border border-gray-300"
-          >
-            Repair
-          </Button>
-          <Button 
-            onClick={handleOpenModal}
-            className="bg-black hover:bg-gray-800 text-white"
-          >
-            Add
-          </Button>
+    <>
+      {/* Custom header with both Add and Repair buttons */}
+      <div className="mt-6">
+        <div className="flex flex-wrap justify-between items-center mb-2">
+          <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setIsRepairModalOpen(true)}
+              className="bg-white hover:bg-gray-100 text-black border border-gray-300"
+              disabled={uniqueDamages.length === 0}
+            >
+              Repair
+            </Button>
+            <Button 
+              onClick={handleOpenModal}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              Add
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div>
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto">
-            {(damages.length > 0) && (
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-1 py-1 text-left">Name</th>
-                  <th className="px-1 py-1 text-right">Action</th>
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {uniqueDamages.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="text-gray-500 italic text-center">
-                    No lasting damage yet.
-                  </td>
-                </tr>
-              ) : (
-                uniqueDamages
-                  .sort((a, b) => {
-                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return dateA - dateB;
-                  })
-                  .map((damage) => (
-                    <tr key={damage.id} className="border-t">
-                      <td className="px-1 py-1">
-                        <span>{damage.effect_name}</span>
-                      </td>
-                      <td className="px-1 py-1">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeleteModalData({
-                              id: damage.id,
-                              name: damage.effect_name
-                            })}
-                            disabled={isDeleting === damage.id}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+        {/* List component without header */}
+        <div>
+          <div className="overflow-x-auto">
+            <table className="w-full table-auto">
+              {(uniqueDamages.length > 0) && (
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
+                    <th className="px-1 py-1 text-right">Action</th>
+                  </tr>
+                </thead>
               )}
-            </tbody>
-          </table>
+              <tbody>
+                {uniqueDamages.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="text-gray-500 italic text-center py-4">
+                      No lasting damage yet.
+                    </td>
+                  </tr>
+                ) : (
+                  uniqueDamages
+                    .sort((a, b) => {
+                      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return dateA - dateB;
+                    })
+                    .map((damage) => (
+                      <tr key={damage.id} className="border-t">
+                        <td className="px-1 py-1">{damage.effect_name}</td>
+                        <td className="px-1 py-1">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setDeleteModalData({
+                                id: damage.id,
+                                name: damage.effect_name
+                              })}
+                              disabled={isDeleting === damage.id}
+                              className="text-xs px-1.5 h-6"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -467,6 +471,6 @@ export function VehicleDamagesList({
           confirmDisabled={uniqueDamages.length === 0}
         />
       )}
-    </div>
+    </>
   );
 } 
