@@ -866,32 +866,6 @@ export async function POST(request: Request) {
       if (equipmentListError) throw equipmentListError;
     }
 
-    // Add this section to handle equipment selection
-    if (data.equipment_selection) {
-      // Check if we have any content in the equipment selection
-      const hasSelection = data.equipment_selection &&
-        (Object.values(data.equipment_selection.optional).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.single).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
-
-      if (hasSelection) {
-        console.log('About to save equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
-        const { error: insertError } = await supabase
-          .from('fighter_equipment_selections')
-          .insert({
-            fighter_type_id: newFighterType.id,
-            equipment_selection: data.equipment_selection
-          });
-
-        if (insertError) {
-          console.error('Error inserting equipment selection:', insertError);
-          throw insertError;
-        }
-      } else {
-        console.log('Equipment selection object is empty, not saving');
-      }
-    }
-
     // Handle trading post equipment
     if (data.trading_post_equipment && data.trading_post_equipment.length > 0) {
       const { error: tradingPostError } = await supabase
