@@ -367,7 +367,7 @@ export default function FighterPage({
       console.log('RPC Response:', responseData);
       
       // Handle different response structures with better error checking
-      let result;
+      let result: any;
       if (Array.isArray(responseData)) {
         if (responseData.length === 0) {
           throw new Error('No fighter data returned from server - empty array');
