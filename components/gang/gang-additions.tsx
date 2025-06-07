@@ -225,6 +225,34 @@ export default function GangAdditions({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
+  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
+
+  // Automatically select NULL sub-type if available, otherwise select the cheapest one
+  useEffect(() => {
+    if (availableSubTypes.length > 0 && !selectedSubTypeId) {
+      // Try to find a sub-type with NULL sub_type_name (Default)
+      const defaultSubType = availableSubTypes.find(
+        (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
+      );
+      
+      if (defaultSubType) {
+        setSelectedSubTypeId(defaultSubType.id);
+      } else {
+        // Find the cheapest sub-type if no default is available
+        const cheapestSubType = availableSubTypes.reduce(
+          (lowest, current) => {
+            const lowestCost = gangAdditionTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
+            const currentCost = gangAdditionTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
+            return currentCost < lowestCost ? current : lowest;
+          },
+          availableSubTypes[0]
+        );
+        
+        setSelectedSubTypeId(cheapestSubType.id);
+      }
+    }
+  }, [availableSubTypes, selectedSubTypeId, gangAdditionTypes]);
 
   // Fetch gang addition types if needed when component mounts
   useEffect(() => {
@@ -272,16 +300,64 @@ export default function GangAdditions({
     const typeId = e.target.value;
     setSelectedGangAdditionTypeId(typeId);
     setSelectedFighterTypeId(typeId);
+    setSelectedSubTypeId(''); // Reset sub-type selection
+    setSelectedEquipmentIds([]); // Reset equipment selections when type changes
+    
     if (typeId) {
+      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
       const selectedType = gangAdditionTypes.find(t => t.id === typeId);
-      setGangAdditionCost(selectedType?.total_cost.toString() || '');
-      setFighterCost(selectedType?.total_cost.toString() || '');
+      const fighterTypeGroup = gangAdditionTypes.filter(t => 
+        t.fighter_type === selectedType?.fighter_type &&
+        t.fighter_class === selectedType?.fighter_class
+      );
       
-      // Reset equipment selections when changing type
-      setSelectedEquipmentIds([]);
+      // If we have multiple entries with the same fighter_type + class, they have sub-types
+      if (fighterTypeGroup.length > 1) {
+        const subTypes = fighterTypeGroup.map(ft => ({
+          id: ft.id,
+          sub_type_name: ft.sub_type?.sub_type_name || 'Default',
+          cost: ft.total_cost
+        }));
+        
+        setAvailableSubTypes(subTypes);
+        
+        // Set cost to the fighter with the ID we selected initially
+        setGangAdditionCost(selectedType?.total_cost.toString() || '');
+        setFighterCost(selectedType?.total_cost.toString() || '');
+        
+        // Auto-selection will happen in the useEffect
+      } else {
+        // No sub-types, just set the cost directly
+        setGangAdditionCost(selectedType?.total_cost.toString() || '');
+        setFighterCost(selectedType?.total_cost.toString() || '');
+        setAvailableSubTypes([]);
+      }
     } else {
       setGangAdditionCost('');
       setFighterCost('');
+      setAvailableSubTypes([]);
+    }
+  };
+
+  const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const subTypeId = e.target.value;
+    setSelectedSubTypeId(subTypeId);
+    setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
+    
+    if (subTypeId) {
+      // Don't change the selectedGangAdditionTypeId, just update the cost
+      const selectedType = gangAdditionTypes.find(t => t.id === subTypeId);
+      if (selectedType) {
+        setGangAdditionCost(selectedType.total_cost.toString() || '');
+        setFighterCost(selectedType.total_cost.toString() || '');
+      }
+    } else {
+      // If no sub-type is selected, revert to the main fighter type's cost
+      const mainType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+      if (mainType) {
+        setGangAdditionCost(mainType.total_cost.toString() || '');
+        setFighterCost(mainType.total_cost.toString() || '');
+      }
     }
   };
 
@@ -581,6 +657,15 @@ export default function GangAdditions({
       return false;
     }
 
+    // Determine which fighter type ID to use
+    const fighterTypeIdToUse = selectedSubTypeId || selectedGangAdditionTypeId;
+    
+    if (!fighterTypeIdToUse) {
+      setFetchError('Please select a fighter type');
+      setIsAdding(false);
+      return false;
+    }
+
     try {
       // Get the current authenticated user's ID
       const supabase = createClient();
@@ -593,7 +678,7 @@ export default function GangAdditions({
       }
 
       // Get the base fighter type cost
-      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+      const selectedType = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
       const baseCost = selectedType?.cost || 0;
       const enteredCost = parseInt(fighterCost);
       
@@ -680,7 +765,7 @@ export default function GangAdditions({
           },
           body: JSON.stringify({
             p_gang_id: gangId,
-            p_fighter_type_id: selectedGangAdditionTypeId,
+            p_fighter_type_id: fighterTypeIdToUse,
             p_fighter_name: fighterName,
             p_cost: parsedCost,
             p_selected_equipment_ids: equipmentIds,
@@ -708,7 +793,7 @@ export default function GangAdditions({
       const newFighter = {
         id: data.fighter_id,
         fighter_name: fighterName,
-        fighter_type_id: selectedGangAdditionTypeId,
+        fighter_type_id: fighterTypeIdToUse,
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
         fighter_sub_type: data.fighter_sub_type,
@@ -821,6 +906,8 @@ export default function GangAdditions({
     setFighterName('');
     setSelectedGangAdditionTypeId('');
     setSelectedGangAdditionClass('');
+    setSelectedSubTypeId('');
+    setAvailableSubTypes([]);
     setFighterCost('');
     setSelectedEquipmentIds([]);
     setUseBaseCostForRating(true);
@@ -900,39 +987,124 @@ export default function GangAdditions({
         >
           <option value="">Select Fighter Type</option>
 
-          {Object.entries(
-            filteredGangAdditionTypes
-              .slice() // Create a shallow copy to avoid mutating the original array
-              .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type)) // Alphabetical sorting within groups
-              .reduce((groups, type) => {
-                const groupLabel = type.alignment?.toLowerCase() ?? "unaligned"; // Default to "Unaligned" if null
-
-                if (!groups[groupLabel]) groups[groupLabel] = [];
-                groups[groupLabel].push(type);
-                return groups;
-              }, {} as Record<string, typeof filteredGangAdditionTypes>)
-          )
-            // Sort optgroup labels by predefined priority
-            .sort(([groupA], [groupB]) => {
-              const alignmentOrder: Record<string, number> = {
-                "law abiding": 1,
-                "outlaw": 2,
-                "unaligned": 3,
-              };
-
-              return (alignmentOrder[groupA] ?? 4) - (alignmentOrder[groupB] ?? 4);
-            })
-            .map(([groupLabel, fighterList]) => (
-              <optgroup key={groupLabel} label={groupLabel.replace(/\b\w/g, c => c.toUpperCase())}>
-                {fighterList.map(type => (
-                  <option key={type.id} value={type.id}>
-                    {type.limitation && type.limitation > 0 ? `0-${type.limitation} ` : ''}{type.fighter_type} ({type.total_cost} credits)
+          {(() => {
+            // Create a map to group fighters by type+class and find default/cheapest for each
+            const typeClassMap = new Map();
+            
+            filteredGangAdditionTypes.forEach(fighter => {
+              const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
+              
+              if (!typeClassMap.has(key)) {
+                typeClassMap.set(key, {
+                  fighter: fighter,
+                  cost: fighter.total_cost
+                });
+              } else {
+                const current = typeClassMap.get(key);
+                
+                // If this fighter has no sub-type, prefer it as default
+                if (!fighter.sub_type && current.fighter.sub_type) {
+                  typeClassMap.set(key, {
+                    fighter: fighter,
+                    cost: fighter.total_cost
+                  });
+                }
+                // Otherwise, take the cheaper option
+                else if (fighter.total_cost < current.cost) {
+                  typeClassMap.set(key, {
+                    fighter: fighter,
+                    cost: fighter.total_cost
+                  });
+                }
+              }
+            });
+            
+            // Convert the map values to an array and sort by alignment, then alphabetically
+            return Array.from(typeClassMap.values())
+              .sort((a, b) => {
+                // First sort by alignment
+                const alignmentOrder: Record<string, number> = {
+                  "law abiding": 1,
+                  "outlaw": 2,
+                  "unaligned": 3,
+                };
+                
+                const alignmentA = a.fighter.alignment?.toLowerCase() ?? "unaligned";
+                const alignmentB = b.fighter.alignment?.toLowerCase() ?? "unaligned";
+                
+                const alignmentRankA = alignmentOrder[alignmentA] ?? 4;
+                const alignmentRankB = alignmentOrder[alignmentB] ?? 4;
+                
+                if (alignmentRankA !== alignmentRankB) {
+                  return alignmentRankA - alignmentRankB;
+                }
+                
+                // Then sort alphabetically by fighter type
+                return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
+              })
+              .map(({ fighter, cost }) => {
+                const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} (${cost} credits)`;
+                
+                return (
+                  <option key={fighter.id} value={fighter.id}>
+                    {displayName}
                   </option>
-                ))}
-              </optgroup>
-            ))}
+                );
+              });
+          })()}
         </select>
       </div>
+
+      {/* Conditionally show sub-type dropdown if there are available sub-types */}
+      {availableSubTypes.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Fighter Sub-type
+          </label>
+          <select
+            value={selectedSubTypeId}
+            onChange={handleSubTypeChange}
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select fighter sub-type</option>
+            {[...availableSubTypes]
+              .sort((a, b) => {
+                const aName = a.sub_type_name.toLowerCase();
+                const bName = b.sub_type_name.toLowerCase();
+
+                // Always keep "Default" first
+                if (aName === 'default') return -1;
+                if (bName === 'default') return 1;
+
+                // Otherwise sort by cost, then name
+                const aCost = gangAdditionTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
+                const bCost = gangAdditionTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
+                if (aCost !== bCost) return aCost - bCost;
+
+                return aName.localeCompare(bName);
+              })
+              .map((subType) => {
+                const subTypeCost = gangAdditionTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
+                const lowestSubTypeCost = Math.min(
+                  ...availableSubTypes.map(sub =>
+                    gangAdditionTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
+                  )
+                );
+                const diff = subTypeCost - lowestSubTypeCost;
+                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
+
+                // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
+                const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
+
+                return (
+                  <option key={subType.id} value={subType.id}>
+                    {displayName} {costLabel}
+                  </option>
+                );
+              })}
+          </select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
@@ -999,6 +1171,7 @@ export default function GangAdditions({
       confirmDisabled={
         isAdding ||
         !selectedGangAdditionTypeId || !fighterName || !fighterCost || 
+        (availableSubTypes.length > 0 && !selectedSubTypeId) ||
         // Equipment selection required but not selected
         (() => {
           const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);

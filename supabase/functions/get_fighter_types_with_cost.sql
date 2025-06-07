@@ -33,7 +33,8 @@ RETURNS TABLE (
     is_gang_addition boolean,
     default_equipment jsonb,
     equipment_selection jsonb,
-    total_cost numeric
+    total_cost numeric,
+    sub_type jsonb
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
@@ -606,11 +607,21 @@ BEGIN
             LIMIT 1
         ) AS equipment_selection,
         -- Use adjusted_cost for total_cost if available, otherwise use original cost
-        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost
+        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
+        -- Add sub_type information
+        CASE 
+            WHEN fsub.id IS NOT NULL THEN
+                jsonb_build_object(
+                    'id', fsub.id,
+                    'sub_type_name', fsub.sub_type_name
+                )
+            ELSE NULL
+        END AS sub_type
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
         AND ftgc.gang_type_id = p_gang_type_id
+    LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
     WHERE
         -- Removed the gang_type_id restriction for gang additions
         (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
