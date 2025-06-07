@@ -734,7 +734,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </Button>
 
           <div className="flex flex-row gap-3 pr-8">
-            <h2 className="text-xl font-semibold">Equipment</h2>
+            <h2 className="text-xl font-semibold">{title}</h2>
             <div className="ml-auto flex items-center gap-2">
               <span className="text-sm text-gray-600">Gang Credits</span>
               <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
