@@ -58,6 +58,7 @@ interface SkillResponse {
     skill_name: string;
     skill_type_id: string;
     available_acquisition_types: AcquisitionType[];
+    available: boolean;
   }[];
   fighter_id: string;
   fighter_class: string;
@@ -82,6 +83,7 @@ interface SkillData {
   skill_name: string;
   skill_type_id: string;
   available_acquisition_types: AcquisitionType[];
+  available: boolean;
 }
 
 // AdvancementsList Interfaces
@@ -332,23 +334,25 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
             skill_id: skill.skill_id,
             xp_cost: 0,
             stat_change: 1,
-            can_purchase: true,
+            can_purchase: skill.available,
             stat_change_name: skill.skill_name,
             credits_increase: 0,
             has_enough_xp: true,
             available_acquisition_types: skill.available_acquisition_types,
-            skill_type_id: skill.skill_type_id
+            skill_type_id: skill.skill_type_id,
+            is_available: skill.available
           }));
 
           console.log('Formatted skill advancements:', formattedAdvancements);
           setAvailableAdvancements(formattedAdvancements);
-          if (formattedAdvancements.length > 0) {
-            const initialAdvancement = formattedAdvancements[0];
-            console.log('Setting initial skill advancement:', initialAdvancement);
-            setSelectedAdvancement(initialAdvancement);
-            setEditableXpCost(initialAdvancement.xp_cost);
-            setEditableCreditsIncrease(initialAdvancement.credits_increase || 0);
-          }
+          // Remove auto-selection of first advancement - let user choose
+          // if (formattedAdvancements.length > 0) {
+          //   const initialAdvancement = formattedAdvancements[0];
+          //   console.log('Setting initial skill advancement:', initialAdvancement);
+          //   setSelectedAdvancement(initialAdvancement);
+          //   setEditableXpCost(initialAdvancement.xp_cost);
+          //   setEditableCreditsIncrease(initialAdvancement.credits_increase || 0);
+          // }
         }
 
         setError(null);
@@ -603,6 +607,9 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
                     setSelectedAdvancement(null);
+                    setSkillAcquisitionType('');
+                    setEditableXpCost(0);
+                    setEditableCreditsIncrease(0);
                   }}
                 >
                   <option key="default" value="">
@@ -704,9 +711,18 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                     <option key="default" value="">Select Skill</option>
                     {availableAdvancements.map((advancement) => {
                       const uniqueKey = `${advancement.id}_${advancement.skill_type_id}`;
+                      const isAvailable = advancement.is_available !== false; // Default to true if undefined
                       return (
-                        <option key={uniqueKey} value={advancement.id}>
-                          {advancement.stat_change_name}
+                        <option 
+                          key={uniqueKey} 
+                          value={advancement.id}
+                          disabled={!isAvailable}
+                          style={{ 
+                            color: !isAvailable ? '#9CA3AF' : 'inherit',
+                            fontStyle: !isAvailable ? 'italic' : 'normal'
+                          }}
+                        >
+                          {advancement.stat_change_name}{!isAvailable ? ' (already owned)' : ''}
                         </option>
                       );
                     })}

@@ -33,6 +33,12 @@ BEGIN
                     'fighter_class', f.fighter_class,
                     'skill_type_id', s.skill_type_id,
                     'skill_type_name', st.name,
+                    'available', NOT EXISTS (
+                        SELECT 1 
+                        FROM fighter_skills fs 
+                        WHERE fs.fighter_id = get_available_skills.fighter_id 
+                        AND fs.skill_id = s.id
+                    ),
                     'available_acquisition_types', CASE 
                         WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute') 
                         THEN jsonb_build_array(

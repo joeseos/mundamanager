@@ -48,6 +48,7 @@ interface SkillData {
   skill_name: string;
   skill_type_id: string;
   available_acquisition_types: string[];
+  available: boolean;
 }
 
 interface SkillResponse {
@@ -264,11 +265,22 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             className="w-full p-2 border rounded"
           >
             <option key="placeholder-skill" value="">Select a skill</option>
-            {skillsData.skills.map((skill) => (
-              <option key={skill.skill_id} value={skill.skill_id}>
-                {skill.skill_name}
-              </option>
-            ))}
+            {skillsData.skills.map((skill) => {
+              const isAvailable = skill.available;
+              return (
+                <option 
+                  key={skill.skill_id} 
+                  value={skill.skill_id}
+                  disabled={!isAvailable}
+                  style={{ 
+                    color: !isAvailable ? '#9CA3AF' : 'inherit',
+                    fontStyle: !isAvailable ? 'italic' : 'normal'
+                  }}
+                >
+                  {skill.skill_name}{!isAvailable ? ' (already owned)' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}
