@@ -32,8 +32,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       redirect("/");
     }
 
-    // SERVER-SIDE AUTHORIZATION CHECK
-    // Get gang ownership information
+    // Get gang ownership information for permission checks
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select('user_id')
@@ -55,10 +54,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const isAdmin = profile?.user_role === 'admin';
     const isOwner = gang.user_id === user.id;
 
-    // If user doesn't own the gang and isn't admin, redirect
-    if (!isAdmin && !isOwner) {
-      redirect("/");
-    }
+    // All authenticated users can view the fighter page, but only owners/admins can edit
 
     // Fetch gang fighters for the dropdown
     const { data: gangFighters, error: fightersError } = await supabase
