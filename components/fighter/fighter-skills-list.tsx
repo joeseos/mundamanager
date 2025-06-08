@@ -19,16 +19,10 @@ interface Skill {
   fighter_injury_id: string | null;
 }
 
-// Props for the FighterSkillsTable component
-interface FighterSkillsTableProps {
-  skills: Skill[];
-  onDeleteSkill?: (skillId: string, skillName: string) => void;
-}
-
 // Props for the SkillsList component
 interface SkillsListProps {
   skills: FighterSkills;
-  onDeleteSkill?: (skillId: string) => void;
+  onSkillDeleted?: () => void;
   fighterId: string;
   fighterXp: number;
   onSkillAdded?: () => void;
@@ -58,57 +52,6 @@ interface SkillData {
 
 interface SkillResponse {
   skills: SkillData[];
-}
-
-// Component for displaying table of skills
-export function FighterSkillsTable({ skills, onDeleteSkill }: FighterSkillsTableProps) {
-  return (
-    <div>
-      <div className="overflow-x-auto">
-        <table className="w-full table-auto">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-1 py-1 text-left w-[75%]">Name</th>
-              <th className="px-1 py-1 text-right w-[25%]">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!skills?.length ? (
-              <tr>
-                <td colSpan={2} className="text-center py-1 text-gray-500">
-                  No skills available
-                </td>
-              </tr>
-            ) : (
-              skills.map((skill) => (
-                <tr key={skill.id} className="border-b">
-                  <td className="px-1 py-1">{skill.name}</td>
-                  <td className="px-1 py-1">
-                    <div className="flex justify-end">
-                      {skill.fighter_injury_id ? (
-                        <span className="text-gray-500 text-sm italic">
-                          (added by injury)
-                        </span>
-                      ) : (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => onDeleteSkill?.(skill.id, skill.name)}
-                          className="text-xs px-1.5 h-6"
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 }
 
 // SkillModal Component
@@ -347,7 +290,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 // Main SkillsList component that wraps the table with management functionality
 export function SkillsList({ 
   skills = {}, 
-  onDeleteSkill,
+  onSkillDeleted,
   fighterId,
   fighterXp,
   onSkillAdded,
@@ -356,28 +299,76 @@ export function SkillsList({
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   const handleDeleteClick = (skillId: string, skillName: string) => {
     setSkillToDelete({ id: skillId, name: skillName });
   };
 
-  const handleConfirmDelete = () => {
-    if (skillToDelete && onDeleteSkill) {
-      onDeleteSkill(skillToDelete.id);
+  const handleConfirmDelete = async () => {
+    if (!skillToDelete) return;
+
+    try {
+      // Create a Supabase client and get session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No authenticated session found');
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            input_fighter_id: fighterId,
+            fighter_skill_id: skillToDelete.id
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete skill (${response.status})`);
+      }
+
+      // Call the callback to refresh data in parent component
+      onSkillDeleted?.();
+      
+      toast({
+        description: `${skillToDelete.name} removed successfully`,
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      toast({
+        description: 'Failed to delete skill',
+        variant: "destructive"
+      });
+    } finally {
+      setSkillToDelete(null);
     }
-    setSkillToDelete(null);
   };
 
   // Transform skills object into array for table display
-  const skillsArray = Object.entries(skills).map(([name, data]) => ({
-    id: data.id,
-    name: name,
-    xp_cost: data.xp_cost,
-    credits_increase: data.credits_increase,
-    acquired_at: data.acquired_at,
-    is_advance: data.is_advance ?? false,
-    fighter_injury_id: data.fighter_injury_id
-  }));
+  const skillsArray = Object.entries(skills).map(([name, data]) => {
+    const typedData = data as any;
+    return {
+      id: typedData.id,
+      name: name,
+      xp_cost: typedData.xp_cost,
+      credits_increase: typedData.credits_increase,
+      acquired_at: typedData.acquired_at,
+      is_advance: typedData.is_advance ?? false,
+      fighter_injury_id: typedData.fighter_injury_id
+    };
+  });
 
   // Custom empty message based on free_skill status
   const getEmptyMessage = () => {

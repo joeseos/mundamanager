@@ -1083,8 +1083,9 @@ export default function FighterPage({
 
           {canShowEditButtons && (
             <SkillsList
+              key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
               skills={fighterData.fighter?.skills || {}}
-              onDeleteSkill={() => {}} // Will add handler later
+              onSkillDeleted={fetchFighterData}
               fighterId={fighterData.fighter?.id || ''}
               fighterXp={fighterData.fighter?.xp || 0}
               onSkillAdded={fetchFighterData}
@@ -1094,6 +1095,7 @@ export default function FighterPage({
 
           {canShowEditButtons && (
             <AdvancementsList
+              key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
               fighterXp={fighterData.fighter?.xp || 0}
               fighterId={fighterData.fighter?.id || ''}
               advancements={fighterData.fighter?.effects?.advancements || []}
