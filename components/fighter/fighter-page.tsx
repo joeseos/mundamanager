@@ -1015,7 +1015,7 @@ export default function FighterPage({
           )}
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
-          {canShowEditButtons && vehicle && (
+          {vehicle && (
             <List
               title="Vehicle Equipment"
               items={fighterData.vehicleEquipment}
@@ -1069,60 +1069,52 @@ export default function FighterPage({
             />
           )}
 
-          {canShowEditButtons && (
-            <WeaponList
-              fighterId={fighterId}
-              gangId={fighterData.gang?.id || ''}
-              gangCredits={fighterData.gang?.credits || 0}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={handleEquipmentUpdate}
-              equipment={fighterData.equipment}
-              onAddEquipment={() => handleModalToggle('addWeapon', true)}
-            />
-          )}
+          <WeaponList
+            fighterId={fighterId}
+            gangId={fighterData.gang?.id || ''}
+            gangCredits={fighterData.gang?.credits || 0}
+            fighterCredits={fighterData.fighter?.credits || 0}
+            onEquipmentUpdate={handleEquipmentUpdate}
+            equipment={fighterData.equipment}
+            onAddEquipment={() => handleModalToggle('addWeapon', true)}
+          />
 
-          {canShowEditButtons && (
-            <SkillsList
-              key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-              skills={fighterData.fighter?.skills || {}}
-              onSkillDeleted={fetchFighterData}
-              fighterId={fighterData.fighter?.id || ''}
-              fighterXp={fighterData.fighter?.xp || 0}
-              onSkillAdded={fetchFighterData}
-              free_skill={fighterData.fighter?.free_skill}
-            />
-          )}
+          <SkillsList
+            key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
+            skills={fighterData.fighter?.skills || {}}
+            onSkillDeleted={fetchFighterData}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterXp={fighterData.fighter?.xp || 0}
+            onSkillAdded={fetchFighterData}
+            free_skill={fighterData.fighter?.free_skill}
+          />
 
-          {canShowEditButtons && (
-            <AdvancementsList
-              key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-              fighterXp={fighterData.fighter?.xp || 0}
-              fighterId={fighterData.fighter?.id || ''}
-              advancements={fighterData.fighter?.effects?.advancements || []}
-              skills={fighterData.fighter?.skills || {}}
-              onDeleteAdvancement={async (advancementId: string) => {
-                // Refresh fighter data after deletion
-                await fetchFighterData();
-              }}
-              onAdvancementAdded={fetchFighterData}
-            />
-          )}
+          <AdvancementsList
+            key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
+            fighterXp={fighterData.fighter?.xp || 0}
+            fighterId={fighterData.fighter?.id || ''}
+            advancements={fighterData.fighter?.effects?.advancements || []}
+            skills={fighterData.fighter?.skills || {}}
+            onDeleteAdvancement={async (advancementId: string) => {
+              // Refresh fighter data after deletion
+              await fetchFighterData();
+            }}
+            onAdvancementAdded={fetchFighterData}
+          />
 
-          {canShowEditButtons && (
-            <InjuriesList
-              injuries={fighterData.fighter?.effects?.injuries || []}
-              fighterId={fighterData.fighter?.id || ''}
-              onDeleteInjury={async (injuryId: string) => {
-                // Refresh fighter data after deletion
-                await fetchFighterData();
-              }}
-              onInjuryAdded={fetchFighterData}
-              fighterRecovery={fighterData.fighter?.recovery}
-            />
-          )}
+          <InjuriesList
+            injuries={fighterData.fighter?.effects?.injuries || []}
+            fighterId={fighterData.fighter?.id || ''}
+            onDeleteInjury={async (injuryId: string) => {
+              // Refresh fighter data after deletion
+              await fetchFighterData();
+            }}
+            onInjuryAdded={fetchFighterData}
+            fighterRecovery={fighterData.fighter?.recovery}
+          />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
-          {canShowEditButtons && vehicle && (
+          {vehicle && (
             <VehicleDamagesList
               damages={vehicle.effects?.damages || []}
               onDeleteDamage={async (damageId: string) => {
@@ -1158,60 +1150,54 @@ export default function FighterPage({
             )}
           </div>
 
-          {/* Action buttons with conditional rendering */}
+          {/* Action buttons - show for all users */}
           <div className="mt-6">
             <div className="flex flex-wrap gap-2">
-              {canShowEditButtons && (
-                <>
-                  <Button
-                    variant="default"
-                    className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => handleModalToggle('kill', true)}
-                  >
-                    {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
-                  </Button>
-                  <Button
-                    variant={fighterData.fighter?.retired ? 'success' : 'default'}
-                    className="flex-1"
-                    onClick={() => handleModalToggle('retire', true)}
-                  >
-                    {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
-                  </Button>
-                  <Button
-                    variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
-                    className="flex-1"
-                    onClick={() => handleModalToggle('enslave', true)}
-                  >
-                    {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
-                  </Button>
-                  {isMeatEnabled() && (
-                    <Button
-                      variant={fighterData.fighter?.starved ? 'success' : 'default'}
-                      className="flex-1"
-                      onClick={() => handleModalToggle('starve', true)}
-                    >
-                      {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
-                    </Button>
-                  )}
-                  <Button
-                    variant={fighterData.fighter?.recovery ? 'success' : 'default'}
-                    className="flex-1"
-                    onClick={() => handleModalToggle('recovery', true)}
-                  >
-                    {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
-                  </Button>
-                </>
-              )}
-              
-              {canShowDeleteButtons && (
+              <Button
+                variant="default"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => handleModalToggle('kill', true)}
+              >
+                {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
+              </Button>
+              <Button
+                variant={fighterData.fighter?.retired ? 'success' : 'default'}
+                className="flex-1"
+                onClick={() => handleModalToggle('retire', true)}
+              >
+                {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
+              </Button>
+              <Button
+                variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
+                className="flex-1"
+                onClick={() => handleModalToggle('enslave', true)}
+              >
+                {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
+              </Button>
+              {isMeatEnabled() && (
                 <Button
-                  variant="destructive"
+                  variant={fighterData.fighter?.starved ? 'success' : 'default'}
                   className="flex-1"
-                  onClick={() => handleModalToggle('delete', true)}
+                  onClick={() => handleModalToggle('starve', true)}
                 >
-                  Delete Fighter
+                  {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
                 </Button>
               )}
+              <Button
+                variant={fighterData.fighter?.recovery ? 'success' : 'default'}
+                className="flex-1"
+                onClick={() => handleModalToggle('recovery', true)}
+              >
+                {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
+              </Button>
+              
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => handleModalToggle('delete', true)}
+              >
+                Delete Fighter
+              </Button>
             </div>
           </div>
 
@@ -1479,7 +1465,7 @@ export default function FighterPage({
             />
           )}
 
-          {canShowEditButtons && uiState.modals.editFighter && fighterData.fighter && (
+          {uiState.modals.editFighter && fighterData.fighter && (
             <EditFighterModal
               fighter={convertToFighterProps(fighterData.fighter)}
               isOpen={uiState.modals.editFighter}
@@ -1529,7 +1515,7 @@ export default function FighterPage({
             />
           )}
 
-          {canShowEditButtons && uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
+          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
             <ItemModal
               title="Add Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
@@ -1545,7 +1531,7 @@ export default function FighterPage({
             />
           )}
 
-          {canShowEditButtons && uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
+          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
             <ItemModal
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
