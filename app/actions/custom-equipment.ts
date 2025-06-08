@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getUserCustomEquipmentByCategory } from "@/app/lib/custom-equipment";
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -68,4 +69,17 @@ export async function deleteCustomEquipment(equipmentId: string) {
   revalidatePath('/customize');
   
   return { success: true };
+}
+
+export async function fetchUserCustomEquipment(category?: string) {
+  try {
+    const equipment = await getUserCustomEquipmentByCategory(category);
+    return { success: true, data: equipment };
+  } catch (error) {
+    console.error('Error in fetchUserCustomEquipment:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch custom equipment' 
+    };
+  }
 } 
