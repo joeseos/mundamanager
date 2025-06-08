@@ -149,6 +149,7 @@ as $$
         true as is_custom
     from custom_equipment ce
     where 
-        (get_equipment_with_discounts.equipment_category is null 
+        ce.user_id = auth.uid() -- Only show user's own custom equipment
+        and (get_equipment_with_discounts.equipment_category is null 
          or trim(both from ce.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
 $$;
