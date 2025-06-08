@@ -7,12 +7,12 @@ import { updateCustomEquipment, deleteCustomEquipment } from '@/app/actions/cust
 import Modal from '@/components/modal';
 import { useToast } from '@/components/ui/use-toast';
 
-interface CustomizeEquipmentProps {
+interface CustomiseEquipmentProps {
   className?: string;
   initialEquipment?: CustomEquipment[];
 }
 
-export function CustomizeEquipment({ className, initialEquipment = [] }: CustomizeEquipmentProps) {
+export function CustomiseEquipment({ className, initialEquipment = [] }: CustomiseEquipmentProps) {
   const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomEquipment | null>(null);
