@@ -835,7 +835,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
 }
 
 // AdvancementsList Component
-export const AdvancementsList = React.memo(function AdvancementsList({ 
+export function AdvancementsList({ 
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
@@ -847,7 +847,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
   const { toast } = useToast();
 
   // Memoize the entire data transformation
@@ -901,16 +901,19 @@ export const AdvancementsList = React.memo(function AdvancementsList({
   // Use Object.entries to safely process the skills object
   const advancementSkills = useMemo(() => {
     return Object.entries(skills)
-      .filter(([_, skill]) => skill && skill.is_advance)
-      .map(([name, skill]) => ({
-        id: skill.id,
-        effect_name: `Skill - ${name}`,
-        created_at: skill.acquired_at,
-        type_specific_data: {
-          xp_cost: skill.xp_cost || 0,
-          credits_increase: skill.credits_increase
-        }
-      }));
+      .filter(([_, skill]) => skill && (skill as any).is_advance)
+      .map(([name, skill]) => {
+        const typedSkill = skill as any;
+        return {
+          id: typedSkill.id,
+          effect_name: `Skill - ${name}`,
+          created_at: typedSkill.acquired_at,
+          type_specific_data: {
+            xp_cost: typedSkill.xp_cost || 0,
+            credits_increase: typedSkill.credits_increase
+          }
+        };
+      });
   }, [skills]);
 
   // Combine regular advancements with skill advancements
@@ -918,7 +921,7 @@ export const AdvancementsList = React.memo(function AdvancementsList({
     return [...advancements, ...advancementSkills];
   }, [advancements, advancementSkills]);
 
-  const handleDeleteAdvancement = async (advancementId: string, advancementName: string) => {
+  const handleDeleteAdvancement = async (advancementId: string, advancementName: string, advancementType?: string) => {
     try {
       setIsDeleting(advancementId);
       
@@ -930,6 +933,18 @@ export const AdvancementsList = React.memo(function AdvancementsList({
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token || '';
       
+      // Determine if this is a skill or characteristic based on the advancement type or name
+      const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill - ');
+      
+      // Prepare the request body based on advancement type
+      const requestBody = {
+        input_fighter_id: fighterId,
+        ...(isSkill 
+          ? { fighter_skill_id: advancementId }
+          : { fighter_effect_id: advancementId }
+        )
+      };
+      
       const response = await fetch(rpcEndpoint, {
         method: 'POST',
         headers: {
@@ -938,17 +953,14 @@ export const AdvancementsList = React.memo(function AdvancementsList({
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal'
         },
-        body: JSON.stringify({
-          input_fighter_id: fighterId,
-          fighter_effect_id: advancementId
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
         throw new Error(`Failed to delete advancement (${response.status})`);
       }
 
-      // Call the callback to update parent component state
+      // Call the callback to update parent component state and wait for it to complete
       await onDeleteAdvancement(advancementId);
       
       toast({
@@ -988,6 +1000,9 @@ export const AdvancementsList = React.memo(function AdvancementsList({
           ? JSON.parse(advancement.type_specific_data || '{}')
           : (advancement.type_specific_data || {});
           
+        // Determine if this is a skill or characteristic advancement
+        const isSkill = advancement.effect_name.startsWith('Skill - ');
+          
         return {
           id: advancement.id || `temp-${Math.random()}`,
           name: advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
@@ -995,7 +1010,8 @@ export const AdvancementsList = React.memo(function AdvancementsList({
                 `Characteristic - ${advancement.effect_name}`,
           xp_cost: specificData.xp_cost || 0,
           credits_increase: specificData.credits_increase || 0,
-          advancement_id: advancement.id
+          advancement_id: advancement.id,
+          advancement_type: isSkill ? 'skill' : 'characteristic'
         };
       });
   }, [allAdvancements]);
@@ -1028,7 +1044,8 @@ export const AdvancementsList = React.memo(function AdvancementsList({
             variant: 'destructive',
             onClick: (item) => item.advancement_id ? setDeleteModalData({
               id: item.advancement_id,
-              name: item.name
+              name: item.name,
+              type: item.advancement_type
             }) : null,
             disabled: (item) => isDeleting === item.advancement_id || !item.advancement_id
           }
@@ -1059,9 +1076,9 @@ export const AdvancementsList = React.memo(function AdvancementsList({
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.name)}
+          onConfirm={() => handleDeleteAdvancement(deleteModalData.id, deleteModalData.name, deleteModalData.type)}
         />
       )}
     </>
   );
-}); 
+} 
