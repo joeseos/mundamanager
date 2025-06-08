@@ -146,7 +146,7 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/customize" className="w-full cursor-pointer">
               <MdOutlineColorLens className="mr-2 h-4 w-4" />
-              Customize
+              Customise
             </Link>
           </DropdownMenuItem>
 
