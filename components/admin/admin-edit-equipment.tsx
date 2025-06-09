@@ -8,6 +8,7 @@ import { FighterType } from "@/types/fighter";
 import { X } from "lucide-react";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { AdminTradingPost } from "./admin-trading-post";
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -131,6 +132,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [availabilityValue, setAvailabilityValue] = useState("");
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
+  const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
+  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string}>>([]);
 
   const { toast } = useToast();
 
@@ -209,6 +212,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         }]);
         setGangAdjustedCosts([]);
         setEquipmentAvailabilities([]);
+        setSelectedTradingPosts([]);
         return;
       }
 
@@ -248,6 +252,16 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             gang_type_id: a.gang_type_id,
             availability: a.availability
           })));
+        }
+
+        // Set trading post associations if they exist
+        if (data.trading_post_associations) {
+          setSelectedTradingPosts(data.trading_post_associations);
+        }
+
+        // Set trading post types if they exist
+        if (data.trading_post_types) {
+          setTradingPostTypes(data.trading_post_types);
         }
 
         // Load weapon profiles if they exist
@@ -585,6 +599,25 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       if (!response.ok) {
         throw new Error('Failed to update equipment');
+      }
+
+      // Update trading post associations
+      if (selectedTradingPosts.length > 0 || selectedTradingPosts.length === 0) {
+        const tradingPostResponse = await fetch('/api/admin/equipment/trading-posts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            equipment_id: selectedEquipmentId,
+            trading_post_ids: selectedTradingPosts
+          })
+        });
+
+        if (!tradingPostResponse.ok) {
+          console.error('Failed to update trading post associations');
+          // Don't fail the whole operation for this
+        }
       }
 
       toast({
@@ -1115,7 +1148,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
-              {/* Fighter Effects Section - Add this section before the weapon profiles section */}
+              {/* Trading Post Section - Add this above Fighter Effects */}
+              {selectedEquipmentId && (
+                <AdminTradingPost
+                  equipmentId={selectedEquipmentId}
+                  selectedTradingPosts={selectedTradingPosts}
+                  setSelectedTradingPosts={setSelectedTradingPosts}
+                  tradingPostTypes={tradingPostTypes}
+                  disabled={!selectedEquipmentId}
+                />
+              )}
+
+              {/* Fighter Effects Section */}
               {selectedEquipmentId && (
                 <div className="col-span-3">
                   <AdminFighterEffects 

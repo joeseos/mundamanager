@@ -91,6 +91,19 @@ export async function GET(request: Request) {
       
       console.log('Fetched availabilities:', availabilities || []);
 
+      // Fetch trading post associations
+      const { data: tradingPostAssociations, error: tradingPostError } = await supabase
+        .from('trading_post_equipment')
+        .select('trading_post_type_id')
+        .eq('equipment_id', id);
+
+      // Don't throw error if the query fails, just log it
+      if (tradingPostError) {
+        console.warn('Error fetching trading post associations:', tradingPostError);
+      }
+
+      console.log('Fetched trading post associations:', tradingPostAssociations || []);
+
       // Then fetch all gang types
       const { data: gangTypes, error: gangTypesError } = await supabase
         .from('gang_types')
@@ -139,6 +152,23 @@ export async function GET(request: Request) {
 
       console.log('Formatted availabilities:', formattedAvailabilities);
 
+      // Format trading post associations
+      const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
+      console.log('Trading post IDs:', tradingPostIds);
+
+      // Fetch trading post types for the component to display names
+      const { data: tradingPostTypes, error: tradingPostTypesError } = await supabase
+        .from('trading_post_types')
+        .select('id, trading_post_name')
+        .order('trading_post_name');
+
+      // Don't throw error if the query fails, just log it
+      if (tradingPostTypesError) {
+        console.warn('Error fetching trading post types:', tradingPostTypesError);
+      }
+
+      console.log('Fetched trading post types:', tradingPostTypes || []);
+
       // When fetching equipment details, include upgrade_type in the vehicle profiles query
       const { data: vehicleProfiles, error: vehicleProfilesError } = await supabase
         .from('vehicle_equipment_profiles')
@@ -163,6 +193,8 @@ export async function GET(request: Request) {
         ...equipment,
         gang_adjusted_costs: formattedAdjustedCosts,
         equipment_availabilities: formattedAvailabilities || [],
+        trading_post_associations: tradingPostIds,
+        trading_post_types: tradingPostTypes || [],
         vehicle_profiles: vehicleProfiles
       });
 
