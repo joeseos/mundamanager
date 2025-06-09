@@ -837,7 +837,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                   !selectedAdvancement ||
                   (advancementType === 'skill' && !skillAcquisitionType) ||
                   !selectedAdvancement.has_enough_xp ||
-                  editableXpCost <= 0 // Add validation for positive XP cost
+                  editableXpCost < 0 // Changed from <= 0 to < 0 to allow 0 XP cost
                 }
               >
                 Buy Advancement
