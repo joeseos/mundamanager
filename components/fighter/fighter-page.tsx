@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
+import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
@@ -25,7 +26,6 @@ import { Plus, Minus, X } from "lucide-react";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
-import { List } from "@/components/ui/list";
 
 interface UserPermissions {
   isOwner: boolean;
@@ -312,30 +312,6 @@ export default function FighterPage({
 
   const router = useRouter();
   const { toast } = useToast();
-
-  // Add state for delete modal
-  const [deleteVehicleEquipmentData, setDeleteVehicleEquipmentData] = useState<{
-    id: string;
-    equipmentId: string;
-    name: string;
-    cost: number;
-  } | null>(null);
-
-  // Add state for stash modal
-  const [stashVehicleEquipmentData, setStashVehicleEquipmentData] = useState<{
-    id: string;
-    equipmentId: string;
-    name: string;
-    cost: number;
-  } | null>(null);
-
-  // Add state for sell modal with cost state
-  const [sellVehicleEquipmentData, setSellVehicleEquipmentData] = useState<{
-    id: string;
-    equipmentId: string;
-    name: string;
-    cost: number;
-  } | null>(null);
 
   // Update the fetchFighterData callback to use fighterId instead of params.id
   const fetchFighterData = useCallback(async () => {
@@ -1016,56 +992,21 @@ export default function FighterPage({
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
           {vehicle && (
-            <List
-              title="Vehicle Equipment"
-              items={fighterData.vehicleEquipment}
-              columns={[
-                {
-                  key: 'equipment_name',
-                  label: 'Name',
-                  width: '75%'
-                },
-                {
-                  key: 'cost',
-                  label: 'Cost',
-                  align: 'right'
-                }
-              ]}
-              actions={[
-                {
-                  label: 'Stash',
-                  variant: 'outline',
-                  onClick: (item) => setStashVehicleEquipmentData({
-                    id: item.fighter_equipment_id,
-                    equipmentId: item.equipment_id,
-                    name: item.equipment_name,
-                    cost: item.cost
-                  })
-                },
-                {
-                  label: 'Sell',
-                  variant: 'outline',
-                  onClick: (item) => setSellVehicleEquipmentData({
-                    id: item.fighter_equipment_id,
-                    equipmentId: item.equipment_id,
-                    name: item.equipment_name,
-                    cost: item.cost
-                  })
-                },
-                {
-                  label: 'Delete',
-                  variant: 'destructive',
-                  onClick: (item) => setDeleteVehicleEquipmentData({
-                    id: item.fighter_equipment_id,
-                    equipmentId: item.equipment_id,
-                    name: item.equipment_name,
-                    cost: item.cost
-                  })
-                }
-              ]}
-              onAdd={() => handleModalToggle('addVehicleEquipment', true)}
-              addButtonText="Add"
-              emptyMessage="No vehicle equipment installed"
+            <VehicleEquipmentList
+              fighterId={fighterId}
+              gangId={fighterData.gang?.id || ''}
+              gangCredits={fighterData.gang?.credits || 0}
+              fighterCredits={fighterData.fighter?.credits || 0}
+              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  vehicleEquipment: updatedEquipment,
+                  fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
+                  gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+                }));
+              }}
+              equipment={fighterData.vehicleEquipment}
+              onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
             />
           )}
 
@@ -1549,197 +1490,6 @@ export default function FighterPage({
               onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
                 handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
               }
-            />
-          )}
-
-          {/* Vehicle Equipment Modals */}
-          {deleteVehicleEquipmentData && (
-            <Modal
-              title="Delete Vehicle Equipment"
-              content={
-                <div>
-                  <p>Are you sure you want to delete "{deleteVehicleEquipmentData.name}"?</p>
-                  <br />
-                  <p>This action cannot be undone.</p>
-                </div>
-              }
-              onClose={() => setDeleteVehicleEquipmentData(null)}
-              onConfirm={async () => {
-                if (!deleteVehicleEquipmentData) return;
-                
-                try {
-                  const supabase = createClient();
-                  const { data: { session } } = await supabase.auth.getSession();
-                  
-                  if (!session) throw new Error('No session found');
-
-                  const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_equipment?id=eq.${deleteVehicleEquipmentData.id}`,
-                    {
-                      method: 'DELETE',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                        'Authorization': `Bearer ${session.access_token}`
-                      }
-                    }
-                  );
-
-                  if (!response.ok) throw new Error('Failed to delete vehicle equipment');
-                  
-                  // Optimistic update: Remove equipment from vehicle equipment list and adjust fighter credits
-                  setFighterData(prev => ({
-                    ...prev,
-                    vehicleEquipment: prev.vehicleEquipment.filter(
-                      item => item.fighter_equipment_id !== deleteVehicleEquipmentData.id
-                    ),
-                    fighter: prev.fighter ? {
-                      ...prev.fighter,
-                      credits: prev.fighter.credits - deleteVehicleEquipmentData.cost
-                    } : null
-                  }));
-                  
-                  toast({
-                    description: `Successfully deleted ${deleteVehicleEquipmentData.name}`,
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error deleting vehicle equipment:', error);
-                  toast({
-                    description: 'Failed to delete vehicle equipment',
-                    variant: "destructive"
-                  });
-                }
-                
-                setDeleteVehicleEquipmentData(null);
-              }}
-            />
-          )}
-
-          {sellVehicleEquipmentData && (
-            <Modal
-              title="Sell Vehicle Equipment"
-              content={`Are you sure you want to sell ${sellVehicleEquipmentData.name} for ${sellVehicleEquipmentData.cost} credits?`}
-              onClose={() => setSellVehicleEquipmentData(null)}
-              onConfirm={async () => {
-                if (!sellVehicleEquipmentData || !fighterData.gang) return;
-                
-                try {
-                  const supabase = createClient();
-                  const { data: { session } } = await supabase.auth.getSession();
-                  
-                  if (!session) throw new Error('No session found');
-
-                  const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/sell_equipment_from_fighter`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                        'Authorization': `Bearer ${session.access_token}`,
-                      },
-                      body: JSON.stringify({
-                        fighter_equipment_id: sellVehicleEquipmentData.id,
-                        manual_cost: sellVehicleEquipmentData.cost,
-                        in_user_id: session.user.id
-                      })
-                    }
-                  );
-
-                  if (!response.ok) throw new Error('Failed to sell vehicle equipment');
-                  
-                  // Optimistic update: Remove equipment, adjust fighter credits (subtract rating cost), add to gang credits
-                  setFighterData(prev => ({
-                    ...prev,
-                    vehicleEquipment: prev.vehicleEquipment.filter(
-                      item => item.fighter_equipment_id !== sellVehicleEquipmentData.id
-                    ),
-                    fighter: prev.fighter ? {
-                      ...prev.fighter,
-                      credits: prev.fighter.credits - sellVehicleEquipmentData.cost
-                    } : null,
-                    gang: prev.gang ? {
-                      ...prev.gang,
-                      credits: prev.gang.credits + sellVehicleEquipmentData.cost
-                    } : null
-                  }));
-                  
-                  toast({
-                    description: `Sold ${sellVehicleEquipmentData.name} for ${sellVehicleEquipmentData.cost} credits`,
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error selling vehicle equipment:', error);
-                  toast({
-                    description: 'Failed to sell vehicle equipment',
-                    variant: "destructive"
-                  });
-                }
-                
-                setSellVehicleEquipmentData(null);
-              }}
-            />
-          )}
-
-          {stashVehicleEquipmentData && (
-            <Modal
-              title="Move Vehicle Equipment to Stash"
-              content={`Are you sure you want to move ${stashVehicleEquipmentData.name} to the gang stash?`}
-              onClose={() => setStashVehicleEquipmentData(null)}
-              onConfirm={async () => {
-                if (!stashVehicleEquipmentData) return;
-                
-                try {
-                  const supabase = createClient();
-                  const { data: { session } } = await supabase.auth.getSession();
-                  
-                  if (!session) throw new Error('No session found');
-
-                  const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_to_gang_stash`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                        'Authorization': `Bearer ${session.access_token}`,
-                      },
-                      body: JSON.stringify({
-                        in_fighter_equipment_id: stashVehicleEquipmentData.id,
-                        in_user_id: session.user.id
-                      })
-                    }
-                  );
-
-                  if (!response.ok) throw new Error('Failed to move vehicle equipment to stash');
-                  
-                  // Optimistic update: Remove equipment from vehicle equipment list and adjust fighter credits
-                  setFighterData(prev => ({
-                    ...prev,
-                    vehicleEquipment: prev.vehicleEquipment.filter(
-                      item => item.fighter_equipment_id !== stashVehicleEquipmentData.id
-                    ),
-                    fighter: prev.fighter ? {
-                      ...prev.fighter,
-                      credits: prev.fighter.credits - stashVehicleEquipmentData.cost
-                    } : null
-                  }));
-                  
-                  toast({
-                    description: `${stashVehicleEquipmentData.name} moved to gang stash`,
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error moving vehicle equipment to stash:', error);
-                  toast({
-                    description: 'Failed to move vehicle equipment to stash',
-                    variant: "destructive"
-                  });
-                }
-                
-                setStashVehicleEquipmentData(null);
-              }}
             />
           )}
         </div>
