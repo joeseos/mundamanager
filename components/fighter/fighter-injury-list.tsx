@@ -10,7 +10,7 @@ import { List } from "../ui/list";
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
   availableInjuries?: FighterEffect[];
-  onInjuryUpdate: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean, statUpdates?: Record<string, number>) => void;
+  onInjuryUpdate: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   fighterId: string;
   fighterRecovery?: boolean;
 }
@@ -28,45 +28,9 @@ export function InjuriesList({
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
-  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<any[]>([]);
+  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
-
-  // Helper function to calculate stat changes from injury modifiers
-  const calculateStatChanges = (injuryModifiers: FighterEffect['fighter_effect_modifiers']): Record<string, number> => {
-    const statChanges: Record<string, number> = {};
-    
-    // Map database stat names to fighter object property names
-    const statNameMap: Record<string, string> = {
-      'movement': 'movement',
-      'weapon skill': 'weapon_skill',
-      'ballistic skill': 'ballistic_skill',
-      'strength': 'strength',
-      'toughness': 'toughness',
-      'wounds': 'wounds',
-      'initiative': 'initiative',
-      'attacks': 'attacks',
-      'leadership': 'leadership',
-      'cool': 'cool',
-      'willpower': 'willpower',
-      'intelligence': 'intelligence'
-    };
-    
-    injuryModifiers?.forEach(modifier => {
-      const dbStatName = modifier.stat_name.toLowerCase();
-      const fighterStatName = statNameMap[dbStatName];
-      
-      if (fighterStatName) {
-        statChanges[fighterStatName] = (statChanges[fighterStatName] || 0) + modifier.numeric_value;
-        console.log(`Injury modifier: ${modifier.stat_name} (${dbStatName}) -> ${fighterStatName}: ${modifier.numeric_value}`);
-      } else {
-        console.warn(`Unknown stat name in injury modifier: ${modifier.stat_name}`);
-      }
-    });
-    
-    console.log('Final stat changes:', statChanges);
-    return statChanges;
-  };
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
@@ -84,13 +48,7 @@ export function InjuriesList({
       );
       
       if (!response.ok) throw new Error('Failed to fetch injuries');
-      const data: any[] = await response.json(); // Use any[] to handle the different structure
-      
-      console.log('Available injuries fetched:', data);
-      if (data.length > 0) {
-        console.log('First injury structure:', data[0]);
-        console.log('First injury modifiers:', data[0].fighter_effect_modifiers || data[0].fighter_effect_type_modifiers);
-      }
+      const data: FighterEffect[] = await response.json();
       
       setLocalAvailableInjuries(data);
     } catch (error) {
@@ -184,8 +142,6 @@ export function InjuriesList({
 
       if (error) throw error;
 
-      console.log('Database returned injury data:', data);
-
       // The database function returns the complete injury data with modifiers
       const injuryData = data[0]?.result || data;
       
@@ -201,9 +157,7 @@ export function InjuriesList({
 
       // Optimistic update: Add the new injury to the list
       const updatedInjuries = [...injuries, newInjury];
-      // Use the actual modifiers from the database response
-      const statChanges = calculateStatChanges(injuryData.modifiers);
-      onInjuryUpdate(updatedInjuries, sendToRecovery ? true : undefined, statChanges);
+      onInjuryUpdate(updatedInjuries, sendToRecovery ? true : undefined);
 
       toast({
         description: `Injury added successfully${sendToRecovery ? ' and fighter sent to recovery' : ''}`,
@@ -242,42 +196,7 @@ export function InjuriesList({
       // Optimistic update: Remove the injury from the list
       const updatedInjuries = injuries.filter(injury => injury.id !== injuryId);
       
-      // Calculate reverse stat changes (negate the modifiers)
-      const statChanges: Record<string, number> = {};
-      if (injuryToDelete?.fighter_effect_modifiers) {
-        // Map database stat names to fighter object property names
-        const statNameMap: Record<string, string> = {
-          'movement': 'movement',
-          'weapon skill': 'weapon_skill',
-          'ballistic skill': 'ballistic_skill',
-          'strength': 'strength',
-          'toughness': 'toughness',
-          'wounds': 'wounds',
-          'initiative': 'initiative',
-          'attacks': 'attacks',
-          'leadership': 'leadership',
-          'cool': 'cool',
-          'willpower': 'willpower',
-          'intelligence': 'intelligence'
-        };
-        
-        injuryToDelete.fighter_effect_modifiers.forEach(modifier => {
-          const dbStatName = modifier.stat_name.toLowerCase();
-          const fighterStatName = statNameMap[dbStatName];
-          
-          if (fighterStatName) {
-            // Negate to reverse the effect
-            statChanges[fighterStatName] = (statChanges[fighterStatName] || 0) - modifier.numeric_value;
-            console.log(`Removing injury modifier: ${modifier.stat_name} (${dbStatName}) -> ${fighterStatName}: -${modifier.numeric_value}`);
-          } else {
-            console.warn(`Unknown stat name in injury modifier: ${modifier.stat_name}`);
-          }
-        });
-        
-        console.log('Final stat changes for removal:', statChanges);
-      }
-      
-      onInjuryUpdate(updatedInjuries, undefined, statChanges);
+      onInjuryUpdate(updatedInjuries, undefined);
       
       toast({
         description: `${injuryName} removed successfully`,

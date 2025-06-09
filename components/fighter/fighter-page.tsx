@@ -1046,18 +1046,7 @@ export default function FighterPage({
           <InjuriesList
             injuries={fighterData.fighter?.effects?.injuries || []}
             fighterId={fighterData.fighter?.id || ''}
-            onInjuryUpdate={(updatedInjuries, recoveryStatus, statUpdates) => {
-              console.log('Fighter page received injury update:', {
-                injuriesCount: updatedInjuries.length,
-                recoveryStatus,
-                statUpdates,
-                currentStats: fighterData.fighter ? {
-                  ballistic_skill: fighterData.fighter.ballistic_skill,
-                  weapon_skill: fighterData.fighter.weapon_skill,
-                  toughness: fighterData.fighter.toughness
-                } : null
-              });
-              
+            onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => ({
                 ...prev,
                 fighter: prev.fighter ? {
@@ -1066,33 +1055,9 @@ export default function FighterPage({
                     ...prev.fighter.effects,
                     injuries: updatedInjuries
                   },
-                  recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
-                  // Apply stat changes if provided
-                  ...(statUpdates && Object.keys(statUpdates).length > 0 ? {
-                    movement: prev.fighter.movement + (statUpdates.movement || 0),
-                    weapon_skill: prev.fighter.weapon_skill + (statUpdates.weapon_skill || 0),
-                    ballistic_skill: prev.fighter.ballistic_skill + (statUpdates.ballistic_skill || 0),
-                    strength: prev.fighter.strength + (statUpdates.strength || 0),
-                    toughness: prev.fighter.toughness + (statUpdates.toughness || 0),
-                    wounds: prev.fighter.wounds + (statUpdates.wounds || 0),
-                    initiative: prev.fighter.initiative + (statUpdates.initiative || 0),
-                    attacks: prev.fighter.attacks + (statUpdates.attacks || 0),
-                    leadership: prev.fighter.leadership + (statUpdates.leadership || 0),
-                    cool: prev.fighter.cool + (statUpdates.cool || 0),
-                    willpower: prev.fighter.willpower + (statUpdates.willpower || 0),
-                    intelligence: prev.fighter.intelligence + (statUpdates.intelligence || 0)
-                  } : {})
+                  recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery
                 } : null
               }));
-              
-              // Log the updated stats after the change
-              setTimeout(() => {
-                console.log('Stats after update:', fighterData.fighter ? {
-                  ballistic_skill: fighterData.fighter.ballistic_skill,
-                  weapon_skill: fighterData.fighter.weapon_skill,
-                  toughness: fighterData.fighter.toughness
-                } : null);
-              }, 100);
             }}
             fighterRecovery={fighterData.fighter?.recovery}
           />
