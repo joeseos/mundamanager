@@ -340,7 +340,6 @@ export default function FighterPage({
       }
 
       const responseData = await response.json();
-      console.log('RPC Response:', responseData);
       
       // Handle different response structures with better error checking
       let result: any;
@@ -398,15 +397,6 @@ export default function FighterPage({
         is_master_crafted: item.is_master_crafted
       }));
       
-      // Just log the first equipment item to see the structure
-      if (result.equipment && result.equipment.length > 0) {
-        console.log('Equipment item original:', result.equipment[0]);
-        console.log('Equipment item transformed:', transformedEquipment[0]);
-      }
-      console.log(result.fighter.effects)
-      console.log(result.fighter.effects.injuries)
-      var testing: FighterEffect[] = result.fighter.effects.injuries
-      console.log(testing)
       // Transform vehicle equipment data from the nested structure
       const transformedVehicleEquipment = (result.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
         fighter_equipment_id: item.fighter_equipment_id,
@@ -485,11 +475,6 @@ export default function FighterPage({
         isLoading: false,
         error: null
       }));
-
-      console.log('Loaded fighter data:', {
-        vehicleData: result.fighter?.vehicles?.[0],
-        vehicleTypeId: result.fighter?.vehicles?.[0]?.vehicle_type_id
-      });
 
     } catch (err) {
       console.error('Error fetching fighter details:', err);
@@ -1065,27 +1050,35 @@ export default function FighterPage({
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleDamagesList
-              damages={vehicle.effects?.damages || []}
-              onDeleteDamage={async (damageId: string) => {
-                // Refresh fighter data after deletion
-                await fetchFighterData();
-                return true;
+              damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
+              onDamageUpdate={(updatedDamages) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    vehicles: prev.fighter.vehicles?.map(v => 
+                      v.id === vehicle.id 
+                        ? { 
+                            ...v, 
+                            effects: { 
+                              ...v.effects, 
+                              "lasting damages": updatedDamages 
+                            } 
+                          }
+                        : v
+                    )
+                  } : null
+                }));
               }}
               fighterId={fighterData.fighter?.id || ''}
               vehicleId={vehicle.id}
               vehicle={vehicle}
-              setDamages={(updateFn) => {
-                // This will be handled by fetchFighterData refresh
-              }}
               gangCredits={fighterData.gang?.credits || 0}
-              setGangCredits={(updateFn) => {
-                // This will be handled by fetchFighterData refresh
-              }}
-              onDamageAdded={() => {
-                fetchFighterData();
-              }}
-              onGangCreditsChange={() => {
-                fetchFighterData();
+              onGangCreditsUpdate={(newCredits) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
+                }));
               }}
             />
           )}

@@ -9,32 +9,25 @@ import { List } from "../ui/list";
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
-  onDeleteDamage: (damageId: string) => Promise<boolean | void>;
+  onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
   vehicleId: string;
   vehicle: any; // Pass the full vehicle object for cost calculation
-  setDamages: React.Dispatch<React.SetStateAction<FighterEffect[]>>;
   gangCredits?: number;
-  setGangCredits: React.Dispatch<React.SetStateAction<number>>;
-  onDamageAdded?: (newDamage: FighterEffect) => void;
-  onGangCreditsChange?: (newCredits: number) => void;
+  onGangCreditsUpdate?: (newCredits: number) => void;
 }
 
 export function VehicleDamagesList({ 
   damages = [],
-  onDeleteDamage,
+  onDamageUpdate,
   fighterId,
   vehicleId,
   vehicle,
-  setDamages,
   gangCredits,
-  setGangCredits,
-  onDamageAdded,
-  onGangCreditsChange,
+  onGangCreditsUpdate,
 }: VehicleDamagesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
-  const [repairModalData, setRepairModalData] = useState<{ id: string; name: string } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
   const [repairPercent, setRepairPercent] = useState<0 | 10 | 25>(0);
   const [isRepairing, setIsRepairing] = useState<string | null>(null);
@@ -43,7 +36,6 @@ export function VehicleDamagesList({
   const [availableDamages, setAvailableDamages] = useState<FighterEffect[]>([]);
   const [isLoadingDamages, setIsLoadingDamages] = useState(false);
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
-  const [selectedRepairId, setSelectedRepairId] = useState<string>('');
   const { toast } = useToast();
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
@@ -102,6 +94,7 @@ export function VehicleDamagesList({
       if (!session?.user?.id) {
         throw new Error('No authenticated user');
       }
+      
       const { data, error } = await supabase
         .rpc('add_vehicle_effect', {
           in_vehicle_id: vehicleId,
@@ -109,16 +102,33 @@ export function VehicleDamagesList({
           in_user_id: session.user.id,
           in_fighter_effect_category_id: VEHICLE_DAMAGE_CATEGORY_ID
         });
+      
       if (error) throw error;
+
+      // The database function returns JSON data with the complete damage information
+      const damageData = data;
+      
+      // Create the new damage object using the data returned from the database
+      const newDamage: FighterEffect = {
+        id: damageData.id,
+        effect_name: damageData.effect_name,
+        fighter_effect_type_id: damageData.effect_type?.id,
+        fighter_effect_modifiers: damageData.fighter_effect_modifiers || [],
+        type_specific_data: damageData.type_specific_data,
+        created_at: damageData.created_at || new Date().toISOString()
+      };
+
+      // Optimistic update: Add the new damage to the list
+      const updatedDamages = [...damages, newDamage];
+      onDamageUpdate(updatedDamages);
+      
       toast({
         description: 'Lasting damage added successfully',
         variant: "default"
       });
+      
       setSelectedDamageId('');
       setIsAddModalOpen(false);
-      if (data && data.id && isValidUUID(data.id)) {
-        if (onDamageAdded) onDamageAdded({ ...data });
-      }
       return true;
     } catch (error) {
       console.error('Error adding lasting damage:', error);
@@ -138,6 +148,7 @@ export function VehicleDamagesList({
       });
       return false;
     }
+    
     try {
       setIsDeleting(damageId);
       const supabase = createClient();
@@ -145,8 +156,13 @@ export function VehicleDamagesList({
         .from('fighter_effects')
         .delete()
         .eq('id', damageId);
+        
       if (error) throw error;
-      setDamages(prev => prev.filter(d => d.id !== damageId));
+      
+      // Optimistic update: Remove the damage from the list
+      const updatedDamages = damages.filter(d => d.id !== damageId);
+      onDamageUpdate(updatedDamages);
+      
       toast({
         description: `${damageName} removed successfully`,
         variant: "default"
@@ -175,6 +191,7 @@ export function VehicleDamagesList({
       });
       return false;
     }
+    
     try {
       setIsRepairing('batch');
       const supabase = createClient();
@@ -185,15 +202,24 @@ export function VehicleDamagesList({
         });
         return false;
       }
+      
       const { data, error } = await supabase.rpc('repair_vehicle_damage', {
         damage_ids: damageIdsToRepair,
         repair_cost: repairCost,
         in_user_id: (await supabase.auth.getSession()).data.session?.user?.id
       });
+      
       if (error) throw error;
-      setDamages(prev => prev.filter(d => !damageIdsToRepair.includes(d.id)));
-      setGangCredits(prev => prev - repairCost);
-      if (onGangCreditsChange) onGangCreditsChange(gangCredits - repairCost);
+      
+      // Optimistic update: Remove repaired damages from the list
+      const updatedDamages = damages.filter(d => !damageIdsToRepair.includes(d.id));
+      onDamageUpdate(updatedDamages);
+      
+      // Update gang credits
+      if (onGangCreditsUpdate) {
+        onGangCreditsUpdate(gangCredits - repairCost);
+      }
+      
       toast({
         description: `Repaired ${damageIdsToRepair.length} damage(s) for ${repairCost} credits`,
         variant: 'default'
@@ -208,30 +234,8 @@ export function VehicleDamagesList({
       return false;
     } finally {
       setIsRepairing(null);
-      setRepairModalData(null);
       setRepairCost(0);
     }
-  };
-
-  const calculateRepairCost = (damage: FighterEffect): number => {
-    // If the damage has specific repair cost data in type_specific_data, use that
-    if (damage.type_specific_data && typeof damage.type_specific_data === 'object' && 'repair_cost' in damage.type_specific_data) {
-      return Number(damage.type_specific_data.repair_cost);
-    }
-    
-    // Otherwise calculate based on fighter_effect_modifiers - more severe damages cost more
-    let baseCost = 10; // Base repair cost
-    
-    if (damage.fighter_effect_modifiers && damage.fighter_effect_modifiers.length > 0) {
-      // Add cost based on modifier severity
-      damage.fighter_effect_modifiers.forEach(modifier => {
-        const value = Math.abs(Number(modifier.numeric_value));
-        // Higher modifiers = higher repair costs
-        baseCost += value * 5;
-      });
-    }
-    
-    return Math.round(baseCost);
   };
 
   // Deduplicate damages by id before rendering to avoid React key warnings
