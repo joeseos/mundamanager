@@ -217,6 +217,7 @@ export default function GangInventory({
           id: vehicle.id,
           gang_id: '', // Default value since Vehicle type doesn't have gang_id
           vehicle_name: vehicle.vehicle_name,
+          vehicle_type_id: vehicle.vehicle_type_id,
           vehicle_type: vehicle.vehicle_type,
           movement: vehicle.movement,
           front: vehicle.front,
