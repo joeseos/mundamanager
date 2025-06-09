@@ -128,6 +128,7 @@ export default function AddVehicle({
         vehicle_name: name,
         // Use the actual cost determined above
         cost: ratingCost,
+        vehicle_type_id: selectedVehicleTypeId,
         vehicle_type: selectedVehicleType.vehicle_type,
         gang_id: gangId,
         fighter_id: null,

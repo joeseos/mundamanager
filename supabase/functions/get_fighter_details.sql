@@ -147,6 +147,7 @@ BEGIN
                     ),
                     'special_rules', v.special_rules,
                     'vehicle_name', v.vehicle_name,
+                    'vehicle_type_id', v.vehicle_type_id,
                     'vehicle_type', v.vehicle_type,
                     'cost', v.cost,
                     -- Add vehicle effects to the vehicle object
