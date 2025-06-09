@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Button } from '../ui/button';
-import { FighterEffect, } from '@/types/fighter';
-
+import { FighterEffect } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
@@ -9,7 +8,6 @@ import { List } from "../ui/list";
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
-  availableInjuries?: FighterEffect[];
   onInjuryUpdate: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   fighterId: string;
   fighterRecovery?: boolean;
@@ -17,7 +15,6 @@ interface InjuriesListProps {
 
 export function InjuriesList({ 
   injuries = [],
-  availableInjuries = [],
   onInjuryUpdate,
   fighterId,
   fighterRecovery = false,
