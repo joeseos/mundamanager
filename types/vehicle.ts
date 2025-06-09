@@ -5,6 +5,7 @@ export interface VehicleProps {
   id: string;
   gang_id: string;
   vehicle_name: string;
+  vehicle_type_id: string;
   vehicle_type: string;
   movement: number;
   front: number;

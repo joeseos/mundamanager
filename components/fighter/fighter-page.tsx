@@ -1543,6 +1543,7 @@ export default function FighterPage({
               fighterCredits={fighterData.fighter.credits}
               vehicleId={vehicle.id}
               vehicleType={vehicle.vehicle_type}
+              vehicleTypeId={vehicle.vehicle_type_id}
               isVehicleEquipment={true}
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
               onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
