@@ -6,6 +6,7 @@ import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { List } from "../ui/list";
+import { UserPermissions } from '@/types/user';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
@@ -15,6 +16,7 @@ interface VehicleDamagesListProps {
   vehicle: any; // Pass the full vehicle object for cost calculation
   gangCredits?: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
+  userPermissions: UserPermissions;
 }
 
 export function VehicleDamagesList({ 
@@ -25,6 +27,7 @@ export function VehicleDamagesList({
   vehicle,
   gangCredits,
   onGangCreditsUpdate,
+  userPermissions
 }: VehicleDamagesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
@@ -273,13 +276,14 @@ export function VehicleDamagesList({
             <Button 
               onClick={() => setIsRepairModalOpen(true)}
               className="bg-white hover:bg-gray-100 text-black border border-gray-300"
-              disabled={uniqueDamages.length === 0}
+              disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
             >
               Repair
             </Button>
             <Button 
               onClick={handleOpenModal}
               className="bg-black hover:bg-gray-800 text-white"
+              disabled={!userPermissions.canEdit}
             >
               Add
             </Button>
@@ -324,7 +328,7 @@ export function VehicleDamagesList({
                                 id: damage.id,
                                 name: damage.effect_name
                               })}
-                              disabled={isDeleting === damage.id}
+                              disabled={isDeleting === damage.id || !userPermissions.canEdit}
                               className="text-xs px-1.5 h-6"
                             >
                               Delete
