@@ -564,7 +564,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <span className="ml-2">Campaign</span>
+            <FiMap className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">Campaign</span>
           </button>
           <button
             onClick={() => setActiveTab(1)}
@@ -574,7 +575,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <span className="ml-2">Territories</span>
+            <FaCity className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">Territories</span>
           </button>
           <button
             onClick={() => setActiveTab(2)}
@@ -584,7 +586,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <span className="ml-2">Battle Log</span>
+            <LuSwords className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">Battle Log</span>
           </button>
           <button
             onClick={() => setActiveTab(3)}
@@ -594,7 +597,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <span className="ml-2">Notes</span>
+            <LuClipboard className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">Notes</span>
           </button>
         </div>
         
