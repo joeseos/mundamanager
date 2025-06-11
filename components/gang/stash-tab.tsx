@@ -11,6 +11,7 @@ import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
+import ItemModal from '@/components/equipment';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -42,6 +43,7 @@ export default function GangInventory({
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
+  const [showTradingPost, setShowTradingPost] = useState(false);
   const { toast } = useToast();
   
   const isVehicleExclusive = (item: StashItem) => 
@@ -257,16 +259,26 @@ export default function GangInventory({
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
-            {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+            <div className="flex gap-2">
+              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+                <Button
+                  onClick={() => setShowChemAlchemy(true)}
+                  variant="default"
+                  size="sm"
+                  className="font-medium"
+                >
+                  Chem-Alchemy
+                </Button>
+              )}
               <Button
-                onClick={() => setShowChemAlchemy(true)}
+                onClick={() => setShowTradingPost(true)}
                 variant="default"
                 size="sm"
                 className="font-medium"
               >
-                Chem-Alchemy
+                Trading Post
               </Button>
-            )}
+            </div>
           </div>
           
           {stash.length === 0 ? (
@@ -450,6 +462,51 @@ export default function GangInventory({
           }
         }}
       />
+
+      {showTradingPost && (
+        <ItemModal
+          title="Trading Post"
+          onClose={() => setShowTradingPost(false)}
+          gangCredits={gangCredits}
+          gangId={gangId}
+          gangTypeId={gangTypeId || ''}
+          fighterId=""
+          fighterTypeId=""
+          fighterCredits={0}
+          isStashMode={true}
+          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
+            // Handle equipment bought for stash - perform optimistic updates
+            
+            // Create new stash item from the purchased equipment
+            const newStashItem: StashItem = {
+              id: boughtEquipment.fighter_equipment_id, // This will be the gang_stash ID from the API response
+              cost: boughtEquipment.cost,
+              type: 'equipment',
+              equipment_id: boughtEquipment.equipment_id,
+              equipment_name: boughtEquipment.equipment_name,
+              equipment_type: boughtEquipment.equipment_type,
+              equipment_category: boughtEquipment.equipment_category,
+              custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined
+            };
+
+            // Update the stash state optimistically
+            const newStash = [...stash, newStashItem];
+            setStash(newStash);
+
+            // Call parent update function if provided
+            if (onStashUpdate) {
+              onStashUpdate(newStash);
+            }
+
+            // Close the modal and show success message
+            setShowTradingPost(false);
+            toast({
+              title: "Equipment Purchased",
+              description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
+            });
+          }}
+        />
+      )}
     </>
   );
 }

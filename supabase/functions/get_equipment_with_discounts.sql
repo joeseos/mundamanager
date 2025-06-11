@@ -30,7 +30,7 @@ security definer
 stable
 as $$
     -- Regular equipment
-    select 
+    select DISTINCT
         e.id,
         e.equipment_name,
         e.trading_post_category,
@@ -55,14 +55,31 @@ as $$
             else false
         end as fighter_type_equipment,
         case
-            when exists (
-                select 1
-                from fighter_equipment_tradingpost fet,
-                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-                and equip_id = e.id::text
-            ) then true
-            else false
+            -- Gang-level access: only check gang's trading post type
+            when get_equipment_with_discounts.fighter_type_id is null then 
+                exists (
+                    select 1
+                    from gang_types gt, trading_post_equipment tpe
+                    where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
+                    and tpe.trading_post_type_id = gt.trading_post_type_id
+                    and tpe.equipment_id = e.id
+                )
+            -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
+            else (
+                exists (
+                    select 1
+                    from fighter_equipment_tradingpost fet,
+                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                    where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
+                    and equip_id = e.id::text
+                ) OR exists (
+                    select 1
+                    from gang_types gt, trading_post_equipment tpe
+                    where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
+                    and tpe.trading_post_type_id = gt.trading_post_type_id
+                    and tpe.equipment_id = e.id
+                )
+            )
         end as equipment_tradingpost,
         false as is_custom
     from equipment e
@@ -71,9 +88,18 @@ as $$
         and ea.gang_type_id = get_equipment_with_discounts.gang_type_id
     left join equipment_discounts ed on e.id = ed.equipment_id 
         and (
-            (ed.gang_type_id = get_equipment_with_discounts.gang_type_id and ed.fighter_type_id is null)
+            -- Gang-level access: only gang-level discounts
+            (get_equipment_with_discounts.fighter_type_id is null 
+             and ed.gang_type_id = get_equipment_with_discounts.gang_type_id 
+             and ed.fighter_type_id is null)
             or 
-            (ed.fighter_type_id = get_equipment_with_discounts.fighter_type_id and ed.gang_type_id is null)
+            -- Fighter-level access: both gang-level and fighter-specific discounts
+            (get_equipment_with_discounts.fighter_type_id is not null 
+             and (
+                 (ed.gang_type_id = get_equipment_with_discounts.gang_type_id and ed.fighter_type_id is null)
+                 or 
+                 (ed.fighter_type_id = get_equipment_with_discounts.fighter_type_id)
+             ))
         )
     left join fighter_type_equipment fte on e.id = fte.equipment_id
         and (get_equipment_with_discounts.fighter_type_id is null 
@@ -85,7 +111,7 @@ as $$
             OR 
             (
                 e.core_equipment = true 
-                AND fte.fighter_type_id is not null
+                AND (fte.fighter_type_id is not null OR get_equipment_with_discounts.fighter_type_id is null)
             )
         )
         and
@@ -118,14 +144,31 @@ as $$
             get_equipment_with_discounts.equipment_tradingpost is null
             or (
                 case
-                    when exists (
-                        select 1
-                        from fighter_equipment_tradingpost fet,
-                             jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                        where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-                        and equip_id = e.id::text
-                    ) then true
-                    else false
+                    -- Gang-level access: only check gang's trading post type
+                    when get_equipment_with_discounts.fighter_type_id is null then 
+                        exists (
+                            select 1
+                            from gang_types gt, trading_post_equipment tpe
+                            where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
+                            and tpe.trading_post_type_id = gt.trading_post_type_id
+                            and tpe.equipment_id = e.id
+                        )
+                    -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
+                    else (
+                        exists (
+                            select 1
+                            from fighter_equipment_tradingpost fet,
+                                 jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                            where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
+                            and equip_id = e.id::text
+                        ) OR exists (
+                            select 1
+                            from gang_types gt, trading_post_equipment tpe
+                            where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
+                            and tpe.trading_post_type_id = gt.trading_post_type_id
+                            and tpe.equipment_id = e.id
+                        )
+                    )
                 end
             ) = get_equipment_with_discounts.equipment_tradingpost
         )
