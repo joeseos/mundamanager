@@ -4,8 +4,9 @@ DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUI
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN);
 
--- Then create our new function with vehicle support, user_id, fighter effect support, use_base_cost_for_rating, and custom equipment support
+-- Then create our new function with vehicle support, user_id, fighter effect support, use_base_cost_for_rating, custom equipment support, and gang_stash support
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   fighter_id UUID DEFAULT NULL,
   equipment_id UUID DEFAULT NULL,
@@ -14,7 +15,8 @@ CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   vehicle_id UUID DEFAULT NULL,
   master_crafted BOOLEAN DEFAULT FALSE,
   use_base_cost_for_rating BOOLEAN DEFAULT TRUE,
-  custom_equipment_id UUID DEFAULT NULL
+  custom_equipment_id UUID DEFAULT NULL,
+  buy_for_gang_stash BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB 
 SECURITY DEFINER
@@ -25,12 +27,14 @@ DECLARE
   updated_vehicle JSONB;
   updated_gang JSONB;
   new_equipment JSONB;
+  new_stash_item JSONB;
   base_cost INTEGER;
   adjusted_cost_final INTEGER;
   default_profile RECORD;
   custom_equipment_record RECORD;
   current_gang_credits INTEGER;
   v_new_equipment_id UUID;
+  v_new_stash_id UUID;
   v_equipment_type TEXT;
   v_gang_type_id UUID;
   v_gang RECORD;
@@ -68,19 +72,31 @@ BEGIN
     RAISE EXCEPTION 'gang_id is required';
   END IF;
 
-  -- Validate that exactly one of fighter_id or vehicle_id is provided
-  IF (fighter_id IS NULL AND vehicle_id IS NULL) OR (fighter_id IS NOT NULL AND vehicle_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'Exactly one of fighter_id or vehicle_id must be provided';
+  -- Validate parameters based on whether we're buying for gang stash or not
+  IF buy_for_gang_stash THEN
+    -- For gang stash purchases, fighter_id and vehicle_id should be null
+    IF fighter_id IS NOT NULL OR vehicle_id IS NOT NULL THEN
+      RAISE EXCEPTION 'When buying for gang stash, fighter_id and vehicle_id must be null';
+    END IF;
+  ELSE
+    -- For regular purchases, exactly one of fighter_id or vehicle_id is required
+    IF (fighter_id IS NULL AND vehicle_id IS NULL) OR (fighter_id IS NOT NULL AND vehicle_id IS NOT NULL) THEN
+      RAISE EXCEPTION 'Exactly one of fighter_id or vehicle_id must be provided';
+    END IF;
   END IF;
 
   -- Set flags for custom equipment
   v_is_custom_equipment := custom_equipment_id IS NOT NULL;
 
   -- Set owner type for later use
-  v_owner_type := CASE
-    WHEN fighter_id IS NOT NULL THEN 'fighter'
-    ELSE 'vehicle'
-  END;
+  IF buy_for_gang_stash THEN
+    v_owner_type := 'gang_stash';
+  ELSE
+    v_owner_type := CASE
+      WHEN fighter_id IS NOT NULL THEN 'fighter'
+      ELSE 'vehicle'
+    END;
+  END IF;
 
   -- Security check: Verify user has access to the gang
   IF NOT EXISTS (
@@ -142,13 +158,18 @@ BEGIN
     default_profile := NULL;
   ELSE
     -- Get the adjusted_cost value if it exists (considering both gang and fighter type discounts)
+    -- For gang stash purchases, only consider gang-level discounts
     SELECT adjusted_cost::numeric INTO v_adjusted_cost
     FROM equipment_discounts ed
     WHERE ed.equipment_id = buy_equipment_for_fighter.equipment_id
     AND (
-      (ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
+      (buy_for_gang_stash AND ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
       OR 
-      (ed.fighter_type_id = v_fighter_type_id AND ed.gang_type_id IS NULL)
+      (NOT buy_for_gang_stash AND (
+        (ed.gang_type_id = v_gang_type_id AND ed.fighter_type_id IS NULL)
+        OR 
+        (ed.fighter_type_id = v_fighter_type_id AND ed.gang_type_id IS NULL)
+      ))
     );
 
     -- Get the equipment base cost
@@ -218,7 +239,7 @@ BEGIN
     ) INTO updated_fighter
     FROM fighters f
     WHERE f.id = buy_equipment_for_fighter.fighter_id;
-  ELSE
+  ELSIF v_owner_type = 'vehicle' THEN
     SELECT jsonb_build_object(
       'id', v.id,
       'vehicle_name', v.vehicle_name
@@ -240,125 +261,178 @@ BEGIN
   FROM gangs g
   WHERE g.id = buy_equipment_for_fighter.gang_id;
 
-  -- Add equipment to inventory with cost information and user_id
-  INSERT INTO fighter_equipment (
-    id,
-    fighter_id,
-    vehicle_id,
-    equipment_id,
-    custom_equipment_id,
-    original_cost,
-    purchase_cost,
-    created_at,
-    updated_at,
-    user_id,
-    is_master_crafted
-  )
-  VALUES (
-    gen_random_uuid(),
-    fighter_id,
-    vehicle_id,
-    buy_equipment_for_fighter.equipment_id,
-    buy_equipment_for_fighter.custom_equipment_id,
-    base_cost,
-    rating_cost, -- Use rating_cost for purchase_cost based on the flag
-    now(),
-    now(),
-    v_user_id,
-    CASE 
-      WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
-      ELSE FALSE
-    END
-  )
-  RETURNING id INTO v_new_equipment_id;
+  -- Add equipment to appropriate table based on purchase type
+  IF buy_for_gang_stash THEN
+    -- Insert into gang_stash table
+    INSERT INTO gang_stash (
+      id,
+      created_at,
+      gang_id,
+      equipment_id,
+      cost,
+      is_master_crafted,
+      custom_equipment_id
+    )
+    VALUES (
+      gen_random_uuid(),
+      now(),
+      buy_equipment_for_fighter.gang_id,
+      buy_equipment_for_fighter.equipment_id,
+      final_purchase_cost,
+      CASE 
+        WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
+        ELSE FALSE
+      END,
+      buy_equipment_for_fighter.custom_equipment_id
+    )
+    RETURNING id INTO v_new_stash_id;
 
-  -- Build the response JSON based on equipment type and whether it's custom
-  IF v_equipment_type = 'weapon' AND NOT v_is_custom_equipment THEN
+    -- Build response for gang stash item
     SELECT jsonb_build_object(
-      'id', fe.id,
-      'fighter_id', fe.fighter_id,
-      'vehicle_id', fe.vehicle_id,
-      'equipment_id', fe.equipment_id,
-      'custom_equipment_id', fe.custom_equipment_id,
-      'purchase_cost', fe.purchase_cost,
-      'original_cost', fe.original_cost,
-      'user_id', fe.user_id,
-      'is_master_crafted', fe.is_master_crafted,
-      'default_profile', jsonb_build_object(
-        'profile_name', default_profile.profile_name,
-        'range_short', default_profile.range_short,
-        'range_long', default_profile.range_long,
-        'acc_short', default_profile.acc_short,
-        'acc_long', default_profile.acc_long,
-        'strength', default_profile.strength,
-        'ap', default_profile.ap,
-        'damage', default_profile.damage,
-        'ammo', default_profile.ammo,
-        'traits', default_profile.traits
-      )
-    ) INTO new_equipment
-    FROM fighter_equipment fe
-    WHERE fe.id = v_new_equipment_id;
+      'id', gs.id,
+      'gang_id', gs.gang_id,
+      'equipment_id', gs.equipment_id,
+      'custom_equipment_id', gs.custom_equipment_id,
+      'cost', gs.cost,
+      'is_master_crafted', gs.is_master_crafted,
+      'created_at', gs.created_at,
+      'equipment_name', COALESCE(e.equipment_name, ce.equipment_name),
+      'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
+      'equipment_category', COALESCE(e.equipment_category, ce.equipment_category)
+    ) INTO new_stash_item
+    FROM gang_stash gs
+    LEFT JOIN equipment e ON e.id = gs.equipment_id
+    LEFT JOIN custom_equipment ce ON ce.id = gs.custom_equipment_id
+    WHERE gs.id = v_new_stash_id;
+
+    -- Build collections data for gang stash purchase
+    v_collections_data := jsonb_build_object(
+      'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
+      'insertIntogang_stashCollection', jsonb_build_object('records', jsonb_build_array(new_stash_item)),
+      'rating_cost', rating_cost
+    );
+
   ELSE
-    -- For wargear, custom equipment, or any non-weapon equipment
-    SELECT jsonb_build_object(
-      'id', fe.id,
-      'fighter_id', fe.fighter_id,
-      'vehicle_id', fe.vehicle_id,
-      'equipment_id', fe.equipment_id,
-      'custom_equipment_id', fe.custom_equipment_id,
-      'purchase_cost', fe.purchase_cost,
-      'original_cost', fe.original_cost,
-      'user_id', fe.user_id,
-      'is_master_crafted', fe.is_master_crafted,
-      'wargear_details', jsonb_build_object(
-        'name', v_equipment_name,
-        'cost', base_cost
-      ),
-      'vehicle_profile', CASE 
-        WHEN v_owner_type = 'vehicle' AND NOT v_is_custom_equipment THEN
-          jsonb_build_object(
-            'front', vep.front,
-            'side', vep.side,
-            'rear', vep.rear,
-            'movement', vep.movement,
-            'hull_points', vep.hull_points,
-            'save', vep.save,
-            'handling', vep.handling,
-            'profile_name', vep.profile_name,
-            'upgrade_type', vep.upgrade_type
-          )
-        ELSE NULL
+    -- Insert into fighter_equipment table (existing logic)
+    INSERT INTO fighter_equipment (
+      id,
+      fighter_id,
+      vehicle_id,
+      equipment_id,
+      custom_equipment_id,
+      original_cost,
+      purchase_cost,
+      created_at,
+      updated_at,
+      user_id,
+      is_master_crafted
+    )
+    VALUES (
+      gen_random_uuid(),
+      fighter_id,
+      vehicle_id,
+      buy_equipment_for_fighter.equipment_id,
+      buy_equipment_for_fighter.custom_equipment_id,
+      base_cost,
+      rating_cost, -- Use rating_cost for purchase_cost based on the flag
+      now(),
+      now(),
+      v_user_id,
+      CASE 
+        WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
+        ELSE FALSE
       END
-    ) INTO new_equipment
-    FROM fighter_equipment fe
-    LEFT JOIN equipment e ON e.id = fe.equipment_id
-    LEFT JOIN vehicle_equipment_profiles vep ON vep.equipment_id = fe.equipment_id
-    WHERE fe.id = v_new_equipment_id;
-  END IF;
+    )
+    RETURNING id INTO v_new_equipment_id;
 
-  -- Build the collections data for equipment
-  IF v_owner_type = 'fighter' THEN
-    v_collections_data := jsonb_build_object(
-      'updatefightersCollection', jsonb_build_object('records', jsonb_build_array(updated_fighter)),
-      'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
-      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
-      'rating_cost', rating_cost -- Include the rating value in the response
-    );
-  ELSE
-    v_collections_data := jsonb_build_object(
-      'updatevehiclesCollection', jsonb_build_object('records', jsonb_build_array(updated_vehicle)),
-      'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
-      'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
-      'rating_cost', rating_cost -- Include the rating value in the response
-    );
+    -- Build the response JSON based on equipment type and whether it's custom
+    IF v_equipment_type = 'weapon' AND NOT v_is_custom_equipment THEN
+      SELECT jsonb_build_object(
+        'id', fe.id,
+        'fighter_id', fe.fighter_id,
+        'vehicle_id', fe.vehicle_id,
+        'equipment_id', fe.equipment_id,
+        'custom_equipment_id', fe.custom_equipment_id,
+        'purchase_cost', fe.purchase_cost,
+        'original_cost', fe.original_cost,
+        'user_id', fe.user_id,
+        'is_master_crafted', fe.is_master_crafted,
+        'default_profile', jsonb_build_object(
+          'profile_name', default_profile.profile_name,
+          'range_short', default_profile.range_short,
+          'range_long', default_profile.range_long,
+          'acc_short', default_profile.acc_short,
+          'acc_long', default_profile.acc_long,
+          'strength', default_profile.strength,
+          'ap', default_profile.ap,
+          'damage', default_profile.damage,
+          'ammo', default_profile.ammo,
+          'traits', default_profile.traits
+        )
+      ) INTO new_equipment
+      FROM fighter_equipment fe
+      WHERE fe.id = v_new_equipment_id;
+    ELSE
+      -- For wargear, custom equipment, or any non-weapon equipment
+      SELECT jsonb_build_object(
+        'id', fe.id,
+        'fighter_id', fe.fighter_id,
+        'vehicle_id', fe.vehicle_id,
+        'equipment_id', fe.equipment_id,
+        'custom_equipment_id', fe.custom_equipment_id,
+        'purchase_cost', fe.purchase_cost,
+        'original_cost', fe.original_cost,
+        'user_id', fe.user_id,
+        'is_master_crafted', fe.is_master_crafted,
+        'wargear_details', jsonb_build_object(
+          'name', v_equipment_name,
+          'cost', base_cost
+        ),
+        'vehicle_profile', CASE 
+          WHEN v_owner_type = 'vehicle' AND NOT v_is_custom_equipment THEN
+            jsonb_build_object(
+              'front', vep.front,
+              'side', vep.side,
+              'rear', vep.rear,
+              'movement', vep.movement,
+              'hull_points', vep.hull_points,
+              'save', vep.save,
+              'handling', vep.handling,
+              'profile_name', vep.profile_name,
+              'upgrade_type', vep.upgrade_type
+            )
+          ELSE NULL
+        END
+      ) INTO new_equipment
+      FROM fighter_equipment fe
+      LEFT JOIN equipment e ON e.id = fe.equipment_id
+      LEFT JOIN vehicle_equipment_profiles vep ON vep.equipment_id = fe.equipment_id
+      WHERE fe.id = v_new_equipment_id;
+    END IF;
+
+    -- Build the collections data for equipment
+    IF v_owner_type = 'fighter' THEN
+      v_collections_data := jsonb_build_object(
+        'updatefightersCollection', jsonb_build_object('records', jsonb_build_array(updated_fighter)),
+        'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
+        'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
+        'rating_cost', rating_cost -- Include the rating value in the response
+      );
+    ELSE
+      v_collections_data := jsonb_build_object(
+        'updatevehiclesCollection', jsonb_build_object('records', jsonb_build_array(updated_vehicle)),
+        'updategangsCollection', jsonb_build_object('records', jsonb_build_array(updated_gang)),
+        'insertIntofighter_equipmentCollection', jsonb_build_object('records', jsonb_build_array(new_equipment)),
+        'rating_cost', rating_cost -- Include the rating value in the response
+      );
+    END IF;
   END IF;
 
   -- Initialize the final result with collections data
   v_final_result := v_collections_data;
 
   -- Check if there are any fighter effects associated with this equipment
-  -- Only apply effects if this is for a fighter (not a vehicle) and not custom equipment
+  -- Only apply effects if this is for a fighter (not a vehicle or gang stash) and not custom equipment
   IF v_owner_type = 'fighter' AND NOT v_is_custom_equipment THEN
     -- Find fighter effect type that references this equipment
     SELECT fet.*, fec.id as category_id INTO v_effect_type_record
@@ -448,6 +522,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID) TO service_role;
+REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) TO service_role;
