@@ -594,6 +594,7 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
           title="Stash"
           onStashUpdate={handleStashUpdate}
           onFighterUpdate={handleFighterUpdate}
+          onVehicleUpdate={handleVehicleUpdate}
           vehicles={gangData.processedData.vehicles || []}
           gangTypeId={gangData.processedData.gang_type_id}
           gangId={params.id}
