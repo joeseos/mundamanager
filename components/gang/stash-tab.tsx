@@ -11,6 +11,9 @@ import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
+import ItemModal from '@/components/equipment';
+import { Equipment } from '@/types/equipment';
+import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -18,6 +21,7 @@ interface GangInventoryProps {
   title?: string;
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
+  onVehicleUpdate?: (updatedVehicles: VehicleProps[]) => void;
   vehicles?: VehicleProps[];
   gangTypeId?: string;
   gangId: string;
@@ -30,6 +34,7 @@ export default function GangInventory({
   title = 'Gang Stash',
   onStashUpdate,
   onFighterUpdate,
+  onVehicleUpdate,
   vehicles = [],
   gangTypeId,
   gangId,
@@ -42,6 +47,7 @@ export default function GangInventory({
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
+  const [showTradingPost, setShowTradingPost] = useState(false);
   const { toast } = useToast();
   
   const isVehicleExclusive = (item: StashItem) => 
@@ -134,51 +140,115 @@ export default function GangInventory({
       const newStash = stash.filter((_, index) => index !== selectedItem);
       setStash(newStash);
       
-      // Update fighter/vehicle state optimistically
-      const targetFighter = fighters.find(f => f.id === targetId);
-      if (targetFighter && !isVehicleTarget) {
-        // Check if any weapon profile has master-crafted flag
-        const hasMasterCrafted = (responseData.weapon_profiles || []).some(
-          (profile: any) => profile.is_master_crafted
-        );
-        
-        const updatedFighter: FighterProps = {
-          ...targetFighter,
-          credits: targetFighter.credits + (stashItem.cost || 0),
-          weapons: stashItem.equipment_type === 'weapon' 
-            ? [
-                ...(targetFighter.weapons || []),
-                {
-                  weapon_name: stashItem.equipment_name || '',
-                  weapon_id: stashItem.id,
-                  cost: stashItem.cost || 0,
-                  fighter_weapon_id: responseData.equipment_id || stashItem.id,
-                  weapon_profiles: responseData.weapon_profiles || [],
-                  is_master_crafted: hasMasterCrafted
-                }
-              ]
-            : targetFighter.weapons || [],
-          wargear: stashItem.equipment_type === 'wargear'
-            ? [
-                ...(targetFighter.wargear || []),
-                {
-                  wargear_name: stashItem.equipment_name || '',
-                  wargear_id: stashItem.id,
-                  cost: stashItem.cost || 0,
-                  fighter_weapon_id: responseData.equipment_id || stashItem.id,
-                  is_master_crafted: hasMasterCrafted
-                }
-              ]
-            : targetFighter.wargear || []
-        };
+      if (isVehicleTarget) {
+        // Handle vehicle equipment update
+        const targetVehicle = getAllVehicles().find(v => v.id === targetId);
+        if (targetVehicle && onVehicleUpdate) {
+          // Create new equipment item for the vehicle with proper typing
+          const newEquipment: Equipment & Partial<VehicleEquipment> & {
+            vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+          } = {
+            fighter_equipment_id: responseData.equipment_id || stashItem.id,
+            equipment_id: stashItem.equipment_id || '',
+            equipment_name: stashItem.equipment_name || '',
+            equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
+            cost: stashItem.cost || 0,
+            core_equipment: false,
+            is_master_crafted: false,
+            master_crafted: false,
+            // Vehicle-specific fields
+            vehicle_id: targetId,
+            vehicle_equipment_id: responseData.equipment_id || stashItem.id,
+            vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData.equipment_id || stashItem.id : undefined,
+            // Add weapon profiles if this is a weapon
+            weapon_profiles: responseData.weapon_profiles || undefined,
+            // Add vehicle equipment profiles if this is a vehicle upgrade
+            vehicle_equipment_profiles: responseData.vehicle_equipment_profiles || undefined
+          };
 
-        setFighters(prev => 
-          prev.map(f => f.id === targetId ? updatedFighter : f)
-        );
+          // Update the target vehicle's equipment
+          const updatedVehicle: VehicleProps = {
+            ...targetVehicle,
+            equipment: [...(targetVehicle.equipment || []), newEquipment]
+          };
 
-        // Call the parent update function if provided
-        if (onFighterUpdate) {
-          onFighterUpdate(updatedFighter);
+          // Find if this vehicle belongs to a crew member and update that fighter
+          const crewFighter = fighters.find(f => 
+            f.vehicles?.some(v => v.id === targetId)
+          );
+
+          if (crewFighter) {
+            // Update the crew fighter's vehicle
+            const updatedFighter: FighterProps = {
+              ...crewFighter,
+              vehicles: crewFighter.vehicles?.map(v => 
+                v.id === targetId ? { ...v, equipment: updatedVehicle.equipment } as Vehicle : v
+              )
+            };
+
+            setFighters(prev => 
+              prev.map(f => f.id === crewFighter.id ? updatedFighter : f)
+            );
+
+            if (onFighterUpdate) {
+              onFighterUpdate(updatedFighter);
+            }
+          }
+
+          // Update vehicles array if this vehicle is in the main vehicles list
+          const updatedVehicles = vehicles.map(v => 
+            v.id === targetId ? updatedVehicle : v
+          );
+          
+          onVehicleUpdate(updatedVehicles);
+        }
+      } else {
+        // Handle fighter equipment update
+        const targetFighter = fighters.find(f => f.id === targetId);
+        if (targetFighter) {
+          // Check if any weapon profile has master-crafted flag
+          const hasMasterCrafted = (responseData.weapon_profiles || []).some(
+            (profile: any) => profile.is_master_crafted
+          );
+          
+          const updatedFighter: FighterProps = {
+            ...targetFighter,
+            credits: targetFighter.credits + (stashItem.cost || 0),
+            weapons: stashItem.equipment_type === 'weapon' 
+              ? [
+                  ...(targetFighter.weapons || []),
+                  {
+                    weapon_name: stashItem.equipment_name || '',
+                    weapon_id: stashItem.equipment_id || stashItem.id,
+                    cost: stashItem.cost || 0,
+                    fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                    weapon_profiles: responseData.weapon_profiles || [],
+                    is_master_crafted: hasMasterCrafted
+                  }
+                ]
+              : targetFighter.weapons || [],
+            wargear: stashItem.equipment_type === 'wargear'
+              ? [
+                  ...(targetFighter.wargear || []),
+                  {
+                    wargear_name: stashItem.equipment_name || '',
+                    wargear_id: stashItem.equipment_id || stashItem.id,
+                    cost: stashItem.cost || 0,
+                    fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                    is_master_crafted: hasMasterCrafted
+                  }
+                ]
+              : targetFighter.wargear || []
+          };
+
+          setFighters(prev => 
+            prev.map(f => f.id === targetId ? updatedFighter : f)
+          );
+
+          // Call the parent update function if provided
+          if (onFighterUpdate) {
+            onFighterUpdate(updatedFighter);
+          }
         }
       }
 
@@ -257,16 +327,26 @@ export default function GangInventory({
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
-            {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+            <div className="flex gap-2">
+              {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
+                <Button
+                  onClick={() => setShowChemAlchemy(true)}
+                  variant="default"
+                  size="sm"
+                  className="font-medium"
+                >
+                  Chem-Alchemy
+                </Button>
+              )}
               <Button
-                onClick={() => setShowChemAlchemy(true)}
+                onClick={() => setShowTradingPost(true)}
                 variant="default"
                 size="sm"
                 className="font-medium"
               >
-                Chem-Alchemy
+                Trading Post
               </Button>
-            )}
+            </div>
           </div>
           
           {stash.length === 0 ? (
@@ -450,6 +530,51 @@ export default function GangInventory({
           }
         }}
       />
+
+      {showTradingPost && (
+        <ItemModal
+          title="Trading Post"
+          onClose={() => setShowTradingPost(false)}
+          gangCredits={gangCredits}
+          gangId={gangId}
+          gangTypeId={gangTypeId || ''}
+          fighterId=""
+          fighterTypeId=""
+          fighterCredits={0}
+          isStashMode={true}
+          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
+            // Handle equipment bought for stash - perform optimistic updates
+            
+            // Create new stash item from the purchased equipment
+            const newStashItem: StashItem = {
+              id: boughtEquipment.fighter_equipment_id, // This will be the gang_stash ID from the API response
+              cost: boughtEquipment.cost,
+              type: 'equipment',
+              equipment_id: boughtEquipment.equipment_id,
+              equipment_name: boughtEquipment.equipment_name,
+              equipment_type: boughtEquipment.equipment_type,
+              equipment_category: boughtEquipment.equipment_category,
+              custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined
+            };
+
+            // Update the stash state optimistically
+            const newStash = [...stash, newStashItem];
+            setStash(newStash);
+
+            // Call parent update function if provided
+            if (onStashUpdate) {
+              onStashUpdate(newStash);
+            }
+
+            // Close the modal and show success message
+            setShowTradingPost(false);
+            toast({
+              title: "Equipment Purchased",
+              description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
+            });
+          }}
+        />
+      )}
     </>
   );
 }

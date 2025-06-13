@@ -27,6 +27,7 @@ interface ItemModalProps {
   vehicleTypeId?: string;
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
+  isStashMode?: boolean;
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -197,6 +198,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   vehicleTypeId,
   isVehicleEquipment,
   allowedCategories,
+  isStashMode,
   onEquipmentBought
 }) => {
   const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
@@ -211,7 +213,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">("fighters-list");
+  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
+    isStashMode ? "fighters-tradingpost" : "fighters-list"
+  );
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [cachedFighterCategories, setCachedFighterCategories] = useState<string[]>([]);
@@ -221,6 +225,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     fighter: {},
     all: {}
   });
+  const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const DEBUG = false;
 
   useEffect(() => {
@@ -297,17 +302,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
 
   const fetchAllCategories = async () => {
-    if (!session) return;
+    if (!session || isLoadingAllEquipment) return;
+    
+    setIsLoadingAllEquipment(true);
     setError(null);
+
+    console.log(`Starting fetchAllCategories for ${equipmentListType}`);
 
     const typeIdToUse = isVehicleEquipment 
       ? localVehicleTypeId || vehicleTypeId 
       : fighterTypeId;
 
-    if (!gangTypeId || !typeIdToUse) {
+    // For gang-level access (when fighterId is empty), we don't need fighter type validation
+    const isGangLevelAccess = !fighterId || fighterId === '';
+
+    if (!gangTypeId || (!typeIdToUse && !isGangLevelAccess)) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId
+        : !fighterTypeId && !isGangLevelAccess
         ? 'Fighter type information is missing'
         : 'Required information is missing';
 
@@ -316,29 +328,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
         vehicleTypeId,
         localVehicleTypeId,
         fighterTypeId,
-        gangTypeId
+        gangTypeId,
+        isGangLevelAccess
       });
 
       setError(errorMessage);
       return;
     }
 
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0) {
-      setAvailableCategories(cachedAllCategories);
-      return;
-    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0) {
-      setAvailableCategories(cachedFighterCategories);
-      return;
-    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0) {
-      setAvailableCategories(cachedFighterTPCategories);
-      return;
-    }
-
     try {
       const requestBody: Record<string, any> = {
         gang_type_id: gangTypeId,
-        fighter_type_id: typeIdToUse,
+        // Don't specify equipment_category to get ALL equipment
       };
+
+      // Only add fighter_type_id if we have one (not gang-level access)
+      if (typeIdToUse) {
+        requestBody.fighter_type_id = typeIdToUse;
+      }
 
       if (equipmentListType === 'fighters-list') {
         requestBody.fighter_type_equipment = true;
@@ -348,7 +355,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         requestBody.equipment_tradingpost = true;
       }
 
-      console.log(`fetchAllCategories request for ${equipmentListType}:`, requestBody);
+      console.log(`fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -375,119 +382,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         console.log('Fighter equipment data:', data);
       }
 
-      const uniqueCategories = Array.from(new Set(data.map(item => item.equipment_category)));
-
-      if (equipmentListType === 'unrestricted') {
-        setCachedAllCategories(uniqueCategories);
-      } else if (equipmentListType === 'fighters-list') {
-        setCachedFighterCategories(uniqueCategories);
-      } else if (equipmentListType === 'fighters-tradingpost') {
-        setCachedFighterTPCategories(uniqueCategories);
-      }
-
-      setAvailableCategories(uniqueCategories);
-    } catch (err) {
-      console.error('Error fetching all equipment categories:', err);
-      setError('Failed to load equipment categories');
-    }
-  };
-
-  const fetchCategoryEquipment = async (categoryName: string, categoryQuery: string) => {
-    if (!session) return;
-    setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: true }));
-    setError(null);
-
-    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
-
-    if (equipmentListType === 'fighters-tradingpost' && !cachedEquipment.tradingpost) {
-      setCachedEquipment(prev => ({
-        ...prev,
-        tradingpost: {}
-      }));
-    }
-
-    if (cachedEquipment[cacheKey]?.[categoryName]) {
-      setEquipment(prev => ({
-        ...prev,
-        [categoryName]: cachedEquipment[cacheKey][categoryName]
-      }));
-      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
-      return;
-    }
-
-    const typeIdToUse = isVehicleEquipment 
-      ? localVehicleTypeId || vehicleTypeId 
-      : fighterTypeId;
-
-    if (!gangTypeId || !typeIdToUse) {
-      const errorMessage = isVehicleEquipment && !typeIdToUse
-        ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId
-        ? 'Fighter type information is missing'
-        : 'Required information is missing';
-
-      console.log('Missing type info debug:', {
-        isVehicleEquipment,
-        vehicleTypeId,
-        localVehicleTypeId,
-        fighterTypeId,
-        gangTypeId
-      });
-
-      setError(errorMessage);
-      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
-      return;
-    }
-
-    try {
-      const requestBody: Record<string, any> = {
-        gang_type_id: gangTypeId,
-        equipment_category: categoryQuery,
-        fighter_type_id: typeIdToUse
-      };
-
-      if (equipmentListType === 'fighters-list') {
-        requestBody.fighter_type_equipment = true;
-      } else if (equipmentListType === 'fighters-tradingpost') {
-        requestBody.equipment_tradingpost = true;
-      }
-
-      Object.keys(requestBody).forEach(key =>
-        requestBody[key] === undefined && delete requestBody[key]
-      );
-
-      console.log(`fetchCategoryEquipment request for ${categoryName} (${equipmentListType}):`, requestBody);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${categoryName}`);
-      }
-
-      const data: RawEquipmentData[] = await response.json();
-      
-      console.log(`fetchCategoryEquipment response for ${categoryName}: ${data.length} items received`);
-
-      if (equipmentListType !== 'unrestricted' && categoryQuery === '*') {
-        const categories = Array.from(new Set(data.map(item => item.equipment_category)));
-        setAvailableCategories(categories);
-      }
-
-      if (DEBUG) {
-        console.log('Fighter equipment data:', data);
-      }
-
+      // Format and organize equipment by category
       const formattedData = data
         .map((item: RawEquipmentData) => ({
           ...item,
@@ -501,30 +396,45 @@ const ItemModal: React.FC<ItemModalProps> = ({
           master_crafted: item.master_crafted || false,
           is_custom: item.is_custom
         }))
+        // Remove duplicates based on equipment_id
+        .filter((item, index, array) => 
+          array.findIndex(i => i.equipment_id === item.equipment_id) === index
+        )
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
-      const lasgun = formattedData.find(item => item.equipment_name === 'Lasgun');
-      if (lasgun) {
-        console.log('Formatted Lasgun:', lasgun);
+      // Organize equipment by category
+      const equipmentByCategory: Record<string, Equipment[]> = {};
+      formattedData.forEach(item => {
+        const category = item.equipment_category;
+        if (!equipmentByCategory[category]) {
+          equipmentByCategory[category] = [];
+        }
+        equipmentByCategory[category].push(item);
+      });
+
+      const uniqueCategories = Object.keys(equipmentByCategory);
+
+      // Cache the data
+      if (equipmentListType === 'unrestricted') {
+        setCachedAllCategories(uniqueCategories);
+        setCachedEquipment(prev => ({ ...prev, all: equipmentByCategory }));
+      } else if (equipmentListType === 'fighters-list') {
+        setCachedFighterCategories(uniqueCategories);
+        setCachedEquipment(prev => ({ ...prev, fighter: equipmentByCategory }));
+      } else if (equipmentListType === 'fighters-tradingpost') {
+        setCachedFighterTPCategories(uniqueCategories);
+        setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
       }
 
-      setEquipment(prev => ({
-        ...prev,
-        [categoryName]: formattedData
-      }));
+      // Set the state
+      setAvailableCategories(uniqueCategories);
+      setEquipment(equipmentByCategory);
 
-      setCachedEquipment(prev => ({
-        ...prev,
-        [cacheKey]: {
-          ...prev[cacheKey] || {},
-          [categoryName]: formattedData
-        }
-      }));
     } catch (err) {
-      console.error('Error fetching equipment:', err);
-      setError(`Failed to load ${categoryName}`);
+      console.error('Error fetching all equipment categories:', err);
+      setError('Failed to load equipment categories');
     } finally {
-      setCategoryLoadingStates(prev => ({ ...prev, [categoryName]: false }));
+      setIsLoadingAllEquipment(false);
     }
   };
 
@@ -536,9 +446,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       newSet.delete(category.category_name);
     } else {
       newSet.add(category.category_name);
-      if (!equipment[category.category_name]) {
-        await fetchCategoryEquipment(category.category_name, category.category_name);
-      }
+      // No need to fetch individual categories anymore - all equipment is loaded at once
     }
 
     setExpandedCategories(newSet);
@@ -556,9 +464,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       );
       if (match) {
         matching.add(category.category_name);
-        if (!items.length) {
-          fetchCategoryEquipment(category.category_name, category.category_name);
-        }
+        // No need to fetch individual categories anymore - all equipment is loaded at once
       }
     }
 
@@ -582,6 +488,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true) => {
     if (!session) return;
     try {
+      // Determine if this is a gang stash purchase
+      const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
+      
       const requestBody = {
         ...(item.is_custom 
           ? { custom_equipment_id: item.equipment_id }
@@ -591,10 +500,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
         manual_cost: manualCost,
         master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
         use_base_cost_for_rating: useBaseCostForRating,
-        ...(isVehicleEquipment
-          ? { vehicle_id: vehicleId }
-          : { fighter_id: fighterId }
-        )
+        buy_for_gang_stash: isGangStashPurchase,
+        // Only include fighter_id or vehicle_id if not buying for gang stash
+        // Convert empty strings to null for UUID fields
+        ...(!isGangStashPurchase && (isVehicleEquipment
+          ? { vehicle_id: vehicleId || null }
+          : { fighter_id: fighterId || null }
+        ))
       };
 
       console.log('Sending equipment purchase request:', requestBody);
@@ -622,7 +534,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       const data = await response.json();
 
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
-      const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
+      
+      // Handle different response structures for gang stash vs fighter equipment
+      let equipmentRecord;
+      if (isGangStashPurchase) {
+        equipmentRecord = data.insertIntogang_stashCollection?.records[0];
+      } else {
+        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
+      }
 
       if (!equipmentRecord) {
         throw new Error('Failed to get equipment ID from response');
@@ -635,10 +554,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
       
       // Calculate new fighter credits adding the rating cost, not the manual cost
       // This ensures the fighter's rating is correctly updated
-      const newFighterCredits = fighterCredits + ratingCost;
+      // For gang stash purchases, fighter credits don't change
+      const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
       
       // Log to verify the values being used
       console.log('Equipment purchase details:', {
+        isGangStashPurchase,
         manualCost,
         useBaseCostForRating,
         baseCost: item.base_cost,
@@ -687,34 +608,33 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   useEffect(() => {
-    if (session && equipmentListType !== 'unrestricted') {
-      fetchAllCategories();
-    }
-  }, [session, equipmentListType]);
+    if (!session || isLoadingAllEquipment) return;
 
-  useEffect(() => {
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0) {
+    // Check cache first before making any API calls
+    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
+    
+    // If we have cached data for this equipment list type, use it
+    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
+      console.log('Using cached data for unrestricted');
       setAvailableCategories(cachedAllCategories);
-    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0) {
+      setEquipment(cachedEquipment.all);
+      return;
+    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
+      console.log('Using cached data for fighters-list');
       setAvailableCategories(cachedFighterCategories);
-    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0) {
+      setEquipment(cachedEquipment.fighter);
+      return;
+    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
+      console.log('Using cached data for fighters-tradingpost');
       setAvailableCategories(cachedFighterTPCategories);
+      setEquipment(cachedEquipment.tradingpost);
+      return;
     }
 
-    expandedCategories.forEach(category =>
-      fetchCategoryEquipment(category, category)
-    );
-  }, [equipmentListType]);
-
-  useEffect(() => {
-    if (!availableCategories.length || !session) return;
-
-    availableCategories.forEach((categoryName) => {
-      if (!equipment[categoryName]) {
-        fetchCategoryEquipment(categoryName, categoryName);
-      }
-    });
-  }, [availableCategories, session]);
+    // Only fetch if we don't have cached data
+    console.log(`No cached data found for ${equipmentListType}, fetching from API`);
+    fetchAllCategories();
+  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
 
   return (
     <div
@@ -743,20 +663,22 @@ const ItemModal: React.FC<ItemModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-3 justify-center">
-            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
-              <input
-                type="radio"
-                name="equipment-list"
-                value="fighters-list"
-                checked={equipmentListType === "fighters-list"}
-                onChange={() => {
-                  setEquipmentListType("fighters-list");
-                  setEquipment({});
-                }}
-                className="mr-1"
-              />
-              Fighter's List
-            </label>
+            {!isStashMode && (
+              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
+                <input
+                  type="radio"
+                  name="equipment-list"
+                  value="fighters-list"
+                  checked={equipmentListType === "fighters-list"}
+                  onChange={() => {
+                    setEquipmentListType("fighters-list");
+                    setEquipment({});
+                  }}
+                  className="mr-1"
+                />
+                Fighter's List
+              </label>
+            )}
             <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <input
                 type="radio"
@@ -818,8 +740,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   ? allowedCategories.includes(category.category_name)
                   : !isVehicleEquipment;
 
-                const isAvailable = equipmentListType === 'unrestricted' ||
-                  availableCategories.includes(category.category_name);
+                const isAvailable = availableCategories.includes(category.category_name);
 
                 return isVehicleAllowed && isAvailable;
               })
@@ -852,13 +773,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     ) : equipment[category.category_name]?.length ? (
                       equipment[category.category_name]
                         .filter(item => item.equipment_name.toLowerCase().includes(searchQuery))
-                        .map((item) => {
+                        .map((item, itemIndex) => {
                         const affordable = canAffordEquipment(item);
                         const hasAdjustedCost = (item.adjusted_cost ?? item.cost) < (item.base_cost ?? item.cost);
 
                         return (
                           <div
-                            key={item.equipment_id}
+                            key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
                             className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
                           >
                             <div className="flex-1 pl-4 leading-none">

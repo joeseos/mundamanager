@@ -1130,6 +1130,7 @@ const handleAlignmentChange = (value: string) => {
           {showColourPickerModal && (
             <Modal
               title="Select Gang Colour"
+              helper="This sets your gang's appearance in a campaign."
               onClose={() => setShowColourPickerModal(false)}
               onConfirm={() => setShowColourPickerModal(false)}
               confirmText="Close"
@@ -1153,6 +1154,14 @@ const handleAlignmentChange = (value: string) => {
                       maxLength={7}
                       placeholder="#ffffff"
                     />
+                  </div>
+                  <div className="flex justify-center">
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                      style={{ color: editedGangColour }}
+                    >
+                      {name}
+                    </span>
                   </div>
                 </div>
               }
