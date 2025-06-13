@@ -105,6 +105,7 @@ interface GangProps {
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
+  onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
@@ -137,6 +138,7 @@ export default function Gang({
   onStashUpdate,
   onFighterDeleted,
   onVehicleAdd,
+  onFighterAdd,
   positioning,
   gang_variants,
   vehicles,
@@ -183,12 +185,32 @@ export default function Gang({
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
   // Page view mode
-  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>(() => {
+  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
+
+  // Initialize view mode from localStorage after component mounts
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large') ?? 'normal';
+      const savedViewMode = localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large';
+      if (savedViewMode) {
+        setViewMode(savedViewMode);
+      }
     }
-    return 'normal';
-  });
+  }, []);
+
+  // Sync fighters state with prop changes from parent
+  useEffect(() => {
+    setFighters(initialFighters);
+  }, [initialFighters]);
+
+  // Sync credits state with prop changes from parent
+  useEffect(() => {
+    setCredits(initialCredits ?? 0);
+  }, [initialCredits]);
+
+  // Sync rating state with prop changes from parent
+  useEffect(() => {
+    setRating(initialRating ?? 0);
+  }, [initialRating]);
 
   // Calculate the total value of unassigned vehicles
   const unassignedVehiclesValue = useMemo(() => {
@@ -474,9 +496,15 @@ const handleAlignmentChange = (value: string) => {
 
   // Add the handler for when a fighter is added
   const handleFighterAdded = (newFighter: FighterProps, cost: number) => {
-    setFighters(prev => [...prev, newFighter]);
-    setCredits(prev => prev - cost); // Deduct what was actually paid
-    setRating(prev => prev + newFighter.credits); // Add the fighter's rating cost
+    if (onFighterAdd) {
+      // Use the parent callback - this will handle all state updates
+      onFighterAdd(newFighter, cost);
+    } else {
+      // Fallback to local state management if no callback provided
+      setFighters(prev => [...prev, newFighter]);
+      setCredits(prev => prev - cost); // Deduct what was actually paid
+      setRating(prev => prev + newFighter.credits); // Add the fighter's rating cost
+    }
   };
 
   const handleDeleteFighter = async (fighterId: string) => {

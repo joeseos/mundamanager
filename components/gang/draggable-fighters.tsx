@@ -20,6 +20,12 @@ export function DraggableFighters({
   viewMode = 'normal',
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Ensure component only renders drag functionality on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // Add useEffect to ensure all fighters have positions
   useEffect(() => {
@@ -155,6 +161,16 @@ export function DraggableFighters({
     }
   };
 
+  // Render without drag functionality during SSR and initial client render
+  if (!isMounted) {
+    return (
+      <MyFighters
+        fighters={sortedFighters}
+        positions={currentPositions}
+        viewMode={viewMode}
+      />
+    );
+  }
 
   return (
     <DndContext 

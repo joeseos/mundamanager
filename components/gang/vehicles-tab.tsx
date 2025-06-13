@@ -85,10 +85,74 @@ export default function GangVehicles({
     if (selectedVehicle === null || !selectedFighter) return;
     
     setIsLoading(true);
+    
+    // Store original state for potential rollback
+    const originalVehicles = [...allVehicles];
+    const originalFighters = [...fighters];
+    
     try {
       const vehicle = allVehicles[selectedVehicle];
+      const selectedFighterData = fighters.find(f => f.id === selectedFighter);
       
-      // Get the session
+      if (!selectedFighterData) {
+        throw new Error('Selected fighter not found');
+      }
+
+      // OPTIMISTIC UPDATES - Update UI immediately
+      
+      // 1. Remove the vehicle from the vehicles list (it will now be assigned to fighter)
+      const updatedVehicles = allVehicles.filter((_, index) => index !== selectedVehicle);
+      
+      // 2. Update the fighter with the new vehicle
+      const updatedVehicle = {
+        id: vehicle.id,
+        created_at: vehicle.created_at,
+        vehicle_name: vehicle.vehicle_name,
+        vehicle_type_id: vehicle.vehicle_type_id,
+        vehicle_type: vehicle.vehicle_type,
+        movement: vehicle.movement,
+        front: vehicle.front,
+        side: vehicle.side,
+        rear: vehicle.rear,
+        hull_points: vehicle.hull_points,
+        handling: vehicle.handling,
+        save: vehicle.save,
+        body_slots: vehicle.body_slots,
+        body_slots_occupied: vehicle.body_slots_occupied,
+        drive_slots: vehicle.drive_slots,
+        drive_slots_occupied: vehicle.drive_slots_occupied,
+        engine_slots: vehicle.engine_slots,
+        engine_slots_occupied: vehicle.engine_slots_occupied,
+        special_rules: vehicle.special_rules || [],
+        equipment: vehicle.equipment || [],
+        effects: {} // Initialize empty effects object
+      };
+      
+      const updatedFighter = {
+        ...selectedFighterData,
+        vehicles: [updatedVehicle] // Replace any existing vehicles
+      };
+
+      // Apply optimistic updates
+      if (onVehicleUpdate) {
+        onVehicleUpdate(updatedVehicles);
+      }
+      
+      if (onFighterUpdate) {
+        onFighterUpdate(updatedFighter);
+      }
+
+      // Reset selection immediately for better UX
+      setSelectedVehicle(null);
+      setSelectedFighter('');
+
+      // Show optimistic success message
+      toast({
+        title: "Success",
+        description: `Vehicle assigned to fighter successfully`,
+      });
+
+      // NOW make the API call
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -119,49 +183,40 @@ export default function GangVehicles({
 
       const data = await response.json();
 
-      // Update local state by removing the assigned vehicle
-      const updatedVehicles = allVehicles.filter((_, index) => index !== selectedVehicle);
-
-      // If there was a vehicle swap, add the old vehicle back to the list
+      // Handle any additional updates from the server response
+      // If there was a vehicle swap, we need to add the old vehicle back to the list
       if (data.removed_from) {
-        updatedVehicles.push({
+        const vehiclesWithSwapped = [...updatedVehicles, {
           ...data.removed_from,
           gang_id: gangId,
           equipment: []
-        });
-      }
-
-      if (onVehicleUpdate) {
-        onVehicleUpdate(updatedVehicles);
-      }
-
-      // Update the fighter with the new vehicle
-      const selectedFighterData = fighters.find(f => f.id === selectedFighter);
-      if (selectedFighterData && onFighterUpdate) {
-        const updatedVehicle = {
-          ...vehicle,
-          fighter_id: selectedFighter,
-          equipment: vehicle.equipment || []
-        };
+        }];
         
-        const updatedFighter = {
-          ...selectedFighterData,
-          vehicles: [updatedVehicle] // Replace any existing vehicles
-        };
-        onFighterUpdate(updatedFighter);
+        if (onVehicleUpdate) {
+          onVehicleUpdate(vehiclesWithSwapped);
+        }
       }
-
-      toast({
-        title: "Success",
-        description: `Vehicle assigned to fighter successfully`,
-      });
-
-      // Reset selection
-      setSelectedVehicle(null);
-      setSelectedFighter('');
 
     } catch (error) {
       console.error('Error moving vehicle:', error);
+      
+      // ROLLBACK optimistic updates on error
+      if (onVehicleUpdate) {
+        onVehicleUpdate(originalVehicles);
+      }
+      
+      // Rollback fighter updates if there were any
+      if (deletingVehicle && deletingVehicle.assigned_to && onFighterUpdate) {
+        const originalFighter = originalFighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
+        if (originalFighter) {
+          onFighterUpdate(originalFighter);
+        }
+      }
+
+      // Reset selection state
+      setSelectedVehicle(null);
+      setSelectedFighter('');
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to move vehicle to fighter",
@@ -199,8 +254,47 @@ export default function GangVehicles({
     if (!editingVehicle) return true;
     
     setIsEditLoading(true);
+    
+    // Store original state for potential rollback
+    const originalVehicles = [...allVehicles];
+    const originalFighters = [...fighters];
+    
     try {
-      // Get session for auth headers
+      // OPTIMISTIC UPDATES - Update UI immediately
+      
+      // Update both the vehicles list and any fighter that has this vehicle
+      if (onVehicleUpdate) {
+        const updatedVehicles = allVehicles.map(v => 
+          v.id === editingVehicle.id 
+            ? { ...v, vehicle_name: editedVehicleName, special_rules: vehicleSpecialRules }
+            : v
+        );
+        onVehicleUpdate(updatedVehicles);
+      }
+
+      // Update fighter's vehicle if assigned
+      if (editingVehicle.assigned_to && onFighterUpdate) {
+        const fighter = fighters.find(f => f.fighter_name === editingVehicle.assigned_to);
+        if (fighter && fighter.vehicles?.[0]) {
+          const updatedFighter = {
+            ...fighter,
+            vehicles: [{
+              ...fighter.vehicles[0],
+              vehicle_name: editedVehicleName,
+              special_rules: vehicleSpecialRules
+            }]
+          };
+          onFighterUpdate(updatedFighter);
+        }
+      }
+
+      // Show optimistic success message
+      toast({
+        title: "Success",
+        description: "Vehicle updated successfully",
+      });
+
+      // NOW make the API call
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -235,41 +329,24 @@ export default function GangVehicles({
         // If we get success but no special rules update confirmation
         console.warn('Warning: Special rules may not have been updated on the server');
       }
-
-      // Update both the vehicles list and any fighter that has this vehicle
-      if (onVehicleUpdate) {
-        const updatedVehicles = allVehicles.map(v => 
-          v.id === editingVehicle.id 
-            ? { ...v, vehicle_name: editedVehicleName, special_rules: vehicleSpecialRules }
-            : v
-        );
-        onVehicleUpdate(updatedVehicles);
-      }
-
-      // Update fighter's vehicle if assigned
-      if (editingVehicle.assigned_to && onFighterUpdate) {
-        const fighter = fighters.find(f => f.fighter_name === editingVehicle.assigned_to);
-        if (fighter && fighter.vehicles?.[0]) {
-          const updatedFighter = {
-            ...fighter,
-            vehicles: [{
-              ...fighter.vehicles[0],
-              vehicle_name: editedVehicleName,
-              special_rules: vehicleSpecialRules
-            }]
-          };
-          onFighterUpdate(updatedFighter);
-        }
-      }
-
-      toast({
-        title: "Success",
-        description: "Vehicle updated successfully",
-      });
       
       return true;
     } catch (error) {
       console.error('Error updating vehicle:', error);
+      
+      // ROLLBACK optimistic updates on error
+      if (onVehicleUpdate) {
+        onVehicleUpdate(originalVehicles);
+      }
+      
+      // Rollback fighter updates if there were any
+      if (editingVehicle.assigned_to && onFighterUpdate) {
+        const originalFighter = originalFighters.find(f => f.fighter_name === editingVehicle.assigned_to);
+        if (originalFighter) {
+          onFighterUpdate(originalFighter);
+        }
+      }
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update vehicle",
@@ -290,6 +367,11 @@ export default function GangVehicles({
     if (!deletingVehicle) return false;
 
     setIsDeleteLoading(true);
+    
+    // Store original state for potential rollback
+    const originalVehicles = [...vehicles];
+    const originalFighters = [...fighters];
+    
     try {
       // Get session for auth headers
       const supabase = createClient();
@@ -302,19 +384,20 @@ export default function GangVehicles({
       // Check if this is an unassigned vehicle (for logging purposes)
       const isUnassigned = !deletingVehicle.assigned_to;
       
-      // Optimistically update the UI
+      // OPTIMISTIC UPDATES - Update UI immediately
       // For unassigned vehicles, removing from the vehicles list will update the wealth
       // For assigned vehicles, updating the fighter will update the rating
       
       // First, update the local vehicles list
+      const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
       if (onVehicleUpdate) {
-        const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
         onVehicleUpdate(updatedVehicles);
       }
       
       // Then update the fighter if the vehicle was assigned
+      let updatedFighter = null;
       if (!isUnassigned && onFighterUpdate) {
-        const updatedFighter = fighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
+        updatedFighter = fighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
         if (updatedFighter) {
           const fighterWithoutVehicle = {
             ...updatedFighter,
@@ -323,8 +406,17 @@ export default function GangVehicles({
           onFighterUpdate(fighterWithoutVehicle);
         }
       }
+
+      // Show optimistic success message
+      toast({
+        description: `${deletingVehicle.vehicle_name || deletingVehicle.vehicle_type} has been deleted.`,
+        variant: "default"
+      });
+
+      // Close the modal immediately for better UX
+      setDeletingVehicle(null);
       
-      // Now make the API call to actually delete the vehicle
+      // NOW make the API call to actually delete the vehicle
       const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
         method: 'DELETE',
         headers: {
@@ -341,19 +433,32 @@ export default function GangVehicles({
         throw new Error(error.error || 'Failed to delete vehicle');
       }
 
-      toast({
-        description: `${deletingVehicle.vehicle_name || deletingVehicle.vehicle_type} has been deleted.`,
-        variant: "default"
-      });
-
-      setDeletingVehicle(null);
       return true;
     } catch (error) {
       console.error('Error deleting vehicle:', error);
+      
+      // ROLLBACK optimistic updates on error
+      if (onVehicleUpdate) {
+        onVehicleUpdate(originalVehicles);
+      }
+      
+      // Rollback fighter updates if there were any
+      if (deletingVehicle && deletingVehicle.assigned_to && onFighterUpdate) {
+        const originalFighter = originalFighters.find(f => f.fighter_name === deletingVehicle.assigned_to);
+        if (originalFighter) {
+          onFighterUpdate(originalFighter);
+        }
+      }
+
+      // Show error message
       toast({
         description: error instanceof Error ? error.message : 'Failed to delete vehicle',
         variant: "destructive"
       });
+      
+      // Reopen the modal since the deletion failed
+      setDeletingVehicle(deletingVehicle);
+      
       return false;
     } finally {
       setIsDeleteLoading(false);
