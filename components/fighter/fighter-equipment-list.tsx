@@ -6,6 +6,7 @@ import Modal from '../modal';
 import { Equipment } from '@/types/equipment';
 import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
+import { UserPermissions } from '@/types/user-permissions';
 
 interface WeaponListProps {
   fighterId: string;
@@ -15,6 +16,7 @@ interface WeaponListProps {
   onEquipmentUpdate: (updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => void;
   equipment?: Equipment[];
   onAddEquipment: () => void;
+  userPermissions: UserPermissions;
 }
 
 interface SellModalProps {
@@ -61,7 +63,8 @@ export function WeaponList({
   fighterCredits, 
   onEquipmentUpdate,
   equipment = [],
-  onAddEquipment
+  onAddEquipment,
+  userPermissions
 }: WeaponListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -272,7 +275,7 @@ export function WeaponList({
             align: 'right'
           }
         ]}
-        actions={[
+        actions={ [
           {
             label: 'Stash',
             variant: 'outline',
@@ -282,7 +285,7 @@ export function WeaponList({
                 setStashModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
             label: 'Sell',
@@ -293,7 +296,7 @@ export function WeaponList({
                 setSellModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
             label: 'Delete',
@@ -303,10 +306,11 @@ export function WeaponList({
               equipmentId: item.equipment_id,
               name: item.name
             }),
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           }
         ]}
         onAdd={onAddEquipment}
+        addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage="No equipment yet."
       />

@@ -27,6 +27,7 @@ export interface ListProps<T = any> {
   actions?: ListAction[];
   onAdd?: () => void;
   addButtonText?: string;
+  addButtonDisabled?: boolean;
   emptyMessage?: string;
   className?: string;
   isLoading?: boolean;
@@ -40,6 +41,7 @@ export function List<T = any>({
   actions = [],
   onAdd,
   addButtonText = "Add",
+  addButtonDisabled,
   emptyMessage = "No items yet.",
   className = "",
   isLoading = false,
@@ -79,7 +81,7 @@ export function List<T = any>({
           <Button 
             onClick={onAdd}
             className="bg-black hover:bg-gray-800 text-white"
-            disabled={isLoading}
+            disabled={isLoading || (addButtonDisabled === true)}
           >
             {addButtonText}
           </Button>

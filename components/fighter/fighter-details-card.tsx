@@ -11,6 +11,8 @@ import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { Equipment, WeaponProfile } from '@/types/equipment';
+import { UserPermissions } from '@/types/user-permissions';
+
 
 // Vehicle equipment profile interface
 interface VehicleEquipmentProfile {
@@ -31,6 +33,8 @@ interface VehicleEquipment extends Equipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
 }
+
+
 
 interface FighterEffectStatModifier {
   id: string;
@@ -87,6 +91,7 @@ interface FighterDetailsCardProps {
   vehicles?: Vehicle[];
   vehicleEquipment?: VehicleEquipment[];
   gangId?: string;
+  userPermissions: UserPermissions;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -194,7 +199,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   effects,
   vehicles,
   vehicleEquipment = [],
-  gangId
+  gangId,
+  userPermissions
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -266,7 +272,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     cool, willpower, intelligence, xp, kills, advancements, effects,
     fighter_class
   ]);
-
+  const canShowEditButtons = userPermissions.canEdit;
   const isCrew = fighter_class === 'Crew';
   
   // Calculate modified stats including effects (injuries/advancements)
@@ -364,11 +370,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         <div className="text-base text-gray-600">
           <div>Kills: {kills}</div>
         </div>
+
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
           <Button
             variant="secondary"
             className="bg-black text-white hover:bg-gray-800"
             onClick={() => onAddXp && onAddXp()}
+            disabled={!canShowEditButtons}
           >
             Add XP
           </Button>
@@ -376,11 +384,12 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             variant="secondary"
             className="bg-black text-white hover:bg-gray-800"
             onClick={onEdit}
+            disabled={!canShowEditButtons}
           >
             Edit Fighter
           </Button>
         </div>
-      </div>
+      </div> 
       <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>

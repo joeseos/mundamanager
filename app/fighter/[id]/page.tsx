@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
+import { PermissionService } from "@/app/lib/user-permissions";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -32,29 +33,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       redirect("/");
     }
 
-    // Get gang ownership information for permission checks
-    const { data: gang, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id')
-      .eq('id', fighterData.gang.id)
-      .single();
-
-    if (gangError) {
-      console.error('Error fetching gang ownership:', gangError);
-      redirect("/");
-    }
-
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', user.id)
-      .single();
-
-    const isAdmin = profile?.user_role === 'admin';
-    const isOwner = gang.user_id === user.id;
-
-    // All authenticated users can view the fighter page, but only owners/admins can edit
+    // Use centralized permission service to get user permissions
+    const permissionService = new PermissionService();
+    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
 
     // Fetch gang fighters for the dropdown
     const { data: gangFighters, error: fightersError } = await supabase
@@ -67,17 +48,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     }
 
     // Pass fighter data and user permissions to client component
-  return (
+    return (
       <FighterPageComponent
         initialFighterData={fighterData}
         initialGangFighters={gangFighters || []}
-        userPermissions={{
-          isOwner,
-          isAdmin,
-          canEdit: isOwner || isAdmin,
-          canDelete: isOwner || isAdmin,
-          userId: user.id
-        }}
+        userPermissions={userPermissions}
         fighterId={id}
       />
     );

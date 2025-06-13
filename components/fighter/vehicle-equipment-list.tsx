@@ -7,6 +7,7 @@ import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
+import { UserPermissions } from '@/types/user-permissions';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -16,6 +17,7 @@ interface VehicleEquipmentListProps {
   onEquipmentUpdate: (updatedEquipment: VehicleEquipment[], newFighterCredits: number, newGangCredits: number) => void;
   equipment?: VehicleEquipment[];
   onAddEquipment: () => void;
+  userPermissions: UserPermissions;
 }
 
 interface SellModalProps {
@@ -62,7 +64,8 @@ export function VehicleEquipmentList({
   fighterCredits, 
   onEquipmentUpdate,
   equipment = [],
-  onAddEquipment
+  onAddEquipment,
+  userPermissions
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -277,7 +280,7 @@ export function VehicleEquipmentList({
                 setStashModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
             label: 'Sell',
@@ -288,7 +291,7 @@ export function VehicleEquipmentList({
                 setSellModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
             label: 'Delete',
@@ -298,10 +301,11 @@ export function VehicleEquipmentList({
               equipmentId: item.equipment_id,
               name: item.equipment_name
             }),
-            disabled: (item) => item.core_equipment || isLoading
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           }
         ]}
         onAdd={onAddEquipment}
+        addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage="No vehicle equipment installed"
       />

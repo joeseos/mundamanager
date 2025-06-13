@@ -10,6 +10,7 @@ import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
+import { UserPermissions } from '@/types/user-permissions';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -131,6 +132,7 @@ interface AdvancementsListProps {
   skills: FighterSkills;
   onDeleteAdvancement: (advancementId: string) => Promise<void>;
   onAdvancementAdded: () => void;
+  userPermissions: UserPermissions;
 }
 
 interface TransformedAdvancement {
@@ -860,6 +862,7 @@ export function AdvancementsList({
   skills = {},
   onDeleteAdvancement,
   onAdvancementAdded,
+  userPermissions
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -1063,10 +1066,11 @@ export function AdvancementsList({
               name: item.name,
               type: item.advancement_type
             }) : null,
-            disabled: (item) => isDeleting === item.advancement_id || !item.advancement_id
+            disabled: (item) => isDeleting === item.advancement_id || !item.advancement_id || !userPermissions.canEdit
           }
         ]}
         onAdd={() => setIsAdvancementModalOpen(true)}
+        addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage="No advancements yet."
       />

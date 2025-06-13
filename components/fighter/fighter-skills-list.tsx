@@ -7,6 +7,7 @@ import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
+import { UserPermissions } from '@/types/user-permissions';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -27,6 +28,7 @@ interface SkillsListProps {
   fighterXp: number;
   onSkillAdded?: () => void;
   free_skill?: boolean;
+  userPermissions: UserPermissions;
 }
 
 // SkillModal Interfaces
@@ -306,7 +308,8 @@ export function SkillsList({
   fighterId,
   fighterXp,
   onSkillAdded,
-  free_skill
+  free_skill,
+  userPermissions
 }: SkillsListProps) {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
@@ -420,12 +423,13 @@ export function SkillsList({
         actions={[
           {
             label: 'Delete',
-            variant: 'destructive',
-            onClick: (item) => handleDeleteClick(item.id, item.name),
-            disabled: (item) => !!item.fighter_injury_id
+            variant: 'destructive' as const,
+            onClick: (item: any) => handleDeleteClick(item.id, item.name),
+            disabled: (item: any) => !!item.fighter_injury_id || !userPermissions.canEdit
           }
         ]}
         onAdd={() => setIsAddSkillModalOpen(true)}
+        addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage={getEmptyMessage()}
       />

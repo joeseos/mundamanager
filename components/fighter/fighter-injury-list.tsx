@@ -1,16 +1,18 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "../ui/list";
+import { UserPermissions } from '@/types/user-permissions';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
   onInjuryUpdate: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   fighterId: string;
   fighterRecovery?: boolean;
+  userPermissions: UserPermissions;
 }
 
 export function InjuriesList({ 
@@ -18,6 +20,7 @@ export function InjuriesList({
   onInjuryUpdate,
   fighterId,
   fighterRecovery = false,
+  userPermissions
 }: InjuriesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
@@ -256,10 +259,11 @@ export function InjuriesList({
               id: item.injury_id,
               name: item.name
             }),
-            disabled: (item) => isDeleting === item.injury_id
+            disabled: (item) => isDeleting === item.injury_id || !userPermissions.canEdit
           }
         ]}
         onAdd={handleOpenModal}
+        addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage="No lasting injuries yet."
       />

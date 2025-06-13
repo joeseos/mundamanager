@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { Textarea } from '../ui/textarea';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface NotesListProps {
   fighterId: string;
   initialNote?: string;
+  userPermissions: UserPermissions;
 }
 
-export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
+export function NotesList({ fighterId, initialNote = '', userPermissions }: NotesListProps) {
   // Ensure note is always a string
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -104,7 +106,7 @@ export function NotesList({ fighterId, initialNote = '' }: NotesListProps) {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)}>
+              <Button onClick={() => setIsEditing(true)} disabled={!userPermissions.canEdit}>
                 Edit
               </Button>
             )}

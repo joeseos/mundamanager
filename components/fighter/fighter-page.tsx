@@ -26,14 +26,9 @@ import { Plus, Minus, X } from "lucide-react";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
+import { UserPermissions } from '@/types/user-permissions';
 
-interface UserPermissions {
-  isOwner: boolean;
-  isAdmin: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  userId: string;
-}
+
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -962,6 +957,7 @@ export default function FighterPage({
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
+            userPermissions={userPermissions}
           />
 
           {vehicle && (
@@ -992,6 +988,7 @@ export default function FighterPage({
               }}
               equipment={fighterData.vehicleEquipment}
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
+              userPermissions={userPermissions}
             />
           )}
 
@@ -1003,6 +1000,7 @@ export default function FighterPage({
             onEquipmentUpdate={handleEquipmentUpdate}
             equipment={fighterData.equipment}
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
+            userPermissions={userPermissions}
           />
 
           <SkillsList
@@ -1013,6 +1011,7 @@ export default function FighterPage({
             fighterXp={fighterData.fighter?.xp || 0}
             onSkillAdded={fetchFighterData}
             free_skill={fighterData.fighter?.free_skill}
+            userPermissions={userPermissions}
           />
 
           <AdvancementsList
@@ -1026,6 +1025,7 @@ export default function FighterPage({
               await fetchFighterData();
             }}
             onAdvancementAdded={fetchFighterData}
+            userPermissions={userPermissions}
           />
 
           <InjuriesList
@@ -1045,6 +1045,7 @@ export default function FighterPage({
               }));
             }}
             fighterRecovery={fighterData.fighter?.recovery}
+            userPermissions={userPermissions}
           />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
@@ -1080,6 +1081,7 @@ export default function FighterPage({
                   gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
                 }));
               }}
+              userPermissions={userPermissions}
             />
           )}
 
@@ -1088,6 +1090,7 @@ export default function FighterPage({
               <NotesList
                 fighterId={fighterData.fighter.id}
                 initialNote={fighterData.fighter.note}
+                userPermissions={userPermissions}
               />
             )}
           </div>
@@ -1099,6 +1102,7 @@ export default function FighterPage({
                 variant="default"
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => handleModalToggle('kill', true)}
+                disabled={!userPermissions.canEdit}
               >
                 {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
               </Button>
@@ -1106,6 +1110,7 @@ export default function FighterPage({
                 variant={fighterData.fighter?.retired ? 'success' : 'default'}
                 className="flex-1"
                 onClick={() => handleModalToggle('retire', true)}
+                disabled={!userPermissions.canEdit}
               >
                 {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
               </Button>
@@ -1113,6 +1118,7 @@ export default function FighterPage({
                 variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
                 className="flex-1"
                 onClick={() => handleModalToggle('enslave', true)}
+                disabled={!userPermissions.canEdit}
               >
                 {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
               </Button>
@@ -1121,6 +1127,7 @@ export default function FighterPage({
                   variant={fighterData.fighter?.starved ? 'success' : 'default'}
                   className="flex-1"
                   onClick={() => handleModalToggle('starve', true)}
+                  disabled={!userPermissions.canEdit}
                 >
                   {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
                 </Button>
@@ -1129,6 +1136,7 @@ export default function FighterPage({
                 variant={fighterData.fighter?.recovery ? 'success' : 'default'}
                 className="flex-1"
                 onClick={() => handleModalToggle('recovery', true)}
+                disabled={!userPermissions.canEdit}
               >
                 {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
               </Button>
@@ -1137,6 +1145,7 @@ export default function FighterPage({
                 variant="destructive"
                 className="flex-1"
                 onClick={() => handleModalToggle('delete', true)}
+                disabled={!userPermissions.canEdit}
               >
                 Delete Fighter
               </Button>
