@@ -69,28 +69,29 @@ export default function FriendsSearchBar({
 
       setIsLoading(true)
       try {
-        // Search for users excluding the current user
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .ilike('username', `%${query}%`)
-          .neq('id', userId) // Exclude current user
-          .limit(10);
+        // Use the improved search API that prioritizes exact matches
+        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to search users')
+        }
 
-        if (profilesError) throw profilesError;
+        const profilesData = await response.json()
 
-        // Transform profile data to Friend type
-        const transformedResults: Friend[] = (profilesData || []).map(profile => ({
-          id: profile.id,
-          username: profile.username,
-          profile: {
+        // Filter out current user and transform to Friend type
+        const transformedResults: Friend[] = (profilesData || [])
+          .filter((profile: { id: string; username: string }) => profile.id !== userId)
+          .map((profile: { id: string; username: string }) => ({
             id: profile.id,
             username: profile.username,
-            updated_at: new Date().toISOString()
-          },
-          status: 'none', // default for search results
-          direction: 'none',
-        }));
+            profile: {
+              id: profile.id,
+              username: profile.username,
+              updated_at: new Date().toISOString()
+            },
+            status: 'none', // default for search results
+            direction: 'none',
+          }));
 
         setSearchResults(transformedResults);
       } catch (error) {
