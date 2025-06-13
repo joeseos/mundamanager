@@ -6,24 +6,21 @@ import { createClient } from "@/utils/supabase/client";
 import { FighterProps, FighterSkills } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import { Button } from "@/components/ui/button";
-import GangPageContent from "@/components/gang/gang-page-content";
+import Gang from "@/components/gang/gang";
 import Tabs from "@/components/tabs";
 import GangInventory from "@/components/gang/stash-tab";
 import { GangNotes } from "@/components/gang/notes-tab";
 import GangTerritories from "@/components/gang/campaign-tab";
+import GangVehicles from "@/components/gang/vehicles-tab";
 import { Equipment } from "@/types/equipment";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { StashItem } from '@/types/gang';
-import GangVehicles from "@/components/gang/vehicles-tab";
 import { VehicleProps } from '@/types/vehicle';
 import { toast } from "@/components/ui/use-toast";
 import AddFighter from "@/components/gang/add-fighter";
-
-// Tab icons
-import { FaBox, FaUsers } from "react-icons/fa6";
-import { FaTruckMoving } from 'react-icons/fa';
-import { FiMap } from "react-icons/fi";
-import { LuClipboard } from "react-icons/lu";
+import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
+import { FiMap } from 'react-icons/fi';
+import { LuClipboard } from 'react-icons/lu';
 
 // Add this interface at the top of the file
 interface FighterTypeResponse {
@@ -502,20 +499,6 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
     setShowAddFighterModal(true);
   };
 
-  // Memoize the processed data for the GangPageContent
-  const gangPageContentProps = useMemo(() => {
-    if (!gangData) return null;
-    
-    return {
-      processedData: gangData.processedData,
-      gangData: {
-        ...gangData,
-        onVehicleAdd: handleVehicleAdd,
-        user_id: gangData.processedData.user_id
-      }
-    };
-  }, [gangData, handleVehicleAdd]);
-
   useEffect(() => {
     let isSubscribed = true;
     
@@ -587,7 +570,19 @@ export default function GangPage(props: { params: Promise<{ id: string }> }) {
            <LuClipboard key="note" />
          ]}
         >
-        {gangPageContentProps && <GangPageContent {...gangPageContentProps} />}
+        <div className="container max-w-full w-full space-y-4 print:print-fighters">
+          <Gang
+            {...gangData.processedData}
+            initialFighterTypes={gangData.processedData.fighterTypes}
+            initialFighters={gangData.processedData.fighters}
+            stash={gangData.stash}
+            onStashUpdate={gangData.onStashUpdate}
+            onVehicleAdd={handleVehicleAdd}
+            user_id={gangData.processedData.user_id}
+            gang_variants={gangData.processedData.gang_variants}
+            vehicles={gangData.processedData.vehicles || []}
+          />
+        </div>
         <GangInventory
           stash={gangData.stash} 
           fighters={gangData.processedData.fighters}
