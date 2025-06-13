@@ -740,8 +740,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   ? allowedCategories.includes(category.category_name)
                   : !isVehicleEquipment;
 
-                const isAvailable = equipmentListType === 'unrestricted' ||
-                  availableCategories.includes(category.category_name);
+                const isAvailable = availableCategories.includes(category.category_name);
 
                 return isVehicleAllowed && isAvailable;
               })
