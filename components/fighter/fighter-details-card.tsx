@@ -12,6 +12,7 @@ import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
+import { Heart, Shield, Zap, Target, Sword, Brain, Eye, Users, Flame, Star } from 'lucide-react';
 
 
 // Vehicle equipment profile interface

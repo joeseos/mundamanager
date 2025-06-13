@@ -6,7 +6,7 @@ import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { List } from "../ui/list";
-import { UserPermissions } from '@/types/user';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;

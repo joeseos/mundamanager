@@ -7,7 +7,7 @@ import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
-import { UserPermissions } from '@/types/user';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface VehicleEquipmentListProps {
   fighterId: string;

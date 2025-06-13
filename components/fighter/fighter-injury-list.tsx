@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
