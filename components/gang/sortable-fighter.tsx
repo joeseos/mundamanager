@@ -42,6 +42,9 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     setIsDragging(dndKitIsDragging);
   }, [dndKitIsDragging]);
 
+  // Extract the first vehicle from the vehicles array for the FighterCard
+  const vehicle = fighter.vehicles && fighter.vehicles.length > 0 ? fighter.vehicles[0] : undefined;
+
   return (
     <div
       ref={setNodeRef}
@@ -54,6 +57,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
         name={fighter.fighter_name}
         type={fighter.fighter_type}
         skills={fighter.skills}
+        vehicle={vehicle}
         disableLink={isDragging}
         viewMode={viewMode}
       />
