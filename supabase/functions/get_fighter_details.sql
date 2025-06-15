@@ -361,6 +361,7 @@ BEGIN
                 ),
                 'fighter_class', f.fighter_class,
                 'fighter_class_id', f.fighter_class_id,
+                'alliance_crew_name', ft.alliance_crew_name,
                 'skills', fs.skills,
                 'killed', f.killed,
                 'starved', f.starved,

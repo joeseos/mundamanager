@@ -31,6 +31,8 @@ RETURNS TABLE (
     limitation numeric,
     alignment alignment,
     is_gang_addition boolean,
+    alliance_id uuid,
+    alliance_crew_name text,
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric,
@@ -62,6 +64,8 @@ BEGIN
         ft.limitation,
         ft.alignment,
         ft.is_gang_addition,
+        ft.alliance_id,
+        ft.alliance_crew_name,
         (
             SELECT COALESCE(jsonb_agg(
                 jsonb_build_object(

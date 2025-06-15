@@ -372,9 +372,13 @@ export default function GangAdditions({
     }
   };
 
-  const filteredGangAdditionTypes = selectedGangAdditionClass
-    ? gangAdditionTypes.filter(type => type.fighter_class === selectedGangAdditionClass)
-    : gangAdditionTypes;
+const filteredGangAdditionTypes = selectedGangAdditionClass
+  ? gangAdditionTypes.filter(type =>
+      type.alliance_id
+        ? type.alliance_crew_name === selectedGangAdditionClass
+        : type.fighter_class === selectedGangAdditionClass
+    )
+  : gangAdditionTypes;
 
   // Simple helper function to infer category from name when API doesn't provide it
   const inferCategoryFromEquipmentName = (name: string): string => {
@@ -918,7 +922,7 @@ export default function GangAdditions({
     <div className="space-y-4">
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Fighter Name
+          Fighter Name *
         </label>
         <Input
           type="text"
@@ -931,7 +935,7 @@ export default function GangAdditions({
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Fighter Class
+          Fighter Class *
         </label>
         <select
           value={selectedGangAdditionClass}
@@ -939,45 +943,94 @@ export default function GangAdditions({
           className="w-full p-2 border rounded"
         >
           <option value="">Select Fighter Class</option>
+          {
+            ((): React.ReactElement[] => {
+              const nonAlliances = gangAdditionTypes.filter(t => !t.alliance_id);
+              const alliances = gangAdditionTypes.filter(t => t.alliance_id);
 
-          {Object.entries(
-            Array.from(new Set(gangAdditionTypes.map(type => type.fighter_class)))
-              .sort((a, b) => {
-                const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
-                const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
-                return rankA - rankB;
-              })
-              .reduce((groups, classType) => {
+              const groupLabelConfig = [
+                { label: "Hangers-on & Brutes", maxRank: 2, alliance: false },
+                { label: "Vehicle Crews", maxRank: 10, alliance: false },
+                { label: "Hired Guns", maxRank: 29, alliance: false },
+                { label: "Equipment", maxRank: 39, alliance: false },
+                { label: "Misc.", maxRank: Infinity, alliance: false },
+
+                { label: "Alliances: Criminal Organisations", maxRank: 49, alliance: true },
+                { label: "Alliances: Merchant Guilds", maxRank: 59, alliance: true },
+                { label: "Alliances: Noble Houses", maxRank: 69, alliance: true },
+                { label: "Alliances: Other", maxRank: Infinity, alliance: true },
+              ];
+
+              const getGroupLabelFromRank = (rank: number, isAlliance: boolean): string => {
+                for (const entry of groupLabelConfig) {
+                  if (entry.alliance === isAlliance && rank <= entry.maxRank) {
+                    return entry.label;
+                  }
+                }
+                return "Misc.";
+              };
+
+              const groupLabelRank: Record<string, number> = Object.fromEntries(
+                groupLabelConfig.map((entry, index) => [entry.label, index + 1])
+              );
+
+              const nonAllianceGroups = nonAlliances.reduce((groups, type) => {
+                const classType = type.fighter_class;
                 const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
-                let groupLabel = "Misc."; // Default category for unlisted fighter classes
+                const groupLabel = getGroupLabelFromRank(rank, false);
 
-                if (rank <= 2) groupLabel = "Hangers-on & Brutes";
-                else if (rank <= 10) groupLabel = "Vehicle Crews";
-                else if (rank <= 29) groupLabel = "Hired Guns";
-                else if (rank <= 39) groupLabel = "Equipment";
-                else if (rank <= 49) groupLabel = "Alliances: Criminal Organisations";
-                else if (rank <= 59) groupLabel = "Alliances: Merchant Guilds";
-                else if (rank <= 69) groupLabel = "Alliances: Noble Houses";
-
-                if (!groups[groupLabel]) groups[groupLabel] = [];
-                groups[groupLabel].push(classType);
+                if (!groups[groupLabel]) groups[groupLabel] = new Set();
+                groups[groupLabel].add(classType);
                 return groups;
-              }, {} as Record<string, string[]>)
-          ).map(([groupLabel, classList]) => (
-            <optgroup key={groupLabel} label={groupLabel}>
-              {classList.map(classType => (
-                <option key={classType} value={classType}>
-                  {classType}
-                </option>
-              ))}
-            </optgroup>
-          ))}
+              }, {} as Record<string, Set<string>>);
+
+              const allianceGroups = alliances.reduce((groups, type) => {
+                const crewName = type.alliance_crew_name || "Unnamed Delegation";
+                const rank = gangAdditionRank[crewName.toLowerCase()] ?? Infinity;
+                const groupLabel = getGroupLabelFromRank(rank, true);
+
+                if (!groups[groupLabel]) groups[groupLabel] = new Set();
+                groups[groupLabel].add(crewName);
+                return groups;
+              }, {} as Record<string, Set<string>>);
+
+              const mergedGroups: Record<string, Set<string>> = {};
+              [nonAllianceGroups, allianceGroups].forEach(source => {
+                for (const [label, set] of Object.entries(source)) {
+                  if (!mergedGroups[label]) mergedGroups[label] = new Set(set);
+                  else set.forEach(v => mergedGroups[label].add(v));
+                }
+              });
+
+              return Object.entries(mergedGroups)
+                .sort(([a], [b]) => {
+                  const rankA = groupLabelRank[a] ?? 999;
+                  const rankB = groupLabelRank[b] ?? 999;
+                  return rankA - rankB;
+                })
+                .map(([groupLabel, classSet]) => (
+                  <optgroup key={groupLabel} label={groupLabel}>
+                    {Array.from(classSet)
+                      .sort((a, b) => {
+                        const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
+                        const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
+                        return rankA - rankB;
+                      })
+                      .map(classType => (
+                        <option key={classType} value={classType}>
+                          {classType}
+                        </option>
+                      ))}
+                  </optgroup>
+                ));
+            })()
+          }
         </select>
       </div>
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Fighter Type
+          Fighter Type *
         </label>
         <select
           value={selectedGangAdditionTypeId}
@@ -987,7 +1040,7 @@ export default function GangAdditions({
         >
           <option value="">Select Fighter Type</option>
 
-          {(() => {
+          {((): React.ReactElement[] => {
             // Create a map to group fighters by type+class and find default/cheapest for each
             const typeClassMap = new Map();
             
