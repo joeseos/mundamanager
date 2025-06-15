@@ -453,7 +453,6 @@ BEGIN
                 'ap', wp.ap,
                 'ammo', wp.ammo,
                 'traits', wp.traits,
-                'is_default_profile', wp.is_default_profile,
                 'weapon_group_id', wp.weapon_group_id,
                 'sort_order', wp.sort_order
               )

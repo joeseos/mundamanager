@@ -13,7 +13,6 @@ interface WeaponProfile {
   damage: string;
   ammo: string;
   traits: string;
-  is_default_profile: boolean;
   weapon_group_id?: string | null;
   sort_order: number;
 }
@@ -473,7 +472,6 @@ export async function PUT(request: Request) {
               damage: profile.damage,
               ammo: profile.ammo,
               traits: profile.traits,
-              is_default_profile: profile.is_default_profile,
               weapon_group_id: profile.weapon_group_id || id,
               sort_order: profile.sort_order
             }))
@@ -718,7 +716,6 @@ export async function PATCH(request: Request) {
               damage: profile.damage,
               ammo: profile.ammo,
               traits: profile.traits,
-              is_default_profile: profile.is_default_profile,
               weapon_group_id: profile.weapon_group_id || id,
               sort_order: profile.sort_order
             }))

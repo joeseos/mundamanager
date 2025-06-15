@@ -191,7 +191,6 @@ const FighterCard = memo(function FighterCard({
           traits: profile.traits || '',
           id: profile.id,
           profile_name: profile.profile_name,
-          is_default_profile: profile.is_default_profile,
           is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
         })) || [],
         cost: weapon.cost

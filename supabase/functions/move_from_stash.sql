@@ -166,7 +166,6 @@ BEGIN
                'weapon_id', wp.weapon_id,
                'created_at', wp.created_at,
                'weapon_group_id', wp.weapon_group_id,
-               'is_default_profile', wp.is_default_profile,
                'is_master_crafted', v_is_master_crafted
            )
        )
