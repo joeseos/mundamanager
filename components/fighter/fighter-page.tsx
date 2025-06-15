@@ -79,6 +79,7 @@ interface Fighter {
     fighter_sub_type_id: string;
   };
   fighter_class?: string;
+  alliance_crew_name?: string;
   label?: string;
   credits: number;
   movement: number;
@@ -921,6 +922,7 @@ export default function FighterPage({
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
             sub_type={fighterData.fighter?.fighter_sub_type}
+            alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
             credits={fighterData.fighter?.credits || 0}
             movement={fighterData.fighter?.movement || 0}
             weapon_skill={fighterData.fighter?.weapon_skill || 0}

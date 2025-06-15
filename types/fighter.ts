@@ -10,6 +10,7 @@ export interface FighterType {
   gang_type: string;
   fighter_sub_type: string;
   fighter_sub_type_id?: string;
+  alliance_crew_name?: string;
   cost: number;
   movement: number;
   weapon_skill: number;
@@ -152,6 +153,7 @@ export interface FighterProps {
   fighter_name: string;
   fighter_type: string;
   fighter_type_id?: string;
+  alliance_crew_name?: string;
   label?: string;
   credits: number;
   movement: number;

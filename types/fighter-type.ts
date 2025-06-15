@@ -46,6 +46,8 @@ export interface FighterType {
   alignment?: string;
   default_equipment: any[];
   is_gang_addition: boolean;
+  alliance_id: string;
+  alliance_crew_name: string;
   equipment_selection?: EquipmentSelection;
   sub_type?: {
     id: string;

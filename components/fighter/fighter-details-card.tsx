@@ -51,6 +51,7 @@ interface FighterDetailsCardProps {
     fighter_sub_type: string;
     fighter_sub_type_id: string;
   };
+  alliance_crew_name?: string;
   label?: string;
   credits: number;
   movement: number;
@@ -170,6 +171,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   type,
   sub_type,
   label,
+  alliance_crew_name,
   credits,
   movement,
   weapon_skill,
@@ -346,6 +348,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                   {type}
+                  {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
                   {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
                 </div>

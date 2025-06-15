@@ -29,6 +29,6 @@ export const gangAdditionRank: { [key: string]: number } = {
   "house ko'iron, ministorum delegation": 62,
   "house ran lo, auditing conclave": 63,
   "house ty, onmyodo coven": 64,
-  "house ulanti court advisor": 65,
+  "house ulanti, court advisor": 65,
   "the imperial house, enforcer bodyguards": 66,
 };
