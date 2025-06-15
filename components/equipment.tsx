@@ -12,6 +12,7 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
+import { RangeSlider } from "@/components/ui/range-slider";
 
 interface ItemModalProps {
   title: string;
@@ -226,6 +227,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
     all: {}
   });
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
+  const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
+  const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
+  const [minCost, setMinCost] = useState(10);
+  const [maxCost, setMaxCost] = useState(160);
+  const [minAvailability, setMinAvailability] = useState(6);
+  const [maxAvailability, setMaxAvailability] = useState(12);
   const DEBUG = false;
 
   useEffect(() => {
@@ -636,6 +643,77 @@ const ItemModal: React.FC<ItemModalProps> = ({
     fetchAllCategories();
   }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
 
+  // Calculate min/max values from equipment data
+  useEffect(() => {
+    const allEquipment = Object.values(equipment).flat();
+    if (allEquipment.length > 0) {
+      const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
+      const availabilities = allEquipment
+        .map(item => {
+          // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
+          const availabilityStr = item.availability || '0';
+          
+          if (availabilityStr === 'C' || availabilityStr === 'E') {
+            return 0;
+          } else if (/^[RIS]\d+$/.test(availabilityStr)) {
+            // Valid format: letter prefix followed by numbers (R12, I9, S7)
+            const numStr = availabilityStr.substring(1);
+            return parseInt(numStr);
+          } else {
+            // Invalid format - log warning and default to 0
+            console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
+            return 0;
+          }
+        })
+        .filter(val => !isNaN(val));
+
+      if (costs.length > 0) {
+        const newMinCost = Math.min(...costs);
+        const newMaxCost = Math.max(...costs);
+        setMinCost(newMinCost);
+        setMaxCost(newMaxCost);
+        setCostRange([newMinCost, newMaxCost]);
+      }
+
+      if (availabilities.length > 0) {
+        const newMinAvailability = Math.min(...availabilities);
+        const newMaxAvailability = Math.max(...availabilities);
+        setMinAvailability(newMinAvailability);
+        setMaxAvailability(newMaxAvailability);
+        setAvailabilityRange([newMinAvailability, newMaxAvailability]);
+      }
+    }
+  }, [equipment]);
+
+  // Filter equipment based on cost and availability ranges
+  const filterEquipment = (items: Equipment[]) => {
+    return items.filter(item => {
+      const cost = item.adjusted_cost ?? item.cost;
+      // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
+      const availabilityStr = item.availability || '0';
+      let availability = 0;
+      
+      if (availabilityStr === 'C' || availabilityStr === 'E') {
+        availability = 0;
+      } else if (/^[RIS]\d+$/.test(availabilityStr)) {
+        // Valid format: letter prefix followed by numbers (R12, I9, S7)
+        const numStr = availabilityStr.substring(1);
+        availability = parseInt(numStr);
+      } else {
+        // Invalid format - log warning and default to 0
+        console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
+        availability = 0;
+      }
+      
+      const costInRange = cost >= costRange[0] && cost <= costRange[1];
+      const availabilityInRange = availability >= availabilityRange[0] && 
+        availability <= availabilityRange[1];
+      
+      return costInRange && availabilityInRange && 
+        item.equipment_name.toLowerCase().includes(searchQuery);
+    });
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
@@ -728,6 +806,29 @@ const ItemModal: React.FC<ItemModalProps> = ({
               )}
             </div>
           </div>
+          
+          <div className="mt-4 flex flex-col md:flex-row gap-4 md:gap-6 px-4">
+            <RangeSlider
+              label="Cost Range"
+              value={costRange}
+              onValueChange={setCostRange}
+              min={minCost}
+              max={maxCost}
+              step={5}
+              className="flex-1"
+            />
+            
+            <RangeSlider
+              label="Rarity Range"
+              value={availabilityRange}
+              onValueChange={setAvailabilityRange}
+              min={minAvailability}
+              max={maxAvailability}
+              step={1}
+              formatValue={(val) => `${val}+`}
+              className="flex-1"
+            />
+          </div>
         </div>
 
         <div>
@@ -771,8 +872,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                       </div>
                     ) : equipment[category.category_name]?.length ? (
-                      equipment[category.category_name]
-                        .filter(item => item.equipment_name.toLowerCase().includes(searchQuery))
+                      filterEquipment(equipment[category.category_name])
                         .map((item, itemIndex) => {
                         const affordable = canAffordEquipment(item);
                         const hasAdjustedCost = (item.adjusted_cost ?? item.cost) < (item.base_cost ?? item.cost);
