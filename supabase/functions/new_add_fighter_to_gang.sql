@@ -163,14 +163,16 @@ BEGIN
           (
             SELECT (item_data->>'cost')::integer
             FROM fighter_equipment_selections fes,
-            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as weapon_group,
+            jsonb_array_elements(weapon_group) as item_data
             WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
             LIMIT 1
           ),
           (
             SELECT (item_data->>'cost')::integer
             FROM fighter_equipment_selections fes,
-            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as wargear_group,
+            jsonb_array_elements(wargear_group) as item_data
             WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = e.id::text
             LIMIT 1
           ),
@@ -208,7 +210,8 @@ BEGIN
           (
             SELECT (repl_data->>'cost')::integer
             FROM fighter_equipment_selections fes,
-            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as weapon_group,
+            jsonb_array_elements(weapon_group) as item_data,
             jsonb_array_elements(item_data->'replacements') as repl_data
             WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
             LIMIT 1
@@ -216,7 +219,8 @@ BEGIN
           (
             SELECT (repl_data->>'cost')::integer
             FROM fighter_equipment_selections fes,
-            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data,
+            jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as wargear_group,
+            jsonb_array_elements(wargear_group) as item_data,
             jsonb_array_elements(item_data->'replacements') as repl_data
             WHERE fes.fighter_type_id = p_fighter_type_id AND repl_data->>'id' = e.id::text
             LIMIT 1
@@ -374,14 +378,16 @@ BEGIN
               (
                 SELECT (item_data->>'cost')::integer
                 FROM fighter_equipment_selections fes,
-                jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as item_data
+                jsonb_array_elements(fes.equipment_selection->'multiple'->'weapons') as weapon_group,
+                jsonb_array_elements(weapon_group) as item_data
                 WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
                 LIMIT 1
               ),
               (
                 SELECT (item_data->>'cost')::integer
                 FROM fighter_equipment_selections fes,
-                jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as item_data
+                jsonb_array_elements(fes.equipment_selection->'multiple'->'wargear') as wargear_group,
+                jsonb_array_elements(wargear_group) as item_data
                 WHERE fes.fighter_type_id = p_fighter_type_id AND item_data->>'id' = ae.equipment_id::text
                 LIMIT 1
               ),
