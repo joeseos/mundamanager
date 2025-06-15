@@ -819,7 +819,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             />
             
             <RangeSlider
-              label="Rarity Range"
+              label="Availability Range"
               value={availabilityRange}
               onValueChange={setAvailabilityRange}
               min={minAvailability}
