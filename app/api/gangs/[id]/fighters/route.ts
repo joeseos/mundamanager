@@ -19,7 +19,6 @@ interface WeaponProfile {
   ap: string;
   ammo: string;
   traits: string[];
-  is_default_profile: boolean;
   weapon_group_id: string;
 }
 
@@ -54,7 +53,6 @@ interface EquipmentDetails {
     ap: string;
     ammo: string;
     traits: string[];
-    is_default_profile: boolean;
     weapon_group_id: string;
     sort_order: number;
   }[];
@@ -189,7 +187,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               ap,
               ammo,
               traits,
-              is_default_profile,
               weapon_group_id,
               sort_order
             )
@@ -223,7 +220,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
                 ap: profile.ap,
                 ammo: profile.ammo,
                 traits: profile.traits,
-                is_default_profile: profile.is_default_profile,
                 weapon_group_id: profile.weapon_group_id
               })) || []
             });
@@ -298,7 +294,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             ap,
             ammo,
             traits,
-            is_default_profile,
             weapon_group_id,
             sort_order
           )
@@ -343,7 +338,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               ap: profile.ap,
               ammo: profile.ammo,
               traits: profile.traits,
-              is_default_profile: profile.is_default_profile,
               weapon_group_id: profile.weapon_group_id
             })) || []
           });

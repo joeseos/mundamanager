@@ -30,7 +30,6 @@ export async function GET(request: Request) {
         damage,
         ammo,
         traits,
-        is_default_profile,
         weapon_group_id,
         sort_order
       `)

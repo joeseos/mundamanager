@@ -29,7 +29,6 @@ interface WeaponProfile {
   damage: string;
   ammo: string;
   traits: string;
-  is_default_profile: boolean;
   weapon_group_id?: string | null;
   sort_order: number;
 }
@@ -104,7 +103,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     damage: '',
     ammo: '',
     traits: '',
-    is_default_profile: true,
+    weapon_group_id: null,
     sort_order: 1
   }]);
   const [vehicleProfiles, setVehicleProfiles] = useState<VehicleProfile[]>([{
@@ -207,7 +206,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           damage: '',
           ammo: '',
           traits: '',
-          is_default_profile: true,
+          weapon_group_id: null,
           sort_order: 1
         }]);
         setGangAdjustedCosts([]);
@@ -290,7 +289,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               damage: '',
               ammo: '',
               traits: '',
-              is_default_profile: true,
+              weapon_group_id: null,
               sort_order: 1
             }]);
           }
@@ -486,7 +485,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         damage: '',
         ammo: '',
         traits: '',
-        is_default_profile: false,
         weapon_group_id: null,
         sort_order: weaponProfiles.length + 1
       }
@@ -1218,23 +1216,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               placeholder="e.g. Standard, Rapid Fire"
                               disabled={!selectedEquipmentId}
                             />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="flex items-start space-x-2">
-                              <input
-                                type="checkbox"
-                                checked={profile.is_default_profile}
-                                onChange={(e) => handleProfileChange(index, 'is_default_profile', e.target.checked)}
-                                className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
-                                disabled={!selectedEquipmentId}
-                              />
-                              <div>
-                                <span className="text-sm font-medium text-gray-700">Default Profile</span>
-                                <p className="text-sm text-gray-500 mt-1">
-                                  I.e. available by default with this weapon.
-                                </p>
-                              </div>
-                            </label>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -247,7 +247,6 @@ export interface WeaponProfile {
   ammo: string;
   traits: string;
   weapon_group_id: string;
-  is_default_profile: boolean;
 }
 
 // Update the FIGHTER_CLASSES to include all classes from fighterClassRank

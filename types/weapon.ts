@@ -10,7 +10,6 @@ export interface WeaponProfile {
   ap: number;
   ammo: number;
   traits: string;
-  is_default_profile: boolean;
   weapon_group_id?: string | null;
   is_master_crafted?: boolean;
 }

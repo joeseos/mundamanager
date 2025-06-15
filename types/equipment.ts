@@ -12,7 +12,6 @@ export interface WeaponProfile {
   damage: number;
   ammo: number;
   traits: string | null;
-  is_default_profile: boolean;
 }
 
 export interface Equipment {

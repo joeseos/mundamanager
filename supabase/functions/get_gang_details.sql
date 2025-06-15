@@ -316,7 +316,7 @@ BEGIN
    weapon_profiles_deduplicated AS (
        SELECT DISTINCT wp.id, wp.weapon_id, wp.profile_name, wp.range_short, wp.range_long, 
                       wp.acc_short, wp.acc_long, wp.strength, wp.ap, wp.damage, wp.ammo, 
-                      wp.traits, wp.weapon_group_id, wp.is_default_profile, wp.sort_order,
+                      wp.traits, wp.weapon_group_id, wp.sort_order,
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
        JOIN fighter_equipment fe ON fe.equipment_id = wp.weapon_id
@@ -345,7 +345,6 @@ BEGIN
                    'ammo', wpd.ammo,
                    'traits', wpd.traits,
                    'weapon_group_id', wpd.weapon_group_id, 
-                   'is_default_profile', wpd.is_default_profile,
                    'sort_order', wpd.sort_order,
                    'is_master_crafted', wpd.is_master_crafted
                )
