@@ -611,14 +611,33 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
             <>
               {/* Campaign header with Edit button */}
               <div className="mb-8 border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h1 className="text-xl md:text-2xl font-bold mb-2">{campaignData.campaign_name}</h1>
-                    <h2 className="text-gray-600 text-lg mb-4">{campaignData.campaign_type_name}</h2>
+                <div
+                  className="relative flex justify-between items-center py-4 bg-no-repeat bg-cover print:!bg-none"
+                  style={{
+                    backgroundImage:
+                      "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+                    width: '100%',
+                    zIndex: 0,
+                    backgroundPosition: 'center',
+                    backgroundSize: '100% 100%',
+                  }}
+                >
+                  <div
+                    className="flex items-center gap-2 pl-4 sm:pl-8 overflow-hidden whitespace-nowrap"
+                    style={{ height: '62px', width: '60svw', maxWidth: '80%' }}
+                  >
+                    <div className="flex flex-col items-baseline">
+                      <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white print:text-black mr-2">
+                        {campaignData.campaign_name}
+                      </div>
+                      <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                        {campaignData.campaign_type_name}
+                      </div>
+                    </div>
                   </div>
                   {isAdmin && (
                     <Button
-                      className="bg-black hover:bg-gray-800 text-white"
+                      className="ml-auto bg-black hover:bg-gray-800 text-white mr-4 sm:mr-8"
                       onClick={() => setShowEditModal(true)}
                     >
                       Edit
