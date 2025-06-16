@@ -138,7 +138,6 @@ interface CampaignPageContentProps {
     }[];
   };
   userId?: string;
-  campaignRole?: string;
   permissions: CampaignPermissions | null;
 }
 
@@ -148,7 +147,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData, userId, campaignRole, permissions }: CampaignPageContentProps) {
+export default function CampaignPageContent({ campaignData: initialCampaignData, userId, permissions }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
@@ -444,7 +443,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   }, [campaignData.territories]); // Run when territories change
 
   // Helper for checking if user is admin (owner or arbitrator)
-  const isAdmin = campaignRole === 'OWNER' || campaignRole === 'ARBITRATOR';
+  const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator;
 
   const handleCampaignUpdate = (updatedData: {
     campaign_name: string;
@@ -541,7 +540,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   // Add this function to handle the Add button click
   const handleAddBattleLog = () => {
     console.log('Add battle log button clicked');
-    console.log('User role:', campaignRole);
+    console.log('User role:', safePermissions.campaignRole);
     console.log('Is admin:', isAdmin);
     console.log('battleLogsRef exists:', !!battleLogsRef.current);
     
@@ -679,79 +678,14 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 )}
                 <MembersTable
                   campaignId={campaignData.id}
-                  isAdmin={!!safePermissions.canManageMembers}
+                  isAdmin={isAdmin}
                   members={campaignData.members}
                   userId={userId}
-                  onMemberUpdate={(args: { 
-                    removedUserId?: string; 
-                    removedGangIds?: string[];
-                    updatedMember?: Member;
-                  }) => {
-                    const { removedUserId, removedGangIds } = args;
-                    
-                    // Update local state to remove the gang from territories
-                    setCampaignData(prev => {
-                      // If we have specific gang IDs that were removed
-                      if (Array.isArray(removedGangIds) && removedGangIds.length > 0) {
-                        // Get the territories that need to be updated
-                        const territoriesToUpdate = prev.territories.filter(t => 
-                          t.gang_id && removedGangIds.includes(t.gang_id)
-                        );
-
-                        // If no territories need updating, return the previous state
-                        if (territoriesToUpdate.length === 0) {
-                          return prev;
-                        }
-
-                        // Update only the specific territory instances that had these gangs
-                        return {
-                          ...prev,
-                          territories: prev.territories.map(t => {
-                            // Only update if this specific territory instance had one of the removed gangs
-                            if (t.gang_id && removedGangIds.includes(t.gang_id)) {
-                              return {
-                                ...t,
-                                gang_id: null,
-                                owning_gangs: []
-                              };
-                            }
-                            return t;
-                          })
-                        };
-                      }
-                      
-                      // If we have a user ID whose gangs were removed
-                      if (removedUserId) {
-                        const member = prev.members.find(m => m.user_id === removedUserId);
-                        if (!member) return prev;
-
-                        const userGangIds = member.gangs.map((g: { gang_id: string }) => g.gang_id);
-                        
-                        // Update only the territories that were controlled by this user's gangs
-                        return {
-                          ...prev,
-                          territories: prev.territories.map(t => {
-                            if (t.gang_id && userGangIds.includes(t.gang_id)) {
-                              return {
-                                ...t,
-                                gang_id: null,
-                                owning_gangs: []
-                              };
-                            }
-                            return t;
-                          })
-                        };
-                      }
-                      
-                      return prev;
-                    });
-                    
-                    // Still call refreshData to ensure server state is synced
+                  onMemberUpdate={() => {
                     refreshData();
                   }}
                   isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                   isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
-                  campaignRole={safePermissions.campaignRole || ''}
                 />
               </div>
 
