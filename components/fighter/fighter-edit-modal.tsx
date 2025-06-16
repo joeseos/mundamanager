@@ -37,83 +37,28 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     return fighter[key as keyof Fighter] as number || 0;
   };
 
-  // Calculate injury effects
-  const injuryEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.injuries?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
+  // Single function to calculate effects for any category
+  const calculateEffectsForCategory = useMemo(() => {
+    return (categoryName: keyof typeof fighter.effects) => {
+      const effects: Record<string, number> = {};
+      fighter.effects?.[categoryName]?.forEach(effect => {
+        effect.fighter_effect_modifiers?.forEach(modifier => {
+          const statName = modifier.stat_name.toLowerCase();
+          const numValue = parseInt(modifier.numeric_value.toString());
+          effects[statName] = (effects[statName] || 0) + numValue;
+        });
       });
-    });
-    return effects;
-  }, [fighter.effects?.injuries]);
+      return effects;
+    };
+  }, [fighter.effects]);
 
-  // Calculate advancement effects
-  const advancementEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.advancements?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
-      });
-    });
-    return effects;
-  }, [fighter.effects?.advancements]);
-
-  // Calculate user effects
-  const userEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.user?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
-      });
-    });
-    return effects;
-  }, [fighter.effects?.user]);
-
-  // Calculate bionics effects
-  const bionicsEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.bionics?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
-      });
-    });
-    return effects;
-  }, [fighter.effects?.bionics]);
-
-  // Calculate gene-smithing effects
-  const geneSmithingEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.['gene-smithing']?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
-      });
-    });
-    return effects;
-  }, [fighter.effects?.['gene-smithing']]);
-
-  // Calculate rig-glitches effects
-  const rigGlitchesEffects = useMemo(() => {
-    const effects: Record<string, number> = {};
-    fighter.effects?.['rig-glitches']?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        const statName = modifier.stat_name.toLowerCase();
-        const numValue = parseInt(modifier.numeric_value.toString());
-        effects[statName] = (effects[statName] || 0) + numValue;
-      });
-    });
-    return effects;
-  }, [fighter.effects?.['rig-glitches']]);
+  // Calculate all effect categories using the single function
+  const injuryEffects = useMemo(() => calculateEffectsForCategory('injuries'), [calculateEffectsForCategory]);
+  const advancementEffects = useMemo(() => calculateEffectsForCategory('advancements'), [calculateEffectsForCategory]);
+  const userEffects = useMemo(() => calculateEffectsForCategory('user'), [calculateEffectsForCategory]);
+  const bionicsEffects = useMemo(() => calculateEffectsForCategory('bionics'), [calculateEffectsForCategory]);
+  const geneSmithingEffects = useMemo(() => calculateEffectsForCategory('gene-smithing'), [calculateEffectsForCategory]);
+  const rigGlitchesEffects = useMemo(() => calculateEffectsForCategory('rig-glitches'), [calculateEffectsForCategory]);
 
   return (
     <div className="w-full overflow-x-auto">
