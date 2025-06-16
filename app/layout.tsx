@@ -14,11 +14,6 @@ const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
   loading: () => <div className="h-16" />
 });
 
-const DynamicBreadcrumbNav = dynamic(() => import('@/components/breadcrumb-nav'), {
-  ssr: true,
-  loading: () => <div className="h-10" />
-});
-
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
@@ -49,8 +44,10 @@ export const revalidate = 3600 // Revalidate every hour
 
 export default async function RootLayout({
   children,
+  breadcrumb,
 }: {
   children: React.ReactNode;
+  breadcrumb: React.ReactNode;
 }) {
   const supabase = await createClient();
   const {
@@ -61,11 +58,27 @@ export default async function RootLayout({
     <html lang="en" className={inter.className}>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
+        {process.env.NODE_ENV === 'development' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                // Suppress Next.js scroll warnings for fixed breadcrumbs
+                const originalConsoleWarn = console.warn;
+                console.warn = function(...args) {
+                  if (args[0] && args[0].includes && args[0].includes('Skipping auto-scroll behavior')) {
+                    return;
+                  }
+                  originalConsoleWarn.apply(console, args);
+                };
+              `,
+            }}
+          />
+        )}
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
         <BackgroundImage />
         <DynamicHeaderAuth />
-        {user && <DynamicBreadcrumbNav />}
+        {breadcrumb}
         <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
