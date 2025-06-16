@@ -472,9 +472,11 @@ BEGIN
           'effect_name', fe.effect_name,
           'fighter_effect_type_id', fe.fighter_effect_type_id,
           'fighter_equipment_id', fe.fighter_equipment_id,
-          'created_at', fe.created_at
+          'created_at', fe.created_at,
+          'category_name', fec.category_name
         ) INTO v_fighter_effect
         FROM fighter_effects fe
+        JOIN fighter_effect_categories fec ON fec.id = v_fighter_effect_category_id
         WHERE fe.id = v_fighter_effect_id;
         
         -- Get all effect modifiers for this fighter effect
@@ -508,6 +510,7 @@ BEGIN
             'effect_name', v_fighter_effect->>'effect_name',
             'fighter_effect_type_id', v_fighter_effect->>'fighter_effect_type_id',
             'fighter_equipment_id', v_fighter_effect->>'fighter_equipment_id',
+            'category_name', v_fighter_effect->>'category_name',
             'fighter_effect_modifiers', v_fighter_effect_modifiers,
             'created_at', v_fighter_effect->>'created_at'
           )

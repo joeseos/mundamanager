@@ -87,6 +87,8 @@ interface FighterDetailsCardProps {
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
+    'gene-smithing': FighterEffect[];
+    'rig-glitches': FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -237,6 +239,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       advancements: effects?.advancements || [],
       bionics: effects?.bionics || [],
       cyberteknika: effects?.cyberteknika || [],
+      'gene-smithing': effects?.['gene-smithing'] || [],
+      'rig-glitches': effects?.['rig-glitches'] || [],
       user: effects?.user || []
     },
     fighter_class,

@@ -117,6 +117,8 @@ interface Fighter {
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
+    'gene-smithing': FighterEffect[];
+    'rig-glitches': FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -264,6 +266,8 @@ export default function FighterPage({
           advancements: initialFighterData.fighter.effects?.advancements || [],
           bionics: initialFighterData.fighter.effects?.bionics || [],
           cyberteknika: initialFighterData.fighter.effects?.cyberteknika || [],
+          'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
+          'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
           user: initialFighterData.fighter.effects?.user || []
         }
       },
@@ -448,6 +452,8 @@ export default function FighterPage({
             advancements: result.fighter.effects?.advancements || [],
             bionics: result.fighter.effects?.bionics || [],
             cyberteknika: result.fighter.effects?.cyberteknika || [],
+            'gene-smithing': result.fighter.effects?.['gene-smithing'] || [],
+            'rig-glitches': result.fighter.effects?.['rig-glitches'] || [],
             user: result.fighter.effects?.user || []
           }
         },
@@ -694,9 +700,29 @@ export default function FighterPage({
 
       let updatedEffects = prev.fighter.effects;
       if (boughtEquipment.equipment_effect) {
+        // Determine the correct category based on the equipment effect's category_name
+        const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase();
+        let targetCategory: keyof typeof updatedEffects = 'user'; // default fallback
+        
+        // Map category names to effect categories
+        if (categoryName === 'bionics') {
+          targetCategory = 'bionics';
+        } else if (categoryName === 'cyberteknika' || categoryName === 'archaeo-cyberteknika') {
+          targetCategory = 'cyberteknika';
+        } else if (categoryName === 'gene-smithing') {
+          targetCategory = 'gene-smithing';
+        } else if (categoryName === 'rig-glitches') {
+          targetCategory = 'rig-glitches';
+        } else if (categoryName === 'injuries') {
+          targetCategory = 'injuries';
+        } else if (categoryName === 'advancements') {
+          targetCategory = 'advancements';
+        }
+        // If no match, it will default to 'user'
+        
         updatedEffects = {
           ...updatedEffects,
-          user: [...(updatedEffects.user || []), boughtEquipment.equipment_effect]
+          [targetCategory]: [...(updatedEffects[targetCategory] || []), boughtEquipment.equipment_effect]
         };
       }
 
@@ -954,6 +980,8 @@ export default function FighterPage({
               advancements: [], 
               bionics: [], 
               cyberteknika: [], 
+              'gene-smithing': [], 
+              'rig-glitches': [], 
               user: [] 
             }}
             vehicles={fighterData.fighter?.vehicles}

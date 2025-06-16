@@ -89,6 +89,32 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     return effects;
   }, [fighter.effects?.bionics]);
 
+  // Calculate gene-smithing effects
+  const geneSmithingEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.['gene-smithing']?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.['gene-smithing']]);
+
+  // Calculate rig-glitches effects
+  const rigGlitchesEffects = useMemo(() => {
+    const effects: Record<string, number> = {};
+    fighter.effects?.['rig-glitches']?.forEach(effect => {
+      effect.fighter_effect_modifiers?.forEach(modifier => {
+        const statName = modifier.stat_name.toLowerCase();
+        const numValue = parseInt(modifier.numeric_value.toString());
+        effects[statName] = (effects[statName] || 0) + numValue;
+      });
+    });
+    return effects;
+  }, [fighter.effects?.['rig-glitches']]);
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full border-collapse text-sm">
@@ -101,7 +127,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           </tr>
         </thead>
         <tbody>
-          {/* Base row - IMPORTANT FIX: Display only original base values */}
+          {/* Base row - always shown */}
           <tr className="bg-gray-100">
             <td className="px-1 py-1 font-medium text-xs">Base</td>
             {stats.map(stat => {
@@ -119,47 +145,79 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             })}
           </tr>
           
-          {/* Injury row */}
-          <tr className="bg-red-50">
-            <td className="px-1 py-1 font-medium text-xs">Injuries</td>
-            {stats.map(stat => (
-              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
-              </td>
-            ))}
-          </tr>
+          {/* Injury row - only show if fighter has injuries */}
+          {fighter.effects?.injuries && fighter.effects.injuries.length > 0 && (
+            <tr className="bg-red-50">
+              <td className="px-1 py-1 font-medium text-xs">Injuries</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
           
-          {/* Advancements row */}
-          <tr className="bg-blue-50">
-            <td className="px-1 py-1 font-medium text-xs">Adv.</td>
-            {stats.map(stat => (
-              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
-              </td>
-            ))}
-          </tr>
+          {/* Advancements row - only show if fighter has advancements */}
+          {fighter.effects?.advancements && fighter.effects.advancements.length > 0 && (
+            <tr className="bg-blue-50">
+              <td className="px-1 py-1 font-medium text-xs">Adv.</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
           
-          {/* Bionics row */}
-          <tr className="bg-yellow-50">
-            <td className="px-1 py-1 font-medium text-xs">Bionics</td>
-            {stats.map(stat => (
-              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                {bionicsEffects[stat.key] ? bionicsEffects[stat.key] : '-'}
-              </td>
-            ))}
-          </tr>
+          {/* Bionics row - only show if fighter has bionics */}
+          {fighter.effects?.bionics && fighter.effects.bionics.length > 0 && (
+            <tr className="bg-yellow-50">
+              <td className="px-1 py-1 font-medium text-xs">Bionics</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {bionicsEffects[stat.key] ? bionicsEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
           
-          {/* User row */}
-          <tr className="bg-green-50">
-            <td className="px-1 py-1 font-medium text-xs">User</td>
-            {stats.map(stat => (
-              <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                {userEffects[stat.key] ? userEffects[stat.key] : '-'}
-              </td>
-            ))}
-          </tr>
+          {/* User row - only show if fighter has user effects */}
+          {fighter.effects?.user && fighter.effects.user.length > 0 && (
+            <tr className="bg-green-50">
+              <td className="px-1 py-1 font-medium text-xs">User</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {userEffects[stat.key] ? userEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
           
-          {/* Total row */}
+          {/* Gene-Smithing row - only show if fighter has gene-smithing effects */}
+          {fighter.effects?.['gene-smithing'] && fighter.effects['gene-smithing'].length > 0 && (
+            <tr className="bg-purple-50">
+              <td className="px-1 py-1 font-medium text-xs">Gene-Smithing</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {geneSmithingEffects[stat.key] ? geneSmithingEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
+          
+          {/* Rig-Glitches row - only show if fighter has rig-glitches effects */}
+          {fighter.effects?.['rig-glitches'] && fighter.effects['rig-glitches'].length > 0 && (
+            <tr className="bg-pink-50">
+              <td className="px-1 py-1 font-medium text-xs">Rig-Glitches</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {rigGlitchesEffects[stat.key] ? rigGlitchesEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
+          
+          {/* Total row - always shown */}
           <tr className="bg-gray-100 font-bold">
             <td className="px-1 py-1 text-xs">Total</td>
             {stats.map(stat => {
@@ -168,7 +226,9 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const advancementValue = advancementEffects[stat.key] || 0;
               const bionicsValue = bionicsEffects[stat.key] || 0;
               const userValue = userEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue;
+              const geneSmithingValue = geneSmithingEffects[stat.key] || 0;
+              const rigGlitchesValue = rigGlitchesEffects[stat.key] || 0;
+              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue;
               
               return (
                 <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
@@ -318,6 +378,8 @@ function CharacterStatsModal({
     processEffects(fighter.effects?.advancements);
     processEffects(fighter.effects?.bionics);
     processEffects(fighter.effects?.cyberteknika);
+    processEffects(fighter.effects?.['gene-smithing']);
+    processEffects(fighter.effects?.['rig-glitches']);
     processEffects(fighter.effects?.user);
     
     // Return total (base + existing modifiers)
@@ -463,6 +525,8 @@ function calculateStatModifiers(fighter: Fighter, statKey: string): number {
   processEffects(fighter.effects?.advancements);
   processEffects(fighter.effects?.bionics);
   processEffects(fighter.effects?.cyberteknika);
+  processEffects(fighter.effects?.['gene-smithing']);
+  processEffects(fighter.effects?.['rig-glitches']);
   processEffects(fighter.effects?.user);
   
   return totalModifier;

@@ -35,6 +35,8 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
+    'gene-smithing': FighterEffect[];
+    'rig-glitches': FighterEffect[];
     user: FighterEffect[];
   };
   note?: string;
@@ -257,6 +259,8 @@ const FighterCard = memo(function FighterCard({
         advancements: effects?.advancements || [],
         bionics: effects?.bionics || [],
         cyberteknika: effects?.cyberteknika || [],
+        'gene-smithing': effects?.['gene-smithing'] || [],
+        'rig-glitches': effects?.['rig-glitches'] || [],
         user: effects?.user || []
       },
       base_stats: {

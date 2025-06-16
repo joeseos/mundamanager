@@ -39,6 +39,7 @@ export interface Equipment {
     effect_name: string;
     fighter_effect_type_id?: string;
     fighter_equipment_id: string;
+    category_name?: string;
     fighter_effect_modifiers: Array<{
       id: string;
       fighter_effect_id: string;
