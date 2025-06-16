@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import CampaignPageContent from "@/components/campaign/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
 import { headers } from 'next/headers';
+import { PermissionService } from "@/app/lib/user-permissions";
+import type { CampaignPermissions } from "@/types/user-permissions";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -15,6 +17,35 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   // Get campaign role from headers (set by middleware)
   const headersList = await headers();
   const campaignRole = headersList.get('x-campaign-role') || 'MEMBER';
+
+  // Calculate permissions server-side
+  let permissions: CampaignPermissions | null = null;
+  if (userId) {
+    try {
+      const permissionService = new PermissionService();
+      permissions = await permissionService.getCampaignPermissions(userId, params.id);
+    } catch (error) {
+      console.error('Error calculating permissions:', error);
+      // Set default read-only permissions on error
+      permissions = {
+        isOwner: false,
+        isAdmin: false,
+        canEdit: false,
+        canDelete: false,
+        canView: true,
+        userId,
+        isArbitrator: false,
+        isMember: false,
+        canEditCampaign: false,
+        canDeleteCampaign: false,
+        canManageMembers: false,
+        canManageTerritories: false,
+        canAddBattleLogs: false,
+        canEditBattleLogs: false,
+        campaignRole: null
+      };
+    }
+  }
 
   try {
     const { data, error } = await supabase
@@ -39,6 +70,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           campaignData={campaignData} 
           userId={userId} 
           campaignRole={campaignRole}
+          permissions={permissions}
         />
       </CampaignErrorBoundary>
     );

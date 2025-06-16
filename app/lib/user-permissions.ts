@@ -1,11 +1,11 @@
 import { createClient } from '@/utils/supabase/server';
-import type { UserPermissions, UserProfile } from '@/types/user-permissions';
+import type { UserPermissions, UserProfile, CampaignPermissions } from '@/types/user-permissions';
 
 export class PermissionService {
   /**
    * Fetches user profile from database to check their role
    * @param userId - The user's ID
-   * @returns UserProfile with role information (admin, user, moderator)
+   * @returns UserProfile with role information (admin, user)
    */
   async getUserProfile(userId: string): Promise<UserProfile | null> {
     const supabase = await createClient();
@@ -32,6 +32,24 @@ export class PermissionService {
       .single();
 
     return gang?.user_id || null;
+  }
+
+  /**
+   * Gets the user's role in a specific campaign
+   * @param userId - The user's ID
+   * @param campaignId - The campaign's ID
+   * @returns The user's role in the campaign, or null if not a member
+   */
+  async getCampaignRole(userId: string, campaignId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
+    const supabase = await createClient();
+    const { data: member, error } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('campaign_id', campaignId)
+      .single();
+
+    return member?.role || null;
   }
 
   /**
@@ -125,6 +143,70 @@ export class PermissionService {
   }
 
   /**
+   * Determines user permissions for a specific campaign
+   * 
+   * Permission Logic:
+   * 1. APP ADMIN = same permissions as campaign owner (full control)
+   * 2. CAMPAIGN OWNER = full control and should see all buttons and edit everything
+   * 3. ARBITRATOR = same as Owner, but cannot delete a campaign  
+   * 4. MEMBER = can only add battle logs, nothing else
+   * 5. NON-MEMBER = read-only access (similar to 'user' role in gang/fighter system)
+   * 
+   * @param userId - The current user's ID
+   * @param campaignId - The campaign's ID we're checking permissions for
+   * @returns CampaignPermissions object with all permission flags
+   */
+  async getCampaignPermissions(
+    userId: string, 
+    campaignId: string
+  ): Promise<CampaignPermissions> {
+    // Check both user profile and campaign role in parallel
+    const [userProfile, campaignRole] = await Promise.all([
+      this.getUserProfile(userId),
+      this.getCampaignRole(userId, campaignId)
+    ]);
+
+    // Check if user is an app admin
+    const isAdmin = userProfile?.user_role === 'admin';
+
+    // If user is not a member of the campaign and not an app admin, they get read-only access
+    if (!campaignRole && !isAdmin) {
+      return this.getDefaultCampaignPermissions(userId);
+    }
+
+    // Determine permission flags based on role
+    const isOwner = campaignRole === 'OWNER';
+    const isArbitrator = campaignRole === 'ARBITRATOR';
+    const isMember = campaignRole === 'MEMBER';
+
+    // App admins get same permissions as campaign owners
+    const hasOwnerPermissions = isOwner || isAdmin;
+    const hasArbitratorPermissions = isArbitrator || hasOwnerPermissions;
+    const hasMemberPermissions = isMember || hasArbitratorPermissions;
+
+    return {
+      // Base UserPermissions
+      isOwner,
+      isAdmin,
+      canEdit: hasArbitratorPermissions,
+      canDelete: hasOwnerPermissions,
+      canView: true,
+      userId,
+      
+      // Campaign-specific permissions
+      isArbitrator,
+      isMember,
+      canEditCampaign: hasArbitratorPermissions,              // Owner + Arbitrator + App Admin can edit campaign settings
+      canDeleteCampaign: hasOwnerPermissions,                 // Only Owner + App Admin can delete campaign
+      canManageMembers: hasArbitratorPermissions,             // Owner + Arbitrator + App Admin can add/remove members
+      canManageTerritories: hasArbitratorPermissions,         // Owner + Arbitrator + App Admin can manage territories
+      canAddBattleLogs: hasMemberPermissions,                 // All members + higher roles can add battle logs
+      canEditBattleLogs: hasArbitratorPermissions,            // Only Owner + Arbitrator + App Admin can edit battle logs
+      campaignRole
+    };
+  }
+
+  /**
    * Returns default permissions for users with no special access
    * Used when:
    * - Fighter has no associated gang
@@ -144,11 +226,44 @@ export class PermissionService {
       userId
     };
   }
+
+  /**
+   * Returns default campaign permissions for users with no campaign access
+   * Used when:
+   * - User is not a member of the campaign and not an app admin
+   * - Similar to 'user' role in gang/fighter system - read-only access
+   * 
+   * @param userId - The current user's ID
+   * @returns CampaignPermissions with only view access granted (like regular 'user' role)
+   */
+  private getDefaultCampaignPermissions(userId: string): CampaignPermissions {
+    return {
+      // Base UserPermissions - same as regular 'user' role
+      isOwner: false,
+      isAdmin: false,
+      canEdit: false,
+      canDelete: false,
+      canView: true,          // Everyone can view campaigns (read-only)
+      userId,
+      
+      // Campaign-specific permissions - all false except view
+      isArbitrator: false,
+      isMember: false,
+      canEditCampaign: false,
+      canDeleteCampaign: false,
+      canManageMembers: false,
+      canManageTerritories: false,
+      canAddBattleLogs: false,    // Non-members cannot add battle logs
+      canEditBattleLogs: false,
+      campaignRole: null
+    };
+  }
 }
 
 /**
  * Permission Hierarchy Summary:
  * 
+ * GANG/FIGHTER PERMISSIONS:
  * 1. ADMINS (user_role = 'admin'):
  *    - Can edit/delete ANY gang or fighter
  *    - Override all ownership restrictions
@@ -159,8 +274,37 @@ export class PermissionService {
  *    - Can edit/delete fighters that belong to their gang
  *    - Limited to their own resources
  * 
- * 3. REGULAR USERS:
+ * 3. REGULAR USERS (user_role = 'user'):
  *    - Can only view gangs and fighters
  *    - No edit or delete permissions
  *    - Read-only access
+ * 
+ * CAMPAIGN PERMISSIONS:
+ * 1. APP ADMIN (user_role = 'admin'):
+ *    - Same permissions as campaign owner
+ *    - Can edit/delete ANY campaign
+ *    - Override all campaign role restrictions
+ *    - System-wide permissions
+ * 
+ * 2. CAMPAIGN OWNER:
+ *    - Full control over their campaign
+ *    - Can edit campaign settings
+ *    - Can delete campaign
+ *    - Can manage members and territories
+ *    - Can add and edit battle logs
+ * 
+ * 3. ARBITRATOR:
+ *    - Same as Owner except cannot delete campaign
+ *    - Can edit campaign settings
+ *    - Can manage members and territories
+ *    - Can add and edit battle logs
+ * 
+ * 4. MEMBER:
+ *    - Can only add battle logs
+ *    - Cannot edit campaign, manage members, or manage territories
+ *    - Read-only access to everything else
+ * 
+ * 5. NON-MEMBER:
+ *    - Read-only access to campaign (like regular 'user' role)
+ *    - Cannot add battle logs or interact with campaign
  */ 
