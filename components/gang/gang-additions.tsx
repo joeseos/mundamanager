@@ -919,6 +919,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           cyberteknika: [] as FighterEffect[],
           'gene-smithing': [] as FighterEffect[],
           'rig-glitches': [] as FighterEffect[],
+          augmentations: [] as FighterEffect[],
           user: [] as FighterEffect[]
         },
         base_stats: {
