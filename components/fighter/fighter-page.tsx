@@ -119,6 +119,7 @@ interface Fighter {
     cyberteknika: FighterEffect[];
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
+    augmentations: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -268,6 +269,7 @@ export default function FighterPage({
           cyberteknika: initialFighterData.fighter.effects?.cyberteknika || [],
           'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
           'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
+          augmentations: initialFighterData.fighter.effects?.augmentations || [],
           user: initialFighterData.fighter.effects?.user || []
         }
       },
@@ -454,6 +456,7 @@ export default function FighterPage({
             cyberteknika: result.fighter.effects?.cyberteknika || [],
             'gene-smithing': result.fighter.effects?.['gene-smithing'] || [],
             'rig-glitches': result.fighter.effects?.['rig-glitches'] || [],
+            augmentations: result.fighter.effects?.augmentations || [],
             user: result.fighter.effects?.user || []
           }
         },
@@ -713,6 +716,8 @@ export default function FighterPage({
           targetCategory = 'gene-smithing';
         } else if (categoryName === 'rig-glitches') {
           targetCategory = 'rig-glitches';
+        } else if (categoryName === 'augmentations') {
+          targetCategory = 'augmentations';
         } else if (categoryName === 'injuries') {
           targetCategory = 'injuries';
         } else if (categoryName === 'advancements') {
@@ -982,6 +987,7 @@ export default function FighterPage({
               cyberteknika: [], 
               'gene-smithing': [], 
               'rig-glitches': [], 
+              augmentations: [], 
               user: [] 
             }}
             vehicles={fighterData.fighter?.vehicles}
