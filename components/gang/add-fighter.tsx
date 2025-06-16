@@ -221,6 +221,13 @@ export default function AddFighter({
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   
+  // Add state to track selected equipment with costs
+  const [selectedEquipment, setSelectedEquipment] = useState<Array<{
+    equipment_id: string;
+    cost: number;
+    quantity: number;
+  }>>([]);
+
   // Automatically select NULL sub-type if available, otherwise select the cheapest one
   useEffect(() => {
     if (availableSubTypes.length > 0 && !selectedSubTypeId) {
@@ -252,6 +259,7 @@ export default function AddFighter({
     setSelectedFighterTypeId(typeId);
     setSelectedSubTypeId(''); // Reset sub-type selection
     setSelectedEquipmentIds([]); // Reset equipment selections when type changes
+    setSelectedEquipment([]); // Reset equipment with costs
     
     if (typeId) {
       // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
@@ -290,6 +298,7 @@ export default function AddFighter({
     const subTypeId = e.target.value;
     setSelectedSubTypeId(subTypeId);
     setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
+    setSelectedEquipment([]); // Reset equipment with costs
     
     if (subTypeId) {
       // Don't change the selectedFighterTypeId, just update the cost
@@ -464,6 +473,19 @@ export default function AddFighter({
                                 return [...filtered, option.id];
                               });
 
+                              // Update equipment with costs
+                              setSelectedEquipment((prev) => {
+                                // Remove all previous selections for this category
+                                const filtered = prev.filter(item =>
+                                  !categoryData.options?.some((o: any) => o.id === item.equipment_id)
+                                );
+                                return [...filtered, {
+                                  equipment_id: option.id,
+                                  cost: option.cost || 0,
+                                  quantity: 1
+                                }];
+                              });
+
                               // Update cost using functional update
                               setFighterCost((prevCost) => {
                                 // Find previous selection in this category
@@ -492,10 +514,52 @@ export default function AddFighter({
                               if (checked === true) {
                                 // For optional/multiple selection, add to existing selections
                                 setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                
+                                // Check if this is replacing a default item
+                                const isReplacement = categoryData.select_type === 'optional';
+                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
+                                  // Remove the default item and add the replacement
+                                  const defaultItem = categoryData.default[0] as any;
+                                  setSelectedEquipment(prev => {
+                                    const filtered = prev.filter(item => item.equipment_id !== defaultItem.id);
+                                    return [...filtered, {
+                                      equipment_id: option.id,
+                                      cost: optionCost,
+                                      quantity: 1
+                                    }];
+                                  });
+                                } else {
+                                  // Just add the new equipment
+                                  setSelectedEquipment([...selectedEquipment, {
+                                    equipment_id: option.id,
+                                    cost: optionCost,
+                                    quantity: 1
+                                  }]);
+                                }
+                                
                                 setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
                               } else {
                                 // Remove this option
                                 setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
+                                
+                                // Check if this was replacing a default item
+                                const isReplacement = categoryData.select_type === 'optional';
+                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
+                                  // Add back the default item and remove the replacement
+                                  const defaultItem = categoryData.default[0] as any;
+                                  setSelectedEquipment(prev => {
+                                    const filtered = prev.filter(item => item.equipment_id !== option.id);
+                                    return [...filtered, {
+                                      equipment_id: defaultItem.id,
+                                      cost: 0, // Default items have cost 0
+                                      quantity: defaultItem.quantity || 1
+                                    }];
+                                  });
+                                } else {
+                                  // Just remove the equipment
+                                  setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
+                                }
+                                
                                 setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
                               }
                             }}
@@ -516,6 +580,67 @@ export default function AddFighter({
       </div>
     );
   };
+
+  // Helper function to get default equipment from equipment selection
+  const getDefaultEquipment = (equipmentSelection: any): Array<{equipment_id: string, cost: number, quantity: number}> => {
+    const defaults: Array<{equipment_id: string, cost: number, quantity: number}> = [];
+    
+    if (!equipmentSelection) return defaults;
+    
+    // Normalize equipment_selection to UI format
+    const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
+    
+    Object.entries(normalizedSelection).forEach(([categoryId, categoryData]) => {
+      if (categoryData?.default && Array.isArray(categoryData.default)) {
+        categoryData.default.forEach((item: EquipmentDefaultItem) => {
+          const defaultItem = item as any;
+          defaults.push({
+            equipment_id: defaultItem.id,
+            cost: 0, // Default equipment from equipment selections should have cost 0
+            quantity: defaultItem.quantity || 1
+          });
+        });
+      }
+    });
+    
+    return defaults;
+  };
+
+  // Update equipment cost calculation when fighter type changes
+  useEffect(() => {
+    if (selectedFighterTypeId) {
+      const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+      if (selectedType?.equipment_selection) {
+        const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
+        setSelectedEquipment(defaultEquipment);
+        
+        // Calculate total cost of default equipment
+        const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+        
+        // Update fighter cost to include default equipment cost
+        const baseCost = selectedType.total_cost || 0;
+        setFighterCost(String(baseCost + defaultCost));
+      }
+    }
+  }, [selectedFighterTypeId, fighterTypes]);
+
+  // Update equipment cost calculation when sub-type changes
+  useEffect(() => {
+    if (selectedSubTypeId) {
+      const selectedType = fighterTypes.find(t => t.id === selectedSubTypeId);
+      if (selectedType?.equipment_selection) {
+        const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
+        setSelectedEquipment(defaultEquipment);
+        
+        // Calculate total cost of default equipment
+        const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+        
+        // Update fighter cost to include default equipment cost
+        const baseCost = selectedType.total_cost || 0;
+        setFighterCost(String(baseCost + defaultCost));
+      }
+    }
+  }, [selectedSubTypeId, fighterTypes]);
 
   const handleAddFighter = async () => {
     if (!fighterName || !fighterCost) {
@@ -567,7 +692,7 @@ export default function AddFighter({
       p_fighter_type_id: fighterTypeIdToUse,
       p_fighter_name: fighterName,
       p_cost: enteredCost,
-      p_selected_equipment_ids: selectedEquipmentIds,
+      p_selected_equipment: selectedEquipment,  // Changed from p_selected_equipment_ids
       p_user_id: user.id,
       p_use_base_cost_for_rating: useBaseCostForRating
     })
@@ -711,6 +836,7 @@ if (!data?.fighter_id) {
     setAvailableSubTypes([]);
     setFighterCost('');
     setSelectedEquipmentIds([]);
+    setSelectedEquipment([]);  // Reset equipment with costs
     setUseBaseCostForRating(true);
     setFetchError(null);
   };
