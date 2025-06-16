@@ -15,6 +15,12 @@ export async function GET(request: Request) {
   const supabase = await createClient();
 
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data: fighterTypes, error } = await supabase
       .from('fighter_types')
       .select(`

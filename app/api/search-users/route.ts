@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
     
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     // Perform three separate queries for optimal ranking:
     // 1. Exact matches (highest priority)
     // 2. Prefix matches (starts with - second priority)  

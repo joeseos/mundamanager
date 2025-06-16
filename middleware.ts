@@ -3,16 +3,6 @@ import { updateSession } from '@/utils/supabase/middleware'
 import { createClient } from "@/utils/supabase/server";
 
 export async function middleware(request: NextRequest) {
-  // Skip middleware for static assets and favicons
-  if (
-    request.nextUrl.pathname.startsWith('/images/') ||
-    request.nextUrl.pathname === '/favicon.ico' ||
-    request.nextUrl.pathname.endsWith('.png') ||
-    request.nextUrl.pathname.endsWith('.webmanifest')
-  ) {
-    return NextResponse.next();
-  }
-
   console.log("Middleware called for path:", request.nextUrl.pathname);
 
   // List of paths that should skip session handling
@@ -91,12 +81,16 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
+     * - api routes that handle their own auth (fighters, gangs, campaigns, admin, etc.)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - images (public images folder)
-     * Feel free to modify this pattern to include more paths.
+     * - static assets (svg, png, jpg, etc.)
+     * 
+     * All API routes now handle their own authentication, so they're excluded from middleware.
+     * This leaves only page routes for proper authentication handling.
      */
-    '/((?!_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons)|_next/static|_next/image|favicon.ico|images|site.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)',
   ],
 };

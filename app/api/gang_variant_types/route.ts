@@ -11,6 +11,12 @@ export async function GET(request: Request) {
     const supabase = await createClient();
 
     try {
+        // Check if user is authenticated
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         let query = supabase
             .from('gang_variant_types')
             .select('id, variant')
@@ -30,7 +36,7 @@ export async function GET(request: Request) {
     {
         console.error('Error fetching gang variant types: ', error);
         return NextResponse.json(
-            {error: 'Failed to fetch skills'},
+            {error: 'Failed to fetch gang variant types'},
             {status: 500}
         );
     }
