@@ -612,11 +612,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
               {/* Campaign header with Edit button */}
               <div className="mb-8 border-b pb-4">
                 <div
-                  className="relative flex justify-between items-center py-4 bg-no-repeat bg-cover print:!bg-none"
+                  className="relative flex justify-between items-center py-4 bg-no-repeat bg-cover print:!bg-none -mx-4 px-4 rounded-lg"
                   style={{
                     backgroundImage:
                       "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
-                    width: '100%',
+                    width: 'calc(100% + 2rem)',
                     zIndex: 0,
                     backgroundPosition: 'center',
                     backgroundSize: '100% 100%',
@@ -637,7 +637,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   </div>
                   {isAdmin && (
                     <Button
-                      className="ml-auto bg-black hover:bg-gray-800 text-white mr-4 sm:mr-8"
+                      className="ml-auto bg-white hover:bg-gray-100 text-black mr-4 sm:mr-8"
                       onClick={() => setShowEditModal(true)}
                     >
                       Edit
