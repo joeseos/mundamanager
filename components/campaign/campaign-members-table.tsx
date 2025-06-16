@@ -64,7 +64,6 @@ interface MembersTableProps {
   }) => void;
   isCampaignAdmin: boolean;
   isCampaignOwner: boolean;
-  campaignRole: string;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -87,8 +86,7 @@ export default function MembersTable({
   userId,
   onMemberUpdate,
   isCampaignAdmin,
-  isCampaignOwner,
-  campaignRole
+  isCampaignOwner
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showGangModal, setShowGangModal] = useState(false)

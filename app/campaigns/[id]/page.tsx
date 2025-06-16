@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import CampaignPageContent from "@/components/campaign/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
-import { headers } from 'next/headers';
 import { PermissionService } from "@/app/lib/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 
@@ -13,10 +12,6 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   // Get the user data once at the page level
   const { data: user } = await supabase.auth.getUser();
   const userId = user && user.user ? user.user.id : undefined;
-
-  // Get campaign role from headers (set by middleware)
-  const headersList = await headers();
-  const campaignRole = headersList.get('x-campaign-role') || 'MEMBER';
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
@@ -69,7 +64,6 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         <CampaignPageContent 
           campaignData={campaignData} 
           userId={userId} 
-          campaignRole={campaignRole}
           permissions={permissions}
         />
       </CampaignErrorBoundary>
