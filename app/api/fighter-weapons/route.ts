@@ -4,15 +4,21 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  // Parse the request body
-  const { fighter_id, weapon_id } = await request.json();
-
-  // Validate the input
-  if (!fighter_id || !weapon_id) {
-    return NextResponse.json({ error: "Missing fighter_id or weapon_id" }, { status: 400 });
-  }
-
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Parse the request body
+    const { fighter_id, weapon_id } = await request.json();
+
+    // Validate the input
+    if (!fighter_id || !weapon_id) {
+      return NextResponse.json({ error: "Missing fighter_id or weapon_id" }, { status: 400 });
+    }
+
     // Insert the relation into the fighter_weapons table
     const { data, error } = await supabase
       .from('fighter_weapons')
@@ -38,6 +44,12 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // First, get the weapon IDs for the fighter
     const { data: fighterWeapons, error: fighterWeaponsError } = await supabase
       .from('fighter_weapons')
@@ -91,6 +103,12 @@ export async function DELETE(request: Request) {
   }
 
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Get the weapon cost
     const { data: weapon, error: weaponError } = await supabase
       .from('weapons')

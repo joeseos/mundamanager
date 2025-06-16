@@ -5,6 +5,12 @@ export async function GET() {
   try {
     const supabase = await createClient();
 
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data, error } = await supabase
       .from('skill_types')
       .select('*');

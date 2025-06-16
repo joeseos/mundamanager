@@ -5,6 +5,12 @@ export async function GET(request: Request) {
   const supabase = await createClient();
 
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data: gangTypes, error } = await supabase
       .from('gang_types')
       .select('gang_type')
