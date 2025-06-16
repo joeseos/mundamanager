@@ -619,14 +619,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     backgroundImage:
                       "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
                     width: 'calc(100% + 2rem)',
+                    height: '65px',
                     zIndex: 0,
                     backgroundPosition: 'center',
                     backgroundSize: '100% 100%',
                   }}
                 >
                   <div
-                    className="flex items-center gap-2 pl-4 sm:pl-8 overflow-hidden whitespace-nowrap"
-                    style={{ height: '62px', width: '60svw', maxWidth: '80%' }}
+                    className="flex items-center gap-2 pl-2 sm:pl-4 overflow-hidden whitespace-nowrap"
+                    style={{ height: '65px', width: '60svw', maxWidth: '80%' }}
                   >
                     <div className="flex flex-col items-baseline">
                       <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white print:text-black mr-2">
