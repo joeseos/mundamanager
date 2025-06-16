@@ -50,6 +50,7 @@ BEGIN
            f.fighter_name,
            f.label,
            f.fighter_type,
+           f.fighter_type_id,
            f.fighter_class,
            f.fighter_sub_type_id,
            f.xp,
@@ -572,11 +573,13 @@ BEGIN
            f.fighter_name,
            f.label,
            f.fighter_type,
+           f.fighter_type_id,
            f.fighter_class,
            json_build_object(
              'fighter_sub_type', fst.sub_type_name,
              'fighter_sub_type_id', fst.id
            ) AS fighter_sub_type,
+           ft.alliance_crew_name,
            f.xp,
            f.kills,
            f.position,
@@ -613,6 +616,7 @@ BEGIN
            COALESCE(fvj.vehicles, '[]'::json) as vehicles
        FROM gang_fighters f
        LEFT JOIN fighter_sub_types fst ON fst.id = f.fighter_sub_type_id
+       LEFT JOIN fighter_types ft ON ft.id = f.fighter_type_id
        LEFT JOIN fighter_equipment_costs fec ON fec.fighter_id = f.f_id
        LEFT JOIN fighter_equipment_details fed ON fed.fighter_id = f.f_id
        LEFT JOIN fighter_skills fsk ON fsk.fighter_id = f.f_id
@@ -720,6 +724,7 @@ BEGIN
                'fighter_type', cf.fighter_type,
                'fighter_class', cf.fighter_class,
                'fighter_sub_type', cf.fighter_sub_type,
+               'alliance_crew_name', cf.alliance_crew_name,
                'position', cf.position,
                'xp', cf.xp,
                'kills', cf.kills,
