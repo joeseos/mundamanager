@@ -42,14 +42,31 @@ export class PermissionService {
    */
   async getCampaignRole(userId: string, campaignId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
     const supabase = await createClient();
-    const { data: member, error } = await supabase
+    
+    // Use select without .single() since users can have multiple entries (different gangs)
+    const { data: members, error } = await supabase
       .from('campaign_members')
       .select('role')
       .eq('user_id', userId)
-      .eq('campaign_id', campaignId)
-      .single();
+      .eq('campaign_id', campaignId);
 
-    return member?.role || null;
+    if (error || !members || members.length === 0) {
+      return null;
+    }
+
+    // If user has multiple entries (multiple gangs), return the highest role
+    // Role hierarchy: OWNER > ARBITRATOR > MEMBER
+    const roles = members.map(m => m.role);
+    
+    if (roles.includes('OWNER')) {
+      return 'OWNER';
+    } else if (roles.includes('ARBITRATOR')) {
+      return 'ARBITRATOR';
+    } else if (roles.includes('MEMBER')) {
+      return 'MEMBER';
+    }
+    
+    return null;
   }
 
   /**
