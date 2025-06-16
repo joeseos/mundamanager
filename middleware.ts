@@ -81,16 +81,18 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api routes that handle their own auth (fighters, gangs, campaigns, admin, etc.)
+     * - api routes that handle their own auth
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - favicon.ico and static assets
      * - images (public images folder)
-     * - static assets (svg, png, jpg, etc.)
+     * - static assets (fonts, documents, etc.)
+     * - Next.js special files (robots, sitemap, manifest, etc.)
+     * - development and health check endpoints
      * 
-     * All API routes now handle their own authentication, so they're excluded from middleware.
-     * This leaves only page routes for proper authentication handling.
+     * This maximizes performance by only running middleware on actual page routes
+     * that need authentication handling.
      */
-    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons)|_next/static|_next/image|favicon.ico|images|site.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)',
+    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons)|_next/static|_next/image|favicon.ico|images|site.webmanifest|robots.txt|sitemap.xml|manifest.json|sw.js|workbox-.*\\.js|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json)$).*)',
   ],
 };
