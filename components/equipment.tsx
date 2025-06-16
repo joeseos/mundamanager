@@ -825,7 +825,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               min={minAvailability}
               max={maxAvailability}
               step={1}
-              formatValue={(val) => `${val}+`}
+              formatValue={(val) => `${val}`}
               className="flex-1"
             />
           </div>
