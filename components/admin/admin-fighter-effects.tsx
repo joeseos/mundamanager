@@ -246,8 +246,6 @@ export function AdminFighterEffects({ equipmentId, onUpdate, onChange }: AdminFi
   };
 
   const handleDeleteEffect = async (effectId: string) => {
-    if (!confirm('Are you sure you want to delete this effect?')) return;
-    
     try {
       // Simply remove the effect from the array
       setFighterEffectTypes(fighterEffectTypes.filter(effect => effect.id !== effectId));
@@ -331,8 +329,6 @@ export function AdminFighterEffects({ equipmentId, onUpdate, onChange }: AdminFi
   };
 
   const handleDeleteModifier = async (effectId: string, modifierId: string) => {
-    if (!confirm('Are you sure you want to delete this modifier?')) return;
-    
     try {
       // Simply remove the modifier from the effect
       setFighterEffectTypes(prevEffects => {
