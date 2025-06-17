@@ -486,7 +486,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner</th>
               <th className="px-2 py-2 text-left font-medium">Report</th>
-              {isAdmin && <th className="px-2 py-2 text-right font-medium">Action</th>}
+              {isAdmin && <th className="px-2 py-2 text-right font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
