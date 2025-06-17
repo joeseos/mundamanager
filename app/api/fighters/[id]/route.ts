@@ -86,7 +86,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     enslaved,
     starved,
     recovery,
-    special_rules
+    special_rules,
+    sell_value
   } = body;
 
   try {
@@ -138,6 +139,38 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (enslaved !== undefined) updateData.enslaved = enslaved;
       if (starved !== undefined) updateData.starved = starved;
       if (recovery !== undefined) updateData.recovery = recovery;
+
+      // If selling a fighter (enslaved = true and sell_value provided), add credits to gang
+      if (enslaved === true && sell_value !== undefined && sell_value > 0) {
+        // First get the fighter's gang_id and current gang credits
+        const { data: fighter, error: fetchError } = await supabase
+          .from("fighters")
+          .select('gang_id')
+          .eq('id', params.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // Get current gang credits
+        const { data: gang, error: gangFetchError } = await supabase
+          .from("gangs")
+          .select('credits')
+          .eq('id', fighter.gang_id)
+          .single();
+
+        if (gangFetchError) throw gangFetchError;
+
+        // Update gang credits by adding the sell value
+        const { error: gangUpdateError } = await supabase
+          .from("gangs")
+          .update({ 
+            credits: (gang.credits || 0) + sell_value,
+            last_updated: new Date().toISOString()
+          })
+          .eq('id', fighter.gang_id);
+
+        if (gangUpdateError) throw gangUpdateError;
+      }
 
       const { data: updatedFighter, error: statusUpdateError } = await supabase
         .from("fighters")

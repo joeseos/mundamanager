@@ -341,7 +341,7 @@ const FighterCard = memo(function FighterCard({
     };
   }, [isCrew, vehicleStats, adjustedStats, xp]);
 
-  const isInactive = killed || retired;
+  const isInactive = killed || retired || enslaved || recovery;
 
   // Determine a unique and valid id for the fighter card based on its status.
   // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
