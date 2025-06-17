@@ -27,6 +27,7 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
+import { SellFighterModal } from "@/components/fighter/sell-fighter";
 
 
 
@@ -1293,28 +1294,35 @@ export default function FighterPage({
           )}
 
           {uiState.modals.enslave && (
-            <Modal
-              title={fighterData.fighter?.enslaved ? "Rescue from Guilders" : "Sell to Guilders"}
-              content={
-                <div>
-                  <p>
-                    {fighterData.fighter?.enslaved 
-                      ? `Are you sure you want to rescue "${fighterData.fighter?.fighter_name}" from the Guilders?`
-                      : `Are you sure you want to sell "${fighterData.fighter?.fighter_name}" to the Guilders?`
-                    }
-                  </p>
-                </div>
-              }
+            <SellFighterModal
+              isOpen={uiState.modals.enslave}
               onClose={() => handleModalToggle('enslave', false)}
-              onConfirm={async () => {
+              fighterName={fighterData.fighter?.fighter_name || ''}
+              fighterValue={fighterData.fighter?.credits || 0}
+              isEnslaved={fighterData.fighter?.enslaved || false}
+              onConfirm={async (sellValue) => {
                 try {
+                  // For enslaved fighters (rescue), we don't send sell_value
+                  // For non-enslaved fighters (sell), we send the sell_value and add credits to gang
+                  const requestBody = fighterData.fighter?.enslaved 
+                    ? { enslaved: false }
+                    : { enslaved: true, sell_value: sellValue };
+
                   const response = await fetch(`/api/fighters/${fighterId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enslaved: !fighterData.fighter?.enslaved }),
+                    body: JSON.stringify(requestBody),
                   });
 
                   if (!response.ok) throw new Error('Failed to update fighter status');
+
+                  // If selling (not rescuing), update gang credits
+                  if (!fighterData.fighter?.enslaved && sellValue > 0) {
+                    setFighterData(prev => ({
+                      ...prev,
+                      gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + sellValue } : null
+                    }));
+                  }
 
                   await fetchFighterData();
                   handleModalToggle('enslave', false);
@@ -1322,15 +1330,18 @@ export default function FighterPage({
                   toast({
                     description: fighterData.fighter?.enslaved 
                       ? 'Fighter has been rescued from the Guilders' 
-                      : 'Fighter has been sold to the Guilders',
+                      : `Fighter has been sold for ${sellValue} credits`,
                     variant: "default"
                   });
+                  
+                  return true;
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
                     description: 'Failed to update fighter status',
                     variant: "destructive"
                   });
+                  return false;
                 }
               }}
             />
