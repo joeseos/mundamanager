@@ -94,12 +94,12 @@ export default function TerritoryGangModal({
   const modalContent = (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Select a gang to control {territoryName}
+        Select a gang to take control of <strong>{territoryName}</strong>
       </p>
       {isLoading ? (
         <p>Loading gangs...</p>
       ) : availableGangs.length === 0 ? (
-        <p className="text-sm text-gray-500">No gangs available in this campaign</p>
+        <p className="text-gray-500 italic text-sm text-gray-500">No gangs have been added to this campaign.</p>
       ) : (
         <>
           <select
@@ -108,16 +108,19 @@ export default function TerritoryGangModal({
             className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
           >
             <option value="">Select a gang</option>
-            {availableGangs.map((gang) => (
-              <option 
-                key={gang.id} 
-                value={gang.id}
-                disabled={existingGangId === gang.id}
-                className={existingGangId === gang.id ? "text-gray-400" : ""}
-              >
-                {gang.name} - {gang.gang_type} {existingGangId === gang.id ? '(Already assigned)' : ''}
-              </option>
-            ))}
+{availableGangs
+  .slice()
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((gang) => (
+    <option
+      key={gang.id}
+      value={gang.id}
+      disabled={existingGangId === gang.id}
+      className={existingGangId === gang.id ? "text-gray-400" : ""}
+    >
+      {gang.name} ({gang.gang_type}) {existingGangId === gang.id ? '(Already assigned)' : ''}
+    </option>
+))}
           </select>
         </>
       )}
@@ -126,11 +129,11 @@ export default function TerritoryGangModal({
 
   return (
     <Modal
-      title="Assign Gang to Territory"
+      title="Assign Territory"
       content={modalContent}
       onClose={onClose}
       onConfirm={() => selectedGang && onConfirm(selectedGang)}
-      confirmText="Assign Gang"
+      confirmText="Assign Territory"
       confirmDisabled={!selectedGang}
     />
   );

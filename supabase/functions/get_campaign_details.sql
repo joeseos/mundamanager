@@ -89,6 +89,7 @@ SELECT json_build_object(
     'campaign_name', c.campaign_name,
     'campaign_type_id', c.campaign_type_id,
     'status', c.status,
+    'description', c.description,
     'updated_at', c.updated_at,
     'campaign_type_name', ct.campaign_type_name,
     'has_meat', c.has_meat,

@@ -13,6 +13,7 @@ import Link from "next/link";
 import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-list";
 import { FiMap } from "react-icons/fi";
 import { FaCity } from "react-icons/fa";
+import { MdFactory } from "react-icons/md";
 import { LuSwords, LuClipboard } from "react-icons/lu";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
@@ -111,6 +112,7 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     status: string | null;
+    description: string | null;
     created_at: string;
     updated_at: string | null;
     members: any[];
@@ -576,7 +578,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 : 'text-gray-500 hover:text-gray-700'
             } flex items-center justify-center`}
           >
-            <FaCity className="h-5 w-5" />
+            <MdFactory className="h-5 w-5" />
             <span className="ml-2 hidden sm:inline">Territories</span>
           </button>
           <button
@@ -611,7 +613,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           {activeTab === 0 && (
             <>
               {/* Campaign header with Edit button */}
-              <div className="mb-8 border-b pb-4">
+              <div className="mb-4 border-b pb-4">
                 <div
                   className="relative flex justify-between items-center py-4 bg-no-repeat bg-cover print:!bg-none -mx-4 px-4 rounded-lg"
                   style={{
@@ -646,6 +648,11 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     </Button>
                   )}
                 </div>
+
+                <div className="mt-1 mb-4">
+                  {campaignData.description}
+                </div>
+
                 {/* Move the date row here, outside the left column, to span full width */}
                 <div className="flex flex-row items-center justify-between text-xs text-gray-500 w-full mt-1">
                   <div>
@@ -691,7 +698,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
               {/* Campaign Territories Section */}
               <div className="mb-8">
-                <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign Territories</h2>
+                <h2 className="text-xl md:text-2xl font-bold mb-4">Territories</h2>
                 <div className="rounded-md border overflow-x-auto">
                   <table className="text-sm">
                     <thead>
@@ -810,7 +817,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           {activeTab === 1 && (
             <div>
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl md:text-2xl font-bold">Campaign Territories</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Territories</h2>
               </div>
               
               {/* Admin can add territories */}
