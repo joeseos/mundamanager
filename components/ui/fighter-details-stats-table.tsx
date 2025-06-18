@@ -70,6 +70,10 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
     return valNum < min || valNum > max;
   };
 
+  // Set all columns to the same width
+  const columnCount = Object.keys(orderedStats).length;
+  const columnWidth = `${100 / columnCount}%`;
+
   return (
     <div className="w-full">
       <table className="w-full text-xs sm:text-sm border-collapse">
@@ -93,6 +97,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
                   ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
+                style={{ width: columnWidth }}
               >
                 {/* Responsive Header Text */}
                 {columnRenameMap[key]
@@ -118,6 +123,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}
                   ${isStatOutOfRange(key, value) ? 'text-red-500 font-semibold' : ''}`}
+                style={{ width: columnWidth }}
               >
                 {formatStatValue(key, value)}
               </td>
