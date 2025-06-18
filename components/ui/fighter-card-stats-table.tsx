@@ -135,6 +135,10 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
     return '';
   };
 
+  // Set all columns to the same width
+  const columnCount = Object.keys(orderedStats).length;
+  const columnWidth = `${100 / columnCount}%`;
+
   return (
     <div className="w-full">
       <table className={`w-full text-[11px] border-collapse ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
@@ -160,6 +164,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                   ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
+                style={{ width: columnWidth }}
               >
                 {/* Responsive Header Text */}
                 {columnRenameMap[key] ? (
@@ -193,6 +198,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                   ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
+                style={{ width: columnWidth }}
               >
                 {value}
               </td>
