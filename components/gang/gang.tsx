@@ -29,6 +29,7 @@ import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
 import { HexColorPicker } from "react-colorful";
+import GangLogs from './gang-logs';
 
 interface VehicleType {
   id: string;
@@ -184,6 +185,7 @@ export default function Gang({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
+  const [showLogsModal, setShowLogsModal] = useState(false);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
 
@@ -924,8 +926,8 @@ const handleAlignmentChange = (value: string) => {
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2 print:hidden">
 
-                {/* View Mode Dropdown */}
-                <div className="max-w-[120px] md:max-w-full md:w-full print:hidden">
+                {/* View Mode Dropdown - only show on desktop */}
+                <div className="hidden sm:block max-w-[120px] md:max-w-full md:w-full print:hidden">
                   <select
                     id="view-mode-select"
                     value={viewMode}
@@ -939,20 +941,41 @@ const handleAlignmentChange = (value: string) => {
                   </select>
                 </div>
 
-                <div>
+                <div className="flex gap-2">
                   {additionalButtons}
-                  <button
+                  <Button
+                    onClick={() => setShowLogsModal(true)}
+                    className="bg-black text-white hover:bg-gray-800 print:hidden"
+                  >
+                    Logs
+                  </Button>
+                  <Button
                     onClick={handleEditModalOpen}
-                    className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 print:hidden"
+                    className="bg-black text-white hover:bg-gray-800 print:hidden"
                   >
                     Edit
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-wrap justify-end -mr-[10px]">
-              {/* Sreenshot button */}
+              {/* View Mode Dropdown - show on mobile, aligned left */}
+              <div className="sm:hidden w-auto print:hidden mr-auto">
+                <select
+                  id="view-mode-select-mobile"
+                  value={viewMode}
+                  onChange={(e) => setViewMode(e.target.value as 'normal' | 'small' | 'medium' | 'large')}
+                  className="p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-sm"
+                >
+                  <option value="normal">Page View</option>
+                  <option value="small">Small Cards</option>
+                  <option value="medium">Medium Cards</option>
+                  <option value="large">Large Cards</option>
+                </select>
+              </div>
+
+              {/* Screenshot button */}
               <Button
                 onClick={handleScreenshot}
                 variant="ghost"
@@ -1200,6 +1223,12 @@ const handleAlignmentChange = (value: string) => {
               onFighterAdded={handleFighterAdded}
             />
           )}
+
+          <GangLogs
+            gangId={id}
+            isOpen={showLogsModal}
+            onClose={() => setShowLogsModal(false)}
+          />
         </div>
 
         <div id="gang_card_additional_details" className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
