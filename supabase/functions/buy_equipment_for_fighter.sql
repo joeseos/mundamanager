@@ -248,19 +248,6 @@ BEGIN
     WHERE v.id = buy_equipment_for_fighter.vehicle_id;
   END IF;
 
-  -- Update gang's credits
-  UPDATE gangs 
-  SET credits = credits - final_purchase_cost
-  WHERE id = buy_equipment_for_fighter.gang_id;
-
-  -- Get updated gang info
-  SELECT jsonb_build_object(
-    'id', g.id,
-    'credits', g.credits
-  ) INTO updated_gang
-  FROM gangs g
-  WHERE g.id = buy_equipment_for_fighter.gang_id;
-
   -- Add equipment to appropriate table based on purchase type
   IF buy_for_gang_stash THEN
     -- Insert into gang_stash table
@@ -286,6 +273,19 @@ BEGIN
       buy_equipment_for_fighter.custom_equipment_id
     )
     RETURNING id INTO v_new_stash_id;
+
+    -- Update gang's credits AFTER inserting into stash
+    UPDATE gangs 
+    SET credits = credits - final_purchase_cost
+    WHERE id = buy_equipment_for_fighter.gang_id;
+
+    -- Get updated gang info
+    SELECT jsonb_build_object(
+      'id', g.id,
+      'credits', g.credits
+    ) INTO updated_gang
+    FROM gangs g
+    WHERE g.id = buy_equipment_for_fighter.gang_id;
 
     -- Build response for gang stash item
     SELECT jsonb_build_object(
@@ -344,6 +344,19 @@ BEGIN
       END
     )
     RETURNING id INTO v_new_equipment_id;
+
+    -- Update gang's credits AFTER inserting equipment
+    UPDATE gangs 
+    SET credits = credits - final_purchase_cost
+    WHERE id = buy_equipment_for_fighter.gang_id;
+
+    -- Get updated gang info
+    SELECT jsonb_build_object(
+      'id', g.id,
+      'credits', g.credits
+    ) INTO updated_gang
+    FROM gangs g
+    WHERE g.id = buy_equipment_for_fighter.gang_id;
 
     -- Build the response JSON based on equipment type and whether it's custom
     IF v_equipment_type = 'weapon' AND NOT v_is_custom_equipment THEN

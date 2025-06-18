@@ -628,7 +628,7 @@ BEGIN
    gang_totals AS (
        SELECT COALESCE(SUM(total_credits), 0)::numeric as total_gang_rating
        FROM complete_fighters
-       WHERE killed = FALSE AND retired = FALSE
+       WHERE killed = FALSE AND retired = FALSE AND enslaved = FALSE
    ),
    gang_stash AS (
        SELECT 

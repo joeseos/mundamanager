@@ -10,6 +10,7 @@ Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns wi
 - 💰 Resource management
 - ⚔️ Equipment and weapons system
 - 📈 Experience and advancement tracking
+- 📋 Comprehensive activity logging
 
 ## Tech Stack
 
@@ -194,6 +195,100 @@ interface Fighter {
    };
    fighter.effects.user.push(userMod);
    ```
+
+## Gang Logging System
+
+### Overview
+The gang logging system provides comprehensive tracking of all changes and activities within your gang. Every action is automatically logged with timestamps, creating a complete audit trail of your gang's history.
+
+### Features
+- **Automatic Logging**: All gang activities are tracked automatically through database triggers
+- **Comprehensive Coverage**: Logs credits, reputation, fighters, equipment, vehicles, and more
+- **Detailed Descriptions**: Human-readable log entries with before/after values
+- **Real-time Updates**: Logs appear immediately after actions are performed
+- **Paginated Display**: Clean interface with 10 logs per page for easy browsing
+
+### Logged Activities
+
+#### Gang Changes
+- **Credits**: "Credits increased from 500 to 600" or "Credits decreased from 600 to 500"
+- **Reputation**: "Reputation changed from 5 to 10"
+- **Resources**: Meat and exploration points changes
+- **Gang Type**: Gang alignment and type modifications
+
+#### Fighter Operations
+- **Fighter Management**: "Added fighter 'Juve' (65 credits). New gang rating: 365"
+- **Fighter Removal**: "Removed fighter 'Ganger' (95 credits). New gang rating: 270"
+- **Status Changes**: Fighter deaths, retirements, enslavement with context
+- **Cost Adjustments**: Manual fighter cost modifications
+- **Experience & Kills**: XP gains and kill count changes
+
+#### Equipment Transactions
+- **Purchases**: "Fighter 'Ganger' bought Lasgun for 15 credits. New gang rating: 280"
+- **Sales**: "Fighter 'Heavy' sold Plasma gun for 100 credits. New gang rating: 380"
+- **Stash Operations**: 
+  - "Fighter moved Heavy bolter to gang stash. New gang rating: 265"
+  - "Fighter took Plasma gun from gang stash. New gang rating: 365"
+
+#### Vehicle Operations
+- **Vehicle Management**: "Added vehicle 'Cargo-8 Ridgehauler' (130 credits). New gang rating: 495"
+- **Vehicle Equipment**: "Vehicle 'Ridgehauler' bought Heavy bolter for 160 credits. New gang rating: 655"
+- **Vehicle Modifications**: Upgrades, repairs, and customizations
+
+### Technical Implementation
+
+#### Database Triggers
+The logging system uses PostgreSQL triggers that fire automatically on data changes:
+
+```sql
+-- Gang changes trigger
+CREATE TRIGGER gang_changes_trigger
+    AFTER UPDATE ON gangs
+    FOR EACH ROW
+    EXECUTE FUNCTION auto_log_gang_changes();
+
+-- Fighter changes trigger  
+CREATE TRIGGER fighter_changes_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON fighters
+    FOR EACH ROW
+    EXECUTE FUNCTION fighter_logs();
+
+-- Equipment triggers
+CREATE TRIGGER fighter_equipment_trigger
+    AFTER INSERT OR DELETE ON fighter_equipment
+    FOR EACH ROW
+    EXECUTE FUNCTION fighter_equipment_logs();
+```
+
+#### Smart Duplicate Prevention
+The system prevents duplicate logging by checking for recent related activities:
+- Credit decreases from equipment purchases don't create separate credit logs
+- Fighter additions don't duplicate credit change logs
+- Equipment stash operations are distinguished from regular sales/purchases
+
+#### Data Structure
+```typescript
+interface GangLog {
+  id: string;
+  gang_id: string;
+  user_id: string;
+  action_type: string;
+  description: string;
+  fighter_id?: string;
+  vehicle_id?: string;
+  created_at: string;
+}
+```
+
+### User Interface
+- **Modal Display**: Logs open in a responsive modal dialog
+- **Table Format**: Clean 3-column layout (Date, Type, Description)
+- **Pagination**: Navigate through logs with page controls
+- **Responsive Design**: Optimized for both desktop and mobile viewing
+- **Real-time Updates**: New logs appear immediately without page refresh
+
+### Access
+Gang logs are accessible via the "Logs" button on each gang page, positioned next to the Edit button. The logs are private to the gang owner and provide a complete history of all gang activities.
 
 ## Notification System
 
