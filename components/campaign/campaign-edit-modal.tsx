@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import Modal from "@/components/modal";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -54,7 +55,7 @@ export default function CampaignEditModal({
       explorationEnabled: campaignData.has_exploration_points,
       scavengingEnabled: campaignData.has_scavenging_rolls,
     });
-  }, [campaignData, isOpen]);
+  }, [campaignData]);
 
   // Handler for form submission
   const handleSubmit = async () => {
@@ -119,34 +120,31 @@ export default function CampaignEditModal({
             </div>
             <div className="space-y-2">
               <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formValues.meatEnabled}
-                  onChange={(e) => setFormValues(prev => ({
+                  onCheckedChange={(checked) => setFormValues(prev => ({
                     ...prev,
-                    meatEnabled: e.target.checked
+                    meatEnabled: checked === true
                   }))}
                 />
                 <span>Meat</span>
               </label>
               <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formValues.explorationEnabled}
-                  onChange={(e) => setFormValues(prev => ({
+                  onCheckedChange={(checked) => setFormValues(prev => ({
                     ...prev,
-                    explorationEnabled: e.target.checked
+                    explorationEnabled: checked === true
                   }))}
                 />
                 <span>Exploration Points</span>
               </label>
               <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formValues.scavengingEnabled}
-                  onChange={(e) => setFormValues(prev => ({
+                  onCheckedChange={(checked) => setFormValues(prev => ({
                     ...prev,
-                    scavengingEnabled: e.target.checked
+                    scavengingEnabled: checked === true
                   }))}
                 />
                 <span>Scavenging Rolls</span>
