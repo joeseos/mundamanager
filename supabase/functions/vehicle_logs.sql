@@ -5,44 +5,42 @@ AS $function$
 DECLARE
     vehicle_name TEXT;
     fighter_name TEXT;
+    gang_id_val UUID;
     new_gang_rating NUMERIC;
-    test_gang_id UUID := 'f27cb215-b9c3-47ed-8cfa-f2219332266e';
-    vehicle_gang_id UUID;
+    gang_exists BOOLEAN := FALSE;
 BEGIN
-    -- Get the vehicle's gang_id for the test gang check
+    -- Get vehicle information and gang_id
     IF TG_OP = 'INSERT' THEN
-        vehicle_gang_id := NEW.gang_id;
-        vehicle_name := COALESCE(NEW.vehicle_name, 'Unnamed Vehicle');
-        -- Get fighter name if assigned
+        vehicle_name := NEW.vehicle_name;
+        gang_id_val := NEW.gang_id;
         IF NEW.fighter_id IS NOT NULL THEN
             SELECT f.fighter_name INTO fighter_name FROM fighters f WHERE f.id = NEW.fighter_id;
         END IF;
     ELSIF TG_OP = 'UPDATE' THEN
-        vehicle_gang_id := NEW.gang_id;
-        vehicle_name := COALESCE(NEW.vehicle_name, OLD.vehicle_name, 'Unnamed Vehicle');
-        -- Get fighter name if assigned
+        vehicle_name := COALESCE(NEW.vehicle_name, OLD.vehicle_name);
+        gang_id_val := NEW.gang_id;
         IF NEW.fighter_id IS NOT NULL THEN
             SELECT f.fighter_name INTO fighter_name FROM fighters f WHERE f.id = NEW.fighter_id;
         ELSIF OLD.fighter_id IS NOT NULL THEN
             SELECT f.fighter_name INTO fighter_name FROM fighters f WHERE f.id = OLD.fighter_id;
         END IF;
     ELSIF TG_OP = 'DELETE' THEN
-        vehicle_gang_id := OLD.gang_id;
-        vehicle_name := COALESCE(OLD.vehicle_name, 'Unnamed Vehicle');
-        -- Get fighter name if assigned
+        vehicle_name := OLD.vehicle_name;
+        gang_id_val := OLD.gang_id;
         IF OLD.fighter_id IS NOT NULL THEN
             SELECT f.fighter_name INTO fighter_name FROM fighters f WHERE f.id = OLD.fighter_id;
         END IF;
     END IF;
 
-    -- Only log for vehicles belonging to the specific test gang
-    IF vehicle_gang_id != test_gang_id THEN
-        IF TG_OP = 'INSERT' THEN
-            RETURN NEW;
-        ELSIF TG_OP = 'UPDATE' THEN
-            RETURN NEW;
-        ELSE
+    -- Check if the gang still exists (to avoid foreign key violations during gang deletion)
+    SELECT EXISTS(SELECT 1 FROM gangs WHERE id = gang_id_val) INTO gang_exists;
+    
+    -- Skip logging if gang doesn't exist (gang is being deleted)
+    IF NOT gang_exists THEN
+        IF TG_OP = 'DELETE' THEN
             RETURN OLD;
+        ELSE
+            RETURN NEW;
         END IF;
     END IF;
 
@@ -65,13 +63,13 @@ BEGIN
             ) FROM vehicles v WHERE v.fighter_id = f.id), 0)
         ), 0) INTO new_gang_rating
         FROM fighters f 
-        WHERE f.gang_id = vehicle_gang_id 
+        WHERE f.gang_id = gang_id_val 
         AND f.killed = FALSE 
         AND f.retired = FALSE
         AND f.enslaved = FALSE;
         
         PERFORM gang_logs(
-            vehicle_gang_id,
+            gang_id_val,
             'vehicle_added',
             'Added vehicle "' || vehicle_name || '" (' || COALESCE(NEW.cost::text, '0') || ' credits)' ||
             CASE 
@@ -104,13 +102,13 @@ BEGIN
             ) FROM vehicles v WHERE v.fighter_id = f.id AND v.id != OLD.id), 0)
         ), 0) INTO new_gang_rating
         FROM fighters f 
-        WHERE f.gang_id = vehicle_gang_id 
+        WHERE f.gang_id = gang_id_val 
         AND f.killed = FALSE 
         AND f.retired = FALSE
         AND f.enslaved = FALSE;
         
         PERFORM gang_logs(
-            vehicle_gang_id,
+            gang_id_val,
             'vehicle_removed',
             'Removed vehicle "' || vehicle_name || '" (' || COALESCE(OLD.cost::text, '0') || ' credits)' ||
             CASE 
@@ -145,13 +143,13 @@ BEGIN
                 ) FROM vehicles v WHERE v.fighter_id = f.id), 0)
             ), 0) INTO new_gang_rating
             FROM fighters f 
-            WHERE f.gang_id = vehicle_gang_id 
+            WHERE f.gang_id = gang_id_val 
             AND f.killed = FALSE 
             AND f.retired = FALSE
             AND f.enslaved = FALSE;
             
             PERFORM gang_logs(
-                vehicle_gang_id,
+                gang_id_val,
                 'vehicle_cost_changed',
                 'Vehicle "' || vehicle_name || '" cost changed from ' || COALESCE(OLD.cost::text, '0') || 
                 ' to ' || COALESCE(NEW.cost::text, '0') || ' credits. New gang rating: ' || 
@@ -192,7 +190,7 @@ BEGIN
                     ) FROM vehicles v WHERE v.fighter_id = f.id), 0)
                 ), 0) INTO assignment_new_gang_rating
                 FROM fighters f 
-                WHERE f.gang_id = vehicle_gang_id 
+                WHERE f.gang_id = gang_id_val 
                 AND f.killed = FALSE 
                 AND f.retired = FALSE
                 AND f.enslaved = FALSE;
@@ -201,7 +199,7 @@ BEGIN
                 IF OLD.fighter_id IS NULL AND NEW.fighter_id IS NOT NULL THEN
                     -- Assigning vehicle to fighter
                     PERFORM gang_logs(
-                        vehicle_gang_id,
+                        gang_id_val,
                         'vehicle_assignment_changed',
                         'Assigned vehicle "' || vehicle_name || '" (' || COALESCE(NEW.cost::text, '0') || ' credits) to "' || COALESCE(new_fighter_name, 'Unknown Fighter') || '". New gang rating: ' || COALESCE(assignment_new_gang_rating::text, '0'),
                         NEW.fighter_id,
@@ -210,7 +208,7 @@ BEGIN
                 ELSIF OLD.fighter_id IS NOT NULL AND NEW.fighter_id IS NULL THEN
                     -- Unassigning vehicle from fighter
                     PERFORM gang_logs(
-                        vehicle_gang_id,
+                        gang_id_val,
                         'vehicle_assignment_changed',
                         'Unassigned vehicle "' || vehicle_name || '" (' || COALESCE(NEW.cost::text, '0') || ' credits) from "' || COALESCE(old_fighter_name, 'Unknown Fighter') || '". New gang rating: ' || COALESCE(assignment_new_gang_rating::text, '0'),
                         OLD.fighter_id,
@@ -219,7 +217,7 @@ BEGIN
                 ELSE
                     -- Reassigning vehicle from one fighter to another
                     PERFORM gang_logs(
-                        vehicle_gang_id,
+                        gang_id_val,
                         'vehicle_assignment_changed',
                         'Reassigned vehicle "' || vehicle_name || '" (' || COALESCE(NEW.cost::text, '0') || ' credits) from "' || COALESCE(old_fighter_name, 'Unknown Fighter') || '" to "' || COALESCE(new_fighter_name, 'Unknown Fighter') || '". New gang rating: ' || COALESCE(assignment_new_gang_rating::text, '0'),
                         NEW.fighter_id,
@@ -232,7 +230,7 @@ BEGIN
         -- Log name changes
         IF OLD.vehicle_name IS DISTINCT FROM NEW.vehicle_name THEN
             PERFORM gang_logs(
-                vehicle_gang_id,
+                gang_id_val,
                 'vehicle_name_changed',
                 'Vehicle name changed from "' || COALESCE(OLD.vehicle_name, 'Unnamed Vehicle') || 
                 '" to "' || COALESCE(NEW.vehicle_name, 'Unnamed Vehicle') || '"',

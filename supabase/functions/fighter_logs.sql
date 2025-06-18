@@ -3,35 +3,46 @@ CREATE OR REPLACE FUNCTION public.fighter_logs()
  LANGUAGE plpgsql
 AS $function$
 DECLARE
+    gang_id_val UUID;
     fighter_name TEXT;
     gang_name TEXT;
-    test_gang_id UUID := 'f27cb215-b9c3-47ed-8cfa-f2219332266e';
+    old_gang_rating INTEGER := 0;
+    new_gang_rating INTEGER := 0;
+    gang_exists BOOLEAN := FALSE;
 BEGIN
-    -- Only log for fighters belonging to the specific test gang
-    IF TG_OP = 'INSERT' AND NEW.gang_id != test_gang_id THEN
-        RETURN NEW;
-    ELSIF TG_OP = 'UPDATE' AND NEW.gang_id != test_gang_id THEN
-        RETURN NEW;
-    ELSIF TG_OP = 'DELETE' AND OLD.gang_id != test_gang_id THEN
-        RETURN OLD;
+    -- Get gang_id from the fighter record
+    IF TG_OP = 'DELETE' THEN
+        gang_id_val := OLD.gang_id;
+        fighter_name := OLD.fighter_name;
+    ELSE
+        gang_id_val := NEW.gang_id;
+        fighter_name := NEW.fighter_name;
+    END IF;
+
+    -- Check if the gang still exists (to avoid foreign key violations during gang deletion)
+    SELECT EXISTS(SELECT 1 FROM gangs WHERE id = gang_id_val) INTO gang_exists;
+    
+    -- Skip logging if gang doesn't exist (gang is being deleted)
+    IF NOT gang_exists THEN
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        ELSE
+            RETURN NEW;
+        END IF;
     END IF;
 
     -- Get fighter name and gang name for logging
     IF TG_OP = 'INSERT' THEN
-        fighter_name := COALESCE(NEW.fighter_name, 'Unnamed Fighter');
         SELECT name INTO gang_name FROM gangs WHERE id = NEW.gang_id;
     ELSIF TG_OP = 'UPDATE' THEN
-        fighter_name := COALESCE(NEW.fighter_name, OLD.fighter_name, 'Unnamed Fighter');
         SELECT name INTO gang_name FROM gangs WHERE id = NEW.gang_id;
     ELSIF TG_OP = 'DELETE' THEN
-        fighter_name := COALESCE(OLD.fighter_name, 'Unnamed Fighter');
         SELECT name INTO gang_name FROM gangs WHERE id = OLD.gang_id;
     END IF;
 
     -- Log fighter addition
     IF TG_OP = 'INSERT' THEN
         DECLARE
-            new_gang_rating NUMERIC;
             fighter_total_credits NUMERIC;
         BEGIN
             -- Calculate the fighter's total credit value using the same method as the system
@@ -87,7 +98,6 @@ BEGIN
     -- Log fighter removal
     IF TG_OP = 'DELETE' THEN
         DECLARE
-            new_gang_rating NUMERIC;
             fighter_total_credits NUMERIC;
         BEGIN
             -- Calculate the fighter's total credit value IMMEDIATELY using the same method as the system
@@ -223,7 +233,6 @@ BEGIN
             DECLARE
                 old_adjustment NUMERIC := COALESCE(OLD.cost_adjustment, 0);
                 new_adjustment NUMERIC := COALESCE(NEW.cost_adjustment, 0);
-                new_gang_rating NUMERIC;
             BEGIN
                 -- Calculate the new gang rating after cost adjustment
                 SELECT COALESCE(SUM(
