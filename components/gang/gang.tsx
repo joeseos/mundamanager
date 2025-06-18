@@ -963,7 +963,7 @@ const handleAlignmentChange = (value: string) => {
                 variant="ghost"
                 size="icon"
                 className="print:hidden"
-                title="Share Gang"
+                title="Show Logs"
               >
                 <LuLogs className="w-[23px] h-[23px]" />
               </Button>
@@ -974,7 +974,7 @@ const handleAlignmentChange = (value: string) => {
                 variant="ghost"
                 size="icon"
                 className="print:hidden"
-                title="Share Gang"
+                title="Take Screenshot"
               >
                 <FiCamera className="w-5 h-5" />
               </Button>
