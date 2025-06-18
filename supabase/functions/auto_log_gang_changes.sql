@@ -3,11 +3,6 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $function$
 BEGIN
-    -- Only log for the specific test gang
-    IF NEW.id != 'f27cb215-b9c3-47ed-8cfa-f2219332266e' THEN
-        RETURN NEW;
-    END IF;
-
     -- Log credits changes (but skip if it matches a recent fighter addition or equipment purchase)
     IF TG_OP = 'UPDATE' AND OLD.credits IS DISTINCT FROM NEW.credits THEN
         -- Check if this credit change matches a fighter added in the last 5 seconds

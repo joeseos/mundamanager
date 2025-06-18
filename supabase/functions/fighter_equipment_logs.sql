@@ -1,15 +1,15 @@
 CREATE OR REPLACE FUNCTION public.fighter_equipment_logs()
- RETURNS trigger
- LANGUAGE plpgsql
+RETURNS trigger
+LANGUAGE plpgsql
 AS $function$
 DECLARE
     fighter_name TEXT;
     vehicle_name TEXT;
     equipment_name TEXT;
     new_gang_rating NUMERIC;
-    test_gang_id UUID := 'f27cb215-b9c3-47ed-8cfa-f2219332266e';
     target_gang_id UUID;
     is_vehicle_equipment BOOLEAN := FALSE;
+    gang_exists BOOLEAN := FALSE;
 BEGIN
     -- Determine if this is fighter equipment or vehicle equipment
     IF TG_OP = 'INSERT' THEN
@@ -36,12 +36,15 @@ BEGIN
         END IF;
     END IF;
 
-    -- Only log for equipment belonging to the specific test gang
-    IF target_gang_id != test_gang_id THEN
-        IF TG_OP = 'INSERT' THEN
-            RETURN NEW;
-        ELSE
+    -- Check if the gang still exists (to avoid foreign key violations during gang deletion)
+    SELECT EXISTS(SELECT 1 FROM gangs WHERE id = target_gang_id) INTO gang_exists;
+    
+    -- Skip logging if gang doesn't exist (gang is being deleted)
+    IF NOT gang_exists THEN
+        IF TG_OP = 'DELETE' THEN
             RETURN OLD;
+        ELSE
+            RETURN NEW;
         END IF;
     END IF;
 
