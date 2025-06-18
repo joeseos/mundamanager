@@ -985,27 +985,14 @@ const handleAlignmentChange = (value: string) => {
               </Button>
             </div>
 
-            <div className="text-gray-600 mb-4">
-              <div className="flex flex-wrap gap-4">
+            <div className="text-gray-600 mb-2">
+              <div className="flex flex-wrap gap-2">
                 <div className="flex items-center gap-1 text-sm">
                   Type: <Badge variant="secondary">{gang_type}</Badge>
                 </div>
-                {campaigns?.[0] && (
-                  <div className="flex items-center gap-1 text-sm">
-                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                      <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
-                        {campaigns[0].campaign_name}
-                      </Link>
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="text-gray-600 mb-4">
-              <div className="flex flex-wrap gap-4">
                 {gangVariants.length > 0 && gangIsVariant && (
-                  <div className="flex items-center gap-1 text-sm">Variants:
+                  <div className="flex items-center gap-1 text-sm">
+                    Variants:
                     {gangVariants
                       .filter((variant) => variant.variant !== 'Outlaw')
                       .map((variant) => (
@@ -1018,7 +1005,21 @@ const handleAlignmentChange = (value: string) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-2">
+            <div className="text-gray-600 mb-4">
+              <div className="flex flex-wrap gap-4">
+                {campaigns?.[0] && (
+                  <div className="flex items-center gap-1 text-sm">
+                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                      <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
+                        {campaigns[0].campaign_name}
+                      </Link>
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-2">
               <StatItem
                 label="Alignment"
                 value={alignment}
@@ -1296,7 +1297,7 @@ function StatItem({
           <select
             value={editedValue}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full p-2 border rounded text-base sm:text-lg font-semibold"
+            className="w-full p-2 border rounded font-semibold"
           >
             {options.map((option) => (
               <option key={option} value={option}>
@@ -1309,11 +1310,11 @@ function StatItem({
             type="number"
             value={editedValue}
             onChange={(e) => onChange(e.target.value)}
-            className="text-base sm:text-lg font-semibold w-full"
+            className="font-semibold w-full"
           />
         )
       ) : (
-        <p className="text-base sm:text-base font-semibold">
+        <p className="font-semibold">
           {value != null ? value : 0}
         </p>
       )}
