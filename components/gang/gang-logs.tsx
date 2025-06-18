@@ -111,28 +111,23 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} — ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
   const columns: ListColumn[] = [
     {
       key: 'created_at',
       label: 'Date',
-      width: '160px',
+      width: '100px',
       render: (value) => formatDate(value)
     },
     {
       key: 'action_type',
       label: 'Type',
-      width: '140px',
+      width: '90px',
       render: (value) => getActionTypeDisplay(value)
     },
     {
@@ -156,7 +151,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       }}
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto">
-        <div className="border-b px-[10px] py-2 flex justify-between items-center">
+        <div className="border-b px-2 py-2 flex justify-between items-center">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-gray-900">Gang Activity Logs</h3>
             <p className="text-sm text-gray-500">Track all changes made to your gang</p>
@@ -165,14 +160,14 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-xl"
+              className="text-gray-500 hover:text-gray-700 text-3xl"
             >
               ×
             </button>
           </div>
         </div>
         
-        <div className="px-[10px] py-4">
+        <div className="px-2 py-4">
           <div className="max-h-[70vh] min-h-[400px] overflow-y-auto">
             <table className="w-full table-auto">
               <thead className="sticky top-0 bg-white z-10 shadow-sm">
@@ -180,7 +175,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                   {columns.map((column) => (
                     <th 
                       key={column.key}
-                      className={`px-3 py-2 text-left font-medium text-gray-700 border-b-2 border-gray-200 whitespace-nowrap ${
+                      className={`px-2 sm:px-3 py-1 sm:py-2 text-left text-sm font-medium text-gray-700 border-b-2 border-gray-200 whitespace-nowrap ${
                         column.align === 'right' ? 'text-right' : 
                         column.align === 'center' ? 'text-center' : 'text-left'
                       }`}
@@ -216,8 +211,8 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                       {columns.map((column) => (
                         <td 
                           key={column.key}
-                          className={`px-3 py-2 ${
-                            column.key === 'description' ? '' : 'whitespace-nowrap'
+                          className={`px-2 sm:px-3 py-1 sm:py-2 text-sm align-top ${
+                            column.key === 'description' ? '' : 'sm:whitespace-nowrap'
                           } ${
                             column.align === 'right' ? 'text-right' : 
                             column.align === 'center' ? 'text-center' : 'text-left'
@@ -249,7 +244,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                   disabled={currentPage === 1}
                   className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Previous
+                  Prev
                 </button>
                 
                 {/* Page numbers */}
