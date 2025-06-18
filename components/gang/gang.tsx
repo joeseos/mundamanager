@@ -26,10 +26,12 @@ import AddVehicle from './add-vehicle';
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import PrintModal from "@/components/print-modal";
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
+import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
 import { HexColorPicker } from "react-colorful";
 import GangLogs from './gang-logs';
+import { ViewModeDropdown } from './ViewModeDropdown';
 
 interface VehicleType {
   id: string;
@@ -922,33 +924,19 @@ const handleAlignmentChange = (value: string) => {
 
           {/* Right Section: Content */}
           <div className="flex-grow w-full">
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start mb-1">
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2 print:hidden">
 
                 {/* View Mode Dropdown - only show on desktop */}
-                <div className="hidden sm:block max-w-[120px] md:max-w-full md:w-full print:hidden">
-                  <select
-                    id="view-mode-select"
-                    value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value as 'normal' | 'small' | 'medium' | 'large')}
-                    className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
-                  >
-                    <option value="normal">Page View</option>
-                    <option value="small">Small Cards</option>
-                    <option value="medium">Medium Cards</option>
-                    <option value="large">Large Cards</option>
-                  </select>
-                </div>
+                <ViewModeDropdown
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  className="hidden sm:block max-w-[120px] md:max-w-full md:w-full"
+                />
 
                 <div className="flex gap-2">
                   {additionalButtons}
-                  <Button
-                    onClick={() => setShowLogsModal(true)}
-                    className="bg-black text-white hover:bg-gray-800 print:hidden"
-                  >
-                    Logs
-                  </Button>
                   <Button
                     onClick={handleEditModalOpen}
                     className="bg-black text-white hover:bg-gray-800 print:hidden"
@@ -959,21 +947,26 @@ const handleAlignmentChange = (value: string) => {
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end -mr-[10px]">
-              {/* View Mode Dropdown - show on mobile, aligned left */}
+            <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
+              {/* View Mode Dropdown - show on mobile */}
               <div className="sm:hidden w-auto print:hidden mr-auto">
-                <select
-                  id="view-mode-select-mobile"
-                  value={viewMode}
-                  onChange={(e) => setViewMode(e.target.value as 'normal' | 'small' | 'medium' | 'large')}
-                  className="p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-sm"
-                >
-                  <option value="normal">Page View</option>
-                  <option value="small">Small Cards</option>
-                  <option value="medium">Medium Cards</option>
-                  <option value="large">Large Cards</option>
-                </select>
+                <ViewModeDropdown
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  className="sm:hidden w-auto mr-auto"
+                />
               </div>
+
+              {/* Logs button */}
+              <Button
+                onClick={() => setShowLogsModal(true)}
+                variant="ghost"
+                size="icon"
+                className="print:hidden"
+                title="Share Gang"
+              >
+                <LuLogs className="w-[23px] h-[23px]" />
+              </Button>
 
               {/* Screenshot button */}
               <Button
