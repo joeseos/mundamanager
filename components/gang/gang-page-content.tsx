@@ -32,6 +32,7 @@ interface GangDataState {
     credits: number;
     reputation: number;
     meat: number;
+    scavenging_rolls: number;
     exploration_points: number;
     rating: number;
     alignment: string;

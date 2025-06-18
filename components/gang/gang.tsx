@@ -77,6 +77,7 @@ interface GangProps {
   credits: number | null;
   reputation: number | null;
   meat: number | null;
+  scavenging_rolls: number | null;
   exploration_points: number | null;
   rating: number | null;
   alignment: string;
@@ -95,6 +96,7 @@ interface GangProps {
     status: string | null;
     has_meat: boolean;
     has_exploration_points: boolean;
+    has_scavenging_rolls: boolean;
     territories: {
       id: string;
       created_at: string;
@@ -124,6 +126,7 @@ export default function Gang({
   credits: initialCredits, 
   reputation: initialReputation,
   meat: initialMeat,
+  scavenging_rolls: initialScavengingRolls,
   exploration_points: initialExplorationPoints,
   rating: initialRating,
   alignment: initialAlignment,
@@ -154,6 +157,7 @@ export default function Gang({
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
   const [meat, setMeat] = useState(initialMeat ?? 0)
+  const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
   const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
   const [rating, setRating] = useState<number>(initialRating ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
@@ -163,6 +167,7 @@ export default function Gang({
   const [editedCredits, setEditedCredits] = useState('');
   const [editedReputation, setEditedReputation] = useState('');
   const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
+  const [editedScavengingRolls, setEditedScavengingRolls] = useState((initialScavengingRolls ?? 0).toString())
   const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [alignment, setAlignment] = useState(initialAlignment);
@@ -326,6 +331,7 @@ const handleAlignmentChange = (value: string) => {
       const prevAllianceName = allianceName;
       const prevReputation = reputation;
       const prevMeat = meat;
+      const prevScavengingRolls = scavengingRolls;
       const prevExplorationPoints = explorationPoints;
       const prevGangVariants = [...gangVariants];
       const prevGangIsVariant = gangIsVariant;
@@ -339,6 +345,7 @@ const handleAlignmentChange = (value: string) => {
       setAllianceName(allianceList.find(a => a.id === editedAllianceId)?.alliance_name || "");
       setReputation(prevReputation + reputationDifference);
       setMeat(parseInt(editedMeat));
+      setScavengingRolls(parseInt(editedScavengingRolls));
       setExplorationPoints(parseInt(editedExplorationPoints));
       setGangIsVariant(editedGangIsVariant);
       setGangVariants(editedGangVariants);
@@ -359,6 +366,7 @@ const handleAlignmentChange = (value: string) => {
           reputation: Math.abs(reputationDifference),
           reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
           meat: parseInt(editedMeat),
+          scavenging_rolls: parseInt(editedScavengingRolls),
           exploration_points: parseInt(editedExplorationPoints),
           gang_variants: editedGangVariants.map(v => v.id),
           gang_colour: editedGangColour,
@@ -374,6 +382,7 @@ const handleAlignmentChange = (value: string) => {
         setAllianceName(prevAllianceName);
         setReputation(prevReputation);
         setMeat(prevMeat);
+        setScavengingRolls(prevScavengingRolls);
         setExplorationPoints(prevExplorationPoints);
         setGangIsVariant(prevGangIsVariant);
         setGangVariants(prevGangVariants);
@@ -553,6 +562,7 @@ const handleAlignmentChange = (value: string) => {
     setEditedAlignment(alignment);
     setEditedReputation('');
     setEditedMeat(meat?.toString() || '0');
+    setEditedScavengingRolls(scavengingRolls?.toString() || '0');
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
     setEditedGangIsVariant(gangIsVariant);
     setEditedGangVariants([...gangVariants]);
@@ -651,6 +661,49 @@ const handleAlignmentChange = (value: string) => {
         </p>
       </div>
 
+      {campaigns?.[0]?.has_meat && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Meat
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedMeat}
+            onChange={(e) => setEditedMeat(e.target.value)}
+          />
+        </div>
+      )}
+      {campaigns?.[0]?.has_scavenging_rolls && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Scavenging Rolls
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedScavengingRolls}
+            onChange={(e) => setEditedScavengingRolls(e.target.value)}
+          />
+        </div>
+      )}
+      {campaigns?.[0]?.has_exploration_points && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Exploration Points
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedExplorationPoints}
+            onChange={(e) => setEditedExplorationPoints(e.target.value)}
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
@@ -700,34 +753,7 @@ const handleAlignmentChange = (value: string) => {
           )}
         </select>
       </div>
-      {campaigns?.[0]?.has_meat && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Meat
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedMeat}
-            onChange={(e) => setEditedMeat(e.target.value)}
-          />
-        </div>
-      )}
-      {campaigns?.[0]?.has_exploration_points && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exploration Points
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedExplorationPoints}
-            onChange={(e) => setEditedExplorationPoints(e.target.value)}
-          />
-        </div>
-      )}
+
       <div className="mt-4">
         <div className="flex items-center space-x-2">
           <label htmlFor="variant-toggle" className="text-sm font-medium">
@@ -1089,6 +1115,15 @@ const handleAlignmentChange = (value: string) => {
                   isEditing={isEditing}
                   editedValue={editedMeat}
                   onChange={setEditedMeat}
+                />
+              )}
+              {campaigns?.[0]?.has_scavenging_rolls && (
+                <StatItem
+                  label="Scavenging Rolls"
+                  value={scavengingRolls}
+                  isEditing={isEditing}
+                  editedValue={editedScavengingRolls}
+                  onChange={setEditedScavengingRolls}
                 />
               )}
               {campaigns?.[0]?.has_exploration_points && (
