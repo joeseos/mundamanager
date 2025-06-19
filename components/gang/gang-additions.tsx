@@ -12,6 +12,7 @@ import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
+import { addFighterToGang } from '@/app/actions/add-fighter';
 
 interface GangEquipmentOption {
   id: string;
@@ -33,7 +34,7 @@ interface EquipmentDefaultItem {
 
 interface EquipmentSelectionCategory {
   name?: string;
-  select_type?: 'optional' | 'single' | 'multiple';
+  select_type?: 'optional' | 'optional_single' | 'single' | 'multiple';
   default?: EquipmentDefaultItem[];
   options?: GangEquipmentOption[];
 }
@@ -67,12 +68,12 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
   if (
     equipmentSelection &&
     typeof equipmentSelection === 'object' &&
-    ['optional', 'single', 'multiple'].some(k => k in equipmentSelection)
+    ['optional', 'optional_single', 'single', 'multiple'].some(k => k in equipmentSelection)
   ) {
     const result: EquipmentSelection = {};
     let idCounter = 0;
     
-    (['optional', 'single', 'multiple'] as const).forEach(selectType => {
+    (['optional', 'optional_single', 'single', 'multiple'] as const).forEach(selectType => {
       const typeGroup = equipmentSelection[selectType];
       if (typeGroup && typeof typeGroup === 'object') {
         (['weapons', 'wargear'] as const).forEach(categoryName => {
@@ -88,8 +89,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                 if (Array.isArray(group) && group.length > 0) {
                   const key = `${categoryName}_${selectType}_${idCounter++}`;
                   
-                  if (selectType === 'optional') {
-                    // For optional type, separate defaults and replacements
+                  if (selectType === 'optional' || selectType === 'optional_single') {
+                    // For optional types, separate defaults and replacements
                     const defaults = group.filter((item: any) => item.is_default);
                     const allReplacements: GangEquipmentOption[] = [];
                     
@@ -143,8 +144,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
               // Handle flat array (backward compatibility)
               const key = `${categoryName}_${selectType}_${idCounter++}`;
               
-              if (selectType === 'optional') {
-                // For optional type, separate defaults and replacements
+              if (selectType === 'optional' || selectType === 'optional_single') {
+                // For optional types, separate defaults and replacements
                 const defaults = categoryData.filter((item: any) => item.is_default);
                 const allReplacements: GangEquipmentOption[] = [];
                 
@@ -375,10 +376,8 @@ export default function GangAdditions({
     const newCost = e.target.value;
     setFighterCost(newCost);
     
-    // If cost is 0, automatically set useBaseCostForRating to true
-    if (newCost === '0') {
-      setUseBaseCostForRating(true);
-    }
+    // Remove the automatic setting of useBaseCostForRating
+    // Let users control this manually via the checkbox
   };
 
 const filteredGangAdditionTypes = selectedGangAdditionClass
@@ -444,6 +443,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           const categoryName = categoryData.name || 'Equipment';
           const selectType = categoryData.select_type || 'optional';
           const isOptional = selectType === 'optional';
+          const isOptionalSingle = selectType === 'optional_single';
           const isSingle = selectType === 'single';
           const isMultiple = selectType === 'multiple';
           
@@ -514,11 +514,56 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700">
                     {isOptional ? `Optional ${categoryName} (Replaces one default)` : 
+                     isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)` :
                      isSingle ? `Select ${categoryName} (Choose one)` : 
                      `Additional ${categoryName} (Select any)`}
                   </label>
                   
                   <div className="space-y-1">
+                    {/* Add "Keep Default" option for optional_single selections */}
+                    {isOptionalSingle && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`equipment-selection-${categoryId}`}
+                          id={`${categoryId}-keep-default`}
+                          checked={!categoryData.options?.some((o: any) => selectedEquipmentIds.includes(`${categoryId}-${o.id}`))}
+                          onChange={() => {
+                            // Remove all selections for this category (keep default)
+                            setSelectedEquipmentIds((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              return prev.filter(id =>
+                                !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                              );
+                            });
+
+                            // Remove all equipment selections for this category
+                            setSelectedEquipment((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              return prev.filter(item =>
+                                !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                              );
+                            });
+
+                            // Reset cost to remove any equipment costs from this category
+                            setFighterCost((prevCost) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
+                                currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                              );
+                              const prevSelectedCost = prevSelectedUniqueId
+                                ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
+                                : 0;
+                              return String(parseInt(prevCost || '0') - prevSelectedCost);
+                            });
+                          }}
+                        />
+                        <label htmlFor={`${categoryId}-keep-default`} className="text-sm font-medium">
+                          Keep Default {categoryData.default?.[0]?.equipment_name ? `(${categoryData.default[0].equipment_name})` : 'Equipment'}
+                        </label>
+                      </div>
+                    )}
+                    
                     {/* Combine all options from all categories into a flat list, sorted alphabetically */}
                     {sortedCategories.flatMap(category => 
                       categorizedOptions[category]
@@ -529,122 +574,159 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                       const nameB = b.equipment_name || '';
                       return nameA.localeCompare(nameB);
                     })
-                    .map((option) => (
-                      <div key={option.id} className="flex items-center gap-2">
-                        {isSingle ? (
-                          <input
-                            type="radio"
-                            name={`equipment-selection-${categoryId}`}
-                            id={option.id}
-                            checked={selectedEquipmentIds.includes(option.id)}
-                            onChange={() => {
-                              // Only one can be selected in this category
-                              setSelectedEquipmentIds((prev) => {
-                                // Remove all previous selections for this category
-                                const filtered = prev.filter(id =>
-                                  !categoryData.options?.some((o: any) => o.id === id)
-                                );
-                                return [...filtered, option.id];
-                              });
+                    .map((option) => {
+                      // Create unique identifier for this option in this category
+                      const uniqueOptionId = `${categoryId}-${option.id}`;
+                      
+                      return (
+                        <div key={uniqueOptionId} className="flex items-center gap-2">
+                          {(isSingle || isOptionalSingle) ? (
+                            <input
+                              type="radio"
+                              name={`equipment-selection-${categoryId}`}
+                              id={uniqueOptionId}
+                              checked={selectedEquipmentIds.includes(uniqueOptionId)}
+                              onChange={() => {
+                                // Only one can be selected in this category
+                                setSelectedEquipmentIds((prev) => {
+                                  // Remove all previous selections for this specific category only
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const filtered = prev.filter(id =>
+                                    !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  );
+                                  return [...filtered, uniqueOptionId];
+                                });
 
-                              // Update equipment with costs
-                              setSelectedEquipment((prev) => {
-                                // Remove all previous selections for this category
-                                const filtered = prev.filter(item =>
-                                  !categoryData.options?.some((o: any) => o.id === item.equipment_id)
-                                );
-                                return [...filtered, {
-                                  equipment_id: option.id,
-                                  cost: option.cost || 0,
-                                  quantity: 1
-                                }];
-                              });
+                                // Update equipment with costs
+                                setSelectedEquipment((prev) => {
+                                  // Remove all previous selections for this specific category only
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const filtered = prev.filter(item =>
+                                    !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                                  );
+                                  return [...filtered, {
+                                    equipment_id: option.id,
+                                    cost: option.cost || 0,
+                                    quantity: 1
+                                  }];
+                                });
 
-                              // Update cost using functional update
-                              setFighterCost((prevCost) => {
-                                // Find previous selection in this category
-                                const prevSelectedId = selectedEquipmentIds.find(id =>
-                                  categoryData.options?.some((o: any) => o.id === id)
-                                );
-                                const prevSelectedCost = prevSelectedId
-                                  ? categoryData.options?.find((o: any) => o.id === prevSelectedId)?.cost || 0
-                                  : 0;
-                                const optionCost = option.cost || 0;
-                                return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
-                              });
-                            }}
-                          />
-                        ) : (
-                          <Checkbox
-                            id={option.id}
-                            checked={selectedEquipmentIds.includes(option.id)}
-                            onCheckedChange={(checked) => {
-                              const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-                              const baseCost = selectedType?.total_cost || 0;
-                              
-                              // Get the option's cost
-                              const optionCost = option.cost || 0;
-                              
-                              if (checked === true) {
-                                // For optional/multiple selection, add to existing selections
-                                setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
+                                // Update cost using functional update
+                                setFighterCost((prevCost) => {
+                                  // Find previous selection in this specific category only
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
+                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  );
+                                  const prevSelectedCost = prevSelectedUniqueId
+                                    ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
+                                    : 0;
+                                  const optionCost = option.cost || 0;
+                                  return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
+                                });
+                              }}
+                            />
+                          ) : (
+                            <Checkbox
+                              id={uniqueOptionId}
+                              checked={selectedEquipmentIds.includes(uniqueOptionId)}
+                              onCheckedChange={(checked) => {
+                                const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                                const baseCost = selectedType?.total_cost || 0;
                                 
-                                // Check if this is replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional';
-                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
-                                  // Remove the default item and add the replacement
-                                  const defaultItem = categoryData.default[0] as any;
-                                  setSelectedEquipment(prev => {
-                                    const filtered = prev.filter(item => item.equipment_id !== defaultItem.id);
-                                    return [...filtered, {
+                                // Get the option's cost
+                                const optionCost = option.cost || 0;
+                                
+                                if (checked === true) {
+                                  // For optional/multiple selection, add to existing selections
+                                  setSelectedEquipmentIds([...selectedEquipmentIds, uniqueOptionId]);
+                                
+                                  // Check if this is replacing a default item
+                                  const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
+                                  if (isReplacement && categoryData.default && categoryData.default.length > 0) {
+                                    // Replace part of the default item quantity
+                                    const defaultItem = categoryData.default[0] as any;
+                                    const replacementQuantity = option.max_quantity || 1;
+                                    
+                                    setSelectedEquipment(prev => {
+                                      const updatedEquipment = prev.map(item => {
+                                        if (item.equipment_id === defaultItem.id) {
+                                          const newQuantity = item.quantity - replacementQuantity;
+                                          return newQuantity > 0 
+                                            ? { ...item, quantity: newQuantity }
+                                            : null; // Mark for removal
+                                        }
+                                        return item;
+                                      }).filter((item): item is { equipment_id: string; cost: number; quantity: number } => item !== null); // Remove items marked for removal
+                                      
+                                      // Add the replacement item
+                                      return [...updatedEquipment, {
+                                        equipment_id: option.id,
+                                        cost: optionCost,
+                                        quantity: replacementQuantity
+                                      }];
+                                    });
+                                  } else {
+                                    // Just add the new equipment
+                                    setSelectedEquipment([...selectedEquipment, {
                                       equipment_id: option.id,
                                       cost: optionCost,
                                       quantity: 1
-                                    }];
-                                  });
+                                    }]);
+                                  }
+                                  
+                                  setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
                                 } else {
-                                  // Just add the new equipment
-                                  setSelectedEquipment([...selectedEquipment, {
-                                    equipment_id: option.id,
-                                    cost: optionCost,
-                                    quantity: 1
-                                  }]);
+                                  // Remove this option
+                                  setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== uniqueOptionId));
+                                  
+                                  // Check if this was replacing a default item
+                                  const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
+                                  if (isReplacement && categoryData.default && categoryData.default.length > 0) {
+                                    // Restore the default item quantity and remove the replacement
+                                    const defaultItem = categoryData.default[0] as any;
+                                    const replacementQuantity = option.max_quantity || 1;
+                                    
+                                    setSelectedEquipment(prev => {
+                                      // Remove the replacement item
+                                      const withoutReplacement = prev.filter(item => item.equipment_id !== option.id);
+                                      
+                                      // Check if default item exists, if so increase its quantity, otherwise add it back
+                                      const existingDefaultIndex = withoutReplacement.findIndex(item => item.equipment_id === defaultItem.id);
+                                      
+                                      if (existingDefaultIndex >= 0) {
+                                        // Increase existing default item quantity
+                                        withoutReplacement[existingDefaultIndex] = {
+                                          ...withoutReplacement[existingDefaultIndex],
+                                          quantity: withoutReplacement[existingDefaultIndex].quantity + replacementQuantity
+                                        };
+                                        return withoutReplacement;
+                                      } else {
+                                        // Add back the default item
+                                        return [...withoutReplacement, {
+                                          equipment_id: defaultItem.id,
+                                          cost: 0, // Default items have cost 0
+                                          quantity: replacementQuantity
+                                        }];
+                                      }
+                                    });
+                                  } else {
+                                    // Just remove the equipment
+                                    setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
+                                  }
+                                  
+                                  setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
                                 }
-                                
-                                setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
-                              } else {
-                                // Remove this option
-                                setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
-                                
-                                // Check if this was replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional';
-                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
-                                  // Add back the default item and remove the replacement
-                                  const defaultItem = categoryData.default[0] as any;
-                                  setSelectedEquipment(prev => {
-                                    const filtered = prev.filter(item => item.equipment_id !== option.id);
-                                    return [...filtered, {
-                                      equipment_id: defaultItem.id,
-                                      cost: 0, // Default items have cost 0
-                                      quantity: defaultItem.quantity || 1
-                                    }];
-                                  });
-                                } else {
-                                  // Just remove the equipment
-                                  setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
-                                }
-                                
-                                setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
-                              }
-                            }}
-                          />
-                        )}
-                        <label htmlFor={option.id} className="text-sm">
-                          {option.equipment_name || 'Loading...'}
-                          {option.cost > 0 ? ` +${option.cost} credits` : ''}
-                        </label>
-                      </div>
-                    ))}
+                              }}
+                            />
+                          )}
+                          <label htmlFor={uniqueOptionId} className="text-sm">
+                            {option.equipment_name || 'Loading...'}
+                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -671,7 +753,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       allCategories.forEach(([categoryId, categoryData]) => {
         if (categoryData.options && Array.isArray(categoryData.options)) {
           categoryData.options.forEach((option: GangEquipmentOption) => {
-            if (selectedEquipmentIds.includes(option.id)) {
+            const uniqueOptionId = `${categoryId}-${option.id}`;
+            if (selectedEquipmentIds.includes(uniqueOptionId)) {
               equipmentCost += (option.cost || 0);
             }
           });
@@ -698,7 +781,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       allCategories.forEach(([categoryId, categoryData]) => {
         if (categoryData.options && Array.isArray(categoryData.options)) {
           categoryData.options.forEach((option: GangEquipmentOption) => {
-            if (selectedEquipmentIds.includes(option.id)) {
+            const uniqueOptionId = `${categoryId}-${option.id}`;
+            if (selectedEquipmentIds.includes(uniqueOptionId)) {
               total += (option.cost || 0);
             }
           });
@@ -806,52 +890,29 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         return false;
       }
 
-      // Get the base fighter type cost
-      const selectedType = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
-      const baseCost = selectedType?.cost || 0;
-      const enteredCost = parseInt(fighterCost);
-      
       // Parse the fighter cost, defaulting to 0 if it's empty or NaN
       const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
       
       // Debug log to verify equipment data and costs are being sent
       console.log('Sending equipment data:', selectedEquipment);
       console.log('Entered cost:', parsedCost);
-      console.log('Base cost:', baseCost);
-      console.log('Using base cost for rating:', useBaseCostForRating);
 
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            p_gang_id: gangId,
-            p_fighter_type_id: fighterTypeIdToUse,
-            p_fighter_name: fighterName,
-            p_cost: parsedCost,
-            p_selected_equipment: selectedEquipment,  // Changed from p_selected_equipment_ids
-            p_user_id: user.id,
-            p_use_base_cost_for_rating: useBaseCostForRating
-          })
-        }
-      );
+      // Use the server action instead of direct RPC call
+      const result = await addFighterToGang({
+        fighter_name: fighterName,
+        fighter_type_id: fighterTypeIdToUse,
+        gang_id: gangId,
+        cost: parsedCost,
+        selected_equipment: selectedEquipment,
+        user_id: user.id,
+        use_base_cost_for_rating: useBaseCostForRating
+      });
 
-      const data = await response.json();
-      console.log('Server response:', data); // Keep this for debugging
-
-      // Check for the specific "Not enough credits" error first
-      if (data.error?.includes('Not enough credits')) {
-        throw new Error('Not enough credits');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add fighter');
       }
-      
-      // For all other errors
-      if (data.error || !data?.fighter_id) {
-        throw new Error('Failed to add fighter');
-      }
+
+      const data = result.data!;
 
       const actualCost = parsedCost;
 
@@ -861,8 +922,11 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         fighter_type_id: fighterTypeIdToUse,
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
-        fighter_sub_type: data.fighter_sub_type,
-        credits: data.rating_cost || parseInt(fighterCost),
+        fighter_sub_type: data.fighter_sub_type_id ? { 
+          fighter_sub_type_id: data.fighter_sub_type_id,
+          fighter_sub_type: 'Unknown' // We don't have this in the server response
+        } : undefined,
+        credits: data.rating_cost || data.cost || parseInt(fighterCost),
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
         ballistic_skill: data.stats.ballistic_skill,
@@ -1226,7 +1290,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Cost (credits)
+          Total Cost (credits)
         </label>
         <Input
           type="number"
@@ -1243,6 +1307,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             )}
           </p>
         )}
+
       </div>
 
       <div className="flex items-center space-x-2 mb-4 mt-2">
@@ -1300,8 +1365,9 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             if (selectType === 'single' && 
                 (!categoryData.default || categoryData.default.length === 0) &&
                 categoryData.options && categoryData.options.length > 0) {
+              // Check for unique identifiers that include the category ID
               const selectedFromCategory = selectedEquipmentIds.some(id => 
-                categoryData.options?.some((opt: GangEquipmentOption) => opt.id === id)
+                categoryData.options?.some((opt: GangEquipmentOption) => `${categoryId}-${opt.id}` === id)
               );
               if (!selectedFromCategory) {
                 return true;

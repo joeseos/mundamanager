@@ -35,7 +35,7 @@ export interface EquipmentOption {
 
 export interface SelectionCategory {
   id: string;
-  select_type: 'optional' | 'single' | 'multiple';
+  select_type: 'optional' | 'optional_single' | 'single' | 'multiple';
   default?: EquipmentOption[];
   options?: EquipmentOption[];
   name?: string;
@@ -64,6 +64,7 @@ const SELECTION_TYPES = [
 
 const SELECTION_MODES = [
   { value: 'optional', label: 'Optional (Replace Default)' },
+  { value: 'optional_single', label: 'Optional Single (Choose One Replacement)' },
   { value: 'single', label: 'Single Selection' },
   { value: 'multiple', label: 'Multiple Selection' },
 ];
@@ -158,7 +159,7 @@ export function AdminFighterEquipmentSelection({
   setEquipmentSelection,
   disabled
 }: AdminFighterEquipmentSelectionProps) {
-  const [selectedMode, setSelectedMode] = useState<'optional' | 'single' | 'multiple'>('optional');
+  const [selectedMode, setSelectedMode] = useState<'optional' | 'optional_single' | 'single' | 'multiple'>('optional');
 
   // Generate a unique ID for a new category
   const generateCategoryId = (typeId: string) => {
@@ -180,7 +181,7 @@ export function AdminFighterEquipmentSelection({
         <div className="flex items-center gap-2">
           <select
             value={selectedMode}
-            onChange={(e) => setSelectedMode(e.target.value as 'optional' | 'single' | 'multiple')}
+            onChange={(e) => setSelectedMode(e.target.value as 'optional' | 'optional_single' | 'single' | 'multiple')}
             className="w-full p-2 border rounded-md"
             disabled={disabled}
           >
@@ -280,7 +281,7 @@ export function AdminFighterEquipmentSelection({
                 </div>
               </div>
 
-              {category.select_type === 'optional' && (
+              {(category.select_type === 'optional' || category.select_type === 'optional_single') && (
                 <div className="mt-4 border-t pt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Default Equipment
@@ -386,7 +387,7 @@ export function AdminFighterEquipmentSelection({
                         const value = e.target.value;
                         if (!value) return;
 
-                        if (category.select_type === 'optional') {
+                        if (category.select_type === 'optional' || category.select_type === 'optional_single') {
                           // For optional type, add to replacements of first default
                           setEquipmentSelection(prev => {
                             const defaults = prev[categoryId].default || [];
@@ -413,16 +414,16 @@ export function AdminFighterEquipmentSelection({
                           });
                         } else {
                           // For single and multiple types, add to options array
-                        setEquipmentSelection(prev => ({
-                          ...prev,
-                          [categoryId]: {
-                            ...prev[categoryId],
-                            options: [
-                              ...(prev[categoryId].options || []),
-                              { id: value, cost: 0, max_quantity: 1 }
-                            ]
-                          }
-                        }));
+                          setEquipmentSelection(prev => ({
+                            ...prev,
+                            [categoryId]: {
+                              ...prev[categoryId],
+                              options: [
+                                ...(prev[categoryId].options || []),
+                                { id: value, cost: 0, max_quantity: 1 }
+                              ]
+                            }
+                          }));
                         }
                         e.target.value = "";
                       }}
@@ -432,7 +433,7 @@ export function AdminFighterEquipmentSelection({
                       <option value="">Add equipment option</option>
                       {equipment
                         .filter(item => {
-                          if (category.select_type === 'optional') {
+                          if (category.select_type === 'optional' || category.select_type === 'optional_single') {
                             return !category.default?.[0]?.replacements?.some((r: any) => r.id === item.id);
                           } else {
                             return !category.options?.some(o => o.id === item.id);
@@ -447,10 +448,10 @@ export function AdminFighterEquipmentSelection({
                   </div>
                   <div className="space-y-2">
                     {/* Render optional equipment (replacements) for optional type */}
-                    {category.select_type === 'optional' && category.default && category.default.length > 0 && category.default[0].replacements && category.default[0].replacements.length > 0 && (
+                    {(category.select_type === 'optional' || category.select_type === 'optional_single') && category.default && category.default.length > 0 && category.default[0].replacements && category.default[0].replacements.length > 0 && (
                       <div className="space-y-1">
                         <label className="block text-sm font-medium text-gray-700">
-                          Optional Equipment
+                          {category.select_type === 'optional_single' ? 'Optional Equipment (Choose One)' : 'Optional Equipment'}
                         </label>
                         <div className="space-y-2">
                           {category.default[0].replacements.map((item, index) => {
@@ -652,6 +653,10 @@ export interface EquipmentSelectionDataModel {
     weapons: EquipmentOption[][];
     wargear: EquipmentOption[][];
   };
+  optional_single: {
+    weapons: EquipmentOption[][];
+    wargear: EquipmentOption[][];
+  };
   single: {
     weapons: EquipmentOption[][];
     wargear: EquipmentOption[][];
@@ -666,6 +671,7 @@ export interface EquipmentSelectionDataModel {
 export function guiToDataModel(gui: EquipmentSelection): EquipmentSelectionDataModel {
   const result: EquipmentSelectionDataModel = {
     optional: { weapons: [], wargear: [] },
+    optional_single: { weapons: [], wargear: [] },
     single: { weapons: [], wargear: [] },
     multiple: { weapons: [], wargear: [] },
   };
@@ -674,9 +680,9 @@ export function guiToDataModel(gui: EquipmentSelection): EquipmentSelectionDataM
     const type = category.select_type;
     const name = (category.name || '').toLowerCase();
     
-    if ((type === 'optional' || type === 'single' || type === 'multiple') && (name === 'weapons' || name === 'wargear')) {
-      if (type === 'optional') {
-        // For optional type, each default with its replacements becomes a group
+    if ((type === 'optional' || type === 'optional_single' || type === 'single' || type === 'multiple') && (name === 'weapons' || name === 'wargear')) {
+      if (type === 'optional' || type === 'optional_single') {
+        // For optional types, each default with its replacements becomes a group
         const optionalGroup = (category.default || []).map(def => ({
           id: def.id,
           cost: 0,
@@ -706,7 +712,7 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
   const gui: EquipmentSelection = {};
   let idCounter = 0;
   
-  (['optional', 'single', 'multiple'] as const).forEach(type => {
+  (['optional', 'optional_single', 'single', 'multiple'] as const).forEach(type => {
     (['weapons', 'wargear'] as const).forEach(name => {
       const groups = data?.[type]?.[name] || [];
       
@@ -715,8 +721,8 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
         if (group.length > 0) {
           const id = `${name}_${type}_${idCounter++}`;
           
-          if (type === 'optional') {
-            // For optional type, we need to handle defaults with replacements
+          if (type === 'optional' || type === 'optional_single') {
+            // For optional types, we need to handle defaults with replacements
             const defaults = group.filter(opt => opt.is_default);
             
             gui[id] = {
