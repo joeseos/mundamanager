@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
+import { buyEquipmentForFighter } from '@/app/actions/buy-equipment';
 
 interface ItemModalProps {
   title: string;
@@ -498,7 +499,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // Determine if this is a gang stash purchase
       const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
       
-      const requestBody = {
+      const params = {
         ...(item.is_custom 
           ? { custom_equipment_id: item.equipment_id }
           : { equipment_id: item.equipment_id }
@@ -509,37 +510,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
         use_base_cost_for_rating: useBaseCostForRating,
         buy_for_gang_stash: isGangStashPurchase,
         // Only include fighter_id or vehicle_id if not buying for gang stash
-        // Convert empty strings to null for UUID fields
         ...(!isGangStashPurchase && (isVehicleEquipment
-          ? { vehicle_id: vehicleId || null }
-          : { fighter_id: fighterId || null }
+          ? { vehicle_id: vehicleId || undefined }
+          : { fighter_id: fighterId || undefined }
         ))
       };
 
-      console.log('Sending equipment purchase request:', requestBody);
+      console.log('Sending equipment purchase request:', params);
 
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/buy_equipment_for_fighter',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
+      const result = await buyEquipmentForFighter(params);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Purchase failed with status:', response.status);
-        console.error('Error details:', errorText);
-        throw new Error(`Failed to buy equipment: ${response.status} ${errorText}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to buy equipment');
       }
 
-      const data = await response.json();
-
+      const data = result.data;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
       
       // Handle different response structures for gang stash vs fighter equipment
