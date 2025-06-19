@@ -26,6 +26,7 @@ interface GangInventoryProps {
   gangTypeId?: string;
   gangId: string;
   gangCredits: number;
+  onGangCreditsUpdate?: (newCredits: number) => void;
 }
 
 export default function GangInventory({ 
@@ -38,7 +39,8 @@ export default function GangInventory({
   vehicles = [],
   gangTypeId,
   gangId,
-  gangCredits
+  gangCredits,
+  onGangCreditsUpdate
 }: GangInventoryProps) {
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -564,6 +566,11 @@ export default function GangInventory({
             // Call parent update function if provided
             if (onStashUpdate) {
               onStashUpdate(newStash);
+            }
+
+            // Update gang credits in parent component if provided
+            if (onGangCreditsUpdate && newGangCredits !== undefined) {
+              onGangCreditsUpdate(newGangCredits);
             }
 
             // Close the modal and show success message
