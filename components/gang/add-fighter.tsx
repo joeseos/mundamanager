@@ -11,6 +11,7 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
+import { addFighterToGang } from '@/app/actions/add-fighter';
 
 interface AddFighterProps {
   showModal: boolean;
@@ -41,7 +42,7 @@ interface EquipmentDefaultItem {
 
 interface EquipmentSelectionCategory {
   name?: string;
-  select_type?: 'optional' | 'single' | 'multiple';
+  select_type?: 'optional' | 'optional_single' | 'single' | 'multiple';
   default?: EquipmentDefaultItem[];
   options?: GangEquipmentOption[];
 }
@@ -71,7 +72,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
     const result: EquipmentSelection = {};
     let idCounter = 0;
     
-    (['optional', 'single', 'multiple'] as const).forEach(selectType => {
+    (['optional', 'optional_single', 'single', 'multiple'] as const).forEach(selectType => {
       const typeGroup = equipmentSelection[selectType];
       if (typeGroup && typeof typeGroup === 'object') {
         (['weapons', 'wargear'] as const).forEach(categoryName => {
@@ -87,8 +88,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                 if (Array.isArray(group) && group.length > 0) {
                   const key = `${categoryName}_${selectType}_${idCounter++}`;
                   
-                  if (selectType === 'optional') {
-                    // For optional type, separate defaults and replacements
+                  if (selectType === 'optional' || selectType === 'optional_single') {
+                    // For optional/optional_single type, separate defaults and replacements
                     const defaults = group.filter((item: any) => item.is_default);
                     const allReplacements: GangEquipmentOption[] = [];
                     
@@ -142,8 +143,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
               // Handle flat array (backward compatibility)
               const key = `${categoryName}_${selectType}_${idCounter++}`;
               
-              if (selectType === 'optional') {
-                // For optional type, separate defaults and replacements
+              if (selectType === 'optional' || selectType === 'optional_single') {
+                // For optional/optional_single type, separate defaults and replacements
                 const defaults = categoryData.filter((item: any) => item.is_default);
                 const allReplacements: GangEquipmentOption[] = [];
                 
@@ -370,6 +371,7 @@ export default function AddFighter({
           const categoryName = categoryData.name || 'Equipment';
           const selectType = categoryData.select_type || 'optional';
           const isOptional = selectType === 'optional';
+          const isOptionalSingle = selectType === 'optional_single';
           const isSingle = selectType === 'single';
           const isMultiple = selectType === 'multiple';
           
@@ -440,11 +442,56 @@ export default function AddFighter({
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700">
                     {isOptional ? `Optional ${categoryName} (Replaces one default)` : 
+                     isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)` :
                      isSingle ? `Select ${categoryName} (Choose one)` : 
                      `Additional ${categoryName} (Select any)`}
                   </label>
                   
                   <div className="space-y-1">
+                    {/* Add "Keep Default" option for optional_single selections */}
+                    {isOptionalSingle && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`equipment-selection-${categoryId}`}
+                          id={`${categoryId}-keep-default`}
+                          checked={!categoryData.options?.some((o: any) => selectedEquipmentIds.includes(o.id))}
+                          onChange={() => {
+                            // Remove all selections for this category (keep default)
+                            setSelectedEquipmentIds((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              return prev.filter(id =>
+                                !currentCategoryOptions.some((o: any) => o.id === id)
+                              );
+                            });
+
+                            // Remove all equipment selections for this category
+                            setSelectedEquipment((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              return prev.filter(item =>
+                                !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                              );
+                            });
+
+                            // Reset cost to remove any equipment costs from this category
+                            setFighterCost((prevCost) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              const prevSelectedId = selectedEquipmentIds.find(id =>
+                                currentCategoryOptions.some((o: any) => o.id === id)
+                              );
+                              const prevSelectedCost = prevSelectedId
+                                ? currentCategoryOptions.find((o: any) => o.id === prevSelectedId)?.cost || 0
+                                : 0;
+                              return String(parseInt(prevCost || '0') - prevSelectedCost);
+                            });
+                          }}
+                        />
+                        <label htmlFor={`${categoryId}-keep-default`} className="text-sm font-medium">
+                          Keep Default {categoryData.default?.[0]?.equipment_name ? `(${categoryData.default[0].equipment_name})` : 'Equipment'}
+                        </label>
+                      </div>
+                    )}
+                    
                     {/* Combine all options from all categories into a flat list, sorted alphabetically */}
                     {sortedCategories.flatMap(category => 
                       categorizedOptions[category]
@@ -457,7 +504,7 @@ export default function AddFighter({
                     })
                     .map((option) => (
                       <div key={option.id} className="flex items-center gap-2">
-                        {isSingle ? (
+                        {(isSingle || isOptionalSingle) ? (
                           <input
                             type="radio"
                             name={`equipment-selection-${categoryId}`}
@@ -516,7 +563,7 @@ export default function AddFighter({
                                 setSelectedEquipmentIds([...selectedEquipmentIds, option.id]);
                                 
                                 // Check if this is replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional';
+                                const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
                                 if (isReplacement && categoryData.default && categoryData.default.length > 0) {
                                   // Remove the default item and add the replacement
                                   const defaultItem = categoryData.default[0] as any;
@@ -543,7 +590,7 @@ export default function AddFighter({
                                 setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== option.id));
                                 
                                 // Check if this was replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional';
+                                const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
                                 if (isReplacement && categoryData.default && categoryData.default.length > 0) {
                                   // Add back the default item and remove the replacement
                                   const defaultItem = categoryData.default[0] as any;
@@ -679,44 +726,25 @@ export default function AddFighter({
       // Determine the cost to use for fighter rating/display
       const fighterDisplayCost = useBaseCostForRating ? actualBaseCost : enteredCost;
 
-      const response = await fetch(
-  'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/new_add_fighter_to_gang',
-  {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-    },
-    body: JSON.stringify({
-      p_gang_id: gangId,
-      p_fighter_type_id: fighterTypeIdToUse,
-      p_fighter_name: fighterName,
-      p_cost: enteredCost,
-      p_selected_equipment: selectedEquipment,  // Changed from p_selected_equipment_ids
-      p_user_id: user.id,
-      p_use_base_cost_for_rating: useBaseCostForRating
-    })
-  }
-);
+      // Use the new server action instead of direct SQL function call
+      const result = await addFighterToGang({
+        fighter_name: fighterName,
+        fighter_type_id: fighterTypeIdToUse,
+        gang_id: gangId,
+        cost: enteredCost,
+        selected_equipment: selectedEquipment,
+        user_id: user.id,
+        use_base_cost_for_rating: useBaseCostForRating
+      });
 
-if (!response.ok) {
-  const errorData = await response.json();
-  throw new Error(errorData.message || 'Failed to add fighter');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add fighter');
 }
 
-const data = await response.json();
+      const data = result.data!;
 
-// Check for error in the JSON response (from our consistent error handling)
-if (data.error) {
-  throw new Error(data.error);
-}
-
-if (!data?.fighter_id) {
-  throw new Error('Failed to add fighter');
-}
-
-      // Use the rating_cost from the server if available, otherwise use our locally calculated cost
-      const displayCost = data.rating_cost || fighterDisplayCost;
+      // Use the rating_cost from the server - it correctly handles the use_base_cost_for_rating setting
+      const displayCost = data.rating_cost || data.cost || enteredCost;
 
       const newFighter = {
         id: data.fighter_id,
@@ -724,7 +752,10 @@ if (!data?.fighter_id) {
         fighter_type_id: fighterTypeIdToUse,
         fighter_type: data.fighter_type,
         fighter_class: data.fighter_class,
-        fighter_sub_type: data.fighter_sub_type,
+        fighter_sub_type: data.fighter_sub_type_id ? { 
+          fighter_sub_type_id: data.fighter_sub_type_id,
+          fighter_sub_type: selectedType?.sub_type?.sub_type_name || ''
+        } : undefined,
         credits: displayCost,
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
