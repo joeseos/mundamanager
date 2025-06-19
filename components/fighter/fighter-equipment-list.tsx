@@ -7,6 +7,7 @@ import { Equipment } from '@/types/equipment';
 import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 
 interface WeaponListProps {
   fighterId: string;
@@ -139,31 +140,19 @@ export function WeaponList({
       );
       if (!equipmentToSell) return;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/sell_equipment_from_fighter`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            fighter_equipment_id: fighterEquipmentId,
-            manual_cost: manualCost,
-            in_user_id: session.user.id
-          })
-        }
-      );
+      const result = await sellEquipmentFromFighter({
+        fighter_equipment_id: fighterEquipmentId,
+        manual_cost: manualCost
+      });
 
-      if (!response.ok) throw new Error('Failed to sell equipment');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to sell equipment');
+      }
 
-      const { equipment_sold: { sell_value = 0 } = {} } = await response.json();
-      
       const updatedEquipment = equipment.filter(
         item => item.fighter_equipment_id !== fighterEquipmentId
       );
-      const newGangCredits = gangCredits + manualCost;
+      const newGangCredits = result.data?.gang.credits || gangCredits;
       // When selling, we need to subtract the rating cost (purchase_cost) from fighter's credits
       // The cost field should already be set to purchase_cost from the backend
       const newFighterCredits = fighterCredits - equipmentToSell.cost;
