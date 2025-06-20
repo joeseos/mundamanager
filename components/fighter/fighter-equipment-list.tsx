@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { Button } from "@/components/ui/button";
 
 interface WeaponListProps {
   fighterId: string;
@@ -237,72 +238,140 @@ export function WeaponList({
     return a.equipment_name.localeCompare(b.equipment_name);
   });
 
-  // Transform equipment for List component
-  const listItems = sortedEquipment.map((item) => ({
-    id: item.fighter_equipment_id,
-    name: item.equipment_name,
-    cost: item.cost ?? 0,
-    core_equipment: item.core_equipment,
-    fighter_equipment_id: item.fighter_equipment_id,
-    equipment_id: item.equipment_id
-  }));
+  // Filter equipment by type
+  const weapons = sortedEquipment.filter(item => item.equipment_type === 'weapon');
+  const wargear = sortedEquipment.filter(item => item.equipment_type === 'wargear');
+  const vehicleUpgrades = sortedEquipment.filter(item => item.equipment_type === 'vehicle_upgrade');
+
+  const renderRow = (item: Equipment) => (
+    <tr
+      key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
+      className="border-b"
+    >
+      <td className="px-1 py-1">
+        {item.equipment_name}
+      </td>
+      <td className="px-1 py-1 text-right">
+        {item.cost ?? '-'}
+      </td>
+      <td className="px-1 py-1">
+        <div className="flex justify-end gap-1">
+          {!item.core_equipment && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+                  if (equipment) {
+                    setStashModalData(equipment);
+                  }
+                }}
+                disabled={isLoading || !userPermissions.canEdit}
+                className="text-xs px-1.5 h-6"
+              >
+                Stash
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+                  if (equipment) {
+                    setSellModalData(equipment);
+                  }
+                }}
+                disabled={isLoading || !userPermissions.canEdit}
+                className="text-xs px-1.5 h-6"
+              >
+                Sell
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteModalData({
+                  id: item.fighter_equipment_id,
+                  equipmentId: item.equipment_id,
+                  name: item.equipment_name
+                })}
+                disabled={isLoading || !userPermissions.canEdit}
+                className="text-xs px-1.5 h-6"
+              >
+                Delete
+              </Button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 bg-gray-200 animate-pulse rounded" />
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      <List
-        title="Equipment"
-        items={listItems}
-        columns={[
-          {
-            key: 'name',
-            label: 'Name',
-            width: '75%'
-          },
-          {
-            key: 'cost',
-            label: 'Cost',
-            align: 'right'
-          }
-        ]}
-        actions={ [
-          {
-            label: 'Stash',
-            variant: 'outline',
-            onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
-              if (equipment) {
-                setStashModalData(equipment);
-              }
-            },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          },
-          {
-            label: 'Sell',
-            variant: 'outline',
-            onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
-              if (equipment) {
-                setSellModalData(equipment);
-              }
-            },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          },
-          {
-            label: 'Delete',
-            variant: 'destructive',
-            onClick: (item) => setDeleteModalData({
-              id: item.fighter_equipment_id,
-              equipmentId: item.equipment_id,
-              name: item.name
-            }),
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          }
-        ]}
-        onAdd={onAddEquipment}
-        addButtonDisabled={!userPermissions.canEdit}
-        addButtonText="Add"
-        emptyMessage="No equipment yet."
-      />
+      <div className="mt-6">
+        <div className="flex flex-wrap justify-between items-center mb-2">
+          <h2 className="text-xl md:text-2xl font-bold">Equipment</h2>
+          <Button 
+            onClick={onAddEquipment}
+            className="bg-black hover:bg-gray-800 text-white"
+            disabled={isLoading || !userPermissions.canEdit}
+          >
+            Add
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto">
+            {(equipment?.length > 0) && (
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-1 py-1 text-left w-[75%]">Name</th>
+                  <th className="px-1 py-1 text-right">Cost</th>
+                  <th className="px-1 py-1 text-right">Action</th>
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {!equipment?.length ? (
+                <tr>
+                  <td colSpan={3} className="text-gray-500 italic text-center py-4">
+                    No equipment yet.
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {weapons.map(renderRow)}
+                  {vehicleUpgrades.length > 0 && weapons.length > 0 && (
+                    <tr>
+                      <td colSpan={3} className="border-t-8 border-gray-100 p-0" />
+                    </tr>
+                  )}
+                  {vehicleUpgrades.map(renderRow)}
+                  {wargear.length > 0 && (weapons.length > 0 || vehicleUpgrades.length > 0) && (
+                    <tr>
+                      <td colSpan={3} className="border-t-8 border-gray-100 p-0" />
+                    </tr>
+                  )}
+                  {wargear.map(renderRow)}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {deleteModalData && (
         <Modal

@@ -8,7 +8,7 @@ export interface ListColumn {
   label: string;
   align?: 'left' | 'right' | 'center';
   width?: string;
-  render?: (value: any, item: any) => React.ReactNode;
+  render?: (value: any, item: any, index?: number) => React.ReactNode;
 }
 
 export interface ListAction {
@@ -61,9 +61,9 @@ export function List<T = any>({
     }
   };
 
-  const renderCellContent = (column: ListColumn, item: T): React.ReactNode => {
+  const renderCellContent = (column: ListColumn, item: T, index: number): React.ReactNode => {
     if (column.render) {
-      return column.render(item[column.key as keyof T], item);
+      return column.render(item[column.key as keyof T], item, index);
     }
     const value = item[column.key as keyof T];
     // Convert the value to a string or return null if it's null/undefined
@@ -127,7 +127,7 @@ export function List<T = any>({
                         key={column.key}
                         className={`px-1 py-1 ${getAlignmentClass(column.align)}`}
                       >
-                        {renderCellContent(column, item)}
+                        {renderCellContent(column, item, index)}
                       </td>
                     ))}
                     {actions.length > 0 && (
