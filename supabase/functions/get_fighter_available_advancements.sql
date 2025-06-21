@@ -12,7 +12,7 @@ DECLARE
   v_advancements_category_id UUID;
   v_fighter_type text;
   v_fighter_class text;
-  v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger or Crew)
+  v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
 BEGIN
   -- Get fighter's current XP, fighter type, and fighter class
   SELECT f.xp, ft.fighter_type, ft.fighter_class 
@@ -26,9 +26,9 @@ BEGIN
   END IF;
   
   -- Determine if the fighter uses flat costs based on fighter_class
-  -- Gangers, Exotic Beasts, and Brutes use flat costs
+  -- Only Gangers and Exotic Beasts use flat costs
   v_uses_flat_cost := 
-    v_fighter_class IN ('Ganger', 'Exotic Beast', 'Brute');
+    v_fighter_class IN ('Ganger', 'Exotic Beast');
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -78,7 +78,7 @@ BEGIN
       etc.base_xp_cost,
       -- Calculate XP cost based on fighter class and characteristic
       CASE
-        -- For Gangers: fixed 6 XP cost
+        -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
@@ -86,7 +86,7 @@ BEGIN
       END as xp_cost,
       -- Calculate credits increase based on fighter class and characteristic
       CASE
-        -- For Gangers: credits based on advancement table
+        -- For Gangers and Exotic Beasts: credits based on advancement table
         WHEN v_uses_flat_cost THEN
           CASE
             -- Weapon Skill or Ballistic Skill
