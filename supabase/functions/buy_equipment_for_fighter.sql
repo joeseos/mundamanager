@@ -202,7 +202,8 @@ BEGIN
   final_purchase_cost := COALESCE(manual_cost, adjusted_cost_final);
 
   -- Check if gang has enough credits using the final purchase cost
-  IF current_gang_credits < final_purchase_cost THEN
+  -- Allow purchase if cost is 0 (free equipment)
+  IF final_purchase_cost > 0 AND current_gang_credits < final_purchase_cost THEN
     RAISE EXCEPTION 'Gang has insufficient credits. Required: %, Available: %', final_purchase_cost, current_gang_credits;
   END IF;
 
