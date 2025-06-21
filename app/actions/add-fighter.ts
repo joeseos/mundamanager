@@ -94,12 +94,40 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       use_base_cost_for_rating: params.use_base_cost_for_rating
     });
 
-    // Get fighter type details and gang information
-    const { data: fighterTypeData, error: fighterTypeError } = await supabase
-      .from('fighter_types')
-      .select('*')
-      .eq('id', params.fighter_type_id)
-      .single();
+    // OPTIMIZATION 1: Parallelize initial database queries
+    const [fighterTypeResult, gangResult, fighterDefaultsResult] = await Promise.all([
+      supabase
+        .from('fighter_types')
+        .select('*')
+        .eq('id', params.fighter_type_id)
+        .single(),
+      supabase
+        .from('gangs')
+        .select('id, credits, user_id')
+        .eq('id', params.gang_id)
+        .single(),
+      supabase
+        .from('fighter_defaults')
+        .select(`
+          equipment_id,
+          skill_id,
+          equipment!equipment_id(
+            id,
+            equipment_name,
+            equipment_type,
+            cost
+          ),
+          skills!skill_id(
+            id,
+            name
+          )
+        `)
+        .eq('fighter_type_id', params.fighter_type_id)
+    ]);
+
+    const { data: fighterTypeData, error: fighterTypeError } = fighterTypeResult;
+    const { data: gangData, error: gangError } = gangResult;
+    const { data: fighterDefaultsData, error: fighterDefaultsError } = fighterDefaultsResult;
 
     console.log('Fighter type query result:', {
       data: fighterTypeData,
@@ -117,12 +145,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const fighterClassName = fighterTypeData.fighter_class || '';
 
     // Get gang information
-    const { data: gangData, error: gangError } = await supabase
-      .from('gangs')
-      .select('id, credits, user_id')
-      .eq('id', params.gang_id)
-      .single();
-
     if (gangError || !gangData) {
       throw new Error('Gang not found');
     }
@@ -136,6 +158,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const fighterCost = params.cost ?? fighterTypeData.cost;
     const baseCost = fighterTypeData.cost;
     
+    // OPTIMIZATION 2: Process default equipment from already fetched data
+    const defaultEquipment = fighterDefaultsData?.filter(item => item.equipment_id) || [];
+    
     // Handle equipment - we need to handle both:
     // 1. fighter_defaults table equipment (always added)
     // 2. Equipment selection equipment (handled by frontend with replacements)
@@ -147,27 +172,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       quantity: number;
     }> = [];
 
-    // ALWAYS get default equipment from fighter_defaults table (like armor)
-    // This equipment is never replaced by selections
-    const { data: fighterDefaultsData } = await supabase
-      .from('fighter_defaults')
-      .select(`
-        equipment_id,
-        equipment!equipment_id(
-          id,
-          equipment_name,
-          equipment_type,
-          cost
-        )
-      `)
-      .eq('fighter_type_id', params.fighter_type_id)
-      .not('equipment_id', 'is', null);
-
-    console.log('Fighter defaults equipment:', fighterDefaultsData);
-
     // Add fighter_defaults equipment (always added, never replaced)
-    if (fighterDefaultsData) {
-      for (const defaultItem of fighterDefaultsData) {
+    if (defaultEquipment.length > 0) {
+      for (const defaultItem of defaultEquipment) {
         equipmentToAdd.push({
           equipment_id: defaultItem.equipment_id,
           original_cost: (defaultItem.equipment as any)?.cost || 0,
@@ -177,33 +184,40 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       }
     }
 
-    // Handle equipment selections (modern format with replacement handling)
+    // OPTIMIZATION 3: Batch equipment lookups for selected equipment
+    let selectedEquipmentData: any[] = [];
     if (params.selected_equipment && params.selected_equipment.length > 0) {
-      console.log('Processing selected_equipment:', params.selected_equipment);
+      const selectedEquipmentIds = params.selected_equipment.map(item => item.equipment_id);
       
+      const { data: equipmentBatchData, error: equipmentBatchError } = await supabase
+        .from('equipment')
+        .select('id, cost')
+        .in('id', selectedEquipmentIds);
+
+      if (equipmentBatchError) {
+        console.warn('Error fetching selected equipment:', equipmentBatchError);
+      } else {
+        selectedEquipmentData = equipmentBatchData || [];
+      }
+
+      // Process selected equipment with batched data
       for (const selectedItem of params.selected_equipment) {
-        // Get equipment details
-        const { data: equipmentData, error: equipmentError } = await supabase
-          .from('equipment')
-          .select('id, cost')
-          .eq('id', selectedItem.equipment_id)
-          .single();
+        const equipmentData = selectedEquipmentData.find(eq => eq.id === selectedItem.equipment_id);
+        if (equipmentData) {
+          // Equipment selections are always added with purchase_cost: 0 since they're already paid for
+          // But we still track the original cost for rating calculations
+          const originalCost = selectedItem.cost !== undefined ? selectedItem.cost : equipmentData.cost;
 
-        if (equipmentError || !equipmentData) {
-          console.warn(`Equipment not found: ${selectedItem.equipment_id}`);
-          continue;
+          equipmentToAdd.push({
+            equipment_id: selectedItem.equipment_id,
+            original_cost: originalCost,
+            purchase_cost: 0, // Always 0 for equipment selections - they're already paid for
+            quantity: selectedItem.quantity || 1
+          });
+
+          // Add to total equipment cost for rating calculation
+          totalEquipmentCost += originalCost * (selectedItem.quantity || 1);
         }
-
-        const purchaseCost = selectedItem.cost !== undefined ? selectedItem.cost : equipmentData.cost;
-
-        equipmentToAdd.push({
-          equipment_id: selectedItem.equipment_id,
-          original_cost: equipmentData.cost,
-          purchase_cost: purchaseCost,
-          quantity: selectedItem.quantity || 1
-        });
-
-        totalEquipmentCost += purchaseCost * (selectedItem.quantity || 1);
       }
     }
 
@@ -279,103 +293,136 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       }
     }
 
-    let equipmentWithProfiles: any[] = [];
-    
+    // OPTIMIZATION 5: Parallelize equipment and skills insertion
+    const insertPromises: Promise<any>[] = [];
+
+    // Add equipment insertion promise if there's equipment to add
     if (allEquipmentInserts.length > 0) {
-      const { data: insertedEquipment, error: equipmentInsertError } = await supabase
-        .from('fighter_equipment')
-        .insert(allEquipmentInserts)
-        .select(`
-          id,
-          equipment_id,
-          original_cost,
-          purchase_cost,
-          equipment!equipment_id(
-            id,
-            equipment_name,
-            equipment_type,
-            cost
-          )
-        `);
-
-      if (equipmentInsertError) {
-        console.warn(`Failed to insert equipment: ${equipmentInsertError.message}`);
-      } else if (insertedEquipment) {
-        // Get weapon profiles for weapons
-        const weaponIds = insertedEquipment
-          .filter(item => (item.equipment as any)?.equipment_type === 'weapon')
-          .map(item => item.equipment_id);
-
-        let weaponProfiles: any[] = [];
-        if (weaponIds.length > 0) {
-          const { data: profilesData } = await supabase
-            .from('weapon_profiles')
-            .select('*')
-            .in('weapon_id', weaponIds);
-          weaponProfiles = profilesData || [];
-        }
-
-        equipmentWithProfiles = insertedEquipment.map(item => ({
-          fighter_equipment_id: item.id,
-          equipment_id: item.equipment_id,
-          equipment_name: (item.equipment as any)?.equipment_name || '',
-          equipment_type: (item.equipment as any)?.equipment_type || '',
-          cost: item.purchase_cost,
-          weapon_profiles: weaponProfiles.filter(wp => wp.weapon_id === item.equipment_id)
-        }));
-      }
+      insertPromises.push(
+        Promise.resolve(
+          supabase
+            .from('fighter_equipment')
+            .insert(allEquipmentInserts)
+            .select(`
+              id,
+              equipment_id,
+              original_cost,
+              purchase_cost,
+              equipment!equipment_id(
+                id,
+                equipment_name,
+                equipment_type,
+                cost
+              )
+            `)
+        ).then(result => ({ type: 'equipment' as const, result }))
+      );
     }
 
     // Insert default skills
-    const { data: defaultSkillsData } = await supabase
-      .from('fighter_defaults')
-      .select(`
-        skill_id,
-        skills!skill_id(
-          id,
-          name
-        )
-      `)
-      .eq('fighter_type_id', params.fighter_type_id)
-      .not('skill_id', 'is', null);
-
-    let insertedSkills: any[] = [];
-    if (defaultSkillsData && defaultSkillsData.length > 0) {
+    const defaultSkillsData = fighterDefaultsData?.filter(item => item.skill_id) || [];
+    
+    if (defaultSkillsData.length > 0) {
       const skillInserts = defaultSkillsData.map(skill => ({
         fighter_id: fighterId,
         skill_id: skill.skill_id,
         user_id: gangData.user_id
       }));
 
-      const { data: skillInsertData, error: skillInsertError } = await supabase
-        .from('fighter_skills')
-        .insert(skillInserts)
-        .select(`
-          skill_id,
-          skills!skill_id(
-            id,
-            name
-          )
-        `);
-
-      if (skillInsertError) {
-        console.warn(`Failed to insert skills: ${skillInsertError.message}`);
-      } else {
-        insertedSkills = skillInsertData || [];
-      }
+      insertPromises.push(
+        Promise.resolve(
+          supabase
+            .from('fighter_skills')
+            .insert(skillInserts)
+            .select(`
+              skill_id,
+              skills!skill_id(
+                id,
+                name
+              )
+            `)
+        ).then(result => ({ type: 'skills' as const, result }))
+      );
     }
 
     // Update gang credits
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({ 
-        credits: gangData.credits - totalCost,
-        last_updated: new Date().toISOString()
-      })
-      .eq('id', params.gang_id);
+    insertPromises.push(
+      Promise.resolve(
+        supabase
+          .from('gangs')
+          .update({ 
+            credits: gangData.credits - totalCost,
+            last_updated: new Date().toISOString()
+          })
+          .eq('id', params.gang_id)
+      ).then(result => ({ type: 'gang_update' as const, result }))
+    );
 
-    if (updateError) {
-      throw new Error(`Failed to update gang credits: ${updateError.message}`);
+    // Execute all inserts in parallel
+    const insertResults = await Promise.allSettled(insertPromises);
+
+    // Process results with type information
+    let equipmentWithProfiles: any[] = [];
+    let insertedSkills: any[] = [];
+    let gangUpdateError: any = null;
+
+    for (const result of insertResults) {
+      if (result.status === 'fulfilled') {
+        const { type, result: queryResult } = result.value;
+        
+        switch (type) {
+          case 'equipment':
+            if (queryResult.data) {
+              const insertedEquipment = queryResult.data;
+              
+              // OPTIMIZATION 6: Batch weapon profiles query
+              const weaponIds = insertedEquipment
+                .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
+                .map((item: any) => item.equipment_id);
+
+              let weaponProfiles: any[] = [];
+              if (weaponIds.length > 0) {
+                const { data: profilesData } = await supabase
+                  .from('weapon_profiles')
+                  .select('*')
+                  .in('weapon_id', weaponIds);
+                weaponProfiles = profilesData || [];
+              }
+
+              equipmentWithProfiles = insertedEquipment.map((item: any) => ({
+                fighter_equipment_id: item.id,
+                equipment_id: item.equipment_id,
+                equipment_name: (item.equipment as any)?.equipment_name || '',
+                equipment_type: (item.equipment as any)?.equipment_type || '',
+                cost: item.purchase_cost,
+                weapon_profiles: weaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
+              }));
+            } else if (queryResult.error) {
+              console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
+            }
+            break;
+            
+          case 'skills':
+            if (queryResult.data) {
+              insertedSkills = queryResult.data;
+            } else if (queryResult.error) {
+              console.warn(`Failed to insert skills: ${queryResult.error.message}`);
+            }
+            break;
+            
+          case 'gang_update':
+            if (queryResult.error) {
+              gangUpdateError = queryResult.error;
+            }
+            break;
+        }
+      } else {
+        console.warn(`Promise rejected:`, result.reason);
+      }
+    }
+
+    if (gangUpdateError) {
+      throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
 
     // Revalidate relevant paths
