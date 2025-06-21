@@ -91,7 +91,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       user_id: user.id,
       isAdmin,
       selected_equipment: params.selected_equipment,
-      use_base_cost_for_rating: params.use_base_cost_for_rating
+      use_base_cost_for_rating: params.use_base_cost_for_rating,
+      provided_cost: params.cost
     });
 
     // OPTIMIZATION 1: Parallelize initial database queries
@@ -103,7 +104,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .single(),
       supabase
         .from('gangs')
-        .select('id, credits, user_id')
+        .select('id, credits, user_id, gang_type_id')
         .eq('id', params.gang_id)
         .single(),
       supabase
@@ -154,9 +155,28 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error('User does not have permission to add fighters to this gang');
     }
 
+    // Check for adjusted cost based on gang type
+    const { data: adjustedCostData } = await supabase
+      .from('fighter_type_gang_cost')
+      .select('adjusted_cost')
+      .eq('fighter_type_id', params.fighter_type_id)
+      .eq('gang_type_id', gangData.gang_type_id)
+      .single();
+
+    // Use adjusted cost if available, otherwise use the original cost
+    const adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
+
+    console.log('Cost calculation debug:', {
+      original_cost: fighterTypeData.cost,
+      adjusted_cost: adjustedCostData?.adjusted_cost,
+      final_base_cost: adjustedBaseCost,
+      gang_type_id: gangData.gang_type_id,
+      fighter_type_id: params.fighter_type_id
+    });
+
     // Calculate costs
-    const fighterCost = params.cost ?? fighterTypeData.cost;
-    const baseCost = fighterTypeData.cost;
+    const fighterCost = params.cost ?? adjustedBaseCost;
+    const baseCost = adjustedBaseCost;
     
     // OPTIMIZATION 2: Process default equipment from already fetched data
     const defaultEquipment = fighterDefaultsData?.filter(item => item.equipment_id) || [];
@@ -228,6 +248,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Calculate rating cost based on use_base_cost_for_rating setting
     const ratingCost = params.use_base_cost_for_rating ? (baseCost + totalEquipmentCost) : fighterCost;
+
+    console.log('Final cost calculations:', {
+      fighterCost,
+      totalCost,
+      baseCost,
+      totalEquipmentCost,
+      ratingCost,
+      use_base_cost_for_rating: params.use_base_cost_for_rating,
+      gang_credits: gangData.credits
+    });
 
     // Check if gang has enough credits
     if (gangData.credits < totalCost) {
