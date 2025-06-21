@@ -33,7 +33,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams) {
       gang_id: params.gang_id,
       fighter_id: params.fighter_id || null,
       vehicle_id: params.vehicle_id || null,
-      manual_cost: params.manual_cost || null,
+      manual_cost: params.manual_cost ?? null,
       master_crafted: params.master_crafted || false,
       use_base_cost_for_rating: params.use_base_cost_for_rating ?? true,
       buy_for_gang_stash: params.buy_for_gang_stash || false
@@ -41,7 +41,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams) {
 
     if (error) {
       console.error('Error buying equipment:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to buy equipment');
     }
 
     // Revalidate relevant paths
