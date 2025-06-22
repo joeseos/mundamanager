@@ -1,6 +1,6 @@
 'use client';
 
-import { createClient } from "@/utils/supabase/client";
+
 import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
@@ -28,6 +28,8 @@ import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
+import { editFighterStatus } from "@/app/actions/edit-fighter";
+import { createClient } from "@/utils/supabase/client";
 
 
 
@@ -195,6 +197,8 @@ class FighterDeleteError extends Error {
     this.name = 'FighterDeleteError';
   }
 }
+
+
 
 export default function FighterPage({ 
   initialFighterData, 
@@ -754,42 +758,7 @@ export default function FighterPage({
     });
   }, []);
 
-  const fetchGangFighters = useCallback(async (gangId: string) => {
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        console.error('No session found');
-        return;
-      }
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?gang_id=eq.${gangId}&select=id,fighter_name,fighter_type,xp`,
-        {
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch fighters');
-      const data = await response.json();
-      setFighterData(prev => ({
-        ...prev,
-        gangFighters: data
-      }));
-    } catch (error) {
-      console.error('Error fetching gang fighters:', error);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (fighterData.fighter?.gang_id) {
-      fetchGangFighters(fighterData.fighter.gang_id);
-    }
-  }, [fighterData.fighter?.gang_id, fetchGangFighters]);
+  // Gang fighters are already provided in initialGangFighters, no need to fetch them again
 
   const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     router.push(`/fighter/${e.target.value}`);
@@ -1221,13 +1190,14 @@ export default function FighterPage({
               onClose={() => handleModalToggle('kill', false)}
               onConfirm={async () => {
                 try {
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ killed: !fighterData.fighter?.killed }),
+                  const result = await editFighterStatus({
+                    fighter_id: fighterId,
+                    action: 'kill'
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter status');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter status');
+                  }
 
                   await fetchFighterData();
                   handleModalToggle('kill', false);
@@ -1241,7 +1211,7 @@ export default function FighterPage({
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: 'Failed to update fighter status',
+                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
                     variant: "destructive"
                   });
                 }
@@ -1265,13 +1235,14 @@ export default function FighterPage({
               onClose={() => handleModalToggle('retire', false)}
               onConfirm={async () => {
                 try {
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ retired: !fighterData.fighter?.retired }),
+                  const result = await editFighterStatus({
+                    fighter_id: fighterId,
+                    action: 'retire'
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter status');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter status');
+                  }
 
                   await fetchFighterData();
                   handleModalToggle('retire', false);
@@ -1285,7 +1256,7 @@ export default function FighterPage({
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: 'Failed to update fighter status',
+                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
                     variant: "destructive"
                   });
                 }
@@ -1302,25 +1273,23 @@ export default function FighterPage({
               isEnslaved={fighterData.fighter?.enslaved || false}
               onConfirm={async (sellValue) => {
                 try {
-                  // For enslaved fighters (rescue), we don't send sell_value
-                  // For non-enslaved fighters (sell), we send the sell_value and add credits to gang
-                  const requestBody = fighterData.fighter?.enslaved 
-                    ? { enslaved: false }
-                    : { enslaved: true, sell_value: sellValue };
-
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody),
+                  const action = fighterData.fighter?.enslaved ? 'rescue' : 'sell';
+                  
+                  const result = await editFighterStatus({
+                    fighter_id: fighterId,
+                    action,
+                    sell_value: action === 'sell' ? sellValue : undefined
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter status');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter status');
+                  }
 
-                  // If selling (not rescuing), update gang credits
-                  if (!fighterData.fighter?.enslaved && sellValue > 0) {
+                  // Update local state with new gang credits if selling
+                  if (result.data?.gang) {
                     setFighterData(prev => ({
                       ...prev,
-                      gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + sellValue } : null
+                      gang: prev.gang ? { ...prev.gang, credits: result.data!.gang!.credits } : null
                     }));
                   }
 
@@ -1338,7 +1307,7 @@ export default function FighterPage({
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: 'Failed to update fighter status',
+                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
                     variant: "destructive"
                   });
                   return false;
@@ -1363,13 +1332,14 @@ export default function FighterPage({
               onClose={() => handleModalToggle('starve', false)}
               onConfirm={async () => {
                 try {
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ starved: !fighterData.fighter?.starved }),
+                  const result = await editFighterStatus({
+                    fighter_id: fighterId,
+                    action: 'starve'
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter status');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter status');
+                  }
 
                   await fetchFighterData();
                   handleModalToggle('starve', false);
@@ -1383,7 +1353,7 @@ export default function FighterPage({
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: 'Failed to update fighter status',
+                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
                     variant: "destructive"
                   });
                 }
@@ -1407,13 +1377,14 @@ export default function FighterPage({
               onClose={() => handleModalToggle('recovery', false)}
               onConfirm={async () => {
                 try {
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ recovery: !fighterData.fighter?.recovery }),
+                  const result = await editFighterStatus({
+                    fighter_id: fighterId,
+                    action: 'recover'
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter status');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter status');
+                  }
 
                   await fetchFighterData();
                   handleModalToggle('recovery', false);
@@ -1427,7 +1398,7 @@ export default function FighterPage({
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: 'Failed to update fighter status',
+                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
                     variant: "destructive"
                   });
                 }
