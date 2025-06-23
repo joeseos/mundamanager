@@ -15,8 +15,8 @@ interface AddFighterParams {
   fighter_type_id: string;
   gang_id: string;
   cost?: number;
-  selected_equipment_ids?: string[];
   selected_equipment?: SelectedEquipment[];
+  default_equipment?: SelectedEquipment[];
   user_id?: string;
   use_base_cost_for_rating?: boolean;
 }
@@ -73,7 +73,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
   try {
     const supabase = await createClient();
     
-    // Get the current user - this is the key for authentication
+    // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -86,17 +86,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase);
 
-    console.log('Server action debug:', {
-      fighter_type_id: params.fighter_type_id,
-      user_id: user.id,
-      isAdmin,
-      selected_equipment: params.selected_equipment,
-      use_base_cost_for_rating: params.use_base_cost_for_rating,
-      provided_cost: params.cost
-    });
-
-    // OPTIMIZATION 1: Parallelize initial database queries
-    const [fighterTypeResult, gangResult, fighterDefaultsResult] = await Promise.all([
+    // Get fighter type data and gang data in parallel
+    const [fighterTypeResult, gangResult] = await Promise.all([
       supabase
         .from('fighter_types')
         .select('*')
@@ -106,46 +97,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .from('gangs')
         .select('id, credits, user_id, gang_type_id')
         .eq('id', params.gang_id)
-        .single(),
-      supabase
-        .from('fighter_defaults')
-        .select(`
-          equipment_id,
-          skill_id,
-          equipment!equipment_id(
-            id,
-            equipment_name,
-            equipment_type,
-            cost
-          ),
-          skills!skill_id(
-            id,
-            name
-          )
-        `)
-        .eq('fighter_type_id', params.fighter_type_id)
+        .single()
     ]);
 
     const { data: fighterTypeData, error: fighterTypeError } = fighterTypeResult;
     const { data: gangData, error: gangError } = gangResult;
-    const { data: fighterDefaultsData, error: fighterDefaultsError } = fighterDefaultsResult;
-
-    console.log('Fighter type query result:', {
-      data: fighterTypeData,
-      error: fighterTypeError,
-      errorCode: fighterTypeError?.code,
-      errorMessage: fighterTypeError?.message,
-      errorDetails: fighterTypeError?.details
-    });
 
     if (fighterTypeError || !fighterTypeData) {
-      throw new Error(`Fighter type not found. Query error: ${fighterTypeError?.message || 'No data returned'}`);
+      throw new Error(`Fighter type not found: ${fighterTypeError?.message || 'No data returned'}`);
     }
 
-    // Fighter class name is already in the fighterTypeData.fighter_class field
-    const fighterClassName = fighterTypeData.fighter_class || '';
-
-    // Get gang information
     if (gangError || !gangData) {
       throw new Error('Gang not found');
     }
@@ -166,105 +127,23 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Use adjusted cost if available, otherwise use the original cost
     const adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
 
-    console.log('Cost calculation debug:', {
-      original_cost: fighterTypeData.cost,
-      adjusted_cost: adjustedCostData?.adjusted_cost,
-      final_base_cost: adjustedBaseCost,
-      gang_type_id: gangData.gang_type_id,
-      fighter_type_id: params.fighter_type_id
-    });
-
     // Calculate costs
     const fighterCost = params.cost ?? adjustedBaseCost;
     const baseCost = adjustedBaseCost;
     
-    // OPTIMIZATION 2: Process default equipment from already fetched data
-    const defaultEquipment = fighterDefaultsData?.filter(item => item.equipment_id) || [];
-    
-    // Handle equipment - we need to handle both:
-    // 1. fighter_defaults table equipment (always added)
-    // 2. Equipment selection equipment (handled by frontend with replacements)
-    let totalEquipmentCost = 0;
-    const equipmentToAdd: Array<{
-      equipment_id: string;
-      original_cost: number;
-      purchase_cost: number;
-      quantity: number;
-    }> = [];
-
-    // Add fighter_defaults equipment (always added, never replaced)
-    if (defaultEquipment.length > 0) {
-      for (const defaultItem of defaultEquipment) {
-        equipmentToAdd.push({
-          equipment_id: defaultItem.equipment_id,
-          original_cost: (defaultItem.equipment as any)?.cost || 0,
-          purchase_cost: 0, // Default equipment from fighter_defaults is free
-          quantity: 1
-        });
-      }
-    }
-
-    // OPTIMIZATION 3: Batch equipment lookups for selected equipment
-    let selectedEquipmentData: any[] = [];
-    if (params.selected_equipment && params.selected_equipment.length > 0) {
-      const selectedEquipmentIds = params.selected_equipment.map(item => item.equipment_id);
-      
-      const { data: equipmentBatchData, error: equipmentBatchError } = await supabase
-        .from('equipment')
-        .select('id, cost')
-        .in('id', selectedEquipmentIds);
-
-      if (equipmentBatchError) {
-        console.warn('Error fetching selected equipment:', equipmentBatchError);
-      } else {
-        selectedEquipmentData = equipmentBatchData || [];
-      }
-
-      // Process selected equipment with batched data
-      for (const selectedItem of params.selected_equipment) {
-        const equipmentData = selectedEquipmentData.find(eq => eq.id === selectedItem.equipment_id);
-        if (equipmentData) {
-          // Equipment selections are always added with purchase_cost: 0 since they're already paid for
-          // But we still track the original cost for rating calculations
-          const originalCost = selectedItem.cost !== undefined ? selectedItem.cost : equipmentData.cost;
-
-          equipmentToAdd.push({
-            equipment_id: selectedItem.equipment_id,
-            original_cost: originalCost,
-            purchase_cost: 0, // Always 0 for equipment selections - they're already paid for
-            quantity: selectedItem.quantity || 1
-          });
-
-          // Add to total equipment cost for rating calculation
-          totalEquipmentCost += originalCost * (selectedItem.quantity || 1);
-        }
-      }
-    }
-
-    console.log('Final equipment to add:', equipmentToAdd);
-
-    // The user entered the total cost they want to pay - this is what gets deducted from gang credits
-    const totalCost = fighterCost;
+    // Calculate equipment cost from selected equipment
+    const totalEquipmentCost = params.selected_equipment?.reduce((sum, item) => 
+      sum + (item.cost * (item.quantity || 1)), 0) || 0;
 
     // Calculate rating cost based on use_base_cost_for_rating setting
     const ratingCost = params.use_base_cost_for_rating ? (baseCost + totalEquipmentCost) : fighterCost;
 
-    console.log('Final cost calculations:', {
-      fighterCost,
-      totalCost,
-      baseCost,
-      totalEquipmentCost,
-      ratingCost,
-      use_base_cost_for_rating: params.use_base_cost_for_rating,
-      gang_credits: gangData.credits
-    });
-
     // Check if gang has enough credits
-    if (gangData.credits < totalCost) {
+    if (gangData.credits < fighterCost) {
       throw new Error('Not enough credits to add this fighter with equipment');
     }
 
-    // Start transaction - Insert fighter
+    // Insert fighter
     const { data: insertedFighter, error: insertError } = await supabase
       .from('fighters')
       .insert({
@@ -274,9 +153,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_class_id: fighterTypeData.fighter_class_id,
         fighter_sub_type_id: fighterTypeData.fighter_sub_type_id,
         fighter_type: fighterTypeData.fighter_type,
-        fighter_class: fighterClassName,
+        fighter_class: fighterTypeData.fighter_class,
         free_skill: fighterTypeData.free_skill,
-        credits: ratingCost, // Use the calculated rating cost for display
+        credits: ratingCost,
         movement: fighterTypeData.movement,
         weapon_skill: fighterTypeData.weapon_skill,
         ballistic_skill: fighterTypeData.ballistic_skill,
@@ -303,36 +182,65 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     const fighterId = insertedFighter.id;
 
-    // Insert equipment based on our processed list
-    const allEquipmentInserts: Array<{
+    // Prepare equipment insertions
+    const equipmentInserts: Array<{
       fighter_id: string;
       equipment_id: string;
       original_cost: number;
       purchase_cost: number;
     }> = [];
 
-    // Expand equipment based on quantity
-    for (const equipment of equipmentToAdd) {
-      for (let i = 0; i < equipment.quantity; i++) {
-        allEquipmentInserts.push({
-          fighter_id: fighterId,
-          equipment_id: equipment.equipment_id,
-          original_cost: equipment.original_cost,
-          purchase_cost: equipment.purchase_cost
-        });
-      }
+    // Add default equipment (from params.default_equipment)
+    if (params.default_equipment && params.default_equipment.length > 0) {
+      params.default_equipment.forEach((defaultItem) => {
+        for (let i = 0; i < (defaultItem.quantity || 1); i++) {
+          equipmentInserts.push({
+            fighter_id: fighterId,
+            equipment_id: defaultItem.equipment_id,
+            original_cost: defaultItem.cost || 0,
+            purchase_cost: 0 // Default equipment is free
+          });
+        }
+      });
     }
 
-    // OPTIMIZATION 5: Parallelize equipment and skills insertion
+    // Add selected equipment (from equipment selections)
+    if (params.selected_equipment && params.selected_equipment.length > 0) {
+      params.selected_equipment.forEach((selectedItem) => {
+        for (let i = 0; i < (selectedItem.quantity || 1); i++) {
+          equipmentInserts.push({
+            fighter_id: fighterId,
+            equipment_id: selectedItem.equipment_id,
+            original_cost: selectedItem.cost,
+            purchase_cost: 0 // Equipment selections are already paid for in the fighter cost
+          });
+        }
+      });
+    }
+
+    // Get default skills from fighter_defaults table
+    const { data: fighterDefaultsData } = await supabase
+      .from('fighter_defaults')
+      .select(`
+        skill_id,
+        skills!skill_id(
+          id,
+          name
+        )
+      `)
+      .eq('fighter_type_id', params.fighter_type_id)
+      .not('skill_id', 'is', null);
+
+    // Execute equipment and skills insertion in parallel
     const insertPromises: Promise<any>[] = [];
 
-    // Add equipment insertion promise if there's equipment to add
-    if (allEquipmentInserts.length > 0) {
+    // Add equipment insertion promise
+    if (equipmentInserts.length > 0) {
       insertPromises.push(
         Promise.resolve(
           supabase
             .from('fighter_equipment')
-            .insert(allEquipmentInserts)
+            .insert(equipmentInserts)
             .select(`
               id,
               equipment_id,
@@ -349,11 +257,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       );
     }
 
-    // Insert default skills
-    const defaultSkillsData = fighterDefaultsData?.filter(item => item.skill_id) || [];
-    
-    if (defaultSkillsData.length > 0) {
-      const skillInserts = defaultSkillsData.map(skill => ({
+    // Add skills insertion promise
+    if (fighterDefaultsData && fighterDefaultsData.length > 0) {
+      const skillInserts = fighterDefaultsData.map(skill => ({
         fighter_id: fighterId,
         skill_id: skill.skill_id,
         user_id: gangData.user_id
@@ -381,14 +287,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         supabase
           .from('gangs')
           .update({ 
-            credits: gangData.credits - totalCost,
+            credits: gangData.credits - fighterCost,
             last_updated: new Date().toISOString()
           })
           .eq('id', params.gang_id)
       ).then(result => ({ type: 'gang_update' as const, result }))
     );
 
-    // Execute all inserts in parallel
+    // Execute all inserts
     const insertResults = await Promise.allSettled(insertPromises);
 
     // Process results with type information
@@ -405,7 +311,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             if (queryResult.data) {
               const insertedEquipment = queryResult.data;
               
-              // OPTIMIZATION 6: Batch weapon profiles query
+              // Get weapon profiles for weapons
               const weaponIds = insertedEquipment
                 .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
                 .map((item: any) => item.equipment_id);
@@ -455,7 +361,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
 
-    // Revalidate relevant paths
+    // Revalidate paths
     revalidatePath(`/gang/${params.gang_id}`);
     revalidatePath(`/fighter/${fighterId}`);
 
@@ -465,13 +371,13 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: fighterTypeData.fighter_type,
-        fighter_class: fighterClassName,
+        fighter_class: fighterTypeData.fighter_class,
         fighter_class_id: fighterTypeData.fighter_class_id,
         fighter_sub_type_id: fighterTypeData.fighter_sub_type_id,
         free_skill: fighterTypeData.free_skill,
         cost: fighterCost,
         rating_cost: ratingCost,
-        total_cost: totalCost,
+        total_cost: fighterCost,
         stats: {
           movement: insertedFighter.movement,
           weapon_skill: insertedFighter.weapon_skill,

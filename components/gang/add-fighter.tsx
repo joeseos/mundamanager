@@ -752,6 +752,14 @@ export default function AddFighter({
       // Determine the cost to use for fighter rating/display
       const fighterDisplayCost = useBaseCostForRating ? actualBaseCost : enteredCost;
 
+      // Prepare default equipment from the selected fighter type
+      const fighterTypeForEquipment = fighterTypes.find(t => t.id === fighterTypeIdToUse);
+      const defaultEquipment = fighterTypeForEquipment?.default_equipment?.map(item => ({
+        equipment_id: item.id,
+        cost: item.cost || 0,
+        quantity: 1
+      })) || [];
+
       // Use the new server action instead of direct SQL function call
       const result = await addFighterToGang({
         fighter_name: fighterName,
@@ -759,6 +767,7 @@ export default function AddFighter({
         gang_id: gangId,
         cost: enteredCost,
         selected_equipment: selectedEquipment,
+        default_equipment: defaultEquipment,
         user_id: user.id,
         use_base_cost_for_rating: useBaseCostForRating
       });
