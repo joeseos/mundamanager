@@ -22,6 +22,7 @@ const STIMM_EFFECTS: ChemEffect[] = [
   { name: "Ice Cold", cost: 15 },
   { name: "Jolt", cost: 30 },
   { name: "Night Night", cost: 25 },
+  { name: "Predator's Kiss", cost: 45 },
   { name: "Puke", cost: 15 },
   { name: "Wide-eye", cost: 10 },
 ]
@@ -41,6 +42,7 @@ const GASEOUS_EFFECTS: ChemEffect[] = [
 
 const TOXIC_EFFECTS: ChemEffect[] = [
   { name: "Bleeding", cost: 10 },
+  { name: "Blood Boil", cost: 30 },
   { name: "Concentrated", cost: 15 },
   { name: "Debilitating", cost: 10 },
   { name: "Decaying", cost: 5 },
@@ -50,6 +52,7 @@ const TOXIC_EFFECTS: ChemEffect[] = [
   { name: "Panicking", cost: 10 },
   { name: "Paralysing", cost: 5 },
   { name: "Silencing", cost: 5 },
+  { name: "Skin Fire", cost: 25 },
 ]
 
 const getEffectsForType = (type: ChemType): ChemEffect[] => {
