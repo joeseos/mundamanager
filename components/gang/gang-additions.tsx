@@ -923,6 +923,14 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       console.log('Sending equipment data:', selectedEquipment);
       console.log('Entered cost:', parsedCost);
 
+      // Prepare default equipment from the selected gang addition type
+      const gangAdditionTypeForEquipment = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
+      const defaultEquipment = gangAdditionTypeForEquipment?.default_equipment?.map(item => ({
+        equipment_id: item.id,
+        cost: item.cost || 0,
+        quantity: 1
+      })) || [];
+
       // Use the server action instead of direct RPC call
       const result = await addFighterToGang({
         fighter_name: fighterName,
@@ -930,6 +938,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         gang_id: gangId,
         cost: parsedCost,
         selected_equipment: selectedEquipment,
+        default_equipment: defaultEquipment,
         user_id: user.id,
         use_base_cost_for_rating: useBaseCostForRating
       });
