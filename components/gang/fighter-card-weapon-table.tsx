@@ -48,16 +48,34 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     specials: Map<string, WeaponProfile>; // deduplicated by name
   }
 
+  // First pass: collect all weapons and determine which groups are master-crafted
+  const weaponGroupMasterCraftedStatus = new Map<string, boolean>();
+  
+  weapons.forEach((weapon) => {
+    weapon.weapon_profiles?.forEach((profile) => {
+      const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
+      
+      // If this profile or weapon is master-crafted, mark the entire group as master-crafted
+      if (profile.is_master_crafted || weapon.weapon_name.includes('Master-crafted') || weapon.weapon_name.includes('(MC)')) {
+        weaponGroupMasterCraftedStatus.set(groupId, true);
+      } else if (!weaponGroupMasterCraftedStatus.has(groupId)) {
+        weaponGroupMasterCraftedStatus.set(groupId, false);
+      }
+    });
+  });
+
   const variantMap: Record<VariantKey, VariantBlock> = {};
   weapons.forEach((weapon) => {
     weapon.weapon_profiles?.forEach((profile) => {
       const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
-      const key: VariantKey = `${groupId}|${profile.is_master_crafted ? 'mc' : 'reg'}`;
+      // Use the group's master-crafted status, not the individual profile's status
+      const isGroupMasterCrafted = weaponGroupMasterCraftedStatus.get(groupId) || false;
+      const key: VariantKey = `${groupId}|${isGroupMasterCrafted ? 'mc' : 'reg'}`;
 
       if (!variantMap[key]) {
         variantMap[key] = {
           weaponName: profile.profile_name.startsWith('-') ? '' : profile.profile_name,
-          isMasterCrafted: !!profile.is_master_crafted,
+          isMasterCrafted: isGroupMasterCrafted,
           baseProfiles: [],
           specials: new Map<string, WeaponProfile>(),
         };
@@ -146,7 +164,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
 
               if (entity === 'crew') traitsList.push('Arc (Front)');
               if (profile.traits) traitsList.push(profile.traits);
-              if (isMasterCrafted) traitsList.push('Master-crafted');
+              // Only add Master-crafted trait to profiles that are actually master-crafted, not to ammo
+              if (profile.is_master_crafted) traitsList.push('Master-crafted');
 
               traitsList.sort((a, b) => a.localeCompare(b));
 
