@@ -320,185 +320,96 @@ export default function FighterPage({
   const router = useRouter();
   const { toast } = useToast();
 
-  // Update the fetchFighterData callback to use fighterId instead of params.id
-  const fetchFighterData = useCallback(async () => {
-    if (!fighterId) {
-      console.error('No fighter ID provided');
-      return;
-    }
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_details`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            "input_fighter_id": fighterId
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error('Failed to fetch fighter details');
-      }
-
-      const responseData = await response.json();
-      
-      // Handle different response structures with better error checking
-      let result: any;
-      if (Array.isArray(responseData)) {
-        if (responseData.length === 0) {
-          throw new Error('No fighter data returned from server - empty array');
-        }
-        
-        const firstItem = responseData[0];
-        if (!firstItem) {
-          throw new Error('No fighter data returned from server - null first item');
-        }
-        
-        // Check if the first item has a result property
-        if (firstItem.result) {
-          result = firstItem.result;
-        } else {
-          // If no result property, use the item directly
-          result = firstItem;
-        }
-      } else if (responseData && typeof responseData === 'object') {
-        // If it's an object, check for result property
-        if (responseData.result) {
-          result = responseData.result;
-        } else {
-          // Use the object directly
-          result = responseData;
-        }
-      } else {
-        throw new Error('Invalid response format from server');
-      }
-
-      if (!result) {
-        throw new Error('No fighter data returned from server - result is null');
-      }
-
-      // Validate that result has the expected structure
-      if (!result.fighter) {
-        console.error('Invalid result structure:', result);
-        throw new Error('Invalid fighter data structure returned from server');
-      }
-
-      // Transform regular equipment data
-      const transformedEquipment = (result.equipment || []).map((item: any) => ({
-        fighter_equipment_id: item.fighter_equipment_id,
-        equipment_id: item.equipment_id,
-        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-          ? `${item.equipment_name} (Master-crafted)`
-          : item.equipment_name,
-        equipment_type: item.equipment_type,
-        cost: item.purchase_cost,
-        base_cost: item.original_cost,
-        weapon_profiles: item.weapon_profiles,
-        core_equipment: item.core_equipment,
-        is_master_crafted: item.is_master_crafted
-      }));
-      
-      // Transform vehicle equipment data from the nested structure
-      const transformedVehicleEquipment = (result.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-        fighter_equipment_id: item.fighter_equipment_id,
-        equipment_id: item.equipment_id,
-        equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-          ? `${item.equipment_name} (Master-crafted)`
-          : item.equipment_name,
-        equipment_type: item.equipment_type,
-        cost: item.purchase_cost,
-        base_cost: item.original_cost,
-        vehicle_equipment_profiles: item.vehicle_equipment_profiles || [],
-        core_equipment: false,
-        vehicle_id: result.fighter?.vehicles?.[0]?.id,
-        vehicle_equipment_id: item.id
-      }));
-
-      // Transform skills
-      const transformedSkills: FighterSkills = {};
-
-      // If skills is an array, convert to object
-      if (Array.isArray(result.fighter.skills)) {
-        result.fighter.skills.forEach((skill: any) => {
-          if (skill.name) {
-            transformedSkills[skill.name] = {
-              id: skill.id,
-              credits_increase: skill.credits_increase,
-              xp_cost: skill.xp_cost,
-              is_advance: skill.is_advance,
-              acquired_at: skill.acquired_at,
-              fighter_injury_id: skill.fighter_injury_id
-            };
-          }
-        });
-      }
-      // If skills is already an object, use it directly
-      else if (typeof result.fighter.skills === 'object' && result.fighter.skills !== null) {
-        Object.assign(transformedSkills, result.fighter.skills);
-      }
-
-      // Update state in a single operation
-      setFighterData(prev => ({
-        ...prev,
-        fighter: {
-          ...result.fighter,
-          fighter_class: result.fighter.fighter_class,
-          fighter_type: result.fighter.fighter_type,
-          base_credits: result.fighter.credits - (result.fighter.cost_adjustment || 0),
-          gang_id: result.gang.id,
-          gang_type_id: result.gang.gang_type_id,
-          skills: transformedSkills,
-          effects: {
-            injuries: result.fighter.effects?.injuries || [],
-            advancements: result.fighter.effects?.advancements || [],
-            bionics: result.fighter.effects?.bionics || [],
-            cyberteknika: result.fighter.effects?.cyberteknika || [],
-            'gene-smithing': result.fighter.effects?.['gene-smithing'] || [],
-            'rig-glitches': result.fighter.effects?.['rig-glitches'] || [],
-            augmentations: result.fighter.effects?.augmentations || [],
-            user: result.fighter.effects?.user || []
-          }
-        },
-        equipment: transformedEquipment,
-        vehicleEquipment: transformedVehicleEquipment,
-        gang: {
-          id: result.gang.id,
-          credits: result.gang.credits,
-          gang_type_id: result.gang.gang_type_id,
-          positioning: result.gang.positioning
-        }
-      }));
-
-      setEditState(prev => ({
-        ...prev,
-        costAdjustment: String(result.fighter.cost_adjustment || 0)
-      }));
-
-      setUiState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: null
-      }));
-
-    } catch (err) {
-      console.error('Error fetching fighter details:', err);
-      setUiState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: 'Failed to load fighter details'
-      }));
-    }
-  }, [fighterId]);
-
+  // Sync local state with props when they change (after router.refresh())
   useEffect(() => {
-    fetchFighterData();
-  }, [fetchFighterData]);
+    // Transform skills
+    const transformedSkills: FighterSkills = {};
+    if (Array.isArray(initialFighterData.fighter.skills)) {
+      initialFighterData.fighter.skills.forEach((skill: any) => {
+        if (skill.name) {
+          transformedSkills[skill.name] = {
+            id: skill.id,
+            credits_increase: skill.credits_increase,
+            xp_cost: skill.xp_cost,
+            is_advance: skill.is_advance,
+            acquired_at: skill.acquired_at,
+            fighter_injury_id: skill.fighter_injury_id
+          };
+        }
+      });
+    } else if (typeof initialFighterData.fighter.skills === 'object' && initialFighterData.fighter.skills !== null) {
+      Object.assign(transformedSkills, initialFighterData.fighter.skills);
+    }
+
+    // Transform equipment
+    const transformedEquipment = (initialFighterData.equipment || []).map((item: any) => ({
+      fighter_equipment_id: item.fighter_equipment_id,
+      equipment_id: item.equipment_id,
+      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+        ? `${item.equipment_name} (Master-crafted)`
+        : item.equipment_name,
+      equipment_type: item.equipment_type,
+      cost: item.purchase_cost,
+      base_cost: item.original_cost,
+      weapon_profiles: item.weapon_profiles,
+      core_equipment: item.core_equipment,
+      is_master_crafted: item.is_master_crafted
+    }));
+
+    // Transform vehicle equipment
+    const transformedVehicleEquipment = (initialFighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+      fighter_equipment_id: item.fighter_equipment_id,
+      equipment_id: item.equipment_id,
+      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+        ? `${item.equipment_name} (Master-crafted)`
+        : item.equipment_name,
+      equipment_type: item.equipment_type,
+      cost: item.purchase_cost,
+      base_cost: item.original_cost,
+      vehicle_equipment_profiles: item.vehicle_equipment_profiles || [],
+      core_equipment: false,
+      vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
+      vehicle_equipment_id: item.id
+    }));
+
+    // Update state with fresh data from server
+    setFighterData({
+      fighter: {
+        ...initialFighterData.fighter,
+        fighter_class: initialFighterData.fighter.fighter_class,
+        fighter_type: initialFighterData.fighter.fighter_type,
+        base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
+        gang_id: initialFighterData.gang.id,
+        gang_type_id: initialFighterData.gang.gang_type_id,
+        skills: transformedSkills,
+        effects: {
+          injuries: initialFighterData.fighter.effects?.injuries || [],
+          advancements: initialFighterData.fighter.effects?.advancements || [],
+          bionics: initialFighterData.fighter.effects?.bionics || [],
+          cyberteknika: initialFighterData.fighter.effects?.cyberteknika || [],
+          'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
+          'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
+          augmentations: initialFighterData.fighter.effects?.augmentations || [],
+          user: initialFighterData.fighter.effects?.user || []
+        }
+      },
+      equipment: transformedEquipment,
+      vehicleEquipment: transformedVehicleEquipment,
+      gang: {
+        id: initialFighterData.gang.id,
+        credits: initialFighterData.gang.credits,
+        gang_type_id: initialFighterData.gang.gang_type_id,
+        positioning: initialFighterData.gang.positioning
+      },
+      gangFighters: initialGangFighters
+    });
+
+    // Update edit state
+    setEditState(prev => ({
+      ...prev,
+      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0)
+    }));
+  }, [initialFighterData, initialGangFighters]);
 
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
@@ -839,7 +750,8 @@ export default function FighterPage({
   };
 
   const handleAdvancementAdded = () => {
-    fetchFighterData();
+    // Trigger server component re-execution to get fresh data
+    router.refresh();
   };
 
   // Update modal handlers
@@ -1012,10 +924,10 @@ export default function FighterPage({
           <SkillsList
             key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
             skills={fighterData.fighter?.skills || {}}
-            onSkillDeleted={fetchFighterData}
+            onSkillDeleted={() => router.refresh()}
             fighterId={fighterData.fighter?.id || ''}
             fighterXp={fighterData.fighter?.xp || 0}
-            onSkillAdded={fetchFighterData}
+            onSkillAdded={() => router.refresh()}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
           />
@@ -1027,10 +939,10 @@ export default function FighterPage({
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             onDeleteAdvancement={async (advancementId: string) => {
-              // Refresh fighter data after deletion
-              await fetchFighterData();
+              // Trigger server component re-execution to get fresh data
+              router.refresh();
             }}
-            onAdvancementAdded={fetchFighterData}
+            onAdvancementAdded={handleAdvancementAdded}
             userPermissions={userPermissions}
           />
 
@@ -1199,7 +1111,7 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter status');
                   }
 
-                  await fetchFighterData();
+                  router.refresh();
                   handleModalToggle('kill', false);
                   
                   toast({
@@ -1244,7 +1156,7 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter status');
                   }
 
-                  await fetchFighterData();
+                  router.refresh();
                   handleModalToggle('retire', false);
                   
                   toast({
@@ -1293,7 +1205,7 @@ export default function FighterPage({
                     }));
                   }
 
-                  await fetchFighterData();
+                  router.refresh();
                   handleModalToggle('enslave', false);
                   
                   toast({
@@ -1341,7 +1253,7 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter status');
                   }
 
-                  await fetchFighterData();
+                  router.refresh();
                   handleModalToggle('starve', false);
                   
                   toast({
@@ -1386,7 +1298,7 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter status');
                   }
 
-                  await fetchFighterData();
+                  router.refresh();
                   handleModalToggle('recovery', false);
                   
                   toast({
@@ -1474,7 +1386,7 @@ export default function FighterPage({
                   if (!response.ok) throw new Error('Failed to update fighter');
 
                   // Refresh fighter data after successful update
-                  await fetchFighterData();
+                  router.refresh();
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);

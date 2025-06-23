@@ -8,6 +8,10 @@ import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { 
+  addSkillAdvancement, 
+  deleteAdvancement 
+} from '@/app/actions/fighter-advancement';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -160,39 +164,21 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         return false;
       }
 
-      const payload = {
+      console.log("Adding skill with ID:", selectedSkill);
+      
+      const result = await addSkillAdvancement({
         fighter_id: fighterId,
         skill_id: selectedSkill,
         xp_cost: 0,
         credits_increase: 0,
         is_advance: false
-      };
-      
-      console.log("Sending skill payload:", payload);
-      
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_skill`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to add skill: ${response.status} ${errorText}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add skill');
       }
 
-      // Log the response to verify the insertion worked correctly
-      const responseData = await response.json();
-      console.log("RPC response:", responseData);
+      console.log("Skill added successfully:", result);
 
       toast({
         description: "Skill successfully added",
@@ -324,33 +310,14 @@ export function SkillsList({
     if (!skillToDelete) return;
 
     try {
-      // Create a Supabase client and get session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No authenticated session found');
-      }
+      const result = await deleteAdvancement({
+        fighter_id: fighterId,
+        advancement_id: skillToDelete.id,
+        advancement_type: 'skill'
+      });
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            input_fighter_id: fighterId,
-            fighter_skill_id: skillToDelete.id
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to delete skill (${response.status})`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete skill');
       }
 
       // Call the callback to refresh data in parent component

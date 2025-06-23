@@ -11,6 +11,11 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { 
+  addCharacteristicAdvancement, 
+  addSkillAdvancement, 
+  deleteAdvancement 
+} from '@/app/actions/fighter-advancement';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -419,86 +424,38 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     try {
       setIsSubmitting(true);
 
-      // Get the current user's session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('No authenticated session found');
-      }
+      let result;
 
       if (advancementType === 'characteristic') {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_advancement`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              p_fighter_id: fighterId,
-              p_fighter_effect_type_id: selectedAdvancement.id,
-              p_xp_cost: editableXpCost.toString(),
-              p_credits_increase: editableCreditsIncrease.toString()
-            })
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to purchase ${selectedAdvancement.stat_change_name}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to add advancement');
-        }
-
-        toast({
-          title: "Success!",
-          description: `Successfully added ${selectedAdvancement.stat_change_name}`
+        result = await addCharacteristicAdvancement({
+          fighter_id: fighterId,
+          fighter_effect_type_id: selectedAdvancement.id,
+          xp_cost: editableXpCost,
+          credits_increase: editableCreditsIncrease
         });
-
-        // Use the remaining XP from the API response
-        onAdvancementAdded?.(data.fighter.xp, data.advancement.credits_increase);
-
       } else {
-        // Update the skill endpoint request as well
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/add_fighter_skill`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              fighter_id: fighterId,
-              skill_id: selectedAdvancement.id,
-              xp_cost: editableXpCost,
-              credits_increase: editableCreditsIncrease,
-              is_advance: true
-            })
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to purchase ${selectedAdvancement.stat_change_name}`);
-        }
-
-        const data = await response.json();
-
-        toast({
-          title: "Success!",
-          description: `Successfully added ${selectedAdvancement.stat_change_name}`
+        result = await addSkillAdvancement({
+          fighter_id: fighterId,
+          skill_id: selectedAdvancement.id,
+          xp_cost: editableXpCost,
+          credits_increase: editableCreditsIncrease
         });
-
-        // Use the remaining XP from the API response
-        onAdvancementAdded?.(data.remaining_xp, data.credits_increase);
       }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add advancement');
+      }
+
+      toast({
+        title: "Success!",
+        description: `Successfully added ${selectedAdvancement.stat_change_name}`
+      });
+
+      // Use the remaining XP from the server action response
+      const remainingXp = result.remaining_xp || result.fighter?.xp || 0;
+      const creditsIncrease = result.advancement?.credits_increase || editableCreditsIncrease;
+      onAdvancementAdded?.(remainingXp, creditsIncrease);
+
     } catch (error) {
       console.error('Error purchasing advancement:', error);
       toast({
@@ -944,39 +901,17 @@ export function AdvancementsList({
     try {
       setIsDeleting(advancementId);
       
-      // Use the RPC endpoint for deleting effects
-      const rpcEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/delete_skill_or_effect`;
-      
-      // Create a Supabase client and get session directly
-      const supabase = createClient();
-      const { data } = await supabase.auth.getSession();
-      const accessToken = data.session?.access_token || '';
-      
       // Determine if this is a skill or characteristic based on the advancement type or name
       const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill - ');
       
-      // Prepare the request body based on advancement type
-      const requestBody = {
-        input_fighter_id: fighterId,
-        ...(isSkill 
-          ? { fighter_skill_id: advancementId }
-          : { fighter_effect_id: advancementId }
-        )
-      };
-      
-      const response = await fetch(rpcEndpoint, {
-        method: 'POST',
-        headers: {
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify(requestBody)
+      const result = await deleteAdvancement({
+        fighter_id: fighterId,
+        advancement_id: advancementId,
+        advancement_type: isSkill ? 'skill' : 'characteristic'
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to delete advancement (${response.status})`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete advancement');
       }
 
       // Call the callback to update parent component state and wait for it to complete
