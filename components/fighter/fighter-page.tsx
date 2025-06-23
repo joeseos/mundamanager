@@ -538,19 +538,7 @@ export default function FighterPage({
     }
   }, [fighterData.fighter, fighterData.gang, toast, router]);
 
-  const handleFighterCreditsUpdate = useCallback((newCredits: number) => {
-    setFighterData(prev => ({
-      ...prev,
-      fighter: prev.fighter ? { ...prev.fighter, credits: newCredits } : null
-    }));
-  }, []);
 
-  const handleGangCreditsUpdate = useCallback((newCredits: number) => {
-    setFighterData(prev => ({
-      ...prev,
-      gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
-    }));
-  }, []);
 
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
     setFighterData(prev => {
@@ -749,10 +737,7 @@ export default function FighterPage({
     }
   };
 
-  const handleAdvancementAdded = () => {
-    // Trigger server component re-execution to get fresh data
-    router.refresh();
-  };
+
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
@@ -942,26 +927,13 @@ export default function FighterPage({
               // Trigger server component re-execution to get fresh data
               router.refresh();
             }}
-            onAdvancementAdded={handleAdvancementAdded}
+            onAdvancementAdded={() => router.refresh()}
             userPermissions={userPermissions}
           />
 
           <InjuriesList
             injuries={fighterData.fighter?.effects?.injuries || []}
             fighterId={fighterData.fighter?.id || ''}
-            onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  effects: {
-                    ...prev.fighter.effects,
-                    injuries: updatedInjuries
-                  },
-                  recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery
-                } : null
-              }));
-            }}
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
           />
