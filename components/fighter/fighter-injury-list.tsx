@@ -6,10 +6,15 @@ import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { useRouter } from 'next/navigation';
+import { 
+  addFighterInjury, 
+  deleteFighterInjury 
+} from '@/app/actions/fighter-injury';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
-  onInjuryUpdate: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
+  onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   fighterId: string;
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
@@ -31,6 +36,7 @@ export function InjuriesList({
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
@@ -124,40 +130,15 @@ export function InjuriesList({
     }
 
     try {
-      const supabase = createClient();
-      
-      // Get the current user's session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        throw new Error('No authenticated user');
+      const result = await addFighterInjury({
+        fighter_id: fighterId,
+        injury_type_id: selectedInjuryId,
+        send_to_recovery: sendToRecovery
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add injury');
       }
-
-      const { data, error } = await supabase
-        .rpc('add_fighter_injury', {
-          in_fighter_id: fighterId,
-          in_injury_type_id: selectedInjuryId,
-          in_user_id: session.user.id,
-          in_recovery: sendToRecovery
-        });
-
-      if (error) throw error;
-
-      // The database function returns the complete injury data with modifiers
-      const injuryData = data[0]?.result || data;
-      
-      // Create the new injury object using the data returned from the database
-      const newInjury: FighterEffect = {
-        id: injuryData.id,
-        effect_name: injuryData.effect_name,
-        fighter_effect_type_id: injuryData.effect_type?.id,
-        fighter_effect_modifiers: injuryData.modifiers || [],
-        type_specific_data: injuryData.type_specific_data,
-        created_at: injuryData.created_at || new Date().toISOString()
-      };
-
-      // Optimistic update: Add the new injury to the list
-      const updatedInjuries = [...injuries, newInjury];
-      onInjuryUpdate(updatedInjuries, sendToRecovery ? true : undefined);
 
       toast({
         description: `Injury added successfully${sendToRecovery ? ' and fighter sent to recovery' : ''}`,
@@ -167,11 +148,15 @@ export function InjuriesList({
       setSelectedInjuryId('');
       setSelectedInjury(null);
       setIsRecoveryModalOpen(false);
+      
+      // Refresh the page to get updated data
+      router.refresh();
+      
       return true;
     } catch (error) {
       console.error('Error adding injury:', error);
       toast({
-        description: 'Failed to add injury',
+        description: `Failed to add injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
       return false;
@@ -182,31 +167,28 @@ export function InjuriesList({
     try {
       setIsDeleting(injuryId);
       
-      const response = await fetch(`/api/fighters/injuries?effectId=${injuryId}`, {
-        method: 'DELETE',
+      const result = await deleteFighterInjury({
+        fighter_id: fighterId,
+        injury_id: injuryId
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete injury');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete injury');
       }
-
-      // Find the injury being deleted to calculate stat changes
-      const injuryToDelete = injuries.find(injury => injury.id === injuryId);
-      
-      // Optimistic update: Remove the injury from the list
-      const updatedInjuries = injuries.filter(injury => injury.id !== injuryId);
-      
-      onInjuryUpdate(updatedInjuries, undefined);
       
       toast({
         description: `${injuryName} removed successfully`,
         variant: "default"
       });
+      
+      // Refresh the page to get updated data
+      router.refresh();
+      
       return true;
     } catch (error) {
       console.error('Error deleting injury:', error);
       toast({
-        description: 'Failed to delete injury',
+        description: `Failed to delete injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
       return false;
