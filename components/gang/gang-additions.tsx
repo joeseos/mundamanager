@@ -537,12 +537,29 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                               );
                             });
 
-                            // Remove all equipment selections for this category
+                            // Remove all equipment selections for this category and restore default if needed
                             setSelectedEquipment((prev) => {
                               const currentCategoryOptions = categoryData.options || [];
-                              return prev.filter(item =>
+                              let filtered = prev.filter(item =>
                                 !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
                               );
+                              
+                              // For optional_single, restore default equipment when "Keep Default" is selected
+                              if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
+                                // Add back all default equipment for this category
+                                categoryData.default.forEach((defaultItem: any) => {
+                                  // Only add if not already present
+                                  if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
+                                    filtered.push({
+                                      equipment_id: defaultItem.id,
+                                      cost: 0, // Default equipment has cost 0
+                                      quantity: defaultItem.quantity || 1
+                                    });
+                                  }
+                                });
+                              }
+                              
+                              return filtered;
                             });
 
                             // Reset cost to remove any equipment costs from this category
@@ -597,13 +614,22 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                   return [...filtered, uniqueOptionId];
                                 });
 
-                                // Update equipment with costs
+                                // Update equipment with costs - handle default replacement for optional_single
                                 setSelectedEquipment((prev) => {
                                   // Remove all previous selections for this specific category only
                                   const currentCategoryOptions = categoryData.options || [];
-                                  const filtered = prev.filter(item =>
+                                  let filtered = prev.filter(item =>
                                     !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
                                   );
+                                  
+                                  // For optional_single selections, also remove default equipment when selecting a replacement
+                                  if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
+                                    // Remove all default equipment from this category
+                                    categoryData.default.forEach((defaultItem: any) => {
+                                      filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
+                                    });
+                                  }
+                                  
                                   return [...filtered, {
                                     equipment_id: option.id,
                                     cost: option.cost || 0,
