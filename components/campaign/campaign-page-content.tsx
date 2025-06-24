@@ -468,26 +468,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const refreshData = async () => {
     try {
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_campaign_details',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            "campaign_id": campaignData.id
-          })
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch campaign data');
-      
-      const [updatedData] = await response.json();
-      if (!updatedData) throw new Error('No campaign data received');
-      
-      setCampaignData(updatedData);
+      // Use router.refresh to trigger a server-side re-fetch with the new cached functions
+      router.refresh();
     } catch (error) {
       console.error('Error refreshing campaign data:', error);
       toast({
@@ -496,6 +478,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       });
     }
   };
+
+
 
   const handleSave = async (formValues: {
     campaign_name: string;
