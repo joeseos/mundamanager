@@ -6,6 +6,12 @@ import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from "@/components/modal"
 import Link from 'next/link'
+import { 
+  addGangToCampaign, 
+  removeMemberFromCampaign, 
+  removeGangFromCampaign, 
+  updateMemberRole 
+} from "@/app/actions/campaign-members"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -196,52 +202,15 @@ export default function MembersTable({
     console.log("Adding gang to member:", JSON.stringify(selectedMember, null, 2));
 
     try {
-      if (selectedMember.id) {
-        console.log("Using member ID directly:", selectedMember.id);
-        
-        const { error } = await supabase
-          .from('campaign_gangs')
-          .insert({
-            campaign_id: campaignId,
-            gang_id: selectedGang.id,
-            user_id: selectedMember.user_id,
-            campaign_member_id: selectedMember.id
-          });
+      const result = await addGangToCampaign({
+        campaignId,
+        gangId: selectedGang.id,
+        userId: selectedMember.user_id,
+        campaignMemberId: selectedMember.id
+      });
 
-        if (error) throw error;
-      } else if (typeof selectedMember.index === 'number') {
-        console.log("Finding member by index:", selectedMember.index);
-        
-        const { data: memberEntries, error: fetchError } = await supabase
-          .from('campaign_members')
-          .select('id')
-          .eq('campaign_id', campaignId)
-          .eq('user_id', selectedMember.user_id);
-
-        console.log("Member entries from DB:", memberEntries);
-        
-        if (fetchError) throw fetchError;
-        
-        if (!memberEntries || memberEntries.length === 0 || 
-            selectedMember.index >= memberEntries.length) {
-          throw new Error(`Cannot identify the specific member instance. Index: ${selectedMember.index}, Entries: ${memberEntries?.length || 0}`);
-        }
-        
-        const memberId = memberEntries[selectedMember.index].id;
-        console.log("Found member ID:", memberId);
-        
-        const { error } = await supabase
-          .from('campaign_gangs')
-          .insert({
-            campaign_id: campaignId,
-            gang_id: selectedGang.id,
-            user_id: selectedMember.user_id,
-            campaign_member_id: memberId
-          });
-
-        if (error) throw error;
-      } else {
-        throw new Error('Missing member ID and index');
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       onMemberUpdate({
@@ -276,21 +245,16 @@ export default function MembersTable({
       return false;
     }
     try {
-      const response = await fetch('/api/campaigns/campaign-members', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          campaignId,
-          userId: roleChange.memberId,
-          newRole: roleChange.newRole
-        }),
+      const result = await updateMemberRole({
+        campaignId,
+        userId: roleChange.memberId,
+        newRole: roleChange.newRole
       });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to update role');
+
+      if (!result.success) {
+        throw new Error(result.error);
       }
+
       onMemberUpdate({
         updatedMember: {
           ...selectedMember!,
@@ -335,146 +299,15 @@ export default function MembersTable({
       return false;
     }
     try {
-      // If we have the specific member ID, use that to identify and remove gangs
-      if (memberToRemove.id) {
-        console.log("Using member ID directly:", memberToRemove.id);
-        
-        // First remove any gangs associated with this specific member
-        const { data: memberGangs, error: memberGangsError } = await supabase
-          .from('campaign_gangs')
-          .select('gang_id')
-          .eq('campaign_id', campaignId)
-          .eq('campaign_member_id', memberToRemove.id);
-        
-        if (memberGangsError) throw memberGangsError;
-        
-        if (memberGangs && memberGangs.length > 0) {
-          const gangIds = memberGangs.map(g => g.gang_id);
-          
-          // Clear gang_id from territories for this member's gangs
-          const { error: territoryError } = await supabase
-            .from('campaign_territories')
-            .update({ gang_id: null })
-            .eq('campaign_id', campaignId)
-            .in('gang_id', gangIds);
-            
-          if (territoryError) throw territoryError;
-          
-          // Delete the campaign gangs for this specific member
-          const { error: gangError } = await supabase
-            .from('campaign_gangs')
-            .delete()
-            .eq('campaign_id', campaignId)
-            .eq('campaign_member_id', memberToRemove.id);
-            
-          if (gangError) throw gangError;
-        }
-        
-        // Finally delete the campaign member
-        const { error } = await supabase
-          .from('campaign_members')
-          .delete()
-          .eq('id', memberToRemove.id);
+      const result = await removeMemberFromCampaign({
+        campaignId,
+        memberId: memberToRemove.id,
+        userId: memberToRemove.user_id,
+        memberIndex: memberToRemove.index
+      });
 
-        if (error) throw error;
-      } 
-      // If we have an index but no ID, find the member by index
-      else if (memberToRemove.index !== undefined) {
-        console.log("Finding member by index:", memberToRemove.index);
-        
-        const { data: campaignMembers, error: fetchError } = await supabase
-          .from('campaign_members')
-          .select('id')
-          .eq('campaign_id', campaignId)
-          .eq('user_id', memberToRemove.user_id);
-        
-        if (fetchError) throw fetchError;
-        console.log("Campaign members found:", campaignMembers);
-        
-        if (campaignMembers && campaignMembers.length > memberToRemove.index) {
-          const memberId = campaignMembers[memberToRemove.index].id;
-          console.log("Found specific member ID:", memberId);
-          
-          // Remove gangs for this specific member
-          const { data: memberGangs, error: memberGangsError } = await supabase
-            .from('campaign_gangs')
-            .select('gang_id')
-            .eq('campaign_id', campaignId)
-            .eq('campaign_member_id', memberId);
-          
-          if (memberGangsError) throw memberGangsError;
-          
-          if (memberGangs && memberGangs.length > 0) {
-            const gangIds = memberGangs.map(g => g.gang_id);
-            
-            // Clear gang_id from territories for this member's gangs
-            const { error: territoryError } = await supabase
-              .from('campaign_territories')
-              .update({ gang_id: null })
-              .eq('campaign_id', campaignId)
-              .in('gang_id', gangIds);
-              
-            if (territoryError) throw territoryError;
-            
-            // Delete the campaign gangs for this specific member
-            const { error: gangError } = await supabase
-              .from('campaign_gangs')
-              .delete()
-              .eq('campaign_id', campaignId)
-              .eq('campaign_member_id', memberId);
-              
-            if (gangError) throw gangError;
-          }
-          
-          // Delete the campaign member by ID
-          const { error } = await supabase
-            .from('campaign_members')
-            .delete()
-            .eq('id', memberId);
-            
-          if (error) throw error;
-        } else {
-          throw new Error(`Cannot find member at index ${memberToRemove.index}`);
-        }
-      } 
-      // Fallback for backward compatibility - delete by user_id
-      else {
-        console.log("Using fallback approach - no member ID or index specified");
-        
-        // This is the original approach, should be rarely used now
-        const { data: userGangs } = await supabase
-          .from('campaign_gangs')
-          .select('gang_id')
-          .eq('campaign_id', campaignId)
-          .eq('user_id', memberToRemove.user_id);
-
-        if (userGangs && userGangs.length > 0) {
-          const gangIds = userGangs.map(g => g.gang_id);
-
-          const { error: territoryError } = await supabase
-            .from('campaign_territories')
-            .update({ gang_id: null })
-            .eq('campaign_id', campaignId)
-            .in('gang_id', gangIds);
-
-          if (territoryError) throw territoryError;
-
-          const { error: gangError } = await supabase
-            .from('campaign_gangs')
-            .delete()
-            .eq('campaign_id', campaignId)
-            .eq('user_id', memberToRemove.user_id);
-
-          if (gangError) throw gangError;
-        }
-
-        const { error } = await supabase
-          .from('campaign_members')
-          .delete()
-          .eq('campaign_id', campaignId)
-          .eq('user_id', memberToRemove.user_id);
-
-        if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       onMemberUpdate({
@@ -500,65 +333,16 @@ export default function MembersTable({
     console.log("Removing gang with details:", gangToRemove);
 
     try {
-      // First, update any territories controlled by this gang in this campaign
-      const { error: territoryError } = await supabase
-        .from('campaign_territories')
-        .update({ gang_id: null })
-        .eq('campaign_id', campaignId)
-        .eq('gang_id', gangToRemove.gangId);
-        
-      if (territoryError) throw territoryError;
+      const result = await removeGangFromCampaign({
+        campaignId,
+        gangId: gangToRemove.gangId,
+        memberId: gangToRemove.memberId,
+        memberIndex: gangToRemove.memberIndex,
+        campaignGangId: gangToRemove.id
+      });
 
-      // Then proceed with removing the gang from the campaign
-      if (gangToRemove.id) {
-        console.log("Using gang ID directly:", gangToRemove.id);
-        
-        const { error } = await supabase
-          .from('campaign_gangs')
-          .delete()
-          .eq('id', gangToRemove.id);
-        
-        if (error) throw error;
-      } else if (gangToRemove.memberIndex !== undefined) {
-        console.log("Finding gang by member index:", gangToRemove.memberIndex);
-        
-        const { data: memberEntries, error: fetchMemberError } = await supabase
-          .from('campaign_members')
-          .select('id')
-          .eq('campaign_id', campaignId)
-          .eq('user_id', gangToRemove.memberId);
-        
-        console.log("Member entries:", memberEntries);
-        
-        if (fetchMemberError) throw fetchMemberError;
-        
-        if (memberEntries && memberEntries.length > gangToRemove.memberIndex) {
-          const memberId = memberEntries[gangToRemove.memberIndex].id;
-          console.log("Found member ID:", memberId);
-          
-          // Delete the specific gang linked to this member instance
-          const { error } = await supabase
-            .from('campaign_gangs')
-            .delete()
-            .eq('campaign_id', campaignId)
-            .eq('gang_id', gangToRemove.gangId)
-            .eq('campaign_member_id', memberId);
-            
-          if (error) throw error;
-        } else {
-          throw new Error(`Cannot find member at index ${gangToRemove.memberIndex}`);
-        }
-      } else {
-        // Fallback to the original behavior
-        console.log("Using fallback approach - no member index specified");
-        
-        const { error } = await supabase
-          .from('campaign_gangs')
-          .delete()
-          .eq('campaign_id', campaignId)
-          .eq('gang_id', gangToRemove.gangId);
-
-        if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       onMemberUpdate({

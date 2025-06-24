@@ -206,9 +206,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   }, [members]);
 
-  // Get gang name by ID
-  const getGangName = (gangId: string | undefined): string => {
+  // Get gang name by ID - prioritize battle data, fallback to member data
+  const getGangName = (gangId: string | undefined, battleGangName?: string): string => {
     if (!gangId) return "Unknown";
+    // First try to use the gang name from the battle data itself
+    if (battleGangName && battleGangName !== "Unknown") {
+      return battleGangName;
+    }
+    // Fallback to the member-based gang map
     return gangNameMap.get(gangId) || "Unknown";
   };
 
@@ -237,6 +242,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         return <span className="text-gray-500">None</span>;
       }
 
+      // Create a map of gang IDs to gang names from battle data
+      const battleGangNames = new Map<string, string>();
+      if (battle.attacker?.gang_id && battle.attacker?.gang_name) {
+        battleGangNames.set(battle.attacker.gang_id, battle.attacker.gang_name);
+      }
+      if (battle.defender?.gang_id && battle.defender?.gang_name) {
+        battleGangNames.set(battle.defender.gang_id, battle.defender.gang_name);
+      }
+
       participants = [...participants].sort((a, b) => {
         const roleOrder = { attacker: 0, defender: 1 };
         const roleA = roleOrder[a.role] ?? 99;
@@ -244,8 +258,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
         if (roleA !== roleB) return roleA - roleB;
 
-        const nameA = getGangName(a.gang_id).toLowerCase();
-        const nameB = getGangName(b.gang_id).toLowerCase();
+        const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
+        const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
         return nameA.localeCompare(nameB);
       });
 
@@ -265,6 +279,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               roleLetter = "D";
             }
             
+            const gangName = getGangName(participant.gang_id, battleGangNames.get(participant.gang_id));
+            
             return (
               <div key={index}>
                 <div className="flex items-center space-x-1">
@@ -278,7 +294,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                       href={`/gang/${participant.gang_id}`}
                       className="hover:text-gray-600 transition-colors"
                     >
-                      {getGangName(participant.gang_id)}
+                      {gangName}
                     </Link>
                   </span>
                 </div>

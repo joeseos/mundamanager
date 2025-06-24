@@ -24,6 +24,12 @@ import TerritoryList from "@/components/campaign/campaign-territory-list";
 import { CampaignBattleLogsListRef } from "@/components/campaign/campaign-battle-logs-list";
 import CampaignEditModal from "@/components/campaign/campaign-edit-modal";
 import type { CampaignPermissions } from '@/types/user-permissions';
+import { 
+  assignGangToTerritory, 
+  removeGangFromTerritory, 
+  removeTerritoryFromCampaign 
+} from "@/app/actions/campaign-territories";
+import { updateCampaignSettings } from "@/app/actions/campaign-settings";
 
 interface Gang {
   id: string;
@@ -231,14 +237,15 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
         return false;
       }
 
-      const { error } = await supabase
-        .from('campaign_territories')
-        .update({
-          gang_id: gangId
-        })
-        .eq('id', selectedTerritory.id);
+      const result = await assignGangToTerritory({
+        campaignId: campaignData.id,
+        territoryId: selectedTerritory.id,
+        gangId
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Use existing gang data instead of fetching
       const gangDetails = getGangDetails(gangId);
@@ -295,15 +302,14 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
         return;
       }
 
-      // Update territory
-      const { error } = await supabase
-        .from('campaign_territories')
-        .update({
-          gang_id: null
-        })
-        .eq('id', territoryId);
+      const result = await removeGangFromTerritory({
+        campaignId: campaignData.id,
+        territoryId
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Update local state
       setCampaignData(prev => ({
@@ -498,20 +504,19 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     has_scavenging_rolls: boolean;
   }) => {
     try {
-      const now = new Date().toISOString();
-      
-      const { error } = await supabase
-        .from('campaigns')
-        .update({
-          campaign_name: formValues.campaign_name,
-          has_meat: formValues.has_meat,
-          has_exploration_points: formValues.has_exploration_points,
-          has_scavenging_rolls: formValues.has_scavenging_rolls,
-          updated_at: now,
-        })
-        .eq('id', campaignData.id);
+      const result = await updateCampaignSettings({
+        campaignId: campaignData.id,
+        campaign_name: formValues.campaign_name,
+        has_meat: formValues.has_meat,
+        has_exploration_points: formValues.has_exploration_points,
+        has_scavenging_rolls: formValues.has_scavenging_rolls
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      const now = new Date().toISOString();
       
       // Update local state
       setCampaignData(prev => ({
@@ -784,32 +789,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 </div>
               </div>
 
-              {/* Battle Log Section - visible to all users */}
-              <div className="mb-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
-                  {safePermissions.canAddBattleLogs && (
-                    <Button
-                      className="bg-black hover:bg-gray-800 text-white"
-                      onClick={handleAddBattleLog}
-                    >
-                      Add
-                    </Button>
-                  )}
-                </div>
-                <div id="campaign-battle-logs-overview">
-                  <CampaignBattleLogsList
-                    ref={battleLogsRef}
-                    campaignId={campaignData.id}
-                    battles={campaignData.battles || []}
-                    isAdmin={!!safePermissions.canEditBattleLogs}
-                    onBattleAdd={refreshData}
-                    members={campaignData.members}
-                    noContainer={true}
-                    hideAddButton={true}
-                  />
-                </div>
-              </div>
+
             </>
           )}
 
