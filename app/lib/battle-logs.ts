@@ -99,6 +99,10 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       winner: winner?.name ? { gang_name: winner.name } : null
     };
 
+    // 🎯 Invalidate battles cache
+    const { revalidateTag } = await import('next/cache');
+    revalidateTag('campaign-battles');
+
     return transformedBattle;
   } catch (error) {
     console.error('Error creating battle log:', error);
@@ -183,6 +187,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner: winner?.name ? { gang_name: winner.name } : null
     };
 
+    // 🎯 Invalidate battles cache
+    const { revalidateTag } = await import('next/cache');
+    revalidateTag('campaign-battles');
+
     return transformedBattle;
   } catch (error) {
     console.error('Error updating battle log:', error);
@@ -225,6 +233,10 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
       throw deleteError;
     }
     
+    // 🎯 Invalidate battles cache
+    const { revalidateTag } = await import('next/cache');
+    revalidateTag('campaign-battles');
+
     console.log(`Server: Successfully deleted battle ${battleId}`);
   } catch (error) {
     console.error('Error deleting battle log:', error);

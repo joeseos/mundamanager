@@ -7,6 +7,7 @@ import Modal from "@/components/modal";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
+import { deleteCampaign } from "@/app/actions/campaign-settings";
 
 interface EditCampaignModalProps {
   isOpen: boolean;
@@ -72,12 +73,11 @@ export default function CampaignEditModal({
   const handleDeleteCampaign = async () => {
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('campaigns')
-        .delete()
-        .eq('id', campaignData.id);
+      const result = await deleteCampaign(campaignData.id);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       toast({
         description: "Campaign deleted successfully"

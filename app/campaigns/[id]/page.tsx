@@ -5,6 +5,14 @@ import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boun
 import { PermissionService } from "@/app/lib/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 
+// Import the new functions
+import { 
+  getCampaignBasic, 
+  getCampaignMembers, 
+  getCampaignTerritories, 
+  getCampaignBattles 
+} from "@/app/lib/get-campaign-data";
+
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
@@ -43,19 +51,38 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   }
 
   try {
-    const { data, error } = await supabase
-      .rpc('get_campaign_details', {
-        campaign_id: params.id
-      });
+    // 🚀 PARALLEL DATA FETCHING
+    const [
+      campaignBasic,
+      campaignMembers,
+      campaignTerritories,
+      campaignBattles
+    ] = await Promise.all([
+      getCampaignBasic(params.id),
+      getCampaignMembers(params.id),
+      getCampaignTerritories(params.id),
+      getCampaignBattles(params.id)
+    ]);
 
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
-    }
-
-    const [campaignData] = data || [];
+    // Combine the data
+    const campaignData = {
+      id: campaignBasic.id,
+      campaign_name: campaignBasic.campaign_name,
+      campaign_type_id: campaignBasic.campaign_type_id,
+      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
+      status: campaignBasic.status,
+      description: campaignBasic.description,
+      created_at: campaignBasic.created_at,
+      updated_at: campaignBasic.updated_at,
+      has_meat: campaignBasic.has_meat,
+      has_exploration_points: campaignBasic.has_exploration_points,
+      has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
+      members: campaignMembers,
+      territories: campaignTerritories,
+      battles: campaignBattles
+    };
     
-    if (!campaignData) {
+    if (!campaignData.id) {
       notFound();
     }
     
