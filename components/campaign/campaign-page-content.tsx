@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, Fragment } from 'react';
+import React, { useState, useEffect, useRef, Fragment, useTransition } from 'react';
 import TerritoryGangModal from "@/components/campaign/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
@@ -169,6 +169,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -471,8 +472,23 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const refreshData = async () => {
     try {
-      // Use router.refresh to trigger a server-side re-fetch with the new cached functions
-      router.refresh();
+      // Instead of router.refresh(), fetch fresh data from our cached endpoints
+      const response = await fetch(`/api/campaigns/${campaignData.id}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch updated campaign data');
+      }
+      
+      const updatedCampaignData = await response.json();
+      
+      // Update only the campaign data state
+      setCampaignData(updatedCampaignData);
+      
     } catch (error) {
       console.error('Error refreshing campaign data:', error);
       toast({
@@ -481,8 +497,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       });
     }
   };
-
-
 
   const handleSave = async (formValues: {
     campaign_name: string;
@@ -683,8 +697,29 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   isAdmin={isAdmin}
                   members={campaignData.members}
                   userId={userId}
-                  onMemberUpdate={() => {
-                    refreshData();
+                  onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember }) => {
+                    startTransition(() => {
+                      // For specific updates, we can do optimistic updates
+                      if (removedMemberId) {
+                        // Optimistically remove the member from local state
+                        setCampaignData(prev => ({
+                          ...prev,
+                          members: prev.members.filter(m => m.id !== removedMemberId)
+                        }));
+                      } else if (removedGangIds && removedGangIds.length > 0) {
+                        // Optimistically remove gangs from local state
+                        setCampaignData(prev => ({
+                          ...prev,
+                          members: prev.members.map(member => ({
+                            ...member,
+                            gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
+                          }))
+                        }));
+                      } else {
+                        // For other updates (like adding gangs), fetch fresh data
+                        refreshData();
+                      }
+                    });
                   }}
                   isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                   isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}

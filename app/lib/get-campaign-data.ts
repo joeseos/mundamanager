@@ -294,8 +294,7 @@ const _getCampaignMembers = unstable_cache(
     const membersWithGangs = members?.map(member => {
       const memberProfile = profilesData.find(p => p.id === member.user_id);
       const memberGangs = campaignGangs?.filter(cg => 
-        cg.campaign_member_id === member.id || 
-        (cg.campaign_member_id === null && cg.user_id === member.user_id)
+        cg.campaign_member_id === member.id
       ) || [];
 
       const gangs = memberGangs.map(cg => {
@@ -334,7 +333,7 @@ const _getCampaignMembers = unstable_cache(
 
     return membersWithGangs;
   },
-  ['campaign-members'],
+  ['campaign-members', 'campaign-gangs'],
   {
     revalidate: 300, // 5 minutes
   }
@@ -408,7 +407,7 @@ const _getCampaignTerritories = unstable_cache(
       };
     }) || [];
   },
-  ['campaign-territories'],
+  ['campaign-territories', 'campaign-gangs'],
   {
     revalidate: 600, // 10 minutes
   }
@@ -502,7 +501,7 @@ const _getCampaignBattles = unstable_cache(
       };
     }) || [];
   },
-  ['campaign-battles'],
+  ['campaign-battles', 'campaign-gangs'],
   {
     revalidate: 60, // 1 minute
   }
