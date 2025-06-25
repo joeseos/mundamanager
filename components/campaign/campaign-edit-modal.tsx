@@ -14,6 +14,7 @@ interface EditCampaignModalProps {
   campaignData: {
     id: string;
     campaign_name: string;
+    description: string;
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
@@ -21,6 +22,7 @@ interface EditCampaignModalProps {
   onClose: () => void;
   onSave: (updatedData: {
     campaign_name: string;
+    description: string;
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
@@ -38,12 +40,14 @@ export default function CampaignEditModal({
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
     campaignName: campaignData.campaign_name,
+    description: campaignData.description ?? '',
     meatEnabled: campaignData.has_meat,
     explorationEnabled: campaignData.has_exploration_points,
     scavengingEnabled: campaignData.has_scavenging_rolls,
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [charCount, setCharCount] = useState(0);
   const { toast } = useToast();
   const supabase = createClient();
   const router = useRouter();
@@ -52,16 +56,19 @@ export default function CampaignEditModal({
   useEffect(() => {
     setFormValues({
       campaignName: campaignData.campaign_name,
+      description: campaignData.description ?? '',
       meatEnabled: campaignData.has_meat,
       explorationEnabled: campaignData.has_exploration_points,
       scavengingEnabled: campaignData.has_scavenging_rolls,
     });
+    setCharCount((campaignData.description ?? '').length);
   }, [campaignData]);
 
   // Handler for form submission
   const handleSubmit = async () => {
     const result = await onSave({
       campaign_name: formValues.campaignName,
+      description: formValues.description,
       has_meat: formValues.meatEnabled,
       has_exploration_points: formValues.explorationEnabled,
       has_scavenging_rolls: formValues.scavengingEnabled,
@@ -101,7 +108,7 @@ export default function CampaignEditModal({
   if (!isOpen) return null;
 
   return (
-    <>
+    <div>
       <Modal
         title="Edit Campaign"
         content={
@@ -150,6 +157,30 @@ export default function CampaignEditModal({
                 <span>Scavenging Rolls</span>
               </label>
             </div>
+
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium mb-1">
+                <span>Description</span>
+                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>
+                  {charCount}/1500 characters
+                </span>
+              </label>
+              <textarea
+                value={formValues.description}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormValues(prev => ({
+                    ...prev,
+                    description: value
+                  }));
+                  setCharCount(value.length); // ✅ update the count
+                }}
+                className="w-full p-2 border rounded min-h-[200px]"
+                placeholder="Enter campaign description..."
+              />
+
+            </div>
+
             {isOwner && (
               <Button
                 variant="destructive"
@@ -164,6 +195,7 @@ export default function CampaignEditModal({
         onClose={onClose}
         onConfirm={handleSubmit}
         confirmText="Save Changes"
+        confirmDisabled={charCount > 1500}
       />
 
       {/* Campaign Delete Confirmation Modal */}
@@ -183,6 +215,6 @@ export default function CampaignEditModal({
           confirmDisabled={isDeleting}
         />
       )}
-    </>
+    </div>
   );
 } 

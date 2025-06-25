@@ -85,6 +85,7 @@ interface CampaignData {
   campaign_type_id: string;
   created_at: string;
   updated_at: string | null;
+  description: string;
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
@@ -118,7 +119,7 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     status: string | null;
-    description: string | null;
+    description: string;
     created_at: string;
     updated_at: string | null;
     members: any[];
@@ -216,6 +217,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     campaign_type_id: campaignData.campaign_type_id,
     created_at: campaignData.created_at,
     updated_at: campaignData.updated_at,
+    description: campaignData.description,
     has_meat: campaignData.has_meat,
     has_exploration_points: campaignData.has_exploration_points,
     has_scavenging_rolls: campaignData.has_scavenging_rolls,
@@ -455,6 +457,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const handleCampaignUpdate = (updatedData: {
     campaign_name: string;
+    description: string;
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
@@ -483,6 +486,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const handleSave = async (formValues: {
     campaign_name: string;
+    description: string;
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
@@ -491,6 +495,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       const result = await updateCampaignSettings({
         campaignId: campaignData.id,
         campaign_name: formValues.campaign_name,
+        description: formValues.description,
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
         has_scavenging_rolls: formValues.has_scavenging_rolls
@@ -506,6 +511,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
       setCampaignData(prev => ({
         ...prev,
         campaign_name: formValues.campaign_name,
+        description: formValues.description,
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
         has_scavenging_rolls: formValues.has_scavenging_rolls,
@@ -617,10 +623,10 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 >
                   <div
                     className="flex items-center gap-2 pl-2 sm:pl-4 overflow-hidden whitespace-nowrap"
-                    style={{ height: '65px', width: '60svw', maxWidth: '80%' }}
+                    style={{ height: '65px', width: '65svw', maxWidth: '90%' }}
                   >
                     <div className="flex flex-col items-baseline">
-                      <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white print:text-black mr-2">
+                      <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white print:text-black">
                         {campaignData.campaign_name}
                       </div>
                       <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
@@ -630,7 +636,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   </div>
                   {safePermissions.canEditCampaign && (
                     <Button
-                      className="ml-auto bg-white hover:bg-gray-100 text-black mr-4 sm:mr-8"
+                      className="bg-white text-black hover:bg-gray-100 sm:mr-2"
                       onClick={() => setShowEditModal(true)}
                     >
                       Edit
@@ -638,7 +644,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                   )}
                 </div>
 
-                <div className="mt-1 mb-4">
+                <div className="mt-1 mb-4 whitespace-pre-wrap break-words">
                   {campaignData.description}
                 </div>
 
@@ -969,6 +975,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           campaignData={{
             id: campaignData.id,
             campaign_name: campaignData.campaign_name,
+            description: campaignData.description,
             has_meat: campaignData.has_meat,
             has_exploration_points: campaignData.has_exploration_points,
             has_scavenging_rolls: campaignData.has_scavenging_rolls
