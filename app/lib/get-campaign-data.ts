@@ -19,6 +19,15 @@ interface CampaignBasic {
   } | null;
 }
 
+interface CampaignTriumph {
+  id: string;
+  triumph: string;
+  criteria: string;
+  campaign_type_id: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
 interface Fighter {
   id: string;
   gang_id: string;
@@ -507,6 +516,31 @@ const _getCampaignBattles = unstable_cache(
   }
 );
 
+const _getCampaignTriumphs = unstable_cache(
+  async (campaignTypeId: string, supabase: SupabaseClient) => {
+    const { data: triumphs, error } = await supabase
+      .from('campaign_triumphs')
+      .select(`
+        id,
+        triumph,
+        criteria,
+        campaign_type_id,
+        created_at,
+        updated_at
+      `)
+      .eq('campaign_type_id', campaignTypeId)
+      .order('triumph', { ascending: true });
+
+    if (error) throw error;
+
+    return triumphs || [];
+  },
+  ['campaign-triumphs'],
+  {
+    revalidate: 3600, // 1 hour
+  }
+);
+
 // Public API functions that create Supabase client and call cached functions
 export async function getCampaignBasic(campaignId: string) {
   const supabase = await createClient();
@@ -528,8 +562,13 @@ export async function getCampaignBattles(campaignId: string, limit = 50) {
   return _getCampaignBattles(campaignId, supabase, limit);
 }
 
+export async function getCampaignTriumphs(campaignTypeId: string) {
+  const supabase = await createClient();
+  return _getCampaignTriumphs(campaignTypeId, supabase);
+}
+
 // Helper function to create cache tags dynamically
-export function createCacheTag(campaignId: string, type: 'basic' | 'members' | 'territories' | 'battles'): string {
+export function createCacheTag(campaignId: string, type: 'basic' | 'members' | 'territories' | 'battles' | 'triumphs'): string {
   return `campaign:${campaignId}:${type}`;
 }
 
