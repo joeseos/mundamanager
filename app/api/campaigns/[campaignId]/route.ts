@@ -1,9 +1,14 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { 
+  getCampaignBasic, 
+  getCampaignMembers, 
+  getCampaignTerritories, 
+  getCampaignBattles 
+} from "@/app/lib/get-campaign-data";
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
-  const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
@@ -14,15 +19,38 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
-    const { data, error } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', campaignId)
-      .single();
+    // Use the same cached functions as the page
+    const [
+      campaignBasic,
+      campaignMembers,
+      campaignTerritories,
+      campaignBattles
+    ] = await Promise.all([
+      getCampaignBasic(campaignId),
+      getCampaignMembers(campaignId),
+      getCampaignTerritories(campaignId),
+      getCampaignBattles(campaignId)
+    ]);
 
-    if (error) throw error;
+    // Combine the data in the same format as the page
+    const campaignData = {
+      id: campaignBasic.id,
+      campaign_name: campaignBasic.campaign_name,
+      campaign_type_id: campaignBasic.campaign_type_id,
+      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
+      status: campaignBasic.status,
+      description: campaignBasic.description,
+      created_at: campaignBasic.created_at,
+      updated_at: campaignBasic.updated_at,
+      has_meat: campaignBasic.has_meat,
+      has_exploration_points: campaignBasic.has_exploration_points,
+      has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
+      members: campaignMembers,
+      territories: campaignTerritories,
+      battles: campaignBattles
+    };
 
-    return NextResponse.json(data);
+    return NextResponse.json(campaignData);
   } catch (error) {
     console.error('Error fetching campaign:', error);
     return NextResponse.json(

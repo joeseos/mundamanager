@@ -38,6 +38,8 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
   try {
     const supabase = await createClient();
     const { campaignId, gangId, userId, campaignMemberId } = params;
+    
+    let targetMemberId = campaignMemberId;
 
     // If we have a specific campaign member ID, use it
     if (campaignMemberId) {
@@ -66,7 +68,7 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
       }
 
       // Use the first member entry (most common case)
-      const memberId = memberEntries[0].id;
+      targetMemberId = memberEntries[0].id;
       
       const { error } = await supabase
         .from('campaign_gangs')
@@ -74,14 +76,17 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
           campaign_id: campaignId,
           gang_id: gangId,
           user_id: userId,
-          campaign_member_id: memberId
+          campaign_member_id: targetMemberId
         });
 
       if (error) throw error;
     }
 
-    // Invalidate campaign members cache
+    // Invalidate all relevant caches
     revalidateTag('campaign-members');
+    revalidateTag('campaign-gangs');
+    revalidateTag('campaign-territories');
+    revalidateTag('campaign-battles');
 
     return { success: true };
   } catch (error) {
@@ -165,7 +170,9 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     // Invalidate campaign caches
     revalidateTag('campaign-members');
+    revalidateTag('campaign-gangs');
     revalidateTag('campaign-territories');
+    revalidateTag('campaign-battles');
 
     return { success: true };
   } catch (error) {
@@ -240,7 +247,9 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
 
     // Invalidate campaign caches
     revalidateTag('campaign-members');
+    revalidateTag('campaign-gangs');
     revalidateTag('campaign-territories');
+    revalidateTag('campaign-battles');
 
     return { success: true };
   } catch (error) {

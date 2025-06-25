@@ -64,7 +64,7 @@ interface MembersTableProps {
   members: Member[];
   userId?: string;
   onMemberUpdate: (args: { 
-    removedUserId?: string; 
+    removedMemberId?: string; 
     removedGangIds?: string[];
     updatedMember?: Member;
   }) => void;
@@ -213,9 +213,9 @@ export default function MembersTable({
         throw new Error(result.error);
       }
 
-      onMemberUpdate({
-        updatedMember: selectedMember
-      });
+      // Trigger refresh to get updated data from cache
+      onMemberUpdate({});
+      
       toast({
         description: `Added ${selectedGang.name} to the campaign`
       });
@@ -255,12 +255,8 @@ export default function MembersTable({
         throw new Error(result.error);
       }
 
-      onMemberUpdate({
-        updatedMember: {
-          ...selectedMember!,
-          role: roleChange.newRole
-        }
-      });
+      // Trigger refresh to get updated data from cache
+      onMemberUpdate({});
       toast({
         description: `Updated ${roleChange.username}'s role to ${roleChange.newRole}`
       });
@@ -310,10 +306,10 @@ export default function MembersTable({
         throw new Error(result.error);
       }
 
-      onMemberUpdate({
-        removedUserId: memberToRemove.user_id,
-        removedGangIds: memberToRemove.gangs.map(g => g.gang_id)
-      });
+              onMemberUpdate({
+          removedMemberId: memberToRemove.id,
+          removedGangIds: memberToRemove.gangs.map(g => g.gang_id)
+        });
       toast({
         description: `Removed ${memberToRemove.profile.username} from the campaign`
       });
@@ -505,7 +501,7 @@ export default function MembersTable({
                 </td>
                 <td className="px-2 py-2 max-w-[3.5rem]">
                   <div className="flex items-center gap-2">
-                    {isAdmin && member.user_id !== currentUserId ? (
+                    {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                       <button
                         onClick={() => {
                           setRoleChange({
@@ -625,7 +621,7 @@ export default function MembersTable({
                 <span className="text-sm text-gray-500 text-base">Player</span>
                 <div className="text-sm text-base">
                   {member.profile.username}
-                  {isAdmin && member.user_id !== currentUserId ? (
+                  {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                     <button
                       onClick={() => {
                         setRoleChange({
