@@ -14,7 +14,7 @@ import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-l
 import { FiMap } from "react-icons/fi";
 import { FaCity } from "react-icons/fa";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard } from "react-icons/lu";
+import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@/app/lib/utils";
@@ -23,6 +23,7 @@ import { MdPlace } from "react-icons/md";
 import TerritoryList from "@/components/campaign/campaign-territory-list";
 import { CampaignBattleLogsListRef } from "@/components/campaign/campaign-battle-logs-list";
 import CampaignEditModal from "@/components/campaign/campaign-edit-modal";
+import CampaignTriumphs from "@/components/campaign/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import { 
   assignGangToTerritory, 
@@ -140,14 +141,22 @@ interface CampaignPageContentProps {
         gang_id?: string;
         gang_name: string;
       };
-      winner?: {
-        gang_id?: string;
-        gang_name: string;
-      };
-    }[];
-  };
-  userId?: string;
-  permissions: CampaignPermissions | null;
+              winner?: {
+          gang_id?: string;
+          gang_name: string;
+        };
+      }[];
+      triumphs: {
+        id: string;
+        triumph: string;
+        criteria: string;
+        campaign_type_id: string;
+        created_at: string;
+        updated_at: string | null;
+      }[];
+    };
+    userId?: string;
+    permissions: CampaignPermissions | null;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -612,6 +621,17 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
             <LuClipboard className="h-5 w-5" />
             <span className="ml-2 hidden sm:inline">Notes</span>
           </button>
+          <button
+            onClick={() => setActiveTab(4)}
+            className={`flex-1 py-4 text-center transition-colors ${
+              activeTab === 4
+                ? 'text-black font-medium'
+                : 'text-gray-500 hover:text-gray-700'
+            } flex items-center justify-center`}
+          >
+            <LuTrophy className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">Triumphs</span>
+          </button>
         </div>
         
         {/* Single white box container for all content */}
@@ -963,6 +983,16 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 <h2 className="text-xl md:text-2xl font-bold">Notes</h2>
               </div>
               <p className="text-gray-600">Notes content coming soon...</p>
+            </div>
+          )}
+
+          {/* Triumphs tab content */}
+          {activeTab === 4 && (
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl md:text-2xl font-bold">Triumphs</h2>
+              </div>
+              <CampaignTriumphs triumphs={campaignData.triumphs || []} />
             </div>
           )}
         </div>

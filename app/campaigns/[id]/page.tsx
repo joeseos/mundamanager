@@ -10,7 +10,8 @@ import {
   getCampaignBasic, 
   getCampaignMembers, 
   getCampaignTerritories, 
-  getCampaignBattles 
+  getCampaignBattles,
+  getCampaignTriumphs 
 } from "@/app/lib/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -64,6 +65,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignBattles(params.id)
     ]);
 
+    // Fetch triumphs based on campaign type
+    const campaignTriumphs = await getCampaignTriumphs(campaignBasic.campaign_type_id);
+
     // Combine the data
     const campaignData = {
       id: campaignBasic.id,
@@ -79,7 +83,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
       members: campaignMembers,
       territories: campaignTerritories,
-      battles: campaignBattles
+      battles: campaignBattles,
+      triumphs: campaignTriumphs
     };
     
     if (!campaignData.id) {
