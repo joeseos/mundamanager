@@ -355,6 +355,39 @@ BEGIN
        FROM weapon_profiles_deduplicated wpd
        GROUP BY wpd.fe_id, wpd.weapon_id
    ),
+   custom_weapon_profiles_grouped AS (
+       SELECT 
+           fe.id as fe_id,
+           fe.custom_equipment_id as equipment_id,
+           json_agg(
+               json_build_object(
+                   'id', cwp.id,
+                   'profile_name', cwp.profile_name,
+                   'range_short', cwp.range_short,
+                   'range_long', cwp.range_long,
+                   'acc_short', cwp.acc_short,
+                   'acc_long', cwp.acc_long,
+                   'strength', cwp.strength,
+                   'ap', cwp.ap,
+                   'damage', cwp.damage,
+                   'ammo', cwp.ammo,
+                   'traits', cwp.traits,
+                   'weapon_group_id', cwp.weapon_group_id,
+                   'sort_order', cwp.sort_order,
+                   'is_master_crafted', fe.is_master_crafted
+               )
+               ORDER BY cwp.sort_order NULLS LAST, cwp.profile_name
+           ) as profiles
+       FROM fighter_equipment fe
+       JOIN custom_weapon_profiles cwp ON (cwp.custom_equipment_id = fe.custom_equipment_id OR cwp.weapon_group_id = fe.custom_equipment_id)
+       WHERE fe.custom_equipment_id IS NOT NULL
+       AND (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+          OR fe.vehicle_id IN (
+             SELECT v.id FROM vehicles v 
+             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
+          ))
+       GROUP BY fe.id, fe.custom_equipment_id
+   ),
    fighter_equipment_details AS (
        SELECT 
            fe.fighter_id,
@@ -367,9 +400,13 @@ BEGIN
                    'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
                    'equipment_category', COALESCE(e.equipment_category, ce.equipment_category),
                    'cost', fe.purchase_cost,
-                   'weapon_profiles', CASE WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
-                       COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = fe.id), '[]'::json)
-                   ELSE NULL END
+                   'weapon_profiles', CASE 
+                       WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
+                           COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = fe.id), '[]'::json)
+                       WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND ce.id IS NOT NULL THEN 
+                           COALESCE((SELECT cwpg.profiles FROM custom_weapon_profiles_grouped cwpg WHERE cwpg.equipment_id = ce.id AND cwpg.fe_id = fe.id), '[]'::json)
+                       ELSE NULL 
+                   END
                )
            ) as equipment
        FROM fighter_equipment fe
@@ -434,9 +471,13 @@ BEGIN
                    'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
                    'equipment_category', COALESCE(e.equipment_category, ce.equipment_category),
                    'cost', ve.purchase_cost,
-                   'weapon_profiles', CASE WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
-                       COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = ve.id), '[]'::json)
-                   ELSE NULL END,
+                   'weapon_profiles', CASE 
+                       WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND e.id IS NOT NULL THEN 
+                           COALESCE((SELECT wpg.profiles FROM weapon_profiles_grouped wpg WHERE wpg.equipment_id = e.id AND wpg.fe_id = ve.id), '[]'::json)
+                       WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND ce.id IS NOT NULL THEN 
+                           COALESCE((SELECT cwpg.profiles FROM custom_weapon_profiles_grouped cwpg WHERE cwpg.equipment_id = ce.id AND cwpg.fe_id = ve.id), '[]'::json)
+                       ELSE NULL 
+                   END,
                    'vehicle_equipment_profiles', CASE WHEN e.id IS NOT NULL THEN
                        COALESCE(
                            (SELECT vepa.profiles FROM vehicle_equipment_profiles_agg vepa 
