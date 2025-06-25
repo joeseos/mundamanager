@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
   campaign_name: string;
+  description: string;
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
@@ -18,12 +19,20 @@ export interface UpdateCampaignSettingsParams {
 export async function updateCampaignSettings(params: UpdateCampaignSettingsParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, campaign_name, has_meat, has_exploration_points, has_scavenging_rolls } = params;
-    
+    const {
+      campaignId,
+      campaign_name,
+      description,
+      has_meat,
+      has_exploration_points,
+      has_scavenging_rolls
+    } = params;
+
     const { error } = await supabase
       .from('campaigns')
       .update({
         campaign_name,
+        description,
         has_meat,
         has_exploration_points,
         has_scavenging_rolls,
