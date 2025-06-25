@@ -13,6 +13,7 @@ interface ModalProps {
   confirmDisabled?: boolean;
   headerContent?: React.ReactNode;
   hideCancel?: boolean;
+  width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 export default function Modal({ 
@@ -25,7 +26,8 @@ export default function Modal({
   confirmText = 'Confirm',
   confirmDisabled = false,
   headerContent,
-  hideCancel
+  hideCancel,
+  width = 'md'
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,6 +53,17 @@ export default function Modal({
     }
   };
 
+  const getMaxWidth = () => {
+    switch (width) {
+      case 'sm': return 'max-w-sm';
+      case 'md': return 'max-w-md';
+      case 'lg': return 'max-w-lg';
+      case 'xl': return 'max-w-xl';
+      case '2xl': return 'max-w-2xl';
+      default: return 'max-w-md';
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
@@ -58,7 +71,7 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
+      <div className={`bg-white rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}>
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h3>

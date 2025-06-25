@@ -59,6 +59,7 @@ DECLARE
   rating_cost INTEGER;
   v_is_custom_equipment BOOLEAN := FALSE;
   v_equipment_name TEXT;
+  v_custom_weapon_profiles JSONB;
 BEGIN
   -- Get the authenticated user's ID
   v_user_id := auth.uid();
@@ -97,6 +98,9 @@ BEGIN
       ELSE 'vehicle'
     END;
   END IF;
+
+  -- Initialize custom weapon profiles
+  v_custom_weapon_profiles := '[]'::jsonb;
 
   -- Security check: Verify user has access to the gang
   IF NOT EXISTS (
@@ -154,7 +158,37 @@ BEGIN
     v_equipment_type := custom_equipment_record.equipment_type;
     v_equipment_name := custom_equipment_record.equipment_name;
 
-    -- Custom equipment doesn't have weapon profiles, so set default_profile to NULL
+    -- For custom equipment, fetch custom weapon profiles if it's a weapon
+    IF v_equipment_type = 'weapon' THEN
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', cwp.id,
+          'profile_name', cwp.profile_name,
+          'range_short', cwp.range_short,
+          'range_long', cwp.range_long,
+          'acc_short', cwp.acc_short,
+          'acc_long', cwp.acc_long,
+          'strength', cwp.strength,
+          'ap', cwp.ap,
+          'damage', cwp.damage,
+          'ammo', cwp.ammo,
+          'traits', cwp.traits,
+          'sort_order', cwp.sort_order
+        )
+        ORDER BY cwp.sort_order NULLS LAST, cwp.profile_name
+      ) INTO v_custom_weapon_profiles
+      FROM custom_weapon_profiles cwp
+      WHERE (cwp.custom_equipment_id = buy_equipment_for_fighter.custom_equipment_id 
+             OR cwp.weapon_group_id = buy_equipment_for_fighter.custom_equipment_id)
+      AND cwp.user_id = v_user_id;
+
+      -- If no profiles found, set to empty array
+      IF v_custom_weapon_profiles IS NULL THEN
+        v_custom_weapon_profiles := '[]'::jsonb;
+      END IF;
+    END IF;
+
+    -- Custom equipment doesn't have default_profile from weapon_profiles table
     default_profile := NULL;
   ELSE
     -- Get the adjusted_cost value if it exists (considering both gang and fighter type discounts)
@@ -386,8 +420,28 @@ BEGIN
       ) INTO new_equipment
       FROM fighter_equipment fe
       WHERE fe.id = v_new_equipment_id;
+    ELSIF v_equipment_type = 'weapon' AND v_is_custom_equipment THEN
+      -- For custom weapon equipment
+      SELECT jsonb_build_object(
+        'id', fe.id,
+        'fighter_id', fe.fighter_id,
+        'vehicle_id', fe.vehicle_id,
+        'equipment_id', fe.equipment_id,
+        'custom_equipment_id', fe.custom_equipment_id,
+        'purchase_cost', fe.purchase_cost,
+        'original_cost', fe.original_cost,
+        'user_id', fe.user_id,
+        'is_master_crafted', fe.is_master_crafted,
+        'custom_weapon_profiles', v_custom_weapon_profiles,
+        'wargear_details', jsonb_build_object(
+          'name', v_equipment_name,
+          'cost', base_cost
+        )
+      ) INTO new_equipment
+      FROM fighter_equipment fe
+      WHERE fe.id = v_new_equipment_id;
     ELSE
-      -- For wargear, custom equipment, or any non-weapon equipment
+      -- For wargear, custom non-weapon equipment, or any other non-weapon equipment
       SELECT jsonb_build_object(
         'id', fe.id,
         'fighter_id', fe.fighter_id,
