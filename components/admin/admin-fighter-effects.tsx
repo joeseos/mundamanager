@@ -366,7 +366,7 @@ export function AdminFighterEffects({ equipmentId, onUpdate, onChange }: AdminFi
   return (
     <div className="space-y-4 mt-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Fighter Effects</h3>
+        <h3 className="text-lg font-semibold">Effects</h3>
         <Button
           onClick={() => setShowAddEffectDialog(true)}
           variant="outline"
