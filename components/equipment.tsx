@@ -571,12 +571,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
         equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
           ? `${item.equipment_name} (Master-crafted)` 
           : item.equipment_name,
-        vehicle_equipment_profiles: equipmentRecord.vehicle_profile ? [{
-          ...equipmentRecord.vehicle_profile,
-          id: equipmentRecord.id,
-          equipment_id: item.equipment_id,
-          created_at: new Date().toISOString()
-        }] : undefined,
         equipment_effect: data.equipment_effect
       });
 

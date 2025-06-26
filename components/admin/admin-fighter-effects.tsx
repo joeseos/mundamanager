@@ -11,7 +11,10 @@ import Modal from "@/components/modal";
 const STAT_MAPPINGS = [
   { stat_name: 'attacks', display_name: 'Attacks' },
   { stat_name: 'ballistic_skill', display_name: 'Ballistic Skill' },
+  { stat_name: 'body_slots', display_name: 'Body Slots' },
   { stat_name: 'cool', display_name: 'Cool' },
+  { stat_name: 'drive_slots', display_name: 'Drive Slots' },
+  { stat_name: 'engine_slots', display_name: 'Engine Slots' },
   { stat_name: 'front', display_name: 'Front' },
   { stat_name: 'handling', display_name: 'Handling' },
   { stat_name: 'hull_points', display_name: 'Hull Points' },

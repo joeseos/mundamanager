@@ -88,26 +88,12 @@ export interface FighterEffects {
   injuries: FighterEffect[];
 }
 
-export interface VehicleEquipmentProfile {
-  id: string;
-  created_at: string;
-  equipment_id: string;
-  movement: number | null;
-  front: number | null;
-  side: number | null;
-  rear: number | null;
-  hull_points: number | null;
-  save: number | null;
-  handling: number | null;
-  profile_name: string;
-  upgrade_type: 'body' | 'drive' | 'engine';
-}
+
 
 export interface VehicleEquipment extends BaseEquipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
   vehicle_weapon_id?: string;
-  vehicle_equipment_profiles?: VehicleEquipmentProfile[];
 }
 
 export interface Vehicle {
@@ -130,9 +116,7 @@ export interface Vehicle {
   engine_slots?: number;
   engine_slots_occupied?: number;
   special_rules: string[];
-  equipment: Array<BaseEquipment & Partial<VehicleEquipment> & {
-    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-  }>;
+  equipment: Array<BaseEquipment & Partial<VehicleEquipment>>;
   effects?: {
     [key: string]: FighterEffect[];
   };

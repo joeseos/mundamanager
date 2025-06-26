@@ -1,5 +1,5 @@
 import { Equipment } from '@/types/equipment';
-import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { VehicleEquipment } from '@/types/fighter';
 
 export interface VehicleProps {
   id: string;
@@ -25,7 +25,5 @@ export interface VehicleProps {
   payment_cost?: number; // Actual cost paid (may differ from rating cost)
   created_at: string;
   fighter_id?: string | null;
-  equipment: Array<Equipment & Partial<VehicleEquipment> & {
-    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-  }>;
+  equipment: Array<Equipment & Partial<VehicleEquipment>>;
 } 

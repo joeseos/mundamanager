@@ -14,10 +14,7 @@ async function processGangData(gangData: any) {
     // Only process vehicle data for crew fighters
     const vehicle = fighter.fighter_class === 'Crew' && fighter.vehicles?.[0] ? {
       ...fighter.vehicles[0],
-      equipment: fighter.vehicles[0].equipment?.map((item: any) => ({
-        ...item,
-        vehicle_equipment_profiles: item.vehicle_equipment_profiles || []
-      })) || []
+      equipment: fighter.vehicles[0].equipment || []
     } : undefined;
 
     // Ensure skills is processed correctly

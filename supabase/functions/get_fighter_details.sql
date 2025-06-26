@@ -122,29 +122,11 @@ BEGIN
                     'handling', v.handling,
                     'save', v.save,
                     'body_slots', v.body_slots,
-                    'body_slots_occupied', (
-                        SELECT COUNT(*)
-                        FROM fighter_equipment fe2
-                        JOIN equipment e2 ON e2.id = fe2.equipment_id
-                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'body' AND fe2.equipment_id IS NOT NULL
-                    ),
+                    'body_slots_occupied', 0,
                     'drive_slots', v.drive_slots,
-                    'drive_slots_occupied', (
-                        SELECT COUNT(*)
-                        FROM fighter_equipment fe2
-                        JOIN equipment e2 ON e2.id = fe2.equipment_id
-                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'drive' AND fe2.equipment_id IS NOT NULL
-                    ),
+                    'drive_slots_occupied', 0,
                     'engine_slots', v.engine_slots,
-                    'engine_slots_occupied', (
-                        SELECT COUNT(*)
-                        FROM fighter_equipment fe2
-                        JOIN equipment e2 ON e2.id = fe2.equipment_id
-                        JOIN vehicle_equipment_profiles vep2 ON vep2.equipment_id = e2.id
-                        WHERE fe2.vehicle_id = v.id AND vep2.upgrade_type = 'engine' AND fe2.equipment_id IS NOT NULL
-                    ),
+                    'engine_slots_occupied', 0,
                     'special_rules', v.special_rules,
                     'vehicle_name', v.vehicle_name,
                     'vehicle_type_id', v.vehicle_type_id,
@@ -188,27 +170,7 @@ BEGIN
                                 'equipment_type', COALESCE(e.equipment_type, ce.equipment_type),
                                 'purchase_cost', fe.purchase_cost,
                                 'original_cost', fe.original_cost,
-                                'is_master_crafted', fe.is_master_crafted,
-                                'vehicle_equipment_profiles', (
-                                    SELECT COALESCE(json_agg(
-                                        json_build_object(
-                                            'id', vep.id,
-                                            'created_at', vep.created_at,
-                                            'equipment_id', vep.equipment_id,
-                                            'movement', vep.movement,
-                                            'front', vep.front,
-                                            'side', vep.side,
-                                            'rear', vep.rear,
-                                            'hull_points', vep.hull_points,
-                                            'handling', vep.handling,
-                                            'save', vep.save,
-                                            'profile_name', vep.profile_name,
-                                            'upgrade_type', vep.upgrade_type
-                                        )
-                                    ), '[]'::json)
-                                    FROM vehicle_equipment_profiles vep
-                                    WHERE vep.equipment_id = fe.equipment_id
-                                )
+                                'is_master_crafted', fe.is_master_crafted
                             )
                         ), '[]'::json)
                         FROM fighter_equipment fe

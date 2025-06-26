@@ -416,35 +416,7 @@ BEGIN
        AND (fe.equipment_id IS NOT NULL OR fe.custom_equipment_id IS NOT NULL)
        GROUP BY fe.fighter_id
    ),
-   vehicle_equipment_profiles_agg AS (
-       SELECT 
-           vep.equipment_id,
-           json_agg(
-               json_build_object(
-                   'id', vep.id,
-                   'created_at', vep.created_at,
-                   'equipment_id', vep.equipment_id,
-                   'movement', vep.movement,
-                   'front', vep.front,
-                   'side', vep.side,
-                   'rear', vep.rear,
-                   'hull_points', vep.hull_points,
-                   'handling', vep.handling,
-                   'save', vep.save,
-                   'profile_name', vep.profile_name,
-                   'upgrade_type', vep.upgrade_type
-               )
-           ) as profiles
-       FROM vehicle_equipment_profiles vep
-       WHERE vep.equipment_id IN (
-           SELECT fe.equipment_id
-           FROM fighter_equipment fe
-           JOIN vehicles v ON fe.vehicle_id = v.id
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
-       GROUP BY vep.equipment_id
-   ),
+
    vehicle_equipment_costs AS (
        SELECT 
            ve.vehicle_id,
@@ -477,14 +449,8 @@ BEGIN
                        WHEN COALESCE(e.equipment_type, ce.equipment_type) = 'weapon' AND ce.id IS NOT NULL THEN 
                            COALESCE((SELECT cwpg.profiles FROM custom_weapon_profiles_grouped cwpg WHERE cwpg.equipment_id = ce.id AND cwpg.fe_id = ve.id), '[]'::json)
                        ELSE NULL 
-                   END,
-                   'vehicle_equipment_profiles', CASE WHEN e.id IS NOT NULL THEN
-                       COALESCE(
-                           (SELECT vepa.profiles FROM vehicle_equipment_profiles_agg vepa 
-                            WHERE vepa.equipment_id = e.id),
-                           '[]'::json
-                       )
-                   ELSE '[]'::json END
+                   END
+
                )
            ) as equipment
        FROM fighter_equipment ve
