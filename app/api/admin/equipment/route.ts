@@ -17,18 +17,6 @@ interface WeaponProfile {
   sort_order: number;
 }
 
-interface VehicleProfile {
-  profile_name: string;
-  movement: string | null;
-  front: string | null;
-  side: string | null;
-  rear: string | null;
-  hull_points: string | null;
-  save: string | null;
-  upgrade_type: string | null;
-  handling?: string | null;
-}
-
 interface FighterTypeEquipment {
   fighter_type_id: string;
   equipment_id: string;
@@ -168,33 +156,12 @@ export async function GET(request: Request) {
 
       console.log('Fetched trading post types:', tradingPostTypes || []);
 
-      // When fetching equipment details, include upgrade_type in the vehicle profiles query
-      const { data: vehicleProfiles, error: vehicleProfilesError } = await supabase
-        .from('vehicle_equipment_profiles')
-        .select(`
-          id,
-          profile_name,
-          movement,
-          front,
-          side,
-          rear,
-          hull_points,
-          save,
-          upgrade_type,
-          handling
-        `)
-        .eq('equipment_id', id);
-
-      if (vehicleProfilesError) throw vehicleProfilesError;
-      console.log('Fetched vehicle profiles:', vehicleProfiles);
-
       return NextResponse.json({
         ...equipment,
         gang_adjusted_costs: formattedAdjustedCosts,
         equipment_availabilities: formattedAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
-        vehicle_profiles: vehicleProfiles
       });
 
     } else if (equipment_category) {
@@ -248,7 +215,6 @@ export async function POST(request: Request) {
       equipment_type,
       core_equipment,
       weapon_profiles,
-      vehicle_profiles,
       fighter_types,
       gang_adjusted_costs,
       equipment_availabilities
@@ -308,26 +274,6 @@ export async function POST(request: Request) {
         .insert(cleanedWeaponProfiles);
 
       if (profileError) throw profileError;
-    }
-
-    // Handle vehicle profile if this is a vehicle upgrade
-    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
-      const { error: vehicleProfileError } = await supabase
-        .from('vehicle_equipment_profiles')
-        .insert({
-          equipment_id: equipment.id,
-          profile_name: vehicle_profiles[0].profile_name,
-          movement: vehicle_profiles[0].movement || null,
-          front: vehicle_profiles[0].front || null,
-          side: vehicle_profiles[0].side || null,
-          rear: vehicle_profiles[0].rear || null,
-          hull_points: vehicle_profiles[0].hull_points || null,
-          save: vehicle_profiles[0].save || null,
-          handling: vehicle_profiles[0].handling || null,
-          upgrade_type: vehicle_profiles[0].upgrade_type || null
-        });
-
-      if (vehicleProfileError) throw vehicleProfileError;
     }
 
     // Handle fighter types if provided
@@ -420,7 +366,6 @@ export async function PUT(request: Request) {
       equipment_type,
       core_equipment,
       weapon_profiles,
-      vehicle_profiles,
       fighter_types,
       gang_adjusted_costs
     } = data;
@@ -474,39 +419,6 @@ export async function PUT(request: Request) {
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,
               sort_order: profile.sort_order
-            }))
-          );
-
-        if (profilesError) throw profilesError;
-      }
-    }
-
-    // Handle vehicle profiles if this is a vehicle upgrade
-    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
-      // Delete existing vehicle profiles
-      const { error: deleteError } = await supabase
-        .from('vehicle_equipment_profiles')
-        .delete()
-        .eq('equipment_id', id);
-
-      if (deleteError) throw deleteError;
-
-      // Insert new vehicle profiles
-      if (vehicle_profiles.length > 0) {
-        const { error: profilesError } = await supabase
-          .from('vehicle_equipment_profiles')
-          .insert(
-            vehicle_profiles.map((profile: VehicleProfile) => ({
-              equipment_id: id,
-              profile_name: profile.profile_name,
-              movement: profile.movement,
-              front: profile.front,
-              side: profile.side,
-              rear: profile.rear,
-              hull_points: profile.hull_points,
-              save: profile.save,
-              handling: profile.handling,
-              upgrade_type: profile.upgrade_type
             }))
           );
 
@@ -662,7 +574,6 @@ export async function PATCH(request: Request) {
       equipment_type,
       core_equipment,
       weapon_profiles,
-      vehicle_profiles,
       fighter_types,
       gang_adjusted_costs,
       equipment_availabilities,
@@ -718,39 +629,6 @@ export async function PATCH(request: Request) {
               traits: profile.traits,
               weapon_group_id: profile.weapon_group_id || id,
               sort_order: profile.sort_order
-            }))
-          );
-
-        if (profilesError) throw profilesError;
-      }
-    }
-
-    // Handle vehicle profiles if this is a vehicle upgrade
-    if (equipment_type === 'vehicle_upgrade' && vehicle_profiles) {
-      // Delete existing vehicle profiles
-      const { error: deleteError } = await supabase
-        .from('vehicle_equipment_profiles')
-        .delete()
-        .eq('equipment_id', id);
-
-      if (deleteError) throw deleteError;
-
-      // Insert new vehicle profiles
-      if (vehicle_profiles.length > 0) {
-        const { error: profilesError } = await supabase
-          .from('vehicle_equipment_profiles')
-          .insert(
-            vehicle_profiles.map((profile: VehicleProfile) => ({
-              equipment_id: id,
-              profile_name: profile.profile_name,
-              movement: profile.movement,
-              front: profile.front,
-              side: profile.side,
-              rear: profile.rear,
-              hull_points: profile.hull_points,
-              save: profile.save,
-              handling: profile.handling,
-              upgrade_type: profile.upgrade_type
             }))
           );
 

@@ -29,18 +29,6 @@ interface WeaponProfile {
   sort_order: number;
 }
 
-interface VehicleProfile {
-  profile_name: string;
-  movement: string;
-  front: string;
-  side: string;
-  rear: string;
-  hull_points: string;
-  save: string;
-  upgrade_type?: string;
-  handling?: string;
-}
-
 interface GangAdjustedCost {
   gang_type: string;
   gang_type_id: string;
@@ -84,16 +72,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
   const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
-  const [vehicleProfiles, setVehicleProfiles] = useState<VehicleProfile[]>([{
-    profile_name: '',
-    movement: '',
-    front: '',
-    side: '',
-    rear: '',
-    hull_points: '',
-    save: '',
-    upgrade_type: ''
-  }]);
+
   const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
@@ -196,14 +175,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
-  const handleVehicleProfileChange = (index: number, field: keyof VehicleProfile, value: string) => {
-    const newProfiles = [...vehicleProfiles];
-    newProfiles[index] = {
-      ...newProfiles[index],
-      [field]: value
-    };
-    setVehicleProfiles(newProfiles);
-  };
+
 
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
@@ -230,17 +202,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         traits: profile.traits || null
       })) : undefined;
 
-      const cleanedVehicleProfiles = equipmentType === 'vehicle_upgrade' ? vehicleProfiles.map(profile => ({
-        ...profile,
-        movement: profile.movement || null,
-        front: profile.front || null,
-        side: profile.side || null,
-        rear: profile.rear || null,
-        hull_points: profile.hull_points || null,
-        save: profile.save || null,
-        handling: profile.handling || null,
-        upgrade_type: profile.upgrade_type || null
-      })) : undefined;
+
 
       const response = await fetch('/api/admin/equipment', {
         method: 'POST',
@@ -258,7 +220,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
           weapon_profiles: cleanedWeaponProfiles,
-          vehicle_profiles: cleanedVehicleProfiles,
           gang_adjusted_costs: gangAdjustedCosts.map(d => ({
             gang_type_id: d.gang_type_id,
             adjusted_cost: d.adjusted_cost
@@ -873,128 +834,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               </div>
             )}
 
-            {equipmentType === 'vehicle_upgrade' && (
-              <div className="col-span-3 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-lg font-semibold">Vehicle Profile</h4>
-                </div>
 
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="border p-4 rounded-lg space-y-4 bg-white">
-                    <div className="grid grid-cols-2 gap-2 md:gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Profile Name
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].profile_name}
-                          onChange={(e) => handleVehicleProfileChange(0, 'profile_name', e.target.value)}
-                          placeholder="e.g. Standard"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Upgrade Type
-                        </label>
-                        <select
-                          value={vehicleProfiles[0].upgrade_type || ''}
-                          onChange={(e) => handleVehicleProfileChange(0, 'upgrade_type', e.target.value)}
-                          className="w-full p-2 border rounded-md"
-                        >
-                          <option value="">Select upgrade type</option>
-                          <option value="body">Body</option>
-                          <option value="drive">Drive</option>
-                          <option value="engine">Engine</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Vehicle Upgrade Effects */}
-                    <div className="block text-sm font-medium text-gray-700 mb-1">
-                      Adjust Characteristics
-                    </div>
-                    <div className="grid grid-cols-4 md:grid-cols-7 gap-2 md:gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          M
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].movement}
-                          onChange={(e) => handleVehicleProfileChange(0, 'movement', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          T. Front
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].front}
-                          onChange={(e) => handleVehicleProfileChange(0, 'front', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          T. Side
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].side}
-                          onChange={(e) => handleVehicleProfileChange(0, 'side', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          T. Rear
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].rear}
-                          onChange={(e) => handleVehicleProfileChange(0, 'rear', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          HP
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].hull_points}
-                          onChange={(e) => handleVehicleProfileChange(0, 'hull_points', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Hnd
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].handling}
-                          onChange={(e) => handleVehicleProfileChange(0, 'handling', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Sv
-                        </label>
-                        <Input
-                          value={vehicleProfiles[0].save}
-                          onChange={(e) => handleVehicleProfileChange(0, 'save', e.target.value)}
-                          placeholder="e.g. 1, -1"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
