@@ -13,7 +13,7 @@ import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment';
 import { Equipment } from '@/types/equipment';
-import { VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { VehicleEquipment } from '@/types/fighter';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -147,9 +147,7 @@ export default function GangInventory({
         const targetVehicle = getAllVehicles().find(v => v.id === targetId);
         if (targetVehicle && onVehicleUpdate) {
           // Create new equipment item for the vehicle with proper typing
-          const newEquipment: Equipment & Partial<VehicleEquipment> & {
-            vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-          } = {
+          const newEquipment: Equipment & Partial<VehicleEquipment> = {
             fighter_equipment_id: responseData.equipment_id || stashItem.id,
             equipment_id: stashItem.equipment_id || '',
             equipment_name: stashItem.equipment_name || '',
@@ -163,9 +161,7 @@ export default function GangInventory({
             vehicle_equipment_id: responseData.equipment_id || stashItem.id,
             vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData.equipment_id || stashItem.id : undefined,
             // Add weapon profiles if this is a weapon
-            weapon_profiles: responseData.weapon_profiles || undefined,
-            // Add vehicle equipment profiles if this is a vehicle upgrade
-            vehicle_equipment_profiles: responseData.vehicle_equipment_profiles || undefined
+            weapon_profiles: responseData.weapon_profiles || undefined
           };
 
           // Update the target vehicle's equipment

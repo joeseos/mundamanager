@@ -1,4 +1,4 @@
-import { VehicleEquipmentProfile } from '@/types/fighter';
+
 
 export interface WeaponProfile {
   id: string;
@@ -30,7 +30,7 @@ export interface Equipment {
   created_at?: string;
   weapon_profiles?: WeaponProfile[] | null;
   core_equipment?: boolean;
-  vehicle_equipment_profiles?: VehicleEquipmentProfile[];
+
   master_crafted?: boolean;
   is_master_crafted?: boolean;
   is_custom?: boolean;

@@ -15,18 +15,7 @@ import { UserPermissions } from '@/types/user-permissions';
 
 
 // Vehicle equipment profile interface
-interface VehicleEquipmentProfile {
-  id: string;
-  equipment_id: string;
-  movement: number | null;
-  front: number | null;
-  side: number | null;
-  rear: number | null;
-  hull_points: number | null;
-  save: number | null;
-  profile_name: string;
-  handling: number | null;
-}
+
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -108,6 +97,9 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     hull_points: 0,
     handling: 0,
     save: 0,
+    body_slots: 0,
+    drive_slots: 0,
+    engine_slots: 0,
   };
 
   // Start with base stats
@@ -119,46 +111,28 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     hull_points: baseStats.hull_points || 0,
     handling: baseStats.handling || 0,
     save: baseStats.save || 0,
+    body_slots: baseStats.body_slots || 0,
+    drive_slots: baseStats.drive_slots || 0,
+    engine_slots: baseStats.engine_slots || 0,
   };
-
-  // Add bonuses from vehicle equipment
-  if (Array.isArray(vehicleEquipment)) {
-    vehicleEquipment.forEach(equipment => {
-      if ('vehicle_equipment_profiles' in equipment && equipment.vehicle_equipment_profiles) {
-        equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
-          const statUpdates = {
-            movement: profile.movement,
-            front: profile.front,
-            side: profile.side,
-            rear: profile.rear,
-            hull_points: profile.hull_points,
-            handling: profile.handling,
-            save: profile.save,
-          };
-
-          // Update each stat if the profile has a value
-          Object.entries(statUpdates).forEach(([key, value]) => {
-            if (value !== null) {
-              stats[key as keyof typeof stats] += value;
-            }
-          });
-        });
-      }
-    });
-  }
   
-  // Apply modifiers from vehicle effects (lasting damage)
-  if (baseStats.effects && baseStats.effects["lasting damages"]) {
-    baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
-      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
-        effect.fighter_effect_modifiers.forEach(modifier => {
-          // Convert stat_name to lowercase to match our stats object keys
-          const statName = modifier.stat_name.toLowerCase();
-          
-          // Only apply if the stat exists in our stats object
-          if (statName in stats) {
-            // Apply the numeric modifier to the appropriate stat
-            stats[statName as keyof typeof stats] += modifier.numeric_value;
+  // Apply modifiers from vehicle effects (both lasting damages and vehicle upgrades)
+  if (baseStats.effects) {
+    const effectCategories = ["lasting damages", "vehicle upgrades"];
+    effectCategories.forEach(categoryName => {
+      if (baseStats.effects && baseStats.effects[categoryName]) {
+        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
+          if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+            effect.fighter_effect_modifiers.forEach(modifier => {
+              // Convert stat_name to lowercase to match our stats object keys
+              const statName = modifier.stat_name.toLowerCase();
+              
+              // Only apply if the stat exists in our stats object
+              if (statName in stats) {
+                // Apply the numeric modifier to the appropriate stat
+                stats[statName as keyof typeof stats] += modifier.numeric_value;
+              }
+            });
           }
         });
       }

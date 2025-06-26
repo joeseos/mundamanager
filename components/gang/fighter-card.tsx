@@ -3,7 +3,7 @@ import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
-import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, VehicleEquipmentProfile, FighterSkills } from '@/types/fighter';
+import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
@@ -53,9 +53,7 @@ type FighterCardData = Omit<FighterProps, 'vehicles'> & {
 
 const calculateVehicleStats = (
   baseStats: Vehicle | undefined, 
-  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment> & {
-    vehicle_equipment_profiles?: VehicleEquipmentProfile[];
-  }> = []
+  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment>> = []
 ) => {
   if (!baseStats) return null;
 
@@ -67,41 +65,17 @@ const calculateVehicleStats = (
     hull_points: baseStats.hull_points ?? 0,
     handling: baseStats.handling ?? 0,
     save: baseStats.save ?? 0,
+    body_slots: baseStats.body_slots ?? 0,
+    drive_slots: baseStats.drive_slots ?? 0,
+    engine_slots: baseStats.engine_slots ?? 0,
   };
-
-  const processedProfiles = new Set<string>();
-
-  vehicleEquipment?.forEach(equipment => {
-    if (equipment.vehicle_equipment_profiles) {
-      equipment.vehicle_equipment_profiles.forEach((profile: VehicleEquipmentProfile) => {
-        if (profile.id && processedProfiles.has(profile.id)) return;
-
-        const statUpdates = {
-          movement: profile.movement,
-          front: profile.front,
-          side: profile.side,
-          rear: profile.rear,
-          hull_points: profile.hull_points,
-          handling: profile.handling,
-          save: profile.save,
-        };
-
-        Object.entries(statUpdates).forEach(([key, value]) => {
-          if (value !== null) {
-            stats[key as keyof typeof stats] += value;
-          }
-        });
-
-        if (profile.id) {
-          processedProfiles.add(profile.id);
-        }
-      });
-    }
-  });
   
-  // Apply modifiers from vehicle effects (lasting damages)
-  if (baseStats.effects && baseStats.effects["lasting damages"]) {
-    baseStats.effects["lasting damages"].forEach((effect: FighterEffect) => {
+  // Apply modifiers from vehicle effects (both lasting damages and vehicle upgrades)
+  if (baseStats.effects) {
+    const effectCategories = ["lasting damages", "vehicle upgrades"];
+    effectCategories.forEach(categoryName => {
+      if (baseStats.effects && baseStats.effects[categoryName]) {
+        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
       if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
         effect.fighter_effect_modifiers.forEach(modifier => {
           // Convert stat_name to lowercase to match our stats object keys
@@ -111,6 +85,8 @@ const calculateVehicleStats = (
           if (statName in stats) {
             // Apply the numeric modifier to the appropriate stat
             stats[statName as keyof typeof stats] += modifier.numeric_value;
+              }
+            });
           }
         });
       }

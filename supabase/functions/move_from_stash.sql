@@ -173,11 +173,8 @@ BEGIN
        FROM weapon_profiles wp
        WHERE wp.weapon_id = v_equipment_id;
 
-       -- Check for vehicle equipment profiles
-       SELECT COALESCE(json_agg(vep), '[]'::json)
-       INTO v_vehicle_profiles
-       FROM vehicle_equipment_profiles vep
-       WHERE vep.equipment_id = v_equipment_id;
+       -- Vehicle equipment profiles no longer used
+       v_vehicle_profiles := '[]'::json;
    ELSE
        -- For custom equipment, set profiles to empty arrays
        v_weapon_profiles := '[]'::json;
@@ -189,11 +186,9 @@ BEGIN
        v_weapon_profiles := '[]'::json;
    END IF;
 
-   -- Add the relevant profile to the result if it exists
+   -- Add weapon profiles to the result if they exist
    IF v_weapon_profiles::jsonb != '[]'::jsonb THEN
        v_result := v_result || jsonb_build_object('weapon_profiles', v_weapon_profiles);
-   ELSIF v_vehicle_profiles::jsonb != '[]'::jsonb THEN
-       v_result := v_result || jsonb_build_object('vehicle_equipment_profiles', v_vehicle_profiles);
    END IF;
 
    RETURN v_result;

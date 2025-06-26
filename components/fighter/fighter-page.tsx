@@ -17,7 +17,7 @@ import { SkillsList } from "@/components/fighter/fighter-skills-list";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { NotesList } from "@/components/fighter/fighter-notes-list";
 import { Input } from "@/components/ui/input";
-import { FighterEffects, VehicleEquipment, VehicleEquipmentProfile } from '@/types/fighter';
+import { FighterEffects, VehicleEquipment } from '@/types/fighter';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { useSession } from '@/hooks/use-session';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
@@ -252,7 +252,6 @@ export default function FighterPage({
       equipment_type: item.equipment_type,
       cost: item.purchase_cost,
       base_cost: item.original_cost,
-      vehicle_equipment_profiles: item.vehicle_equipment_profiles || [],
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
       vehicle_equipment_id: item.id
@@ -366,7 +365,6 @@ export default function FighterPage({
       equipment_type: item.equipment_type,
       cost: item.purchase_cost,
       base_cost: item.original_cost,
-      vehicle_equipment_profiles: item.vehicle_equipment_profiles || [],
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
       vehicle_equipment_id: item.id
@@ -577,21 +575,22 @@ export default function FighterPage({
       if (!prev.fighter) return prev;
 
       let updatedVehicles = prev.fighter.vehicles;
-      if (isVehicleEquipment && updatedVehicles?.[0] && boughtEquipment.vehicle_equipment_profiles?.[0]) {
+      if (isVehicleEquipment && updatedVehicles?.[0]) {
         const vehicle = updatedVehicles[0];
-        const profile = boughtEquipment.vehicle_equipment_profiles[0];
 
-        const slotUpdates = {
-          body_slots_occupied: profile.upgrade_type === 'body' ? 1 : 0,
-          drive_slots_occupied: profile.upgrade_type === 'drive' ? 1 : 0,
-          engine_slots_occupied: profile.upgrade_type === 'engine' ? 1 : 0
-        };
+        // Handle vehicle effects if equipment has effects
+        let updatedVehicleEffects = vehicle.effects || {};
+        if (boughtEquipment.equipment_effect) {
+          const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase() || 'vehicle upgrades';
+          updatedVehicleEffects = {
+            ...updatedVehicleEffects,
+            [categoryName]: [...(updatedVehicleEffects[categoryName] || []), boughtEquipment.equipment_effect]
+          };
+        }
 
         updatedVehicles = [{
           ...vehicle,
-          body_slots_occupied: (vehicle.body_slots_occupied || 0) + slotUpdates.body_slots_occupied,
-          drive_slots_occupied: (vehicle.drive_slots_occupied || 0) + slotUpdates.drive_slots_occupied,
-          engine_slots_occupied: (vehicle.engine_slots_occupied || 0) + slotUpdates.engine_slots_occupied,
+          effects: updatedVehicleEffects,
           equipment: [...(vehicle.equipment || []), {
             fighter_equipment_id: boughtEquipment.equipment_id,
             equipment_id: boughtEquipment.equipment_id,
@@ -599,14 +598,13 @@ export default function FighterPage({
             equipment_type: boughtEquipment.equipment_type,
             cost: boughtEquipment.cost,
             base_cost: boughtEquipment.cost,
-            weapon_profiles: boughtEquipment.weapon_profiles || undefined,
-            vehicle_equipment_profiles: boughtEquipment.vehicle_equipment_profiles
+            weapon_profiles: boughtEquipment.weapon_profiles || undefined
           }]
         }];
       }
 
       let updatedEffects = prev.fighter.effects;
-      if (boughtEquipment.equipment_effect) {
+      if (boughtEquipment.equipment_effect && !isVehicleEquipment) {
         // Determine the correct category based on the equipment effect's category_name
         const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase();
         let targetCategory: keyof typeof updatedEffects = 'user'; // default fallback
@@ -787,7 +785,54 @@ export default function FighterPage({
     return "bg-green-500";
   };
 
+  // Calculate occupied slots from new effects system only
+  const calculateOccupiedSlots = (vehicle: any, vehicleEquipment: any[]) => {
+    let bodyOccupied = 0;
+    let driveOccupied = 0;
+    let engineOccupied = 0;
+
+    // Count from new effects system - each piece of equipment with vehicle upgrade effects consumes slots
+    if (vehicle?.effects) {
+      const effectCategories = ["vehicle upgrades"];
+      effectCategories.forEach(categoryName => {
+        if (vehicle.effects[categoryName]) {
+          vehicle.effects[categoryName].forEach((effect: any) => {
+            // Check what type of slot this equipment uses based on its effects
+            if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+              let usesBodySlot = false;
+              let usesDriveSlot = false;
+              let usesEngineSlot = false;
+
+              effect.fighter_effect_modifiers.forEach((modifier: any) => {
+                const statName = modifier.stat_name.toLowerCase();
+                
+                // Armor-related effects use body slots
+                if (['front', 'side', 'rear', 'hull_points'].includes(statName)) {
+                  usesBodySlot = true;
+                }
+                // Movement/handling effects use drive slots  
+                else if (['movement', 'handling'].includes(statName)) {
+                  usesDriveSlot = true;
+                }
+                // Engine-related effects use engine slots
+                // (Add engine-specific stats here when needed)
+              });
+
+              // Count the slot usage (each effect/equipment uses 1 slot of its type)
+              if (usesBodySlot) bodyOccupied++;
+              if (usesDriveSlot) driveOccupied++;  
+              if (usesEngineSlot) engineOccupied++;
+            }
+          });
+        }
+      });
+    }
+
+    return { bodyOccupied, driveOccupied, engineOccupied };
+  };
+
   const vehicle = fighterData.fighter?.vehicles?.[0];
+  const occupiedSlots = vehicle ? calculateOccupiedSlots(vehicle, fighterData.vehicleEquipment) : { bodyOccupied: 0, driveOccupied: 0, engineOccupied: 0 };
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -867,9 +912,9 @@ export default function FighterPage({
             <div className="w-full">
                <div className="flex items-center gap-1">
                  <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.body_slots_occupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {vehicle.body_slots_occupied}/{vehicle.body_slots}</span>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.drive_slots_occupied, vehicle.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {vehicle.drive_slots_occupied}/{vehicle.drive_slots}</span>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(vehicle.engine_slots_occupied, vehicle.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {vehicle.engine_slots_occupied}/{vehicle.engine_slots}</span>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicle.body_slots}</span>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicle.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicle.drive_slots}</span>
+                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicle.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicle.engine_slots}</span>
                </div>
              </div>
           )}

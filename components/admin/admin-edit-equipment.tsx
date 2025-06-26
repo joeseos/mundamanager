@@ -33,18 +33,6 @@ interface WeaponProfile {
   sort_order: number;
 }
 
-interface VehicleProfile {
-  profile_name: string;
-  movement: string;
-  front: string;
-  side: string;
-  rear: string;
-  hull_points: string;
-  save: string;
-  upgrade_type?: string;
-  handling?: string;
-}
-
 interface GangAdjustedCost {
   gang_type: string;
   gang_type_id: string;
@@ -69,7 +57,6 @@ interface Equipment {
   equipment_type: EquipmentType;
   core_equipment: boolean;
   weapon_profiles?: WeaponProfile[];
-  vehicle_profiles?: VehicleProfile[];
   fighter_types?: string[];
   gang_adjusted_costs?: GangAdjustedCost[];
   equipment_availabilities?: EquipmentAvailability[];
@@ -105,16 +92,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     traits: '',
     weapon_group_id: null,
     sort_order: 1
-  }]);
-  const [vehicleProfiles, setVehicleProfiles] = useState<VehicleProfile[]>([{
-    profile_name: '',
-    movement: '',
-    front: '',
-    side: '',
-    rear: '',
-    hull_points: '',
-    save: '',
-    upgrade_type: ''
   }]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
@@ -294,56 +271,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             }]);
           }
         }
-
-        if (data.equipment_type === 'vehicle_upgrade') {
-          console.log('Fetching vehicle profiles for ID:', selectedEquipmentId);
-          
-          const vehicleResponse = await fetch(`/api/admin/equipment/vehicle-profiles?id=${selectedEquipmentId}`);
-          if (!vehicleResponse.ok) throw new Error('Failed to fetch vehicle profiles');
-          const profilesData = await vehicleResponse.json();
-          
-          console.log('Vehicle profiles data:', profilesData);
-          
-          if (profilesData && profilesData.length > 0) {
-            console.log('Setting vehicle profiles:', profilesData);
-            // Convert all numeric values to strings
-            const formattedProfiles = profilesData.map((profile: {
-              profile_name: string;
-              movement: number | null;
-              front: number | null;
-              side: number | null;
-              rear: number | null;
-              hull_points: number | null;
-              save: number | null;
-              upgrade_type?: string;
-              handling?: number | null;
-            }) => ({
-              profile_name: profile.profile_name || '',
-              movement: profile.movement?.toString() || '',
-              front: profile.front?.toString() || '',
-              side: profile.side?.toString() || '',
-              rear: profile.rear?.toString() || '',
-              hull_points: profile.hull_points?.toString() || '',
-              save: profile.save?.toString() || '',
-              upgrade_type: profile.upgrade_type || '',
-              handling: profile.handling?.toString() || ''
-            }));
-            setVehicleProfiles(formattedProfiles);
-          } else {
-            console.log('No profiles found, setting default');
-            setVehicleProfiles([{
-              profile_name: '',
-              movement: '',
-              front: '',
-              side: '',
-              rear: '',
-              hull_points: '',
-              save: '',
-              upgrade_type: '',
-              handling: ''
-            }]);
-          }
-        }
       } catch (error) {
         console.error('Error in fetchEquipmentDetails:', error);
         toast({
@@ -495,37 +422,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
-  const handleVehicleProfileChange = (index: number, field: keyof VehicleProfile, value: string) => {
-    const newProfiles = [...vehicleProfiles];
-    newProfiles[index] = {
-      ...newProfiles[index],
-      [field]: value
-    };
-    console.log('Updated vehicle profiles:', newProfiles);
-    setVehicleProfiles(newProfiles);
-  };
-
-  const addVehicleProfile = () => {
-    setVehicleProfiles([
-      ...vehicleProfiles,
-      {
-        profile_name: '',
-        movement: '',
-        front: '',
-        side: '',
-        rear: '',
-        hull_points: '',
-        save: '',
-        handling: '',
-        upgrade_type: ''
-      }
-    ]);
-  };
-
-  const removeVehicleProfile = (index: number) => {
-    setVehicleProfiles(vehicleProfiles.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async () => {
     if (!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !equipmentCategory || !equipmentType) {
       toast({
@@ -560,19 +456,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           weapon_profiles: weaponProfiles.map(profile => ({
             ...profile,
             weapon_group_id: profile.weapon_group_id || selectedEquipmentId
-          }))
-        } : {}),
-        ...(equipmentType === 'vehicle_upgrade' ? { 
-          vehicle_profiles: vehicleProfiles.map(profile => ({
-            profile_name: profile.profile_name,
-            movement: profile.movement || null,
-            front: profile.front || null,
-            side: profile.side || null,
-            rear: profile.rear || null,
-            hull_points: profile.hull_points || null,
-            save: profile.save || null,
-            upgrade_type: profile.upgrade_type || null,
-            handling: profile.handling || null
           }))
         } : {}),
         ...(hasEditedFighterTypes ? { fighter_types: selectedFighterTypes } : {}),
@@ -1376,161 +1259,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               value={profile.traits}
                               onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
                               placeholder="Comma-separated list of traits"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {equipmentType === 'vehicle_upgrade' && (
-                <div className="col-span-3 space-y-4">
-                  <div className="flex justify-between items-center sticky top-0 bg-white py-2">
-                    <h4 className="text-lg font-semibold">Vehicle Profiles</h4>
-                    <Button
-                      onClick={addVehicleProfile}
-                      variant="outline"
-                      size="sm"
-                      disabled={!selectedEquipmentId}
-                    >
-                      Add Profile
-                    </Button>
-                  </div>
-
-                  <div className="space-y-4 rounded-lg border border-gray-200 p-4">
-                    {vehicleProfiles.map((profile, index) => (
-                      <div key={`vehicle-profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
-                        <div className="flex justify-between items-center">
-                          <h5 className="font-medium">Profile {index + 1}</h5>
-                          {index > 0 && (
-                            <Button
-                              variant="destructive"
-                              onClick={() => removeVehicleProfile(index)}
-                              disabled={!selectedEquipmentId}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 md:gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Profile Name
-                            </label>
-                            <Input
-                              value={profile.profile_name}
-                              onChange={(e) => handleVehicleProfileChange(index, 'profile_name', e.target.value)}
-                              placeholder="e.g. Standard, Enhanced"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Upgrade Type
-                            </label>
-                            <select
-                              value={profile.upgrade_type || ''}
-                              onChange={(e) => handleVehicleProfileChange(index, 'upgrade_type', e.target.value)}
-                              className="w-full p-2 border rounded-md"
-                              disabled={!selectedEquipmentId}
-                            >
-                              <option value="">Select upgrade type</option>
-                              <option value="body">Body</option>
-                              <option value="drive">Drive</option>
-                              <option value="engine">Engine</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Vehicle Upgrade Effects */}
-                        <div className="block text-sm font-medium text-gray-700 mb-1">
-                          Adjust Characteristics
-                        </div>
-                        <div className="grid grid-cols-4 md:grid-cols-7 gap-2 md:gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              M
-                            </label>
-                            <Input
-                              value={profile.movement}
-                              onChange={(e) => handleVehicleProfileChange(index, 'movement', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              T. Front
-                            </label>
-                            <Input
-                              value={profile.front}
-                              onChange={(e) => handleVehicleProfileChange(index, 'front', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              T. Side
-                            </label>
-                            <Input
-                              value={profile.side}
-                              onChange={(e) => handleVehicleProfileChange(index, 'side', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              T. Rear
-                            </label>
-                            <Input
-                              value={profile.rear}
-                              onChange={(e) => handleVehicleProfileChange(index, 'rear', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              HP
-                            </label>
-                            <Input
-                              value={profile.hull_points}
-                              onChange={(e) => handleVehicleProfileChange(index, 'hull_points', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Hnd
-                            </label>
-                            <Input
-                              value={profile.handling}
-                              onChange={(e) => handleVehicleProfileChange(index, 'handling', e.target.value)}
-                              placeholder="e.g. 1, -1"
-                              disabled={!selectedEquipmentId}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Sv
-                            </label>
-                            <Input
-                              value={profile.save}
-                              onChange={(e) => handleVehicleProfileChange(index, 'save', e.target.value)}
-                              placeholder="e.g. 1, -1"
                               disabled={!selectedEquipmentId}
                             />
                           </div>
