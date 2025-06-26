@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { CustomiseEquipment } from "@/components/customize/customize-equipment";
+import { CustomiseEquipment } from "@/components/customise/custom-equipment";
 import { getUserCustomEquipment } from "@/app/lib/custom-equipment";
 
 export default async function CustomizePage() {
