@@ -183,8 +183,8 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
               </div>
 
               {editingIndex === index ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="col-span-1 md:col-span-2">
                     <div className="flex items-center gap-2 mb-1">
                       <label className="block text-xs font-medium text-gray-700">
                         Profile Name (Optional)
@@ -309,7 +309,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     />
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Traits (Optional)
                     </label>
@@ -323,14 +323,14 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div><strong>Range:</strong> {profile.range_short || '-'} / {profile.range_long || '-'}</div>
                   <div><strong>Acc:</strong> {profile.acc_short || '-'} / {profile.acc_long || '-'}</div>
                   <div><strong>Str:</strong> {profile.strength || '-'}</div>
                   <div><strong>AP:</strong> {profile.ap || '-'}</div>
                   <div><strong>Dmg:</strong> {profile.damage || '-'}</div>
                   <div><strong>Ammo:</strong> {profile.ammo || '-'}</div>
-                  <div className="col-span-2"><strong>Traits:</strong> {profile.traits || 'None'}</div>
+                  <div className="col-span-2 md:col-span-2"><strong>Traits:</strong> {profile.traits || 'None'}</div>
                 </div>
               )}
             </div>
