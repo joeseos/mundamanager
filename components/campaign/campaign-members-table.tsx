@@ -380,7 +380,7 @@ export default function MembersTable({
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium">{gang.name}</span>
-                <span className="text-sm text-gray-500 ml-2">{gang.gang_type}</span>
+                <span className="text-sm text-gray-500 ml-2">{gang.gang_type || "-"}</span>
               </div>
               {gang.isInCampaign && (
                 <span className="text-xs text-gray-500">Already in campaign</span>
@@ -438,11 +438,12 @@ export default function MembersTable({
           <thead>
             <tr className="bg-gray-50 border-b">
               <th className="px-4 py-2 text-left font-medium max-w-[8rem]">Gang</th>
+              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Type</th>
               <th className="px-2 py-2 text-left font-medium max-w-[3rem]">Player</th>
               <th className="px-2 py-2 text-left font-medium max-w-[3.5rem]">Role</th>
-              <th className="px-2 py-2 text-left font-medium">Rating</th>
-              <th className="px-2 py-2 text-left font-medium">Reputation</th>
-              {isAdmin && <th className="px-2 py-2 text-right"></th>}
+              <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Rating</th>
+              <th className="px-2 py-2 text-right font-medium max-w-[3rem]">Reputation</th>
+              {isAdmin && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -496,6 +497,11 @@ export default function MembersTable({
                     </div>
                   )}
                 </td>
+                <td className="px-2 py-2 max-w-[5rem]">
+                  <span className="text-gray-500">
+                    {member.gangs[0]?.gang_type || "-"}
+                  </span>
+                </td>
                 <td className="px-2 py-2 max-w-[3rem]">
                   <span className="text-xs font-medium">{member.profile.username}</span>
                 </td>
@@ -515,10 +521,10 @@ export default function MembersTable({
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
                       >
                         {formatRole(member.role)}
-                        <svg 
-                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700" 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
+                        <svg
+                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
+                          fill="none"
+                          viewBox="0 0 24 24"
                           stroke="currentColor"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -531,18 +537,18 @@ export default function MembersTable({
                     )}
                   </div>
                 </td>
-                <td className="px-2 py-2">
+                <td className="px-2 py-2 text-right max-w-[2rem]">
                   <span className="text-gray-500">
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2">
+                <td className="px-2 py-2 text-right max-w-[3rem]">
                   <span className="text-gray-500">
                     {member.gangs[0]?.reputation ?? "-"}
                   </span>
                 </td>
                 {isAdmin && (
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2 text-right max-w-[2.5rem]">
                     <Button
                       variant="destructive"
                       size="sm"
@@ -568,53 +574,53 @@ export default function MembersTable({
         {sortedMembers.map((member, index) => (
           <div key={`${member.user_id}-${index}`} className="bg-white rounded-lg border p-4">
             <div className="flex justify-between items-start mb-2">
-                <div>
-                  {member.gangs[0]?.gang_name ? (
-                    <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-gray-100"
-                        style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
+              <div>
+                {member.gangs[0]?.gang_name ? (
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-gray-100"
+                      style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
+                    >
+                      <Link
+                        href={`/gang/${member.gangs[0].gang_id}`}
+                        className="hover:text-gray-600 transition-colors"
                       >
-                        <Link
-                          href={`/gang/${member.gangs[0].gang_id}`}
-                          className="hover:text-gray-600 transition-colors"
-                        >
-                          {member.gangs[0].gang_name}
-                        </Link>
-                        {(currentUserId === member.user_id || isAdmin) && (
-                          <button
-                            onClick={() => {
-                              setGangToRemove({
-                                memberId: member.user_id,
-                                gangId: member.gangs[0].gang_id,
-                                gangName: member.gangs[0].gang_name,
-                                memberIndex: member.index,
-                                id: member.gangs[0].id
-                              });
-                              setShowRemoveGangModal(true);
-                            }}
-                            className="ml-1.5 text-gray-400 hover:text-gray-600"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      {(currentUserId === member.user_id || isAdmin) ? (
+                        {member.gangs[0].gang_name}
+                      </Link>
+                      {(currentUserId === member.user_id || isAdmin) && (
                         <button
-                          onClick={() => handleGangClick(member)}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                          onClick={() => {
+                            setGangToRemove({
+                              memberId: member.user_id,
+                              gangId: member.gangs[0].gang_id,
+                              gangName: member.gangs[0].gang_name,
+                              memberIndex: member.index,
+                              id: member.gangs[0].id
+                            });
+                            setShowRemoveGangModal(true);
+                          }}
+                          className="ml-1.5 text-gray-400 hover:text-gray-600"
                         >
-                          {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
+                          ×
                         </button>
-                      ) : (
-                        <span className="text-sm text-gray-500">No gang selected</span>
                       )}
-                    </div>
-                  )}
-                </div>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    {(currentUserId === member.user_id || isAdmin) ? (
+                      <button
+                        onClick={() => handleGangClick(member)}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                      >
+                        {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
+                      </button>
+                    ) : (
+                      <span className="text-sm text-gray-500">No gang selected</span>
+                    )}
+                  </div>
+                )}
               </div>
+            </div>
             
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -651,37 +657,42 @@ export default function MembersTable({
                 )}
               </div>
             </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Type</span>
+              <span className="text-sm text-gray-500">
+                {member.gangs[0]?.gang_type || "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Rating</span>
+              <span className="text-sm text-gray-500">
+                {member.gangs[0]?.rating || "-"}
+              </span>
+            </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Rating</span>
-                <span className="text-sm text-gray-500">
-                  {member.gangs[0]?.rating || "-"}
-                </span>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Reputation</span>
+              <span className="text-sm text-gray-500">
+                {member.gangs[0]?.reputation ?? "-"}
+              </span>
+            </div>
+
+            {isAdmin && (
+              <div className="flex justify-end mt-3">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs px-1.5 h-6"
+                  onClick={() => {
+                    setMemberToRemove({...member, index});
+                    setShowRemoveMemberModal(true);
+                  }}
+                  disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
+                >
+                  Remove
+                </Button>
               </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Reputation</span>
-                <span className="text-sm text-gray-500">
-                  {member.gangs[0]?.reputation ?? "-"}
-                </span>
-              </div>
-
-              {isAdmin && (
-                <div className="flex justify-end mt-3">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="text-xs px-1.5 h-6"
-                    onClick={() => {
-                      setMemberToRemove({...member, index});
-                      setShowRemoveMemberModal(true);
-                    }}
-                    disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              )}
+            )}
             </div>
           </div>
         ))}

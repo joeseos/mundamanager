@@ -193,7 +193,7 @@ const _getCampaignMembers = unstable_cache(
         .select(`
           id,
           name,
-          gang_type_id,
+          gang_type,
           gang_colour,
           reputation
         `)
@@ -201,27 +201,6 @@ const _getCampaignMembers = unstable_cache(
 
       if (gangsDetailError) throw gangsDetailError;
       gangsData = gangs || [];
-
-      // Get gang types separately
-      const gangTypeIds = gangsData.map(g => g.gang_type_id).filter(Boolean);
-      let gangTypesData: any[] = [];
-      
-      if (gangTypeIds.length > 0) {
-        const { data: gangTypes, error: gangTypesError } = await supabase
-          .from('gang_types')
-          .select('id, gang_type')
-          .in('id', gangTypeIds);
-
-        if (!gangTypesError && gangTypes) {
-          gangTypesData = gangTypes;
-        }
-      }
-
-      // Combine gang data with types
-      gangsData = gangsData.map(gang => ({
-        ...gang,
-        gang_type: gangTypesData.find(gt => gt.id === gang.gang_type_id)?.gang_type || ''
-      }));
     }
 
     // Get comprehensive fighter data for gang ratings (matching production calculation)
@@ -373,29 +352,13 @@ const _getCampaignTerritories = unstable_cache(
         .select(`
           id,
           name,
-          gang_type_id,
+          gang_type,
           gang_colour
         `)
         .in('id', territoryGangIds);
 
       if (!gangsError && gangs) {
         territoryGangsData = gangs;
-
-        // Get gang types for territories
-        const territoryGangTypeIds = gangs.map(g => g.gang_type_id).filter(Boolean);
-        if (territoryGangTypeIds.length > 0) {
-          const { data: gangTypes, error: gangTypesError } = await supabase
-            .from('gang_types')
-            .select('id, gang_type')
-            .in('id', territoryGangTypeIds);
-
-          if (!gangTypesError && gangTypes) {
-            territoryGangsData = territoryGangsData.map(gang => ({
-              ...gang,
-              gang_type: gangTypes.find(gt => gt.id === gang.gang_type_id)?.gang_type || ''
-            }));
-          }
-        }
       }
     }
 
