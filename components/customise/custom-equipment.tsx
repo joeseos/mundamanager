@@ -391,7 +391,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
           width="2xl"
           content={
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Equipment Name *
@@ -475,7 +475,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </div>
                 </div>
 
-                <div>
+                <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Cost *
                   </label>
@@ -501,7 +501,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
                 {/* Weapon Profiles Section */}
                 {editForm.equipment_type === 'weapon' && (
-                  <div className="col-span-2 pt-4 border-t">
+                  <div className="col-span-1 md:col-span-2 pt-4 border-t">
                     <CustomWeaponProfiles
                       profiles={editWeaponProfiles}
                       onProfilesChange={setEditWeaponProfiles}
@@ -541,7 +541,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
           width="2xl"
           content={
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Equipment Name *
@@ -625,7 +625,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </div>
                 </div>
 
-                <div>
+                <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Cost *
                   </label>
@@ -651,7 +651,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
                 {/* Weapon Profiles Section */}
                 {createForm.equipment_type === 'weapon' && (
-                  <div className="col-span-2 pt-4 border-t">
+                  <div className="col-span-1 md:col-span-2 pt-4 border-t">
                     <CustomWeaponProfiles
                       profiles={createWeaponProfiles}
                       onProfilesChange={setCreateWeaponProfiles}
