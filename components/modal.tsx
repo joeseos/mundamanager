@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface ModalProps {
   title: React.ReactNode;
@@ -66,7 +67,7 @@ export default function Modal({
 
   return (
     <div 
-      className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
+      className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -98,8 +99,8 @@ export default function Modal({
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2">
             {!hideCancel && (
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={onClose}
                 disabled={isSubmitting}
                 className={`px-4 py-2 border rounded hover:bg-gray-100 ${
@@ -107,10 +108,9 @@ export default function Modal({
                 }`}
               >
                 Cancel
-              </button>
+              </Button>
               )}
-            <button
-              type="button"
+            <Button
               onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}
               className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
@@ -118,7 +118,7 @@ export default function Modal({
               }`}
             >
               {isSubmitting ? 'Confirming...' : confirmText}
-            </button>
+            </Button>
           </div>
         )}
       </div>
