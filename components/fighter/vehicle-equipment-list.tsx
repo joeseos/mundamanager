@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import Modal from '../modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
-import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { deleteEquipmentFromFighter, moveEquipmentToStash } from '@/app/actions/equipment';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -72,59 +72,54 @@ export function VehicleEquipmentList({
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
-  const [session, setSession] = useState<any>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
 
-  useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
-
+  // Enhanced delete function using server actions with targeted cache invalidation
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     setIsLoading(true);
     try {
-      // Find the equipment cost before deleting
       const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
       if (!equipmentToDelete) {
         throw new Error('Equipment not found');
       }
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_equipment?id=eq.${fighterEquipmentId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        }
-      );
+      const result = await deleteEquipmentFromFighter({
+        fighter_equipment_id: fighterEquipmentId,
+        gang_id: gangId,
+        fighter_id: fighterId,
+        vehicle_id: equipmentToDelete.vehicle_id
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to delete equipment: ${response.status} ${response.statusText}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete equipment');
       }
-      
+
+      // Use server response data for accurate state updates
       const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      const newFighterCredits = fighterCredits - (equipmentToDelete.cost ?? 0);
       
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
+      // Use fresh data from server response if available, otherwise fall back to calculations
+      const newFighterCredits = result.data?.updatedFighter?.credits || fighterCredits;
+      const newGangCredits = result.data?.updatedGang?.credits || gangCredits;
+      
+      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
+      
+      // Enhanced success message showing effects cleanup
+      const effectsCount = result.data?.deletedEffects?.length || 0;
+      const effectsMessage = effectsCount > 0 
+        ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
+        : '';
       
       toast({
-        description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
+        title: "Success",
+        description: `Successfully deleted ${result.data?.deletedEquipment?.equipment_name || equipmentToDelete.equipment_name}${effectsMessage}`,
         variant: "default"
       });
       setDeleteModalData(null);
     } catch (error) {
       console.error('Error deleting equipment:', error);
       toast({
-        description: 'Failed to delete equipment. Please try again.',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to delete equipment',
         variant: "destructive"
       });
     } finally {
@@ -133,6 +128,7 @@ export function VehicleEquipmentList({
   };
 
   const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+    setIsLoading(true);
     try {
       const equipmentToSell = equipment.find(
         item => item.fighter_equipment_id === fighterEquipmentId
@@ -176,29 +172,20 @@ export function VehicleEquipmentList({
   const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     setIsLoading(true);
     try {
-      // Find the equipment cost before moving to stash
       const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
       if (!equipmentToStash) {
         throw new Error('Equipment not found');
       }
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_to_gang_stash`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            in_fighter_equipment_id: fighterEquipmentId,
-            in_user_id: session.user.id
-          })
-        }
-      );
+      const result = await moveEquipmentToStash({
+        fighter_equipment_id: fighterEquipmentId,
+        gang_id: gangId,
+        fighter_id: fighterId
+      });
 
-      if (!response.ok) throw new Error('Failed to move equipment to stash');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to move equipment to stash');
+      }
 
       const updatedEquipment = equipment.filter(
         item => item.fighter_equipment_id !== fighterEquipmentId
@@ -306,7 +293,7 @@ export function VehicleEquipmentList({
             <div>
               <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
               <br />
-              <p>This action cannot be undone.</p>
+              <p>This action cannot be undone and will remove any associated stat effects.</p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

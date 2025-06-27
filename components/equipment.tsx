@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { buyEquipmentForFighter } from '@/app/actions/buy-equipment';
+import { buyEquipmentForFighter } from '@/app/actions/equipment';
 
 interface ItemModalProps {
   title: string;
