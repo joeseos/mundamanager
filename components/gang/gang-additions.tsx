@@ -616,11 +616,22 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
                                 // Update equipment with costs - handle default replacement for optional_single
                                 setSelectedEquipment((prev) => {
-                                  // Remove all previous selections for this specific category only
+                                  // Remove previous selections from this specific category only
+                                  // We need to track which category each equipment came from
                                   const currentCategoryOptions = categoryData.options || [];
-                                  let filtered = prev.filter(item =>
-                                    !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                                  const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
+                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
                                   );
+                                  
+                                  // Remove equipment that was previously selected in this category
+                                  let filtered = prev.filter(item => {
+                                    // Check if this item was selected from the current category
+                                    const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
+                                      const equipmentIdFromSelected = selectedId.split('-').pop();
+                                      return equipmentIdFromSelected === item.equipment_id;
+                                    });
+                                    return !wasSelectedFromThisCategory;
+                                  });
                                   
                                   // For optional_single selections, also remove default equipment when selecting a replacement
                                   if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
@@ -748,7 +759,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                           )}
                           <label htmlFor={uniqueOptionId} className="text-sm">
                             {option.equipment_name || 'Loading...'}
-                            {option.cost > 0 ? ` +${option.cost} credits` : ''}
+                            {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
                           </label>
                         </div>
                       );
