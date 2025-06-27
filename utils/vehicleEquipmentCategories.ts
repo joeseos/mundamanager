@@ -6,7 +6,8 @@ export const vehicleExclusiveCategories: string[] = [
 
 export const vehicleCompatibleCategories: string[] = [
   ...vehicleExclusiveCategories,
-  'Ammo',
+  'Ammunition',
+  'Special Ammunition',
   'Basic Weapons',
   'Special Weapons',
   'Heavy Weapons',
@@ -14,7 +15,8 @@ export const vehicleCompatibleCategories: string[] = [
 ];
 
 export const VEHICLE_EQUIPMENT_CATEGORIES = [
-  "Ammo",
+  "Ammunition",
+  "Special Ammunition",
   "Basic Weapons",
   "Special Weapons",
   "Heavy Weapons",
