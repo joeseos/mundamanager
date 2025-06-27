@@ -461,7 +461,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   useEffect(() => {
-    if (!searchQuery) return;
+    if (!searchQuery) {
+      // When search is cleared, reset to default collapsed state
+      setExpandedCategories(new Set());
+      return;
+    }
 
     const matching = new Set<string>();
 
@@ -822,7 +826,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
                 const isAvailable = availableCategories.includes(category.category_name);
 
-                return isVehicleAllowed && isAvailable;
+                // When searching, only show categories that have matching equipment
+                const hasMatchingEquipment = !searchQuery || 
+                  (equipment[category.category_name] && 
+                   filterEquipment(equipment[category.category_name]).length > 0);
+
+                return isVehicleAllowed && isAvailable && hasMatchingEquipment;
               })
               .sort((a, b) => {
                 const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
