@@ -46,15 +46,32 @@ export async function saveCustomWeaponProfiles(
     // Then, insert new profiles if any
     if (profiles.length > 0) {
       const profilesWithMetadata = profiles.map((profile, index) => {
+        // Validate that all required fields are present
+        if (!profile.range_short || !profile.range_long || !profile.acc_short || 
+            !profile.acc_long || !profile.strength || !profile.ap || 
+            !profile.damage || !profile.ammo) {
+          throw new Error('Missing required weapon profile fields');
+        }
+
         // Remove any existing id to let the database generate a new one
+        // but preserve all other fields including profile_name
         const { id, ...profileWithoutId } = profile as any;
         
         return {
-          ...profileWithoutId,
+          profile_name: profile.profile_name || null, // Explicitly preserve profile_name
+          range_short: profile.range_short,
+          range_long: profile.range_long,
+          acc_short: profile.acc_short,
+          acc_long: profile.acc_long,
+          strength: profile.strength,
+          ap: profile.ap,
+          damage: profile.damage,
+          ammo: profile.ammo,
+          traits: profile.traits || null, // Explicitly preserve traits
+          sort_order: profile.sort_order !== undefined ? profile.sort_order : index,
           custom_equipment_id: equipmentId,
           weapon_group_id: equipmentId,
           user_id: user.id,
-          sort_order: index,
           created_at: new Date().toISOString()
         };
       });
@@ -71,7 +88,7 @@ export async function saveCustomWeaponProfiles(
     }
 
     // Revalidate the customize page
-    revalidatePath('/customize');
+    revalidatePath('/customise');
     
     return { success: true };
   } catch (error) {

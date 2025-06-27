@@ -60,7 +60,7 @@ export async function updateCustomEquipment(
   }
 
   // Revalidate the customize page to show updated data
-  revalidatePath('/customize');
+  revalidatePath('/customise');
   
   return data;
 }
@@ -88,7 +88,7 @@ export async function deleteCustomEquipment(equipmentId: string) {
   }
 
   // Revalidate the customize page to show updated data
-  revalidatePath('/customize');
+  revalidatePath('/customise');
   
   return { success: true };
 }
@@ -157,7 +157,7 @@ export async function createCustomEquipment(data: {
   }
 
   // Revalidate the customize page to show new data
-  revalidatePath('/customize');
+  revalidatePath('/customise');
   
   return newEquipment;
 } 

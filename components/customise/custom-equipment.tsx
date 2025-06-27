@@ -44,6 +44,8 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
   });
   const [createWeaponProfiles, setCreateWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
+  const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
+  const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
   const { toast } = useToast();
 
   // Helper functions for availability
@@ -223,6 +225,9 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       availability_number: parsed.number
     });
     
+    // Reset weapon profiles modification flag
+    setWeaponProfilesModified(false);
+    
     // Fetch categories if not already loaded
     if (categories.length === 0) {
       fetchCategories();
@@ -233,12 +238,15 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       try {
         const profiles = await getCustomWeaponProfiles(equipment.id);
         setEditWeaponProfiles(profiles);
+        setOriginalEditWeaponProfiles(profiles);
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
         setEditWeaponProfiles([]);
+        setOriginalEditWeaponProfiles([]);
       }
     } else {
       setEditWeaponProfiles([]);
+      setOriginalEditWeaponProfiles([]);
     }
   };
 
@@ -257,6 +265,13 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       availability_number: 1
     });
     setEditWeaponProfiles([]);
+    setOriginalEditWeaponProfiles([]);
+    setWeaponProfilesModified(false);
+  };
+
+  const handleEditWeaponProfilesChange = (profiles: CustomWeaponProfile[]) => {
+    setEditWeaponProfiles(profiles);
+    setWeaponProfilesModified(true);
   };
 
   const handleDeleteModalClose = () => {
@@ -278,10 +293,17 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
         availability: combineAvailability(editForm.availability_letter, editForm.availability_number)
       });
 
-      // Save weapon profiles if this is a weapon - use the updated equipment ID
+      // Handle weapon profiles based on equipment type
       if (editForm.equipment_type === 'weapon') {
+        // Save weapon profiles if this is a weapon and they were modified
         const equipmentIdToUse = updatedEquipment?.id || editModalData.id;
-        await saveCustomWeaponProfiles(equipmentIdToUse, editWeaponProfiles);
+        if (weaponProfilesModified) {
+          await saveCustomWeaponProfiles(equipmentIdToUse, editWeaponProfiles);
+        }
+      } else if (editModalData.equipment_type === 'weapon' && editForm.equipment_type === 'wargear') {
+        // Delete weapon profiles if changing from weapon to wargear
+        const equipmentIdToUse = updatedEquipment?.id || editModalData.id;
+        await saveCustomWeaponProfiles(equipmentIdToUse, []); // Save empty array to delete all profiles
       }
 
       // Update the local state with the updated equipment
@@ -356,13 +378,16 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       try {
         const profiles = await getCustomWeaponProfiles(editModalData.id);
         setEditWeaponProfiles(profiles);
+        setWeaponProfilesModified(true);
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
         setEditWeaponProfiles([]);
+        setWeaponProfilesModified(true);
       }
     } else if (field === 'equipment_type' && value === 'wargear') {
       // Clear weapon profiles when switching to wargear
       setEditWeaponProfiles([]);
+      setWeaponProfilesModified(true);
     }
   };
 
@@ -504,7 +529,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   <div className="col-span-1 md:col-span-2 pt-4 border-t">
                     <CustomWeaponProfiles
                       profiles={editWeaponProfiles}
-                      onProfilesChange={setEditWeaponProfiles}
+                      onProfilesChange={handleEditWeaponProfilesChange}
                     />
                   </div>
                 )}
