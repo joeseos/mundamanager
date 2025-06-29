@@ -134,6 +134,13 @@ export default function GangPageContent({
         console.log(`Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`);
       }
 
+      // Calculate rating change from credit changes (when equipment is moved from stash)
+      if (prevFighter && updatedFighter.credits !== prevFighter.credits) {
+        const creditChange = updatedFighter.credits - prevFighter.credits;
+        ratingChange += creditChange;
+        console.log(`Fighter credits changed from ${prevFighter.credits} to ${updatedFighter.credits}, rating change: ${creditChange}`);
+      }
+
       // Calculate the new rating
       const newRating = prev.processedData.rating + ratingChange;
       console.log(`Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`);
@@ -145,7 +152,7 @@ export default function GangPageContent({
           fighters: prev.processedData.fighters.map(fighter =>
             fighter.id === updatedFighter.id ? updatedFighter : fighter
           ),
-          // Update the rating based on vehicle changes
+          // Update the rating based on vehicle and credit changes
           rating: newRating
         }
       };
