@@ -129,7 +129,7 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
 
       if (error) throw error;
 
-      // Create new territory object
+      // Create a new territory object
       const newTerritory = {
         territory_id: territoryId,
         territory_name: territoryName

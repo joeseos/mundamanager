@@ -51,7 +51,7 @@ export default function MemberSearchBar({
   const supabase = createClient()
   const { toast } = useToast()
 
-  // Search functionality using API route
+  // Search functionality using an API route
   useEffect(() => {
     const searchUsers = async () => {
       if (query.trim() === '') {
@@ -142,13 +142,13 @@ export default function MemberSearchBar({
 
       console.log("Database response:", data);
       
-      // Ensure a fresh instance with empty gangs array
+      // Ensure a fresh instance with an empty gangs array
       const newMember = {
         ...member,
         // If we have an ID from the database response, use it
         id: data?.[0]?.id,
         role: role,
-        gangs: []  // Start with empty gangs array for the new instance
+        gangs: []  // Start with an empty gangs array for the new instance
       };
 
       console.log("New member with ID:", newMember);

@@ -240,7 +240,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     if (!selectedTerritory) return false;
 
     try {
-      // Check if user is authenticated
+      // Check if the user is authenticated
       if (!isAuthenticated) {
         toast({
           variant: "destructive",
@@ -305,7 +305,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const handleRemoveGang = async (territoryId: string, gangId: string) => {
     try {
-      // Check if user is authenticated
+      // Check if the user is authenticated
       if (!isAuthenticated) {
         toast({
           variant: "destructive",
@@ -356,7 +356,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
   const handleRemoveTerritory = async (territoryId: string) => {
     try {
-      // Check if user is authenticated
+      // Check if the user is authenticated
       if (!isAuthenticated) {
         toast({
           variant: "destructive",
@@ -462,7 +462,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     loadGangDetails();
   }, [campaignData.territories]); // Run when territories change
 
-  // Helper for checking if user is admin (owner or arbitrator)
+  // Helper for checking if the user is admin (owner or arbitrator)
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator;
 
   const handleCampaignUpdate = (updatedData: {
@@ -641,7 +641,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
           {/* Campaign tab content */}
           {activeTab === 0 && (
             <>
-              {/* Campaign header with Edit button */}
+              {/* Campaign header with the Edit button */}
               <div className="mb-4 border-b pb-4">
                 <div
                   className="relative flex justify-between items-center py-4 bg-no-repeat bg-cover print:!bg-none -mx-4 px-4 rounded-lg"
@@ -721,13 +721,13 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     startTransition(() => {
                       // For specific updates, we can do optimistic updates
                       if (removedMemberId) {
-                        // Optimistically remove the member from local state
+                        // Optimistically remove the member from the local state
                         setCampaignData(prev => ({
                           ...prev,
                           members: prev.members.filter(m => m.id !== removedMemberId)
                         }));
                       } else if (removedGangIds && removedGangIds.length > 0) {
-                        // Optimistically remove gangs from local state
+                        // Optimistically remove gangs from the local state
                         setCampaignData(prev => ({
                           ...prev,
                           members: prev.members.map(member => ({
@@ -1024,7 +1024,7 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                 await handleRemoveTerritory(territoryToDelete.id);
                 setShowDeleteModal(false);
                 setTerritoryToDelete(null);
-                return false;  // Don't indicate pending async response
+                return false;  // Don't indicate a pending async response
               } catch (error) {
                 console.error('Error removing territory:', error);
                 return false;

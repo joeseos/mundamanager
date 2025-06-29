@@ -39,7 +39,7 @@ export default function TerritoryGangModal({
   useEffect(() => {
     const loadGangs = async () => {
       try {
-        // First get campaign_gangs entries, joining with campaign_members for member-specific gangs
+        // First, get campaign_gangs entries, joining with campaign_members for member-specific gangs
         const { data: campaignGangs, error: campaignGangsError } = await supabase
           .from('campaign_gangs')
           .select(`

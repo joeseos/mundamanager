@@ -204,9 +204,9 @@ export default function CampaignEditModal({
           title="Delete Campaign"
           content={
             <div>
-              <p>Are you sure you want to delete this campaign?</p>
+              <p>Are you sure you want to permanently delete this campaign?</p>
               <br />
-              <p>This action cannot be undone and will remove all campaign data including territories, members, and gang assignments.</p>
+              <p>This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.</p>
             </div>
           }
           onClose={() => setShowDeleteModal(false)}
