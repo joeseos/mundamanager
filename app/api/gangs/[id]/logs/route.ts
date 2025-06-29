@@ -38,8 +38,46 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
     console.log('Gang found, user_id:', gangData.user_id);
 
-    if (gangData.user_id !== user.id) {
-      console.error('User does not own gang');
+    // Check if user owns the gang
+    const ownsGang = gangData.user_id === user.id;
+
+    // Check if user is OWNER/ARBITRATOR of any campaign containing this gang
+    let hasArbitratorAccess = false;
+    if (!ownsGang) {
+      // First, get all campaigns that contain this gang
+      const { data: campaignGangs, error: campaignGangsError } = await supabase
+        .from('campaign_gangs')
+        .select('campaign_id')
+        .eq('gang_id', params.id);
+
+      if (campaignGangsError) {
+        console.error('Campaign gangs check error:', campaignGangsError);
+      } else if (campaignGangs && campaignGangs.length > 0) {
+        const campaignIds = campaignGangs.map(cg => cg.campaign_id);
+        console.log('Found campaigns containing this gang:', campaignIds);
+        
+        // Then check if user is OWNER/ARBITRATOR in any of these campaigns
+        const { data: membershipData, error: membershipError } = await supabase
+          .from('campaign_members')
+          .select('campaign_id, role')
+          .eq('user_id', user.id)
+          .in('campaign_id', campaignIds)
+          .in('role', ['OWNER', 'ARBITRATOR']);
+
+        if (membershipError) {
+          console.error('Membership check error:', membershipError);
+        } else {
+          hasArbitratorAccess = membershipData && membershipData.length > 0;
+          console.log('User membership in those campaigns:', membershipData);
+          console.log('Has arbitrator access:', hasArbitratorAccess);
+        }
+      } else {
+        console.log('Gang is not in any campaigns');
+      }
+    }
+
+    if (!ownsGang && !hasArbitratorAccess) {
+      console.error('User does not own gang and is not an arbitrator/owner of campaigns containing this gang');
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
