@@ -103,10 +103,10 @@ const CampaignBattleLogModal = ({
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
   
-  // Check if user has admin permissions (OWNER or ARBITRATOR)
+  // Check if the user has admin permissions (OWNER or ARBITRATOR)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
   
-  // If in edit mode and user is not admin, show error and close modal
+  // If in edit mode and the user is not admin, show an error and close the modal
   useEffect(() => {
     if (isOpen && isEditMode && !isAdmin) {
       toast({
@@ -117,7 +117,7 @@ const CampaignBattleLogModal = ({
     }
   }, [isOpen, isEditMode, isAdmin, onClose, toast]);
 
-  // Load battle data when modal opens
+  // Load battle data when the modal opens
   useEffect(() => {
     let isMounted = true;
     
@@ -174,7 +174,7 @@ const CampaignBattleLogModal = ({
     }
   }, [isOpen, battleToEdit, scenarios]);
 
-  // Populate form with battle data when editing
+  // Populate a form with battle data when editing
   const populateFormWithBattleData = () => {
     if (!battleToEdit) return;
     
@@ -421,7 +421,7 @@ const CampaignBattleLogModal = ({
     }
 
     try {
-      // Create participants array for the new API structure
+      // Create a participants array for the new API structure
       const participants = gangsInBattle
         .filter(gang => gang.gangId)
         .map(gang => ({ 

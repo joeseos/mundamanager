@@ -383,14 +383,14 @@ export default function MembersTable({
                 <span className="text-sm text-gray-500 ml-2">{gang.gang_type || "-"}</span>
               </div>
               {gang.isInCampaign && (
-                <span className="text-xs text-gray-500">Already in campaign</span>
+                <span className="text-xs text-gray-500">Already in a campaign.</span>
               )}
             </div>
           </button>
         ))}
       </div>
       {userGangs.length === 0 && (
-        <p className="text-sm text-gray-500 text-center">No gangs available to add</p>
+        <p className="text-sm text-gray-500 text-center">No gangs available for this player.</p>
       )}
     </div>
   ), [userGangs, selectedGang]);
@@ -417,7 +417,7 @@ export default function MembersTable({
       </p>
       {memberToRemove?.role === 'OWNER' && (
         <p className="text-sm text-red-600 font-medium mt-2">
-          Warning: Cannot remove the Owner of a campaign.
+          Action blocked: the campaign Owner cannot be removed.
         </p>
       )}
     </div>
@@ -492,7 +492,7 @@ export default function MembersTable({
                           {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                         </button>
                       ) : (
-                        <span className="text-gray-500">No gang selected</span>
+                        <span className="text-gray-500">No gang selected.</span>
                       )}
                     </div>
                   )}
@@ -615,7 +615,7 @@ export default function MembersTable({
                         {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                       </button>
                     ) : (
-                      <span className="text-sm text-gray-500">No gang selected</span>
+                      <span className="text-sm text-gray-500">No gang selected.</span>
                     )}
                   </div>
                 )}
