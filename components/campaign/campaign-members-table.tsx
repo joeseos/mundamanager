@@ -162,13 +162,27 @@ export default function MembersTable({
 
       if (error) throw error;
 
-      const { data: campaignGangs, error: campaignError } = await supabase
+      // Get ALL gangs in ANY campaign
+      const { data: allCampaignGangs, error: campaignError } = await supabase
         .from('campaign_gangs')
         .select('gang_id');
 
       if (campaignError) throw campaignError;
 
-      const takenGangIds = new Set(campaignGangs?.map(cg => cg.gang_id) || []);
+      // Get gangs in THIS campaign
+      const { data: currentCampaignGangs, error: currentCampaignError } = await supabase
+        .from('campaign_gangs')
+        .select('gang_id')
+        .eq('campaign_id', campaignId);
+
+      if (currentCampaignError) throw currentCampaignError;
+
+      // Combine both sets of gang IDs
+      const takenGangIds = new Set([
+        ...(allCampaignGangs?.map(cg => cg.gang_id) || []),
+        ...(currentCampaignGangs?.map(cg => cg.gang_id) || [])
+      ]);
+
       const gangsWithAvailability = gangs?.map(gang => ({
         ...gang,
         isInCampaign: takenGangIds.has(gang.id)
