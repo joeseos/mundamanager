@@ -40,13 +40,13 @@ type Fighter = {
   credits: number;
   cost_adjustment: number;
   fighter_equipment?: Array<{ purchase_cost: number }>;
-  fighter_characteristics?: Array<{ credits_increase: number }>;
   fighter_skills?: Array<{ credits_increase: number }>;
   fighter_effects?: Array<{ type_specific_data: { credits_increase?: number } }>;
   vehicles?: Array<{
     id: string;
     cost: number;
     fighter_equipment?: Array<{ purchase_cost: number }>;
+    fighter_effects?: Array<{ type_specific_data: { credits_increase?: number } }>;
   }>;
 };
 
@@ -169,14 +169,13 @@ async function getFightersWithRating(
         credits, 
         cost_adjustment,
         fighter_equipment(purchase_cost),
-        fighter_characteristics(credits_increase),
         fighter_skills(credits_increase),
-        fighter_effects(type_specific_data),
-        vehicles(id, cost, fighter_equipment(purchase_cost))
+        fighter_effects(type_specific_data)
       `)
       .eq('gang_id', gangId)
       .eq('killed', false)
-      .eq('retired', false);
+      .eq('retired', false)
+      .eq('enslaved', false);
 
     if (error) {
       console.error(`Error fetching fighters data for gang ${gangId}:`, error);
@@ -187,46 +186,85 @@ async function getFightersWithRating(
       return [];
     }
 
+    // Get vehicles assigned to fighters separately
+    const fighterIds = fighters.map(f => f.id);
+    const { data: vehicles, error: vehiclesError } = await supabase
+      .from('vehicles')
+      .select(`
+        id,
+        fighter_id,
+        cost,
+        fighter_equipment(purchase_cost),
+        fighter_effects(type_specific_data)
+      `)
+      .in('fighter_id', fighterIds);
+
+    if (vehiclesError) {
+      console.error(`Error fetching vehicles data for gang ${gangId}:`, vehiclesError);
+      throw vehiclesError;
+    }
+
+    // Group vehicles by fighter_id
+    const vehiclesByFighter = vehicles?.reduce((acc, vehicle) => {
+      if (vehicle.fighter_id) {
+        if (!acc[vehicle.fighter_id]) {
+          acc[vehicle.fighter_id] = [];
+        }
+        acc[vehicle.fighter_id].push(vehicle);
+      }
+      return acc;
+    }, {} as Record<string, any[]>) || {};
+
     return (fighters as Fighter[]).map((fighter) => {
       try {
         let rating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
         
         // Add equipment costs
         if (fighter.fighter_equipment) {
-          rating += fighter.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
+          const equipmentCost = fighter.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
             sum + (eq.purchase_cost || 0), 0);
-        }
-        
-        // Add characteristics costs
-        if (fighter.fighter_characteristics) {
-          rating += fighter.fighter_characteristics.reduce((sum: number, char: { credits_increase: number }) => 
-            sum + (char.credits_increase || 0), 0);
+          rating += equipmentCost;
+          console.log(`Fighter ${fighter.id}: equipment cost = ${equipmentCost}`);
         }
         
         // Add skills costs
         if (fighter.fighter_skills) {
-          rating += fighter.fighter_skills.reduce((sum: number, skill: { credits_increase: number }) => 
+          const skillsCost = fighter.fighter_skills.reduce((sum: number, skill: { credits_increase: number }) => 
             sum + (skill.credits_increase || 0), 0);
+          rating += skillsCost;
+          console.log(`Fighter ${fighter.id}: skills cost = ${skillsCost}`);
         }
         
-        // Add effects costs
+        // Add effects costs (includes characteristic advancements)
         if (fighter.fighter_effects) {
-          rating += fighter.fighter_effects.reduce((sum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+          const effectsCost = fighter.fighter_effects.reduce((sum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
             const creditsIncrease = effect.type_specific_data?.credits_increase;
             return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
           }, 0);
+          rating += effectsCost;
+          console.log(`Fighter ${fighter.id}: effects cost = ${effectsCost}`);
         }
         
-        // Add vehicle costs
-        if (fighter.vehicles) {
-          fighter.vehicles.forEach((vehicle) => {
-            rating += (vehicle.cost || 0);
-            if (vehicle.fighter_equipment) {
-              rating += vehicle.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
-                sum + (eq.purchase_cost || 0), 0);
-            }
-          });
-        }
+        // Add vehicle costs (only vehicles assigned to this fighter)
+        const fighterVehicles = vehiclesByFighter[fighter.id] || [];
+        let vehicleCost = 0;
+        fighterVehicles.forEach((vehicle) => {
+          vehicleCost += (vehicle.cost || 0);
+          // Add vehicle equipment costs (matching get_gang_details.sql calculation)
+          if (vehicle.fighter_equipment) {
+            vehicleCost += vehicle.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
+              sum + (eq.purchase_cost || 0), 0);
+          }
+          // Add vehicle effects costs (matching get_gang_details.sql calculation)
+          if (vehicle.fighter_effects) {
+            vehicleCost += vehicle.fighter_effects.reduce((sum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+              const creditsIncrease = effect.type_specific_data?.credits_increase;
+              return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+            }, 0);
+          }
+        });
+        rating += vehicleCost;
+        console.log(`Fighter ${fighter.id}: vehicle cost = ${vehicleCost}, total rating = ${rating}`);
         
         return { id: fighter.id, rating };
       } catch (calculationError) {
