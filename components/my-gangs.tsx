@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from "@/utils/supabase/client";
-import { useGangs } from '@/contexts/GangsContext'
 
 interface Gang {
   id: string;
@@ -21,16 +20,15 @@ interface Gang {
   last_updated: string;
 }
 
-export default function MyGangs() {
-  const { gangs, isLoading, error } = useGangs();
+interface MyGangsProps {
+  gangs: Gang[];
+}
 
+export default function MyGangs({ gangs }: MyGangsProps) {
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load image:', e.currentTarget.src);
     e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
   };
-
-  if (isLoading) return <div className="text-center text-white">Loading gangs...</div>;
-  if (error) return <div className="text-center text-red-500">{error}</div>;
 
   // Sort gangs by the most recent of last_updated or created_at
   const sortedGangs = [...gangs].sort((a, b) => {
