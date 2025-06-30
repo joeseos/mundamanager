@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       
       // Check if we have existing modifiers for this stat
       if (existingModifiersByStat[statName] && existingModifiersByStat[statName].length > 0) {
+        
         // Find modifiers with the same sign as our change (for consolidation)
         const sameSignModifiers = existingModifiersByStat[statName].filter(
           mod => Math.sign(mod.numeric_value) === Math.sign(changeValue)
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
         if (sameSignModifiers.length > 0) {
           // Get the first modifier to update (we'll consolidate all into this one)
           const primaryMod = sameSignModifiers[0];
-          const newValue = Math.abs(primaryMod.numeric_value + changeValue);
+          const newValue = primaryMod.numeric_value + changeValue;
           
           // If the new value would be 0, delete this modifier instead of updating it
           if (newValue === 0) {
@@ -169,20 +170,22 @@ export async function POST(request: Request) {
           // Delete any other modifiers of the same sign (consolidate them)
           const otherSameSignModifiers = sameSignModifiers.slice(1);
           if (otherSameSignModifiers.length > 0) {
-            const otherModIds = otherSameSignModifiers.map(mod => mod.id);
-            modifiersToDelete.push(...otherModIds);
+            modifiersToDelete.push(...otherSameSignModifiers.map(mod => mod.id));
             
-            // Check if any of these are the only modifiers for their effects
-            for (const mod of otherSameSignModifiers) {
+            // Check if any of these were the only modifier for their effects
+            otherSameSignModifiers.forEach(mod => {
               const effect = (existingEffects as ExistingEffect[]).find(ef => ef.id === mod.effect_id);
               if (effect && effect.fighter_effect_modifiers.length === 1) {
                 effectsToDelete.push(effect.id);
               }
-            }
+            });
           }
+          
+          // We've handled this stat fully, continue to the next one
+          continue;
         }
         
-        // Case 2: We have existing modifiers with the opposite sign - handle cancellation
+        // Case 2: We have modifiers with opposite signs - handle cancellation
         if (oppositeSignModifiers.length > 0) {
           let remainingChange = changeValue;
           
@@ -203,9 +206,11 @@ export async function POST(request: Request) {
             }
             // If our change is smaller (partial cancellation)
             else if (Math.abs(remainingChange) < Math.abs(mod.numeric_value)) {
-              const newValue = Math.abs(mod.numeric_value) - Math.abs(remainingChange);
+              // Calculate the new value properly preserving signs
+              // mod.numeric_value and remainingChange have opposite signs
+              const newValue = mod.numeric_value + remainingChange;
               
-              // Update the modifier with reduced value
+              // Update the modifier with the new value
               const { error: updateModifierError } = await supabase
                 .from('fighter_effect_modifiers')
                 .update({
@@ -250,26 +255,21 @@ export async function POST(request: Request) {
           // We've handled this stat fully, continue to the next one
           continue;
         }
-        
-        // Case 3: If we only have modifiers of the same sign and we already updated them,
-        // or we only have opposite sign modifiers and we already processed them,
-        // then we can skip to the next stat
-        if (sameSignModifiers.length > 0 || oppositeSignModifiers.length > 0) {
-          continue;
-        }
+      } else {
+        // Case 3: No existing modifiers, create a new effect
+        await createNewEffect(
+          supabase,
+          fighter_id,
+          user.id,
+          statName,
+          changeValue,
+          effectTypes as EffectType[]
+        );
       }
-      
-      // Case 4: If we get here, we have no existing modifiers for this stat
-      // so we need to create a new effect and modifier
-      await createNewEffect(
-        supabase,
-        fighter_id,
-        user.id,
-        statName,
-        changeValue,
-        effectTypes as EffectType[]
-      );
     }
+    
+    console.log("Modifiers to delete:", modifiersToDelete);
+    console.log("Effects to delete:", effectsToDelete);
     
     // Delete any modifiers we marked for deletion
     if (modifiersToDelete.length > 0) {
@@ -348,7 +348,9 @@ async function createNewEffect(
     )
   );
 
-  if (!effectType) return;
+  if (!effectType) {
+    return;
+  }
 
   // Create the effect
   const { data: newEffect, error: effectError } = await supabase
@@ -369,13 +371,15 @@ async function createNewEffect(
 
   // Create the modifier - IMPORTANT: Use the actual changeValue, not its absolute value
   // This preserves the negative sign when needed
+  const modifierData = {
+    fighter_effect_id: newEffect.id,
+    stat_name: statName,
+    numeric_value: changeValue.toString()  // Remove Math.abs() to keep negative values
+  };
+  
   const { error: modifierError } = await supabase
     .from('fighter_effect_modifiers')
-    .insert({
-      fighter_effect_id: newEffect.id,
-      stat_name: statName,
-      numeric_value: changeValue.toString()  // Remove Math.abs() to keep negative values
-    });
+    .insert(modifierData);
 
   if (modifierError) {
     console.error('Error creating modifier:', modifierError);

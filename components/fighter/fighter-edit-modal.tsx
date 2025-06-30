@@ -292,17 +292,10 @@ function CharacterStatsModal({
   // Handle decreasing a stat
   const handleDecrease = (key: StatKey) => {
     const propName = getPropertyName(key);
-    setAdjustments(prev => {
-      // Only decrease if the adjusted base value would remain above 1
-      const baseValue = fighter[propName as keyof Fighter] as number;
-      if (baseValue + prev[propName] > 1) {
-        return {
-          ...prev,
-          [propName]: prev[propName] - 1
-        };
-      }
-      return prev;
-    });
+    setAdjustments(prev => ({
+      ...prev,
+      [propName]: prev[propName] - 1
+    }));
   };
 
   // IMPORTANT: The base values should be the fighter's original stats
@@ -424,7 +417,7 @@ function CharacterStatsModal({
                       size="icon"
                       className="h-10 w-10 rounded-md"
                       onClick={() => handleDecrease(stat.key)}
-                      disabled={isSaving || (fighter[propName as keyof Fighter] as number) + adjustment <= 1}
+                      disabled={isSaving}
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
