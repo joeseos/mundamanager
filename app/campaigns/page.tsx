@@ -1,9 +1,13 @@
 import { createClient } from "@/utils/supabase/server";
 import CreateCampaign from '@/components/create-campaign'
 import MyCampaigns from '@/components/my-campaigns'
-import { CampaignsProvider } from '@/contexts/CampaignsContext'
+import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { unstable_noStore } from 'next/cache';
 
 export default async function CampaignsPage() {
+  // Ensure we never use stale data
+  unstable_noStore();
+  
   const supabase = await createClient();
   
   // Get the user data once at the page level
@@ -18,14 +22,16 @@ export default async function CampaignsPage() {
     console.error('Error fetching campaign types:', error);
   }
 
+  // Fetch campaigns server-side
+  const campaigns = await getUserCampaigns();
+  console.log(`Page rendering with ${campaigns.length} campaigns`);
+
   return (
-    <CampaignsProvider userId={userId}>
-      <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full space-y-4">
-          <CreateCampaign initialCampaignTypes={campaignTypes} userId={userId} />
-          <MyCampaigns />
-        </div>
-      </main>
-    </CampaignsProvider>
+    <main className="flex min-h-screen flex-col items-center">
+      <div className="container mx-auto max-w-4xl w-full space-y-4">
+        <CreateCampaign initialCampaignTypes={campaignTypes} userId={userId} />
+        <MyCampaigns campaigns={campaigns} />
+      </div>
+    </main>
   )
 } 
