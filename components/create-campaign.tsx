@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { useCampaigns } from '@/contexts/CampaignsContext'
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "@/components/ui/use-toast"
+import { useRouter } from 'next/navigation'
 
 interface CampaignType {
   id: string;
@@ -18,7 +18,7 @@ interface CreateCampaignProps {
 }
 
 export default function CreateCampaign({ initialCampaignTypes, userId }: CreateCampaignProps) {
-  const { refreshCampaigns } = useCampaigns();
+  const router = useRouter();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -57,10 +57,22 @@ export default function CreateCampaign({ initialCampaignTypes, userId }: CreateC
       console.log('Campaign created:', data)
       setCampaignName("")
       setCampaignType("")
-      await refreshCampaigns()
+      
+      // Trigger router refresh to update server state
+      router.refresh();
+      
+      toast({
+        title: "Success!",
+        description: `${campaignName} has been created successfully.`,
+      })
     } catch (err) {
       console.error('Error creating campaign:', err)
       setError('Failed to create campaign. Please try again.')
+      toast({
+        title: "Error",
+        description: "Failed to create campaign. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }

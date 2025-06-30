@@ -1,11 +1,24 @@
 "use client"
 
 import Link from 'next/link'
-import { useCampaigns } from '@/contexts/CampaignsContext'
 
-export default function MyCampaigns() {
-  const { campaigns, isLoading, error } = useCampaigns();
+interface Campaign {
+  id: string;
+  campaign_member_id: string;
+  campaign_name: string;
+  campaign_type: string;
+  campaign_type_id: string;
+  created_at: string;
+  updated_at: string;
+  role?: string;
+  status?: string;
+}
 
+interface MyCampaignsProps {
+  campaigns: Campaign[];
+}
+
+export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -18,9 +31,6 @@ export default function MyCampaigns() {
     const dateB = new Date(b.updated_at || b.created_at).getTime();
     return dateB - dateA;
   });
-
-  if (isLoading) return <div className="text-center text-white">Loading campaigns...</div>
-  if (error) return <div className="text-center text-red-500">{error}</div>
 
   return (
     <div className="bg-white shadow-md rounded-lg p-4">
