@@ -103,6 +103,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
   useEffect(() => {
     const fetchWeapons = async () => {
+      // Only fetch weapons if the equipment type is set to weapon
+      if (equipmentType !== 'weapon') {
+        setWeapons([]);
+        return;
+      }
+
       try {
         const response = await fetch('/api/admin/equipment?equipment_type=weapon');
         if (!response.ok) throw new Error('Failed to fetch weapons');
@@ -118,7 +124,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     };
 
     fetchWeapons();
-  }, [toast]);
+  }, [equipmentType, toast]);
 
   // Add this useEffect to fetch gang types
   useEffect(() => {

@@ -62,13 +62,21 @@ interface FighterEffectCategory {
 
 interface AdminFighterEffectsProps {
   equipmentId: string;
+  fighterEffects?: FighterEffectType[];
+  fighterEffectCategories?: FighterEffectCategory[];
   onUpdate?: () => void;
   onChange?: (effects: FighterEffectType[]) => void;
 }
 
-export function AdminFighterEffects({ equipmentId, onUpdate, onChange }: AdminFighterEffectsProps) {
-  const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>([]);
-  const [categories, setCategories] = useState<FighterEffectCategory[]>([]);
+export function AdminFighterEffects({ 
+  equipmentId, 
+  fighterEffects = [], 
+  fighterEffectCategories = [],
+  onUpdate, 
+  onChange 
+}: AdminFighterEffectsProps) {
+  const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
+  const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddEffectDialog, setShowAddEffectDialog] = useState(false);
   const [showAddModifierDialog, setShowAddModifierDialog] = useState(false);
@@ -84,111 +92,21 @@ export function AdminFighterEffects({ equipmentId, onUpdate, onChange }: AdminFi
   
   const { toast } = useToast();
 
+  // Update local state when props change
+  useEffect(() => {
+    setFighterEffectTypes(fighterEffects);
+  }, [fighterEffects]);
+
+  useEffect(() => {
+    setCategories(fighterEffectCategories);
+  }, [fighterEffectCategories]);
+
   // Update parent component when effects change
   useEffect(() => {
     if (onChange) {
       onChange(fighterEffectTypes);
     }
   }, [fighterEffectTypes, onChange]);
-
-  // Fetch fighter effect types associated with this equipment
-  useEffect(() => {
-    const fetchFighterEffects = async () => {
-      if (!equipmentId) {
-        console.log('No equipment ID provided');
-        return;
-      }
-      
-      // Validate equipment ID format
-      if (!isValidUUID(equipmentId)) {
-        console.error('Invalid equipment ID format:', equipmentId);
-        toast({
-          description: `Invalid equipment ID format: ${equipmentId}`,
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      console.log('Equipment ID:', equipmentId);
-      console.log('Equipment ID type:', typeof equipmentId);
-      console.log('Equipment ID length:', equipmentId.length);
-      
-      setIsLoading(true);
-      try {
-        console.log('Fetching fighter effects for equipment ID:', equipmentId);
-        const response = await fetch(`/api/admin/fighter-effects?equipment_id=${encodeURIComponent(equipmentId)}`);
-        
-        console.log('Response status:', response.status, response.statusText);
-        
-        if (!response.ok) {
-          // Try to get the detailed error message
-          const errorText = await response.text();
-          console.error('Response body text:', errorText);
-          
-          let errorData: { error?: string } = {};
-          try {
-            errorData = JSON.parse(errorText);
-          } catch (e) {
-            console.error('Failed to parse error response as JSON');
-          }
-          
-          // If there's a specific error about the JSON format, inform the user
-          if (errorText.includes('invalid input syntax for type json')) {
-            toast({
-              description: "Database issue with JSON filtering. Initializing empty list.",
-              variant: "default"
-            });
-            setFighterEffectTypes([]);
-            setIsLoading(false);
-            return;
-          }
-          
-          console.error('Error data:', errorData);
-          throw new Error(
-            errorData.error || 
-            `Failed to fetch fighter effects: ${response.status} ${response.statusText}`
-          );
-        }
-        
-        const data = await response.json();
-        console.log('Received data:', data);
-        setFighterEffectTypes(data);
-      } catch (error) {
-        console.error('Error fetching fighter effects:', error);
-        toast({
-          description: error instanceof Error ? error.message : 'Failed to load fighter effects',
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchFighterEffects();
-  }, [equipmentId, toast]);
-
-  // Fetch fighter effect categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch('/api/admin/fighter-effects?categories=true');
-        if (!response.ok) {
-          const errorData = await response.json() as any;
-          throw new Error(errorData.error || 'Failed to fetch categories');
-        }
-        const data = await response.json();
-        setCategories(data);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        toast({
-          description: error instanceof Error ? error.message : 'Failed to load effect categories',
-          variant: "destructive"
-        });
-      }
-    };
-
-    fetchCategories();
-  }, [toast]);
 
   const handleAddEffect = async () => {
     if (!newEffectName) {
