@@ -74,7 +74,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
 
       if (!variantMap[key]) {
         variantMap[key] = {
-          weaponName: profile.profile_name.startsWith('-') ? '' : profile.profile_name,
+          weaponName: profile.profile_name?.startsWith('-') ? '' : (profile.profile_name || ''),
           isMasterCrafted: isGroupMasterCrafted,
           baseProfiles: [],
           specials: new Map<string, WeaponProfile>(),
@@ -83,11 +83,11 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
 
       const block = variantMap[key];
 
-      if (profile.profile_name.startsWith('-')) {
+      if (profile.profile_name?.startsWith('-')) {
         if (!block.specials.has(profile.profile_name)) block.specials.set(profile.profile_name, profile);
       } else {
         block.baseProfiles.push(profile);
-        if (!block.weaponName) block.weaponName = profile.profile_name;
+        if (!block.weaponName) block.weaponName = profile.profile_name || '';
       }
     });
   });
@@ -175,7 +175,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                 <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>
                   <td className={`${pClass} text-left align-top`}>
                     <div className="table-weapons-truncate">
-                      {rowIdx === 0 && !profile.profile_name.startsWith('-') ? (
+                      {rowIdx === 0 && !profile.profile_name?.startsWith('-') ? (
                         <>
                           {weaponName}
                           {isMasterCrafted && ` (MC)`}
