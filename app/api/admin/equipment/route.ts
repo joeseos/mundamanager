@@ -32,6 +32,27 @@ interface EquipmentAvailability {
   availability: string;
 }
 
+interface FighterEffectTypeModifier {
+  id: string;
+  stat_name: string;
+  default_numeric_value: number | null;
+}
+
+interface FighterEffectType {
+  id: string;
+  effect_name: string;
+  fighter_effect_category_id: string | null;
+  type_specific_data: {
+    equipment_id: string;
+  } | null;
+  modifiers: FighterEffectTypeModifier[];
+}
+
+interface FighterEffectCategory {
+  id: string;
+  category_name: string;
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -156,12 +177,119 @@ export async function GET(request: Request) {
 
       console.log('Fetched trading post types:', tradingPostTypes || []);
 
+      // Fetch fighter effects for this equipment
+      let fighterEffects: FighterEffectType[] = [];
+      let fighterEffectCategories: FighterEffectCategory[] = [];
+      
+      try {
+        // Fetch fighter effect categories first
+        const { data: categories, error: categoriesError } = await supabase
+          .from('fighter_effect_categories')
+          .select('id, category_name')
+          .order('category_name');
+
+        if (categoriesError) {
+          console.warn('Error fetching fighter effect categories:', categoriesError);
+        } else {
+          fighterEffectCategories = categories || [];
+        }
+
+        // Fetch fighter effects for this equipment
+        const { data: effects, error: effectsError } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            fighter_effect_category_id,
+            type_specific_data,
+            fighter_effect_type_modifiers (
+              id,
+              stat_name,
+              default_numeric_value
+            )
+          `)
+          .eq('type_specific_data->>equipment_id', id);
+
+        if (effectsError) {
+          console.warn('Error fetching fighter effects:', effectsError);
+        } else {
+          // Transform the data structure to match what the component expects
+          fighterEffects = (effects || []).map((effect: any) => ({
+            id: effect.id,
+            effect_name: effect.effect_name,
+            fighter_effect_category_id: effect.fighter_effect_category_id,
+            type_specific_data: effect.type_specific_data,
+            modifiers: effect.fighter_effect_type_modifiers || []
+          }));
+        }
+      } catch (error) {
+        console.warn('Error in fighter effects fetch:', error);
+      }
+
+      // Fetch weapon profiles if this is a weapon
+      let weaponProfiles: any[] = [];
+      if (equipment.equipment_type === 'weapon') {
+        try {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('weapon_profiles')
+            .select('*')
+            .eq('weapon_id', id)
+            .order('sort_order');
+
+          if (profilesError) {
+            console.warn('Error fetching weapon profiles:', profilesError);
+          } else {
+            weaponProfiles = profiles || [];
+          }
+        } catch (error) {
+          console.warn('Error in weapon profiles fetch:', error);
+        }
+      }
+
+      // Fetch all fighter types and which ones have this equipment
+      let allFighterTypes: any[] = [];
+      let fighterTypesWithEquipment: any[] = [];
+      
+      try {
+        // Fetch all fighter types
+        const { data: fighterTypes, error: fighterTypesError } = await supabase
+          .from('fighter_types')
+          .select('id, fighter_type, gang_type, fighter_class')
+          .order('gang_type')
+          .order('fighter_type');
+
+        if (fighterTypesError) {
+          console.warn('Error fetching fighter types:', fighterTypesError);
+        } else {
+          allFighterTypes = fighterTypes || [];
+        }
+
+        // Fetch fighter types that have this equipment
+        const { data: equipmentFighterTypes, error: equipmentFighterTypesError } = await supabase
+          .from('fighter_type_equipment')
+          .select('fighter_type_id')
+          .eq('equipment_id', id);
+
+        if (equipmentFighterTypesError) {
+          console.warn('Error fetching fighter types with equipment:', equipmentFighterTypesError);
+        } else {
+          fighterTypesWithEquipment = equipmentFighterTypes || [];
+        }
+      } catch (error) {
+        console.warn('Error in fighter types fetch:', error);
+      }
+
       return NextResponse.json({
         ...equipment,
         gang_adjusted_costs: formattedAdjustedCosts,
         equipment_availabilities: formattedAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
+        fighter_effects: fighterEffects,
+        fighter_effect_categories: fighterEffectCategories,
+        weapon_profiles: weaponProfiles,
+        all_fighter_types: allFighterTypes,
+        fighter_types_with_equipment: fighterTypesWithEquipment,
       });
 
     } else if (equipment_category) {
@@ -788,7 +916,7 @@ export async function PATCH(request: Request) {
         const { data: existingEffects, error: fetchError } = await supabase
           .from('fighter_effect_types')
           .select('id, effect_name, type_specific_data')
-          .eq('type_specific_data->equipment_id', id);
+          .eq('type_specific_data->>equipment_id', id);
 
         console.log('Existing effects query result:', { existingEffects, fetchError });
 

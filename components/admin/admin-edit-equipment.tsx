@@ -76,7 +76,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
-  const [isFighterTypesLoading, setIsFighterTypesLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
   const [isGangTypesLoading, setIsGangTypesLoading] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
@@ -108,6 +107,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [availabilityValue, setAvailabilityValue] = useState("");
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
+  const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
   const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string}>>([]);
 
@@ -240,36 +240,46 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           setTradingPostTypes(data.trading_post_types);
         }
 
-        // Load weapon profiles if they exist
-        if (data.equipment_type === 'weapon') {
-          console.log('Fetching weapon profiles for ID:', selectedEquipmentId);
-          
-          const weaponResponse = await fetch(`/api/admin/equipment/weapon-profiles?id=${selectedEquipmentId}`);
-          if (!weaponResponse.ok) throw new Error('Failed to fetch weapon profiles');
-          const profilesData = await weaponResponse.json();
-          
-          console.log('Weapon profiles data:', profilesData);
-          
-          if (profilesData && profilesData.length > 0) {
-            console.log('Setting weapon profiles:', profilesData);
-            setWeaponProfiles(profilesData);
-          } else {
-            console.log('No profiles found, setting default');
-            setWeaponProfiles([{
-              profile_name: '',
-              range_short: '',
-              range_long: '',
-              acc_short: '',
-              acc_long: '',
-              strength: '',
-              ap: '',
-              damage: '',
-              ammo: '',
-              traits: '',
-              weapon_group_id: null,
-              sort_order: 1
-            }]);
-          }
+        // Set fighter effects if they exist
+        if (data.fighter_effects) {
+          setFighterEffects(data.fighter_effects);
+        }
+
+        // Set fighter effect categories if they exist
+        if (data.fighter_effect_categories) {
+          setFighterEffectCategories(data.fighter_effect_categories);
+        }
+
+        // Set fighter types if they exist
+        if (data.all_fighter_types) {
+          setFighterTypes(data.all_fighter_types);
+        }
+
+        // Set selected fighter types if they exist
+        if (data.fighter_types_with_equipment) {
+          setSelectedFighterTypes(data.fighter_types_with_equipment.map((ft: any) => ft.fighter_type_id));
+        }
+
+        // Set weapon profiles if they exist
+        if (data.weapon_profiles && data.weapon_profiles.length > 0) {
+          console.log('Setting weapon profiles from main API:', data.weapon_profiles);
+          setWeaponProfiles(data.weapon_profiles);
+        } else if (data.equipment_type === 'weapon') {
+          console.log('No weapon profiles found, setting default');
+          setWeaponProfiles([{
+            profile_name: '',
+            range_short: '',
+            range_long: '',
+            acc_short: '',
+            acc_long: '',
+            strength: '',
+            ap: '',
+            damage: '',
+            ammo: '',
+            traits: '',
+            weapon_group_id: null,
+            sort_order: 1
+          }]);
         }
       } catch (error) {
         console.error('Error in fetchEquipmentDetails:', error);
@@ -285,52 +295,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     fetchEquipmentDetails();
   }, [selectedEquipmentId, toast]);
 
-  // Add this effect to fetch fighter types when equipment is selected
+  // Add useEffect to fetch weapons - only when needed for weapon group selection
   useEffect(() => {
-    const fetchFighterTypes = async () => {
-      if (!selectedEquipmentId) {
-        setFighterTypes([]);
-        setSelectedFighterTypes([]);
+    const fetchWeapons = async () => {
+      // Only fetch weapons if we have a selected equipment that is a weapon type
+      if (!selectedEquipmentId || equipmentType !== 'weapon') {
+        setWeapons([]);
         return;
       }
 
-      setIsFighterTypesLoading(true); // ✅ Start loading
-
-      try {
-        // First get all fighter types for the dropdown
-        const response = await fetch('/api/admin/fighter-types');
-        if (!response.ok) throw new Error('Failed to fetch fighter types');
-        const allTypes = await response.json();
-        setFighterTypes(allTypes);
-
-        // Then get the fighter types that have this equipment
-        const defaultsResponse = await fetch(`/api/admin/fighter-types?equipment_id=${selectedEquipmentId}`);
-        if (!defaultsResponse.ok) throw new Error('Failed to fetch equipment defaults');
-        const defaultsData = await defaultsResponse.json();
-        
-        console.log('Fighter types with this equipment:', defaultsData); // Debug log
-        
-        // Set the selected fighter types
-        if (Array.isArray(defaultsData)) {
-          setSelectedFighterTypes(defaultsData.map((ft: FighterType) => ft.id));
-        }
-      } catch (error) {
-        console.error('Error fetching fighter types:', error);
-        toast({
-          description: 'Failed to load fighter types',
-          variant: "destructive"
-        });
-      } finally {
-        setIsFighterTypesLoading(false); // ✅ End loading after all operations
-      }
-    };
-
-    fetchFighterTypes();
-  }, [selectedEquipmentId, toast]);
-
-  // Add useEffect to fetch weapons
-  useEffect(() => {
-    const fetchWeapons = async () => {
       setIsWeaponsLoading(true);
       try {
         const response = await fetch('/api/admin/equipment?equipment_type=weapon');
@@ -344,12 +317,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           variant: "destructive"
         });
       } finally {
-      setIsWeaponsLoading(false);
+        setIsWeaponsLoading(false);
       }
     };
 
     fetchWeapons();
-  }, [toast]);
+  }, [selectedEquipmentId, equipmentType, toast]);
 
   // Add this useEffect to fetch gang types
   useEffect(() => {
@@ -379,12 +352,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   useEffect(() => {
     setIsLoading(
       isEquipmentDetailsLoading ||
-      isFighterTypesLoading ||
       isWeaponsLoading
     );
   }, [
     isEquipmentDetailsLoading,
-    isFighterTypesLoading,
     isWeaponsLoading
   ]);
 
@@ -965,8 +936,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
+              {/* Move Fighter Types with this Equipment to its own row */}
               {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
+                <div className="col-span-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Fighter Types with this Equipment
                   </label>
@@ -1044,7 +1016,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {selectedEquipmentId && (
                 <div className="col-span-3">
                   <AdminFighterEffects 
-                    equipmentId={selectedEquipmentId} 
+                    equipmentId={selectedEquipmentId}
+                    fighterEffects={fighterEffects}
+                    fighterEffectCategories={fighterEffectCategories}
                     onUpdate={() => {
                       // No toast needed as effects show directly in UI
                     }}
