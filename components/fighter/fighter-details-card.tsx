@@ -127,6 +127,11 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
               // Convert stat_name to lowercase to match our stats object keys
               const statName = modifier.stat_name.toLowerCase();
               
+              // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
+              if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
+                return;
+              }
+              
               // Only apply if the stat exists in our stats object
               if (statName in stats) {
                 // Apply the numeric modifier to the appropriate stat
