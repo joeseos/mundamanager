@@ -183,8 +183,8 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
               </div>
 
               {editingIndex === index ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="col-span-1 md:col-span-2">
+                <div className="space-y-3">
+                  <div>
                     <div className="flex items-center gap-2 mb-1">
                       <label className="block text-xs font-medium text-gray-700">
                         Profile Name (Optional)
@@ -205,111 +205,115 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Range (Short) *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.range_short}
-                      onChange={(e) => handleUpdateProfile(index, 'range_short', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. 6"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Range (Short) *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.range_short}
+                        onChange={(e) => handleUpdateProfile(index, 'range_short', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. 6"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Range (Long) *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.range_long}
+                        onChange={(e) => handleUpdateProfile(index, 'range_long', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. 18"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Accuracy (Short) *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.acc_short}
+                        onChange={(e) => handleUpdateProfile(index, 'acc_short', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. +1"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Accuracy (Long) *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.acc_long}
+                        onChange={(e) => handleUpdateProfile(index, 'acc_long', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. -1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Strength *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.strength}
+                        onChange={(e) => handleUpdateProfile(index, 'strength', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. 3, S+1"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        AP *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.ap}
+                        onChange={(e) => handleUpdateProfile(index, 'ap', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. -1, -"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Damage *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.damage}
+                        onChange={(e) => handleUpdateProfile(index, 'damage', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. 1, D3"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Ammo *
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.ammo}
+                        onChange={(e) => handleUpdateProfile(index, 'ammo', e.target.value)}
+                        className="w-full p-2 border rounded-md text-sm"
+                        placeholder="e.g. 6+, -"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Range (Long) *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.range_long}
-                      onChange={(e) => handleUpdateProfile(index, 'range_long', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. 18"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Accuracy (Short) *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.acc_short}
-                      onChange={(e) => handleUpdateProfile(index, 'acc_short', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. +1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Accuracy (Long) *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.acc_long}
-                      onChange={(e) => handleUpdateProfile(index, 'acc_long', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. -1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Strength *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.strength}
-                      onChange={(e) => handleUpdateProfile(index, 'strength', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. 3, S+1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      AP *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.ap}
-                      onChange={(e) => handleUpdateProfile(index, 'ap', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. -1, -"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Damage *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.damage}
-                      onChange={(e) => handleUpdateProfile(index, 'damage', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. 1, D3"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Ammo *
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.ammo}
-                      onChange={(e) => handleUpdateProfile(index, 'ammo', e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. 6+, -"
-                    />
-                  </div>
-
-                  <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Traits (Optional)
                     </label>
