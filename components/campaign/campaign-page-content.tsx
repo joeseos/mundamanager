@@ -202,6 +202,9 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     campaignRole: null
   };
 
+  // Fix: Include app-level admin status in isAdmin check
+  const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
+
   // Use existing gang data instead of re-fetching
   const getGangDetails = (gangId: string) => {
     // Look through members' gangs to find the gang details
@@ -461,9 +464,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
 
     loadGangDetails();
   }, [campaignData.territories]); // Run when territories change
-
-  // Helper for checking if the user is admin (owner or arbitrator)
-  const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator;
 
   const handleCampaignUpdate = (updatedData: {
     campaign_name: string;
