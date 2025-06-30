@@ -189,25 +189,75 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'starve': {
-        const { data: updatedFighter, error: updateError } = await supabase
-          .from('fighters')
-          .update({ 
-            starved: !fighter.starved,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', params.fighter_id)
-          .select()
-          .single();
+        if (fighter.starved) {
+          // Feeding the fighter: check for meat and consume it
+          // Fetch current meat value
+          const { data: gangMeatData, error: gangMeatError } = await supabase
+            .from('gangs')
+            .select('meat')
+            .eq('id', gangId)
+            .single();
 
-        if (updateError) throw updateError;
+          if (gangMeatError || gangMeatData == null) {
+            throw new Error('Could not fetch gang meat value');
+          }
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+          if ((gangMeatData.meat ?? 0) < 1) {
+            return {
+              success: false,
+              error: 'Not enough meat to feed fighter'
+            };
+          }
 
-        return {
-          success: true,
-          data: { fighter: updatedFighter }
-        };
+          // Decrement meat and set starved = false in a transaction-like sequence
+          const { error: meatUpdateError } = await supabase
+            .from('gangs')
+            .update({ meat: gangMeatData.meat - 1, last_updated: new Date().toISOString() })
+            .eq('id', gangId);
+
+          if (meatUpdateError) throw meatUpdateError;
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              starved: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          revalidatePath(`/fighter/${params.fighter_id}`);
+          revalidatePath(`/gang/${gangId}`);
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter }
+          };
+        } else {
+          // Starving the fighter (no meat logic)
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              starved: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          revalidatePath(`/fighter/${params.fighter_id}`);
+          revalidatePath(`/gang/${gangId}`);
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter }
+          };
+        }
       }
 
       case 'recover': {
