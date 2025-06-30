@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { useGangs } from '@/contexts/GangsContext'
+
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { useToast } from "@/components/ui/use-toast"
@@ -65,7 +65,6 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  const { gangs, setGangs } = useGangs();
   const { toast } = useToast();
   const router = useRouter();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
@@ -170,35 +169,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setGangName("")
         setGangType("")
         onClose()
-
-        // Extract the new gang from the result
-        const newGang = result.data?.[0];
         
-        if (newGang) {
-          // Create a properly formatted gang object with default values for any missing fields
-          const formattedGang: Gang = {
-            id: newGang.id,
-            name: newGang.name,
-            gang_type: newGang.gang_type,
-            gang_type_id: newGang.gang_type_id,
-            image_url: gangTypeImages[newGang.gang_type_id] || '',
-            credits: newGang.credits || 1000,
-            reputation: newGang.reputation || 1,
-            meat: newGang.meat || 0,
-            exploration_points: newGang.exploration_points || 0,
-            rating: 0, // New gang has no rating yet
-            created_at: newGang.created_at || new Date().toISOString(),
-            last_updated: newGang.last_updated || new Date().toISOString()
-          };
-          
-          // Update the client-side state immediately by adding the new gang at the top
-          setGangs([formattedGang, ...gangs]);
-          
-          console.log("Added new gang to the top of the list");
-        }
-        
-        // Also trigger router refresh to ensure server state gets updated in the background
-        // This uses revalidatePath under the hood
+        // Trigger router refresh to update server state
         router.refresh();
 
         toast({
