@@ -34,7 +34,6 @@ interface Fighter {
   credits: number;
   cost_adjustment: number;
   fighter_equipment?: { purchase_cost: number }[];
-  fighter_characteristics?: { credits_increase: number }[];
   fighter_skills?: { credits_increase: number }[];
   fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
   vehicles?: {
@@ -215,7 +214,6 @@ const _getCampaignMembers = unstable_cache(
           credits,
           cost_adjustment,
           fighter_equipment(purchase_cost),
-          fighter_characteristics(credits_increase),
           fighter_skills(credits_increase),
           fighter_effects(type_specific_data),
           vehicles(id, cost, fighter_equipment(purchase_cost))
@@ -242,19 +240,13 @@ const _getCampaignMembers = unstable_cache(
             equipSum + (eq.purchase_cost || 0), 0);
         }
         
-        // Add characteristics costs
-        if (fighter.fighter_characteristics) {
-          fighterRating += fighter.fighter_characteristics.reduce((charSum: number, char: { credits_increase: number }) => 
-            charSum + (char.credits_increase || 0), 0);
-        }
-        
         // Add skills costs
         if (fighter.fighter_skills) {
           fighterRating += fighter.fighter_skills.reduce((skillSum: number, skill: { credits_increase: number }) => 
             skillSum + (skill.credits_increase || 0), 0);
         }
         
-        // Add effects costs
+        // Add effects costs (includes characteristic advancements)
         if (fighter.fighter_effects) {
           fighterRating += fighter.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
             const creditsIncrease = effect.type_specific_data?.credits_increase;

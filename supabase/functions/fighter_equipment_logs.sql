@@ -66,7 +66,6 @@ BEGIN
             f.credits + 
             COALESCE(f.cost_adjustment, 0) +
             COALESCE((SELECT SUM(fe.purchase_cost) FROM fighter_equipment fe WHERE fe.fighter_id = f.id), 0) +
-            COALESCE((SELECT SUM(fc.credits_increase) FROM fighter_characteristics fc WHERE fc.fighter_id = f.id), 0) +
             COALESCE((SELECT SUM(fs.credits_increase) FROM fighter_skills fs WHERE fs.fighter_id = f.id), 0) +
             COALESCE((SELECT SUM(
                 CASE WHEN ffe.type_specific_data->>'credits_increase' IS NOT NULL 
@@ -161,7 +160,6 @@ BEGIN
             f.credits + 
             COALESCE(f.cost_adjustment, 0) +
             COALESCE((SELECT SUM(fe.purchase_cost) FROM fighter_equipment fe WHERE fe.fighter_id = f.id AND fe.id != OLD.id), 0) +
-            COALESCE((SELECT SUM(fc.credits_increase) FROM fighter_characteristics fc WHERE fc.fighter_id = f.id), 0) +
             COALESCE((SELECT SUM(fs.credits_increase) FROM fighter_skills fs WHERE fs.fighter_id = f.id), 0) +
             COALESCE((SELECT SUM(
                 CASE WHEN ffe.type_specific_data->>'credits_increase' IS NOT NULL 
