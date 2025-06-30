@@ -776,63 +776,7 @@ export default function FighterPage({
     </main>
   );
 
-  const getPillColor = (occupied: number | undefined, total: number | undefined) => {
-    const occupiedValue = occupied || 0;
-    const totalValue = total || 0;
-    
-    if (occupiedValue > totalValue) return "bg-red-500";
-    if (occupiedValue === totalValue) return "bg-gray-500";
-    return "bg-green-500";
-  };
-
-  // Calculate occupied slots from new effects system only
-  const calculateOccupiedSlots = (vehicle: any, vehicleEquipment: any[]) => {
-    let bodyOccupied = 0;
-    let driveOccupied = 0;
-    let engineOccupied = 0;
-
-    // Count from new effects system - each piece of equipment with vehicle upgrade effects consumes slots
-    if (vehicle?.effects) {
-      const effectCategories = ["vehicle upgrades"];
-      effectCategories.forEach(categoryName => {
-        if (vehicle.effects[categoryName]) {
-          vehicle.effects[categoryName].forEach((effect: any) => {
-            // Check what type of slot this equipment uses based on its effects
-            if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
-              let usesBodySlot = false;
-              let usesDriveSlot = false;
-              let usesEngineSlot = false;
-
-              effect.fighter_effect_modifiers.forEach((modifier: any) => {
-                const statName = modifier.stat_name.toLowerCase();
-                
-                // Armor-related effects use body slots
-                if (['front', 'side', 'rear', 'hull_points'].includes(statName)) {
-                  usesBodySlot = true;
-                }
-                // Movement/handling effects use drive slots  
-                else if (['movement', 'handling'].includes(statName)) {
-                  usesDriveSlot = true;
-                }
-                // Engine-related effects use engine slots
-                // (Add engine-specific stats here when needed)
-              });
-
-              // Count the slot usage (each effect/equipment uses 1 slot of its type)
-              if (usesBodySlot) bodyOccupied++;
-              if (usesDriveSlot) driveOccupied++;  
-              if (usesEngineSlot) engineOccupied++;
-            }
-          });
-        }
-      });
-    }
-
-    return { bodyOccupied, driveOccupied, engineOccupied };
-  };
-
   const vehicle = fighterData.fighter?.vehicles?.[0];
-  const occupiedSlots = vehicle ? calculateOccupiedSlots(vehicle, fighterData.vehicleEquipment) : { bodyOccupied: 0, driveOccupied: 0, engineOccupied: 0 };
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -907,17 +851,6 @@ export default function FighterPage({
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
           />
-
-          {vehicle && (
-            <div className="w-full">
-               <div className="flex items-center gap-1">
-                 <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicle.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicle.body_slots}</span>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicle.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicle.drive_slots}</span>
-                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicle.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicle.engine_slots}</span>
-               </div>
-             </div>
-          )}
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
           {vehicle && (

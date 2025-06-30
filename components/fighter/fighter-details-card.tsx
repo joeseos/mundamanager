@@ -142,6 +142,62 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
   return stats;
 };
 
+// Helper function for slot pill colors
+const getPillColor = (occupied: number | undefined, total: number | undefined) => {
+  const occupiedValue = occupied || 0;
+  const totalValue = total || 0;
+  
+  if (occupiedValue > totalValue) return "bg-red-500";
+  if (occupiedValue === totalValue) return "bg-gray-500";
+  return "bg-green-500";
+};
+
+// Calculate occupied slots from effects system
+const calculateOccupiedSlots = (vehicle: any) => {
+  let bodyOccupied = 0;
+  let driveOccupied = 0;
+  let engineOccupied = 0;
+
+  // Count from new effects system - each piece of equipment with vehicle upgrade effects consumes slots
+  if (vehicle?.effects) {
+    const effectCategories = ["vehicle upgrades"];
+    effectCategories.forEach(categoryName => {
+      if (vehicle.effects[categoryName]) {
+        vehicle.effects[categoryName].forEach((effect: any) => {
+          // Check what type of slot this equipment uses based on its slot modifiers
+          if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+            let usesBodySlot = false;
+            let usesDriveSlot = false;
+            let usesEngineSlot = false;
+
+            effect.fighter_effect_modifiers.forEach((modifier: any) => {
+              const statName = modifier.stat_name.toLowerCase();
+              
+              // Check for explicit slot modifiers - this is the only method now
+              if (statName === 'body_slots' && modifier.numeric_value > 0) {
+                usesBodySlot = true;
+              }
+              else if (statName === 'drive_slots' && modifier.numeric_value > 0) {
+                usesDriveSlot = true;
+              }
+              else if (statName === 'engine_slots' && modifier.numeric_value > 0) {
+                usesEngineSlot = true;
+              }
+            });
+
+            // Count the slot usage (each effect/equipment uses 1 slot of its type)
+            if (usesBodySlot) bodyOccupied++;
+            if (usesDriveSlot) driveOccupied++;  
+            if (usesEngineSlot) engineOccupied++;
+          }
+        });
+      }
+    });
+  }
+
+  return { bodyOccupied, driveOccupied, engineOccupied };
+};
+
 export const FighterDetailsCard = memo(function FighterDetailsCard({
   id,
   name,
@@ -386,6 +442,17 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 : 'None'}
             </p>
           )}
+          {fighter_class === 'Crew' && vehicleStats && (() => {
+            const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
+            return (
+              <div className="flex items-center gap-1 mt-2">
+                <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
+                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
+                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
+                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>
+              </div>
+            );
+          })()}
         </div>
     </div>
   );
