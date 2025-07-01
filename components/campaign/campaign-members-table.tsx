@@ -429,13 +429,13 @@ export default function MembersTable({
           </span>
         )}
       </p>
-      {memberToRemove?.role === 'OWNER' && (
+      {memberToRemove?.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1 && (
         <p className="text-sm text-red-600 font-medium mt-2">
           Action blocked: the campaign Owner cannot be removed.
         </p>
       )}
     </div>
-  ), [memberToRemove]);
+  ), [memberToRemove, members]);
 
   const removeGangModalContent = useMemo(() => (
     <div className="space-y-4">
