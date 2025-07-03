@@ -54,7 +54,7 @@ export default async function CampaignBreadcrumb({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link 
-                  href="/campaigns" 
+                  href="/?tab=campaigns" 
                   className="text-gray-600 hover:text-primary"
                   aria-label="Navigate to Campaigns"
                 >

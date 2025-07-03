@@ -33,7 +33,7 @@ export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
   });
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4">
+    <div className="bg-white shadow-md rounded-lg p-3 md:p-6">
       <h2 className="text-xl md:text-2xl font-bold mb-4">Your Campaigns</h2>
       {campaigns.length === 0 ? (
         <p className="text-center text-gray-500">No campaigns created yet.</p>

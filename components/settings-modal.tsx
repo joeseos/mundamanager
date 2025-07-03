@@ -130,14 +130,14 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/" className="w-full cursor-pointer">
+            <Link href="/?tab=gangs" className="w-full cursor-pointer">
               <FaUsers className="mr-2 h-4 w-4" />
               Gangs
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/campaigns" className="w-full cursor-pointer">
+            <Link href="/?tab=campaigns" className="w-full cursor-pointer">
               <FiMap className="mr-2 h-4 w-4" />
               Campaigns
             </Link>
