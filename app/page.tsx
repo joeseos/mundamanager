@@ -4,10 +4,15 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import MyGangs from '@/components/my-gangs';
+import MyCampaigns from '@/components/my-campaigns';
 import { CreateGangButton } from '@/components/create-gang-modal';
+import { CreateCampaignButton } from '@/components/create-campaign';
+import CreateCampaign from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
+import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { unstable_noStore } from 'next/cache';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
+import HomeTabs from '@/components/home-tabs';
 
 export default async function Home() {
   // Ensure we never use stale data
@@ -24,13 +29,24 @@ export default async function Home() {
   }
 
   const gangs = await getUserGangs();
-  console.log(`Page rendering with ${gangs.length} gangs`);
+  const campaigns = await getUserCampaigns();
+  
+  // Fetch campaign types for the create campaign modal
+  const { data: campaignTypes, error } = await supabase
+    .from('campaign_types')
+    .select('id, campaign_type_name');
+
+  if (error) {
+    console.error('Error fetching campaign types:', error);
+  }
+
+  console.log(`Page rendering with ${gangs.length} gangs and ${campaigns.length} campaigns`);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
         <div className="bg-white shadow-md rounded-lg p-4 md:p-4">
-          <div className="mb-6">
+          <div className="mb-0">
             <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
             <p className="text-gray-600 mb-4">
               Munda Manager is a comprehensive gang management tool for Necromunda, helping you keep track of your gangs, fighters, and campaigns.
@@ -47,10 +63,25 @@ export default async function Home() {
                 </a>
               </div>
             </div>
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                  <CreateGangButton />
+                </div>
+                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                  <CreateCampaignButton initialCampaignTypes={campaignTypes} userId={user.id} />
+                </div>
+              </div>
+            </div>
           </div>
-          <CreateGangButton />
         </div>
-        <MyGangs gangs={gangs} />
+        
+        <HomeTabs 
+          gangs={gangs} 
+          campaigns={campaigns} 
+          campaignTypes={campaignTypes}
+          userId={user.id}
+        />
       </div>
     </main>
   )
