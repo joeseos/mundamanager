@@ -52,7 +52,7 @@ export function CreateGangButton() {
         onClick={() => setShowModal(true)}
         className="w-full"
       >
-        Create New Gang
+        Create Gang
       </Button>
 
       {showModal && (

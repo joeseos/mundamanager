@@ -33,7 +33,7 @@ export function CreateCampaignButton({ initialCampaignTypes, userId }: { initial
         onClick={() => setShowModal(true)}
         className="w-full"
       >
-        Create New Campaign
+        Create Campaign
       </Button>
 
       {showModal && (
