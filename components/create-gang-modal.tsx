@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { gangListRank } from "@/utils/gangListRank"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 
 type Gang = {
   id: string;
@@ -67,6 +68,7 @@ export function CreateGangButton() {
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
@@ -170,8 +172,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setGangType("")
         onClose()
         
-        // Trigger router refresh to update server state
-        router.refresh();
+        // Check if we're currently on the gangs tab, if not redirect to it
+        const currentTab = searchParams.get('tab');
+        if (currentTab !== 'gangs') {
+          router.push('/?tab=gangs');
+        } else {
+          // Trigger router refresh to update server state
+          router.refresh();
+        }
 
         toast({
           title: "Success!",

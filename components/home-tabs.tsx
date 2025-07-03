@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import MyGangs from '@/components/my-gangs'
 import MyCampaigns from '@/components/my-campaigns'
-import { CreateGangButton } from '@/components/create-gang-modal'
-import { CreateCampaignButton } from '@/components/create-campaign'
 
 interface CampaignType {
   id: string;
@@ -84,21 +82,11 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
       {/* Tab Content */}
       <div className="space-y-4">
         {activeTab === 0 && (
-          <>
-            <div className="bg-white shadow-md rounded-lg p-4">
-              <CreateGangButton />
-            </div>
-            <MyGangs gangs={gangs} />
-          </>
+          <MyGangs gangs={gangs} />
         )}
         
         {activeTab === 1 && (
-          <>
-            <div className="bg-white shadow-md rounded-lg p-4">
-              <CreateCampaignButton initialCampaignTypes={campaignTypes} userId={userId} />
-            </div>
-            <MyCampaigns campaigns={campaigns} />
-          </>
+          <MyCampaigns campaigns={campaigns} />
         )}
       </div>
     </div>

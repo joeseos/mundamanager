@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import MyGangs from '@/components/my-gangs';
 import MyCampaigns from '@/components/my-campaigns';
 import { CreateGangButton } from '@/components/create-gang-modal';
+import { CreateCampaignButton } from '@/components/create-campaign';
 import CreateCampaign from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
@@ -60,6 +61,16 @@ export default async function Home() {
                   <FaPatreon className="mr-2 h-4 w-4" />
                   Patreon
                 </a>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                  <CreateGangButton />
+                </div>
+                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                  <CreateCampaignButton initialCampaignTypes={campaignTypes} userId={user.id} />
+                </div>
               </div>
             </div>
           </div>

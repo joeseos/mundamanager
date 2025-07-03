@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 
 interface CampaignType {
@@ -51,6 +51,7 @@ export function CreateCampaignButton({ initialCampaignTypes, userId }: { initial
 export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: CreateCampaignModalProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -118,8 +119,14 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
       setCampaignType("")
       onClose()
       
-      // Trigger router refresh to update server state
-      router.refresh();
+      // Check if we're currently on the campaigns tab, if not redirect to it
+      const currentTab = searchParams.get('tab');
+      if (currentTab !== 'campaigns') {
+        router.push('/?tab=campaigns');
+      } else {
+        // Trigger router refresh to update server state
+        router.refresh();
+      }
       
       toast({
         title: "Success!",
