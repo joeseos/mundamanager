@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/lib/battle-logs";
+import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/lib/campaigns/[id]/battle-logs";
 
 interface Scenario {
   id: string;

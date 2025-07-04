@@ -1,16 +1,16 @@
 "use client"
 
 import React, { useState, useEffect, useRef, Fragment, useTransition } from 'react';
-import TerritoryGangModal from "@/components/campaign/campaign-territory-gang-modal";
+import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
-import MemberSearchBar from "@/components/campaign/campaign-member-search-bar"
-import MembersTable from "@/components/campaign/campaign-members-table"
+import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
+import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import Link from "next/link";
-import CampaignBattleLogsList from "@/components/campaign/campaign-battle-logs-list";
+import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiMap } from "react-icons/fi";
 import { FaCity } from "react-icons/fa";
 import { MdFactory } from "react-icons/md";
@@ -20,17 +20,17 @@ import { useSession } from "@/hooks/use-session";
 import { cn } from "@/app/lib/utils";
 import { RxDashboard, RxLayers } from "react-icons/rx";
 import { MdPlace } from "react-icons/md";
-import TerritoryList from "@/components/campaign/campaign-territory-list";
-import { CampaignBattleLogsListRef } from "@/components/campaign/campaign-battle-logs-list";
-import CampaignEditModal from "@/components/campaign/campaign-edit-modal";
-import CampaignTriumphs from "@/components/campaign/campaign-triumphs";
+import TerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
+import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
+import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
+import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import { 
   assignGangToTerritory, 
   removeGangFromTerritory, 
   removeTerritoryFromCampaign 
-} from "@/app/actions/campaign-territories";
-import { updateCampaignSettings } from "@/app/actions/campaign-settings";
+} from "@/app/actions/campaigns/[id]/campaign-territories";
+import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 
 interface Gang {
   id: string;

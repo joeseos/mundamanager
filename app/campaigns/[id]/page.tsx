@@ -1,18 +1,18 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
-import CampaignPageContent from "@/components/campaign/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaign/campaign-error-boundary";
+import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
+import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { PermissionService } from "@/app/lib/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 
-// Import the new functions
+// Import the optimized functions with unstable_cache
 import { 
   getCampaignBasic, 
   getCampaignMembers, 
   getCampaignTerritories, 
   getCampaignBattles,
   getCampaignTriumphs 
-} from "@/app/lib/get-campaign-data";
+} from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

@@ -11,7 +11,7 @@ import {
   removeMemberFromCampaign, 
   removeGangFromCampaign, 
   updateMemberRole 
-} from "@/app/actions/campaign-members"
+} from "@/app/actions/campaigns/[id]/campaign-members"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 

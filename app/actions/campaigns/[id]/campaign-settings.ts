@@ -14,7 +14,7 @@ export interface UpdateCampaignSettingsParams {
 }
 
 /**
- * Update campaign settings
+ * Update campaign settings with targeted cache invalidation
  */
 export async function updateCampaignSettings(params: UpdateCampaignSettingsParams) {
   try {
@@ -42,8 +42,11 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 
     if (error) throw error;
 
-    // Invalidate campaign basic cache
-    revalidateTag('campaign-basic');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's basic info
+    revalidateTag(`campaign-basic-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -56,7 +59,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 }
 
 /**
- * Delete a campaign
+ * Delete a campaign with comprehensive cache invalidation
  */
 export async function deleteCampaign(campaignId: string) {
   try {
@@ -69,11 +72,17 @@ export async function deleteCampaign(campaignId: string) {
 
     if (error) throw error;
 
-    // Invalidate all campaign caches
-    revalidateTag('campaign-basic');
-    revalidateTag('campaign-members');
-    revalidateTag('campaign-territories');
-    revalidateTag('campaign-battles');
+    // 🎯 COMPREHENSIVE CACHE INVALIDATION FOR DELETED CAMPAIGN
+    // Invalidate all caches related to the deleted campaign
+    revalidateTag(`campaign-basic-${campaignId}`);
+    revalidateTag(`campaign-members-${campaignId}`);
+    revalidateTag(`campaign-territories-${campaignId}`);
+    revalidateTag(`campaign-battles-${campaignId}`);
+    revalidateTag(`campaign-${campaignId}`);
+
+    // Also invalidate global caches if needed
+    // (e.g., if you have a campaigns list cache)
+    revalidateTag('campaigns-list');
 
     return { success: true };
   } catch (error) {
@@ -83,4 +92,4 @@ export async function deleteCampaign(campaignId: string) {
       error: error instanceof Error ? error.message : 'Failed to delete campaign' 
     };
   }
-} 
+}

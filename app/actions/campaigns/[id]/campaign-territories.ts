@@ -26,7 +26,7 @@ export interface RemoveTerritoryParams {
 }
 
 /**
- * Assign a gang to a territory
+ * Assign a gang to a territory with targeted cache invalidation
  */
 export async function assignGangToTerritory(params: AssignGangToTerritoryParams) {
   try {
@@ -41,8 +41,11 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
 
     if (error) throw error;
 
-    // Invalidate territories cache
-    revalidateTag('campaign-territories');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's territories
+    revalidateTag(`campaign-territories-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -55,7 +58,7 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
 }
 
 /**
- * Remove a gang from a territory
+ * Remove a gang from a territory with targeted cache invalidation
  */
 export async function removeGangFromTerritory(params: RemoveGangFromTerritoryParams) {
   try {
@@ -70,8 +73,11 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
 
     if (error) throw error;
 
-    // Invalidate territories cache
-    revalidateTag('campaign-territories');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's territories
+    revalidateTag(`campaign-territories-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -84,7 +90,7 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
 }
 
 /**
- * Add a territory to a campaign
+ * Add a territory to a campaign with targeted cache invalidation
  */
 export async function addTerritoryToCampaign(params: AddTerritoryParams) {
   try {
@@ -101,8 +107,11 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 
     if (error) throw error;
 
-    // Invalidate territories cache
-    revalidateTag('campaign-territories');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's territories
+    revalidateTag(`campaign-territories-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -115,7 +124,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 }
 
 /**
- * Remove a territory from a campaign
+ * Remove a territory from a campaign with targeted cache invalidation
  */
 export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams) {
   try {
@@ -130,8 +139,11 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
 
     if (error) throw error;
 
-    // Invalidate territories cache
-    revalidateTag('campaign-territories');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's territories
+    revalidateTag(`campaign-territories-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -141,4 +153,4 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
       error: error instanceof Error ? error.message : 'Failed to remove territory from campaign' 
     };
   }
-} 
+}

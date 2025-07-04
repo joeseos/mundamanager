@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import CampaignBattleLogModal from "./campaign-battle-log-modal";
+import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
-import { deleteBattleLog } from "@/app/lib/battle-logs";
+import { deleteBattleLog } from "@/app/lib/campaigns/[id]/battle-logs";
 import Modal from "@/components/modal";
 
 interface Member {
