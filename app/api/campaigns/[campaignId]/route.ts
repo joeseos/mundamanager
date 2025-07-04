@@ -5,7 +5,7 @@ import {
   getCampaignMembers, 
   getCampaignTerritories, 
   getCampaignBattles 
-} from "@/app/lib/get-campaign-data";
+} from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;

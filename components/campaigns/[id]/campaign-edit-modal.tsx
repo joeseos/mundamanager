@@ -7,7 +7,7 @@ import Modal from "@/components/modal";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
-import { deleteCampaign } from "@/app/actions/campaign-settings";
+import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
 
 interface EditCampaignModalProps {
   isOpen: boolean;

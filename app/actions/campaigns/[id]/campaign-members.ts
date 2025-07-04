@@ -32,7 +32,7 @@ export interface UpdateMemberRoleParams {
 }
 
 /**
- * Add a gang to a campaign
+ * Add a gang to a campaign with targeted cache invalidation
  */
 export async function addGangToCampaign(params: AddGangToCampaignParams) {
   try {
@@ -41,7 +41,6 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     
     let targetMemberId = campaignMemberId;
 
-    // If we have a specific campaign member ID, use it
     if (campaignMemberId) {
       const { error } = await supabase
         .from('campaign_gangs')
@@ -54,7 +53,6 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 
       if (error) throw error;
     } else {
-      // Find the campaign member by user ID
       const { data: memberEntries, error: fetchError } = await supabase
         .from('campaign_members')
         .select('id')
@@ -67,7 +65,6 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
         throw new Error('Campaign member not found');
       }
 
-      // Use the first member entry (most common case)
       targetMemberId = memberEntries[0].id;
       
       const { error } = await supabase
@@ -82,11 +79,13 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
       if (error) throw error;
     }
 
-    // Invalidate all relevant caches
-    revalidateTag('campaign-members');
-    revalidateTag('campaign-gangs');
-    revalidateTag('campaign-territories');
-    revalidateTag('campaign-battles');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's caches
+    revalidateTag(`campaign-members-${campaignId}`);
+    revalidateTag(`campaign-territories-${campaignId}`); // Gang assignments affect territories
+    revalidateTag(`campaign-battles-${campaignId}`); // Gang additions may affect battle history
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -99,7 +98,7 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 }
 
 /**
- * Remove a member from a campaign
+ * Remove a member from a campaign with targeted cache invalidation
  */
 export async function removeMemberFromCampaign(params: RemoveMemberParams) {
   try {
@@ -108,7 +107,6 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     let targetMemberId = memberId;
 
-    // If we don't have a specific member ID, find it by user ID and index
     if (!targetMemberId && typeof memberIndex === 'number') {
       const { data: memberEntries, error: fetchError } = await supabase
         .from('campaign_members')
@@ -129,7 +127,7 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       throw new Error('Cannot identify member to remove');
     }
 
-    // First remove any gangs associated with this member
+    // Get gangs associated with this member for cascade cleanup
     const { data: memberGangs, error: memberGangsError } = await supabase
       .from('campaign_gangs')
       .select('gang_id')
@@ -168,11 +166,13 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     if (error) throw error;
 
-    // Invalidate campaign caches
-    revalidateTag('campaign-members');
-    revalidateTag('campaign-gangs');
-    revalidateTag('campaign-territories');
-    revalidateTag('campaign-battles');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's caches
+    revalidateTag(`campaign-members-${campaignId}`);
+    revalidateTag(`campaign-territories-${campaignId}`); // Member removal affects territories
+    revalidateTag(`campaign-battles-${campaignId}`); // Member removal may affect battle history
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -185,7 +185,7 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 }
 
 /**
- * Remove a gang from a campaign
+ * Remove a gang from a campaign with targeted cache invalidation
  */
 export async function removeGangFromCampaign(params: RemoveGangParams) {
   try {
@@ -203,7 +203,6 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
 
     // Remove the gang from the campaign
     if (campaignGangId) {
-      // Use the specific campaign gang ID
       const { error } = await supabase
         .from('campaign_gangs')
         .delete()
@@ -211,7 +210,6 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       
       if (error) throw error;
     } else if (memberId && typeof memberIndex === 'number') {
-      // Find the specific member and remove their gang
       const { data: memberEntries, error: fetchMemberError } = await supabase
         .from('campaign_members')
         .select('id')
@@ -245,11 +243,13 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       if (error) throw error;
     }
 
-    // Invalidate campaign caches
-    revalidateTag('campaign-members');
-    revalidateTag('campaign-gangs');
-    revalidateTag('campaign-territories');
-    revalidateTag('campaign-battles');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's caches
+    revalidateTag(`campaign-members-${campaignId}`);
+    revalidateTag(`campaign-territories-${campaignId}`); // Gang removal affects territories
+    revalidateTag(`campaign-battles-${campaignId}`); // Gang removal may affect battle history
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -262,7 +262,7 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
 }
 
 /**
- * Update a member's role in a campaign
+ * Update a member's role in a campaign with targeted cache invalidation
  */
 export async function updateMemberRole(params: UpdateMemberRoleParams) {
   try {
@@ -277,8 +277,11 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
 
     if (error) throw error;
 
-    // Invalidate campaign members cache
-    revalidateTag('campaign-members');
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's members cache
+    revalidateTag(`campaign-members-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
   } catch (error) {
@@ -289,5 +292,3 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     };
   }
 }
-
- 
