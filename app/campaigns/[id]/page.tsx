@@ -11,7 +11,10 @@ import {
   getCampaignMembers, 
   getCampaignTerritories, 
   getCampaignBattles,
-  getCampaignTriumphs 
+  getCampaignTriumphs,
+  getCampaignTypes,
+  getAllTerritories,
+  getCampaignGangsForModal
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -52,7 +55,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   }
 
   try {
-    // 🚀 PARALLEL DATA FETCHING
+    // 🚀 PARALLEL DATA FETCHING - Main campaign data
     const [
       campaignBasic,
       campaignMembers,
@@ -65,8 +68,16 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignBattles(params.id)
     ]);
 
-    // Fetch triumphs based on campaign type
-    const campaignTriumphs = await getCampaignTriumphs(campaignBasic.campaign_type_id);
+    // 🚀 PARALLEL DATA FETCHING - Reference data for territory components
+    const [
+      campaignTriumphs,
+      campaignTypes,
+      allTerritories
+    ] = await Promise.all([
+      getCampaignTriumphs(campaignBasic.campaign_type_id),
+      getCampaignTypes(),
+      getAllTerritories()
+    ]);
 
     // Combine the data
     const campaignData = {
@@ -97,6 +108,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           campaignData={campaignData} 
           userId={userId} 
           permissions={permissions}
+          campaignTypes={campaignTypes}
+          allTerritories={allTerritories}
         />
       </CampaignErrorBoundary>
     );

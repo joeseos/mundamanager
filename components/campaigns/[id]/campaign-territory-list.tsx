@@ -15,8 +15,8 @@ interface Territory {
 }
 
 interface CampaignType {
-  campaign_type_id: string;
-  campaign_type: string;
+  id: string;
+  campaign_type_name: string;
 }
 
 interface CampaignTerritory {
@@ -28,86 +28,40 @@ interface TerritoryListProps {
   isAdmin: boolean;
   campaignId: string;
   campaignTypeId: string;
+  campaignTypes: CampaignType[];
+  allTerritories: Territory[];
+  existingCampaignTerritories: CampaignTerritory[];
   onTerritoryAdd?: (territory: CampaignTerritory) => void;
 }
 
-export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onTerritoryAdd }: TerritoryListProps) {
-  const [territories, setTerritories] = useState<Territory[]>([]);
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([]);
+export default function TerritoryList({ 
+  isAdmin, 
+  campaignId, 
+  campaignTypeId, 
+  campaignTypes, 
+  allTerritories, 
+  existingCampaignTerritories,
+  onTerritoryAdd 
+}: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
-  const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
+  const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
   const { toast } = useToast();
-  const supabase = createClient();
 
   useEffect(() => {
     setSelectedTypes([campaignTypeId]);
   }, [campaignTypeId]);
 
+  // Initialize loading state - data comes from props now
   useEffect(() => {
-    const loadCampaignTypes = async () => {
-      try {
-        const response = await fetch('/api/campaigns/campaign-types');
-        const data = await response.json();
-        
-        if (!response.ok) throw new Error('Failed to fetch campaign types');
-
-        setCampaignTypes(data);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          description: "Failed to load campaign types"
-        });
-      }
-    };
-
-    loadCampaignTypes();
+    setIsLoading(false);
   }, []);
 
+  // Update campaign territories when prop changes
   useEffect(() => {
-    const loadTerritories = async () => {
-      try {
-        const response = await fetch('/api/campaigns/territories');
-        const data = await response.json();
-        
-        if (!response.ok) throw new Error('Failed to fetch territories');
-
-        setTerritories(data);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          description: "Failed to load territories"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadTerritories();
-  }, []);
-
-  useEffect(() => {
-    const loadCampaignTerritories = async () => {
-      if (!campaignId) return;
-
-      try {
-        const response = await fetch(`/api/campaigns/${campaignId}/territories`);
-        const data = await response.json();
-        
-        if (!response.ok) throw new Error('Failed to fetch campaign territories');
-
-        setCampaignTerritories(data);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          description: "Failed to load campaign territories"
-        });
-      }
-    };
-
-    loadCampaignTerritories();
-  }, [campaignId]);
+    setCampaignTerritories(existingCampaignTerritories);
+  }, [existingCampaignTerritories]);
 
   const handleTypeToggle = (typeId: string) => {
     setSelectedTypes(prev => 
@@ -159,11 +113,11 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
     }
   };
 
-  const filteredTerritories = territories
+  const filteredTerritories = allTerritories
     .filter(territory => selectedTypes.includes(territory.campaign_type_id))
     .sort((a, b) => {
-      const typeA = campaignTypes.find(ct => ct.campaign_type_id === a.campaign_type_id)?.campaign_type.toLowerCase() || '';
-      const typeB = campaignTypes.find(ct => ct.campaign_type_id === b.campaign_type_id)?.campaign_type.toLowerCase() || '';
+      const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
+      const typeB = campaignTypes.find(ct => ct.id === b.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
 
       const rankA = campaignRank[typeA] ?? Infinity;
       const rankB = campaignRank[typeB] ?? Infinity;
@@ -187,19 +141,19 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
           {[...campaignTypes]
             .sort((a, b) => {
-              const rankA = campaignRank[a.campaign_type.toLowerCase()] ?? Infinity;
-              const rankB = campaignRank[b.campaign_type.toLowerCase()] ?? Infinity;
+              const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
+              const rankB = campaignRank[b.campaign_type_name.toLowerCase()] ?? Infinity;
               return rankA - rankB;
             })
             .map((type) => (
-              <div key={type.campaign_type_id} className="flex items-center space-x-2">
+              <div key={type.id} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`type-${type.campaign_type_id}`}
-                  checked={selectedTypes.includes(type.campaign_type_id)}
-                  onCheckedChange={() => handleTypeToggle(type.campaign_type_id)}
+                  id={`type-${type.id}`}
+                  checked={selectedTypes.includes(type.id)}
+                  onCheckedChange={() => handleTypeToggle(type.id)}
                 />
-                <label htmlFor={`type-${type.campaign_type_id}`} className="text-sm cursor-pointer">
-                  {type.campaign_type}
+                <label htmlFor={`type-${type.id}`} className="text-sm cursor-pointer">
+                  {type.campaign_type_name}
                 </label>
               </div>
             ))}
@@ -224,8 +178,8 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
               </tr>
             ) : (
               filteredTerritories.map((territory) => {
-                const type = campaignTypes.find(ct => ct.campaign_type_id === territory.campaign_type_id);
-                const typeName = type?.campaign_type ?? 'Unknown';
+                const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
+                const typeName = type?.campaign_type_name ?? 'Unknown';
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
