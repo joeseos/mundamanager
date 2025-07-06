@@ -1,7 +1,7 @@
 'use client'
 
 import Modal from "@/components/modal"
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/utils/supabase/client"
 import Link from 'next/link'
 
@@ -13,6 +13,7 @@ interface Gang {
   user_id?: string;
   campaign_member_id?: string;
 }
+
 
 interface TerritoryGangModalProps {
   isOpen: boolean;
@@ -38,8 +39,11 @@ export default function TerritoryGangModal({
 
   useEffect(() => {
     const loadGangs = async () => {
+      if (!isOpen) return;
+      
+      setIsLoading(true);
       try {
-        // First, get campaign_gangs entries, joining with campaign_members for member-specific gangs
+        // Get campaign gangs
         const { data: campaignGangs, error: campaignGangsError } = await supabase
           .from('campaign_gangs')
           .select(`
@@ -58,7 +62,7 @@ export default function TerritoryGangModal({
           return;
         }
 
-        // Then get the gang details
+        // Get the gang details
         const { data: gangs, error: gangsError } = await supabase
           .from('gangs')
           .select('id, name, gang_type, gang_colour')
@@ -71,7 +75,9 @@ export default function TerritoryGangModal({
           // Find the campaign_gang entry for this gang
           const campaignGang = campaignGangs.find(cg => cg.gang_id === gang.id);
           return {
-            ...gang,
+            id: gang.id,
+            name: gang.name,
+            gang_type: gang.gang_type,
             campaign_gang_id: campaignGang?.id,
             user_id: campaignGang?.user_id,
             campaign_member_id: campaignGang?.campaign_member_id
@@ -81,14 +87,13 @@ export default function TerritoryGangModal({
         setAvailableGangs(enhancedGangs);
       } catch (error) {
         console.error('Error loading gangs:', error);
+        setAvailableGangs([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (isOpen) {
-      loadGangs();
-    }
+    loadGangs();
   }, [isOpen, campaignId]);
 
   const modalContent = (

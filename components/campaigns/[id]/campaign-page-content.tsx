@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, Fragment, useTransition } from 'react';
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@/utils/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
@@ -113,6 +112,27 @@ interface CampaignData {
   // ... any other fields
 }
 
+interface CampaignType {
+  id: string;
+  campaign_type_name: string;
+}
+
+interface AllTerritory {
+  id: string;
+  territory_name: string;
+  campaign_type_id: string;
+}
+
+interface CampaignGangForModal {
+  id: string;
+  gang_id: string;
+  gang_name: string;
+  gang_type: string;
+  gang_colour: string;
+  user_id: string;
+  campaign_member_id: string;
+}
+
 interface CampaignPageContentProps {
   campaignData: {
     id: string;
@@ -155,8 +175,10 @@ interface CampaignPageContentProps {
         updated_at: string | null;
       }[];
     };
-    userId?: string;
-    permissions: CampaignPermissions | null;
+  userId?: string;
+  permissions: CampaignPermissions | null;
+  campaignTypes: CampaignType[];
+  allTerritories: AllTerritory[];
 }
 
 const formatDate = (dateString: string | null) => {
@@ -165,7 +187,13 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ campaignData: initialCampaignData, userId, permissions }: CampaignPageContentProps) {
+export default function CampaignPageContent({ 
+  campaignData: initialCampaignData, 
+  userId, 
+  permissions, 
+  campaignTypes, 
+  allTerritories
+}: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
@@ -173,8 +201,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
   const [showEditModal, setShowEditModal] = useState(false);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const { toast } = useToast();
-  const supabase = createClient();
-  const isLoadingRef = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const router = useRouter();
@@ -394,77 +420,6 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
     }
   };
 
-  // Load gang details for territories
-  useEffect(() => {
-    const loadGangDetails = async () => {
-      // Prevent multiple simultaneous requests
-      if (isLoadingRef.current) return;
-      
-      // Skip if all territories already have their gang details loaded
-      const needsGangDetails = campaignData.territories.some(t => 
-        (t.gang_id || (t.owner && Object.keys(t.owner).length > 0)) && 
-        (!t.owning_gangs || t.owning_gangs.length === 0)
-      );
-
-      if (!needsGangDetails) return;
-
-      try {
-        isLoadingRef.current = true;
-        
-        const territoriesWithGangs = campaignData.territories.filter(t => 
-          t.gang_id || (t.owner && Object.keys(t.owner).length > 0)
-        );
-        
-        const gangIds = Array.from(new Set(
-          territoriesWithGangs.flatMap(t => {
-            const ids: string[] = [];
-            if (t.gang_id) ids.push(t.gang_id);
-            if (t.owner) ids.push(...Object.keys(t.owner));
-            return ids;
-          })
-        ));
-
-        if (gangIds.length === 0) return;
-
-        const { data: gangs, error } = await supabase
-          .from('gangs')
-          .select('id, name, gang_type, gang_colour')
-          .in('id', gangIds);
-
-        if (error) throw error;
-
-        // Update territories with gang details
-        const updatedTerritories = campaignData.territories.map(territory => {
-          const effectiveGangId = territory.gang_id || 
-            (territory.owner ? Object.keys(territory.owner)[0] : null);
-          
-          const gang = effectiveGangId ? gangs?.find(g => g.id === effectiveGangId) : null;
-          const territoryGangs = gang ? [{
-            id: gang.id,
-            name: gang.name,
-            gang_type: gang.gang_type,
-            gang_colour: gang.gang_colour
-          }] : [];
-
-          return {
-            ...territory,
-            owning_gangs: territoryGangs
-          };
-        });
-
-        setCampaignData(prev => ({
-          ...prev,
-          territories: updatedTerritories
-        }));
-      } catch (error) {
-        console.error('Error loading gang details:', error);
-      } finally {
-        isLoadingRef.current = false;
-      }
-    };
-
-    loadGangDetails();
-  }, [campaignData.territories]); // Run when territories change
 
   const handleCampaignUpdate = (updatedData: {
     campaign_name: string;
@@ -852,6 +807,12 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     isAdmin={!!safePermissions.canManageTerritories}
                     campaignId={campaignData.id}
                     campaignTypeId={campaignData.campaign_type_id}
+                    campaignTypes={campaignTypes}
+                    allTerritories={allTerritories}
+                    existingCampaignTerritories={campaignData.territories.map(territory => ({
+                      territory_id: territory.territory_id,
+                      territory_name: territory.territory_name
+                    }))}
                     onTerritoryAdd={(territory) => {
                       refreshData();
                     }}

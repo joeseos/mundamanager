@@ -573,3 +573,116 @@ export function createCampaignCacheTag(campaignId: string): string {
 export function createCampaignTypeTag(campaignTypeId: string): string {
   return `campaign-triumphs-${campaignTypeId}`;
 }
+
+// 🎯 REFERENCE DATA FUNCTIONS FOR TERRITORY MANAGEMENT
+
+/**
+ * Get all campaign types with persistent caching
+ * Used by territory selection components
+ */
+export const getCampaignTypes = async () => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('campaign_types')
+        .select('id, campaign_type_name')
+        .order('campaign_type_name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    ['campaign-types'],
+    {
+      tags: ['campaign-types'],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get all territories with persistent caching
+ * Used by territory selection components
+ */
+export const getAllTerritories = async () => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('territories')
+        .select('id, territory_name, campaign_type_id')
+        .order('territory_name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    ['territories-list'],
+    {
+      tags: ['territories-list'],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get gangs available for territory assignment with persistent caching
+ * Used by territory gang modal
+ */
+export const getCampaignGangsForModal = async (campaignId: string) => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      // Get campaign gangs
+      const { data: campaignGangs, error: campaignGangsError } = await supabase
+        .from('campaign_gangs')
+        .select(`
+          id,
+          gang_id,
+          user_id,
+          campaign_member_id
+        `)
+        .eq('campaign_id', campaignId);
+
+      if (campaignGangsError) throw campaignGangsError;
+
+      const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+      let gangsData: any[] = [];
+
+      if (gangIds.length > 0) {
+        const { data: gangs, error: gangsError } = await supabase
+          .from('gangs')
+          .select(`
+            id,
+            name,
+            gang_type,
+            gang_colour
+          `)
+          .in('id', gangIds);
+
+        if (gangsError) throw gangsError;
+        gangsData = gangs || [];
+      }
+
+      // Combine campaign gangs with gang details
+      const availableGangs = campaignGangs?.map(cg => {
+        const gangDetails = gangsData.find(g => g.id === cg.gang_id);
+        return {
+          id: cg.id,
+          gang_id: cg.gang_id,
+          gang_name: gangDetails?.name || 'Unknown',
+          gang_type: gangDetails?.gang_type || '',
+          gang_colour: gangDetails?.gang_colour || '#000000',
+          user_id: cg.user_id,
+          campaign_member_id: cg.campaign_member_id
+        };
+      }) || [];
+
+      return availableGangs;
+    },
+    [`campaign-gangs-modal-${campaignId}`],
+    {
+      tags: ['campaign-gangs', `campaign-gangs-${campaignId}`, `campaign-${campaignId}`],
+      revalidate: false
+    }
+  )();
+};
