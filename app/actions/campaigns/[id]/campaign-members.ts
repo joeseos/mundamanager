@@ -31,6 +31,13 @@ export interface UpdateMemberRoleParams {
   newRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
+export interface AddMemberToCampaignParams {
+  campaignId: string;
+  userId: string;
+  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  invitedBy: string;
+}
+
 /**
  * Add a gang to a campaign with targeted cache invalidation
  */
@@ -257,6 +264,58 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to remove gang from campaign' 
+    };
+  }
+}
+
+/**
+ * Add a member to a campaign with targeted cache invalidation
+ */
+export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
+  try {
+    const supabase = await createClient();
+    const { campaignId, userId, role, invitedBy } = params;
+
+    // Check if the user already exists in the campaign
+    const { data: existingMembers, error: existingError } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId);
+
+    if (existingError) throw existingError;
+
+    // Use the existing role if found, otherwise use the provided role
+    const finalRole = existingMembers && existingMembers.length > 0
+      ? existingMembers[0].role
+      : role;
+
+    const { data, error } = await supabase
+      .from('campaign_members')
+      .insert({
+        campaign_id: campaignId,
+        user_id: userId,
+        role: finalRole,
+        invited_at: new Date().toISOString(),
+        invited_by: invitedBy
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's members cache
+    revalidateTag(`campaign-members-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error adding member to campaign:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to add member to campaign' 
     };
   }
 }

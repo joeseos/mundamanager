@@ -368,18 +368,19 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
         return;
       }
       
-      const { error } = await supabase
-        .from('campaign_territories')
-        .delete()
-        .eq('id', territoryId);
+      // ✅ Use server action with proper cache invalidation
+      const result = await removeTerritoryFromCampaign({
+        campaignId: campaignData.id,
+        territoryId
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      // Update local state
-      setCampaignData(prev => ({
-        ...prev,
-        territories: prev.territories.filter(t => t.id !== territoryId)
-      }));
+      // ✅ Refresh data instead of optimistic update
+      // The server action already handles cache invalidation
+      refreshData();
 
       toast({
         description: "Territory removed successfully"
@@ -704,10 +705,8 @@ export default function CampaignPageContent({ campaignData: initialCampaignData,
                     campaignId={campaignData.id}
                     campaignMembers={campaignData.members}
                     onMemberAdd={(member) => {
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: [...prev.members, member]
-                      }));
+                      // ✅ Only refresh data after server action completes
+                      // The server action already handles cache invalidation
                       refreshData();
                     }}
                   />

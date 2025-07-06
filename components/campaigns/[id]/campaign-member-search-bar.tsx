@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
+import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -112,46 +113,27 @@ export default function MemberSearchBar({
         throw new Error('Not authenticated');
       }
 
-      // Check if the user already exists in the campaign
-      const { data: existingMembers, error: existingError } = await supabase
-        .from('campaign_members')
-        .select('role')
-        .eq('campaign_id', campaignId)
-        .eq('user_id', member.user_id);
+      // ✅ Use server action with proper cache invalidation
+      const result = await addMemberToCampaign({
+        campaignId,
+        userId: member.user_id,
+        role: 'MEMBER',
+        invitedBy: user.id
+      });
 
-      if (existingError) throw existingError;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      // Use the existing role if found, otherwise default to 'MEMBER'
-      const role = existingMembers && existingMembers.length > 0
-        ? existingMembers[0].role
-        : 'MEMBER';
-
-      console.log("Adding member:", member, "with role:", role);
-
-      const { data, error } = await supabase
-        .from('campaign_members')
-        .insert({
-          campaign_id: campaignId,
-          user_id: member.user_id,
-          role: role,
-          invited_at: new Date().toISOString(),
-          invited_by: user.id
-        }).select();
-
-      if (error) throw error;
-
-      console.log("Database response:", data);
+      console.log("Member added successfully:", result.data);
       
-      // Ensure a fresh instance with an empty gangs array
+      // Create member object for local state update
       const newMember = {
         ...member,
-        // If we have an ID from the database response, use it
-        id: data?.[0]?.id,
-        role: role,
+        id: result.data?.id,
+        role: 'MEMBER' as MemberRole,
         gangs: []  // Start with an empty gangs array for the new instance
       };
-
-      console.log("New member with ID:", newMember);
 
       onMemberAdd(newMember);
       toast({
