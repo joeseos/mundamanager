@@ -929,6 +929,7 @@ export default function CampaignPageContent({
                   isAdmin={!!safePermissions.canEditBattleLogs}
                   onBattleAdd={refreshData}
                   members={campaignData.members}
+                  territories={campaignData.territories}
                   noContainer={true}
                   hideAddButton={true}
                 />
