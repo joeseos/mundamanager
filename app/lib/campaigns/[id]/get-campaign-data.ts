@@ -40,7 +40,16 @@ interface Fighter {
     id: string;
     cost: number;
     fighter_equipment?: { purchase_cost: number }[];
+    fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
   }[];
+}
+
+interface GangVehicle {
+  id: string;
+  gang_id: string;
+  cost: number;
+  fighter_equipment?: { purchase_cost: number }[];
+  fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
 }
 
 interface Gang {
@@ -192,6 +201,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
   }
 
   let fightersData: any[] = [];
+  let gangVehiclesData: any[] = [];
   
   if (gangIds.length > 0) {
     const { data: fighters, error: fightersError } = await supabase
@@ -204,7 +214,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         fighter_equipment(purchase_cost),
         fighter_skills(credits_increase),
         fighter_effects(type_specific_data),
-        vehicles(id, cost, fighter_equipment(purchase_cost))
+        vehicles(id, cost, fighter_equipment(purchase_cost), fighter_effects(type_specific_data))
       `)
       .in('gang_id', gangIds)
       .eq('killed', false)
@@ -213,44 +223,101 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
     if (fightersError) throw fightersError;
     fightersData = fighters || [];
+
+    // Fetch gang-owned vehicles (where fighter_id is NULL)
+    const { data: gangVehicles, error: gangVehiclesError } = await supabase
+      .from('vehicles')
+      .select(`
+        id,
+        gang_id,
+        cost,
+        fighter_equipment(purchase_cost),
+        fighter_effects(type_specific_data)
+      `)
+      .in('gang_id', gangIds)
+      .is('fighter_id', null);
+
+    if (gangVehiclesError) throw gangVehiclesError;
+    gangVehiclesData = gangVehicles || [];
   }
 
   const gangRatings = new Map<string, number>();
   gangIds.forEach(gangId => {
     const gangFighters = fightersData.filter(f => f.gang_id === gangId);
-    const rating = gangFighters.reduce((sum, fighter) => {
-      let fighterRating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
+    const gangOwnedVehicles = gangVehiclesData.filter(v => v.gang_id === gangId);
+    
+    // Calculate fighter ratings
+    const fighterRating = gangFighters.reduce((sum, fighter) => {
+      let individualFighterRating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
       
+      // Fighter equipment
       if (fighter.fighter_equipment) {
-        fighterRating += fighter.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
+        individualFighterRating += fighter.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
           equipSum + (eq.purchase_cost || 0), 0);
       }
       
+      // Fighter skills  
       if (fighter.fighter_skills) {
-        fighterRating += fighter.fighter_skills.reduce((skillSum: number, skill: { credits_increase: number }) => 
+        individualFighterRating += fighter.fighter_skills.reduce((skillSum: number, skill: { credits_increase: number }) => 
           skillSum + (skill.credits_increase || 0), 0);
       }
       
+      // Fighter effects
       if (fighter.fighter_effects) {
-        fighterRating += fighter.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+        individualFighterRating += fighter.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
           const creditsIncrease = effect.type_specific_data?.credits_increase;
           return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
         }, 0);
       }
       
+      // Fighter-owned vehicles
       if (fighter.vehicles) {
         fighter.vehicles.forEach((vehicle: any) => {
-          fighterRating += (vehicle.cost || 0);
+          individualFighterRating += (vehicle.cost || 0);
+          
+          // Vehicle equipment
           if (vehicle.fighter_equipment) {
-            fighterRating += vehicle.fighter_equipment.reduce((vehEqSum: number, eq: { purchase_cost: number }) => 
+            individualFighterRating += vehicle.fighter_equipment.reduce((vehEqSum: number, eq: { purchase_cost: number }) => 
               vehEqSum + (eq.purchase_cost || 0), 0);
+          }
+          
+          // Vehicle effects - MISSING in original implementation
+          if (vehicle.fighter_effects) {
+            individualFighterRating += vehicle.fighter_effects.reduce((vehEffectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+              const creditsIncrease = effect.type_specific_data?.credits_increase;
+              return vehEffectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+            }, 0);
           }
         });
       }
       
-      return sum + fighterRating;
+      return sum + individualFighterRating;
     }, 0);
-    gangRatings.set(gangId, rating);
+
+    // Calculate gang-owned vehicles rating - MISSING in original implementation
+    const gangVehicleRating = gangOwnedVehicles.reduce((sum, vehicle) => {
+      let vehicleRating = (vehicle.cost || 0);
+      
+      // Gang vehicle equipment
+      if (vehicle.fighter_equipment) {
+        vehicleRating += vehicle.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
+          equipSum + (eq.purchase_cost || 0), 0);
+      }
+      
+      // Gang vehicle effects
+      if (vehicle.fighter_effects) {
+        vehicleRating += vehicle.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+          const creditsIncrease = effect.type_specific_data?.credits_increase;
+          return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+        }, 0);
+      }
+      
+      return sum + vehicleRating;
+    }, 0);
+
+    // Total gang rating = fighters + gang vehicles
+    const totalRating = fighterRating + gangVehicleRating;
+    gangRatings.set(gangId, totalRating);
   });
 
   const membersWithGangs = members?.map(member => {

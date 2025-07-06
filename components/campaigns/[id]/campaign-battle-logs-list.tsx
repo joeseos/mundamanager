@@ -80,12 +80,19 @@ interface CampaignGang {
   user_id?: string;
 }
 
+interface Territory {
+  id: string;
+  territory_name: string;
+  gang_id: string | null;
+}
+
 interface CampaignBattleLogsListProps {
   campaignId: string;
   battles: Battle[];
   isAdmin: boolean;
   onBattleAdd: () => void;
   members: Member[];
+  territories?: Territory[];
   noContainer?: boolean;
   hideAddButton?: boolean;
 }
@@ -107,6 +114,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     isAdmin, 
     onBattleAdd,
     members,
+    territories = [],
     noContainer = false,
     hideAddButton = false
   } = props;
@@ -625,6 +633,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       <CampaignBattleLogModal
         campaignId={campaignId}
         availableGangs={availableGangs}
+        territories={territories.map(t => ({
+          id: t.id,
+          name: t.territory_name,
+          controlled_by: t.gang_id || undefined
+        }))}
         isOpen={showBattleModal}
         onClose={handleModalClose}
         onSuccess={onBattleAdd}

@@ -74,8 +74,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       for (const territory of claimed_territories) {
         await supabase
           .from('campaign_territories')
-          .update({ controlled_by: winner_id })
-          .eq('territory_id', territory.territory_id)
+          .update({ gang_id: winner_id })
+          .eq('id', territory.territory_id)
           .eq('campaign_id', campaignId);
       }
     }
@@ -99,9 +99,13 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       winner: winner?.name ? { gang_name: winner.name } : null
     };
 
-    // 🎯 Invalidate battles cache
+    // 🎯 Invalidate cache - battles and territories if claimed
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
+    if (claimed_territories.length > 0) {
+      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(`campaign-${campaignId}`);
+    }
 
     return transformedBattle;
   } catch (error) {
@@ -162,8 +166,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       for (const territory of claimed_territories) {
         await supabase
           .from('campaign_territories')
-          .update({ controlled_by: winner_id })
-          .eq('territory_id', territory.territory_id)
+          .update({ gang_id: winner_id })
+          .eq('id', territory.territory_id)
           .eq('campaign_id', campaignId);
       }
     }
@@ -187,9 +191,13 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner: winner?.name ? { gang_name: winner.name } : null
     };
 
-    // 🎯 Invalidate battles cache
+    // 🎯 Invalidate cache - battles and territories if claimed
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
+    if (claimed_territories.length > 0) {
+      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(`campaign-${campaignId}`);
+    }
 
     return transformedBattle;
   } catch (error) {

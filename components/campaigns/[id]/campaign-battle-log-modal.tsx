@@ -96,7 +96,7 @@ const CampaignBattleLogModal = ({
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
-  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
   const { toast } = useToast();
 
@@ -308,12 +308,12 @@ const CampaignBattleLogModal = ({
     if (currentTerritoriesJSON !== newTerritoriesJSON) {
       setAvailableTerritories(newAvailableTerritories);
       
-      // Clear selected territories if none are available
-      if (newAvailableTerritories.length === 0 && selectedTerritories.length > 0) {
-        setSelectedTerritories([]);
+      // Clear selected territory if none are available
+      if (newAvailableTerritories.length === 0 && selectedTerritory) {
+        setSelectedTerritory('');
       }
     }
-  }, [winner, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritories here
+  }, [winner, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritory here
 
   const handleGangRoleChange = (gangEntryId: number, newRole: GangRole) => {
     setGangsInBattle(gangsInBattle.map(entry => 
@@ -339,13 +339,6 @@ const CampaignBattleLogModal = ({
     setGangsInBattle(gangsInBattle.filter((entry) => entry.id !== gangEntryId));
   };
 
-  const toggleTerritory = (territoryId: string) => {
-    setSelectedTerritories(prev =>
-      prev.includes(territoryId) 
-        ? prev.filter(id => id !== territoryId) 
-        : [...prev, territoryId]
-    );
-  };
 
   const getGangName = (gangId: string): string => {
     const gang = availableGangs.find(g => g.id === gangId);
@@ -451,8 +444,8 @@ const CampaignBattleLogModal = ({
         winner_id: winner === "draw" ? null : winner,
         note: notes || null,
         participants: participants,
-        claimed_territories: selectedTerritories.length > 0 
-          ? selectedTerritories.map(id => ({ territory_id: id })) 
+        claimed_territories: selectedTerritory 
+          ? [{ territory_id: selectedTerritory }] 
           : []
       };
 
@@ -491,7 +484,7 @@ const CampaignBattleLogModal = ({
     ]);
     setWinner('');
     setNotes('');
-    setSelectedTerritories([]);
+    setSelectedTerritory('');
   };
 
   const handleClose = () => {
@@ -696,33 +689,24 @@ const CampaignBattleLogModal = ({
           {winner && winner !== "draw" && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Claim Territories
+                Claim Territory
               </label>
-              <div className="border rounded-md p-3 space-y-2 bg-gray-50">
+              <select
+                value={selectedTerritory}
+                onChange={(e) => setSelectedTerritory(e.target.value)}
+                disabled={isLoadingBattleData}
+                className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black"
+              >
+                <option value="">No territory claimed</option>
                 {availableTerritories.map((territory) => {
                   const controlledBy = getGangName(territory.controlled_by || "");
                   return (
-                    <div key={territory.id} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`territory-${territory.id}`}
-                          checked={selectedTerritories.includes(territory.id)}
-                          onChange={() => toggleTerritory(territory.id)}
-                          disabled={isLoadingBattleData}
-                          className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
-                        />
-                        <Label htmlFor={`territory-${territory.id}`} className="text-sm">
-                          {territory.name}
-                          {controlledBy && (
-                            <span className="text-gray-500 text-xs ml-1">({controlledBy})</span>
-                          )}
-                        </Label>
-                      </div>
-                    </div>
+                    <option key={territory.id} value={territory.id}>
+                      {territory.name}{controlledBy && ` (currently held by ${controlledBy})`}
+                    </option>
                   );
                 })}
-              </div>
+              </select>
             </div>
           )}
 
