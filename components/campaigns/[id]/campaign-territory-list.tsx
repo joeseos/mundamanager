@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { createClient } from '@/utils/supabase/client'
 import { Checkbox } from "@/components/ui/checkbox";
 import { campaignRank } from '@/utils/campaignRank';
+import { addTerritoryToCampaign } from "@/app/actions/campaigns/[id]/campaign-territories";
 
 interface Territory {
   id: string;
@@ -119,15 +120,16 @@ export default function TerritoryList({ isAdmin, campaignId, campaignTypeId, onT
   const handleAddTerritory = async (territoryId: string, territoryName: string) => {
     setIsAdding(territoryId);
     try {
-      const { error } = await supabase
-        .from('campaign_territories')
-        .insert([{
-          campaign_id: campaignId,
-          territory_id: territoryId,
-          territory_name: territoryName
-        }]);
+      // ✅ Use server action with proper cache invalidation
+      const result = await addTerritoryToCampaign({
+        campaignId,
+        territoryId,
+        territoryName
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Create a new territory object
       const newTerritory = {
