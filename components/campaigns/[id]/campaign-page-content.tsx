@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef, Fragment, useTransition } from 'react';
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
+import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
 import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { X, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
@@ -14,6 +15,9 @@ import { FiMap } from "react-icons/fi";
 import { FaCity } from "react-icons/fa";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
+import { GiAncientRuins } from "react-icons/gi";
+import { IoHome } from "react-icons/io5";
+import { Tooltip } from "react-tooltip";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@/app/lib/utils";
@@ -27,7 +31,8 @@ import type { CampaignPermissions } from '@/types/user-permissions';
 import { 
   assignGangToTerritory, 
   removeGangFromTerritory, 
-  removeTerritoryFromCampaign 
+  removeTerritoryFromCampaign,
+  updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 
@@ -70,6 +75,8 @@ interface Territory {
   territory_name: string;
   gang_id: string | null;
   created_at: string;
+  ruined?: boolean;
+  default_gang_territory?: boolean;
   owning_gangs?: Gang[];
   owner?: {
     [key: string]: {
@@ -199,6 +206,8 @@ export default function CampaignPageContent({
   const [showGangModal, setShowGangModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showTerritoryEditModal, setShowTerritoryEditModal] = useState(false);
+  const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState(0);
@@ -381,6 +390,66 @@ export default function CampaignPageContent({
   const handleDeleteClick = (territoryId: string, territoryName: string) => {
     setTerritoryToDelete({ id: territoryId, name: territoryName });
     setShowDeleteModal(true);
+  };
+
+  const handleEditClick = (territory: Territory) => {
+    setTerritoryToEdit(territory);
+    setShowTerritoryEditModal(true);
+  };
+
+  const handleTerritoryUpdate = async (updates: { ruined: boolean; default_gang_territory: boolean }) => {
+    if (!territoryToEdit) return false;
+
+    try {
+      // Check if the user is authenticated
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          description: "You must be logged in to edit territories"
+        });
+        return false;
+      }
+
+      const result = await updateTerritoryStatus({
+        campaignId: campaignData.id,
+        territoryId: territoryToEdit.id,
+        ruined: updates.ruined,
+        default_gang_territory: updates.default_gang_territory
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      // Update local state
+      setCampaignData(prev => ({
+        ...prev,
+        territories: prev.territories.map(t => 
+          t.id === territoryToEdit.id
+            ? { 
+                ...t, 
+                ruined: updates.ruined,
+                default_gang_territory: updates.default_gang_territory
+              }
+            : t
+        )
+      }));
+
+      toast({
+        description: "Territory updated successfully"
+      });
+
+      setShowTerritoryEditModal(false);
+      setTerritoryToEdit(null);
+      return true;
+    } catch (error) {
+      console.error('Error updating territory:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to update territory"
+      });
+      return false;
+    }
   };
 
   const handleRemoveTerritory = async (territoryId: string) => {
@@ -725,7 +794,23 @@ export default function CampaignPageContent({
                           .map((territory) => (
                           <tr key={territory.id} className="border-b last:border-0">
                             <td className="w-2/5 px-4 py-2">
-                              <span className="font-medium">{territory.territory_name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{territory.territory_name}</span>
+                                {territory.ruined && (
+                                  <GiAncientRuins 
+                                    className="h-4 w-4 text-gray-600" 
+                                    data-tooltip-id="ruined-tooltip"
+                                    data-tooltip-content="This territory has been ruined and now provides a different boon"
+                                  />
+                                )}
+                                {territory.default_gang_territory && (
+                                  <IoHome 
+                                    className="h-4 w-4 text-gray-600" 
+                                    data-tooltip-id="default-territory-tooltip"
+                                    data-tooltip-content="This is a default gang territory"
+                                  />
+                                )}
+                              </div>
                             </td>
                             <td className="w-3/5 px-4 py-2">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -755,7 +840,7 @@ export default function CampaignPageContent({
                                       )}
                                     </div>
                                   ))
-                                ) : safePermissions.canManageTerritories && (
+                                ) : safePermissions.canManageTerritories && !territory.ruined ? (
                                   <button
                                     onClick={() => {
                                       setSelectedTerritory(territory);
@@ -765,20 +850,36 @@ export default function CampaignPageContent({
                                   >
                                     Add gang
                                   </button>
-                                )}
+                                ) : territory.ruined && !territory.owning_gangs?.length ? (
+                                  <span className="text-gray-500 italic text-xs">Ruined territory</span>
+                                ) : null}
                               </div>
                             </td>
                             <td className="w-[100px] px-4 py-2 text-right">
-                              {safePermissions.canManageTerritories && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
-                                  className="text-xs px-1.5 h-6"
-                                >
-                                  Delete
-                                </Button>
-                              )}
+                              <div className="flex items-center justify-end gap-1">
+                                {safePermissions.canManageTerritories && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEditClick(territory)}
+                                      className="h-8 w-8 p-0"
+                                      aria-label="Edit territory"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      aria-label="Delete territory"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -843,7 +944,23 @@ export default function CampaignPageContent({
                         .map((territory) => (
                         <tr key={territory.id} className="border-b last:border-0">
                           <td className="w-2/5 px-4 py-2">
-                            <span className="font-medium">{territory.territory_name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{territory.territory_name}</span>
+                              {territory.ruined && (
+                                <GiAncientRuins 
+                                  className="h-4 w-4 text-gray-600" 
+                                  data-tooltip-id="ruined-tooltip"
+                                  data-tooltip-content="This territory has been ruined and now provides a different boon"
+                                />
+                              )}
+                              {territory.default_gang_territory && (
+                                <IoHome 
+                                  className="h-4 w-4 text-gray-600" 
+                                  data-tooltip-id="default-territory-tooltip"
+                                  data-tooltip-content="This is a default gang territory"
+                                />
+                              )}
+                            </div>
                           </td>
                           <td className="w-3/5 px-4 py-2">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -873,7 +990,7 @@ export default function CampaignPageContent({
                                     )}
                                   </div>
                                 ))
-                              ) : safePermissions.canManageTerritories && (
+                              ) : safePermissions.canManageTerritories && !territory.ruined ? (
                                 <button
                                   onClick={() => {
                                     setSelectedTerritory(territory);
@@ -883,20 +1000,36 @@ export default function CampaignPageContent({
                                 >
                                   Add gang
                                 </button>
-                              )}
+                              ) : territory.ruined && !territory.owning_gangs?.length ? (
+                                <span className="text-gray-500 italic text-xs">Ruined territory</span>
+                              ) : null}
                             </div>
                           </td>
                           <td className="w-[100px] px-4 py-2 text-right">
-                            {safePermissions.canManageTerritories && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
-                                className="text-xs px-1.5 h-6"
-                              >
-                                Delete
-                              </Button>
-                            )}
+                            <div className="flex items-center justify-end gap-1">
+                              {safePermissions.canManageTerritories && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditClick(territory)}
+                                    className="h-8 w-8 p-0"
+                                    aria-label="Edit territory"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    aria-label="Delete territory"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1009,6 +1142,33 @@ export default function CampaignPageContent({
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+        />
+
+        {/* Territory Edit Modal */}
+        {showTerritoryEditModal && territoryToEdit && (
+          <TerritoryEditModal
+            isOpen={showTerritoryEditModal}
+            onClose={() => {
+              setShowTerritoryEditModal(false);
+              setTerritoryToEdit(null);
+            }}
+            onConfirm={handleTerritoryUpdate}
+            territoryName={territoryToEdit.territory_name}
+            currentRuined={territoryToEdit.ruined || false}
+            currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
+          />
+        )}
+
+        {/* Tooltips */}
+        <Tooltip 
+          id="ruined-tooltip" 
+          place="top" 
+          style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
+        />
+        <Tooltip 
+          id="default-territory-tooltip" 
+          place="top" 
+          style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
         />
       </div>
     </main>
