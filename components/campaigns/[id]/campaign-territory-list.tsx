@@ -1,211 +1,422 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useToast } from "@/components/ui/use-toast"
-import { Button } from "@/components/ui/button"
-import { createClient } from '@/utils/supabase/client'
-import { Checkbox } from "@/components/ui/checkbox";
-import { campaignRank } from '@/utils/campaignRank';
-import { addTerritoryToCampaign } from "@/app/actions/campaigns/[id]/campaign-territories";
+import React, { useState } from 'react';
+import { useToast } from "@/components/ui/use-toast";
+import { Edit, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { GiAncientRuins } from "react-icons/gi";
+import { IoHome } from "react-icons/io5";
+import { Tooltip } from "react-tooltip";
+import Link from "next/link";
+import Modal from "@/components/modal";
+import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
+import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
+import { 
+  assignGangToTerritory, 
+  removeGangFromTerritory, 
+  removeTerritoryFromCampaign,
+  updateTerritoryStatus
+} from "@/app/actions/campaigns/[id]/campaign-territories";
+
+interface Gang {
+  id: string;
+  name: string;
+  gang_type: string;
+  gang_colour: string;
+}
+
+interface Member {
+  user_id: string;
+  username: string;
+  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  gangs: {
+    id: string;
+    gang_id: string;
+    gang_name: string;
+    gang_type: string;
+    gang_colour: string;
+    status: string | null;
+  }[];
+}
 
 interface Territory {
   id: string;
-  territory_name: string;
-  campaign_type_id: string;
-}
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
-}
-
-interface CampaignTerritory {
   territory_id: string;
   territory_name: string;
+  gang_id: string | null;
+  created_at: string;
+  ruined?: boolean;
+  default_gang_territory?: boolean;
+  owning_gangs?: Gang[];
+  owner?: {
+    [key: string]: {
+      assigned_at: string;
+    };
+  } | null;
 }
 
-interface TerritoryListProps {
-  isAdmin: boolean;
+interface CampaignTerritoryListProps {
+  territories: Territory[];
   campaignId: string;
-  campaignTypeId: string;
-  campaignTypes: CampaignType[];
-  allTerritories: Territory[];
-  existingCampaignTerritories: CampaignTerritory[];
-  onTerritoryAdd?: (territory: CampaignTerritory) => void;
+  members: Member[];
+  permissions: {
+    canManageTerritories: boolean;
+  };
+  onTerritoryUpdate?: () => void;
 }
 
-export default function TerritoryList({ 
-  isAdmin, 
-  campaignId, 
-  campaignTypeId, 
-  campaignTypes, 
-  allTerritories, 
-  existingCampaignTerritories,
-  onTerritoryAdd 
-}: TerritoryListProps) {
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
-  const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isAdding, setIsAdding] = useState<string | null>(null);
+export default function CampaignTerritoryList({
+  territories,
+  campaignId,
+  members,
+  permissions,
+  onTerritoryUpdate
+}: CampaignTerritoryListProps) {
   const { toast } = useToast();
+  
+  // State management
+  const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
+  const [showGangModal, setShowGangModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTerritoryEditModal, setShowTerritoryEditModal] = useState(false);
+  const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
+  const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
 
-  useEffect(() => {
-    setSelectedTypes([campaignTypeId]);
-  }, [campaignTypeId]);
-
-  // Initialize loading state - data comes from props now
-  useEffect(() => {
-    setIsLoading(false);
-  }, []);
-
-  // Update campaign territories when prop changes
-  useEffect(() => {
-    setCampaignTerritories(existingCampaignTerritories);
-  }, [existingCampaignTerritories]);
-
-  const handleTypeToggle = (typeId: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(typeId) 
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
-    );
+  // Helper function to get gang details from members data
+  const getGangDetails = (gangId: string) => {
+    // Look through members' gangs to find the gang details
+    for (const member of members) {
+      const gang = member.gangs.find((g: Member['gangs'][0]) => g.gang_id === gangId);
+      if (gang) {
+        return {
+          id: gang.gang_id,
+          name: gang.gang_name,
+          gang_type: gang.gang_type || 'Unknown',
+          gang_colour: gang.gang_colour || '#000000'
+        };
+      }
+    }
+    return null;
   };
 
-  const handleAddTerritory = async (territoryId: string, territoryName: string) => {
-    setIsAdding(territoryId);
+  // Gang assignment
+  const handleAssignGang = async (gangId: string) => {
+    if (!selectedTerritory) return false;
+
     try {
-      // ✅ Use server action with proper cache invalidation
-      const result = await addTerritoryToCampaign({
-        campaignId,
-        territoryId,
-        territoryName
+      const result = await assignGangToTerritory({
+        campaignId: campaignId,
+        territoryId: selectedTerritory.id,
+        gangId
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
 
-      // Create a new territory object
-      const newTerritory = {
-        territory_id: territoryId,
-        territory_name: territoryName
-      };
+      toast({
+        description: "Gang assigned to territory successfully"
+      });
 
-      // Update local state
-      setCampaignTerritories(prev => [...prev, newTerritory]);
+      // Refresh parent data
+      onTerritoryUpdate?.();
+    } catch (error) {
+      console.error('Error assigning gang:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to assign gang to territory"
+      });
+    } finally {
+      setShowGangModal(false);
+      setSelectedTerritory(null);
+    }
+    return false;
+  };
 
-      // Notify parent component
-      if (onTerritoryAdd) {
-        onTerritoryAdd(newTerritory);
+  // Gang removal
+  const handleRemoveGang = async (territoryId: string, gangId: string) => {
+    try {
+      const result = await removeGangFromTerritory({
+        campaignId: campaignId,
+        territoryId
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       toast({
-        description: `Added ${territoryName} to campaign`
+        description: "Gang removed from territory"
       });
+
+      // Refresh parent data
+      onTerritoryUpdate?.();
     } catch (error) {
-      console.error('Error adding territory:', error);
+      console.error('Error removing gang:', error);
       toast({
         variant: "destructive",
-        description: "Failed to add territory"
+        description: "Failed to remove gang from territory"
       });
-    } finally {
-      setIsAdding(null);
     }
   };
 
-  const filteredTerritories = allTerritories
-    .filter(territory => selectedTypes.includes(territory.campaign_type_id))
-    .sort((a, b) => {
-      const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
-      const typeB = campaignTypes.find(ct => ct.id === b.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
+  // Territory editing
+  const handleEditClick = (territory: Territory) => {
+    setTerritoryToEdit(territory);
+    setShowTerritoryEditModal(true);
+  };
 
-      const rankA = campaignRank[typeA] ?? Infinity;
-      const rankB = campaignRank[typeB] ?? Infinity;
+  const handleTerritoryUpdate = async (updates: { ruined: boolean; default_gang_territory: boolean }) => {
+    if (!territoryToEdit) return false;
 
-      if (rankA !== rankB) {
-        return rankA - rankB;
+    try {
+      const result = await updateTerritoryStatus({
+        campaignId: campaignId,
+        territoryId: territoryToEdit.id,
+        ruined: updates.ruined,
+        default_gang_territory: updates.default_gang_territory
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
-      return a.territory_name.localeCompare(b.territory_name);
-    });
+      toast({
+        description: "Territory updated successfully"
+      });
 
+      setShowTerritoryEditModal(false);
+      setTerritoryToEdit(null);
 
+      // Refresh parent data
+      onTerritoryUpdate?.();
+      return true;
+    } catch (error) {
+      console.error('Error updating territory:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to update territory"
+      });
+      return false;
+    }
+  };
 
-  if (isLoading) {
-    return <div className="text-center py-1">Loading territories...</div>;
-  }
+  // Territory deletion
+  const handleDeleteClick = (territoryId: string, territoryName: string) => {
+    setTerritoryToDelete({ id: territoryId, name: territoryName });
+    setShowDeleteModal(true);
+  };
+
+  const handleRemoveTerritory = async (territoryId: string) => {
+    try {
+      const result = await removeTerritoryFromCampaign({
+        campaignId: campaignId,
+        territoryId
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      toast({
+        description: "Territory removed successfully"
+      });
+
+      // Refresh parent data
+      onTerritoryUpdate?.();
+    } catch (error) {
+      console.error('Error removing territory:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to remove territory"
+      });
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
-          {[...campaignTypes]
-            .sort((a, b) => {
-              const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
-              const rankB = campaignRank[b.campaign_type_name.toLowerCase()] ?? Infinity;
-              return rankA - rankB;
-            })
-            .map((type) => (
-              <div key={type.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`type-${type.id}`}
-                  checked={selectedTypes.includes(type.id)}
-                  onCheckedChange={() => handleTypeToggle(type.id)}
-                />
-                <label htmlFor={`type-${type.id}`} className="text-sm cursor-pointer">
-                  {type.campaign_type_name}
-                </label>
-              </div>
-            ))}
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+    <>
+      {/* Territory Table */}
+      <div className="rounded-md border overflow-x-auto">
+        <table className="text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
               <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
-              {isAdmin && (
-                <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
-              )}
+              <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
+              <th className="w-[100px] px-4 py-2 text-right font-medium whitespace-nowrap"></th>
             </tr>
           </thead>
           <tbody>
-            {filteredTerritories.length === 0 ? (
+            {territories.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 3 : 2} className="px-4 py-2 text-gray-500 italic text-center">No territories found.</td>
+                <td colSpan={3} className="text-gray-500 italic text-center py-4">
+                  No territories in this campaign
+                </td>
               </tr>
             ) : (
-              filteredTerritories.map((territory) => {
-                const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
-                const typeName = type?.campaign_type_name ?? 'Unknown';
-
-                return (
-                  <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-2/5 px-4 py-2">
+              [...territories]
+                .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                .map((territory) => (
+                <tr key={territory.id} className="border-b last:border-0">
+                  <td className="w-2/5 px-4 py-2">
+                    <div className="flex items-center gap-2">
                       <span className="font-medium">{territory.territory_name}</span>
-                    </td>
-                    <td className="w-2/5 px-4 py-2 text-gray-500">{typeName}</td>
-                    {isAdmin && (
-                      <td className="w-1/5 px-4 py-2 text-right">
-                        <Button
-                          onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
-                          size="sm"
-                          disabled={isAdding === territory.id}
-                          className="text-xs px-1.5 h-6"
+                      {territory.ruined && (
+                        <GiAncientRuins 
+                          className="h-4 w-4 text-gray-600" 
+                          data-tooltip-id="ruined-tooltip"
+                          data-tooltip-content="This territory has been ruined and now provides a different boon"
+                        />
+                      )}
+                      {territory.default_gang_territory && (
+                        <IoHome 
+                          className="h-4 w-4 text-gray-600" 
+                          data-tooltip-id="default-territory-tooltip"
+                          data-tooltip-content="This is a default gang territory"
+                        />
+                      )}
+                    </div>
+                  </td>
+                  <td className="w-3/5 px-4 py-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {territory.owning_gangs && territory.owning_gangs.length > 0 ? (
+                        territory.owning_gangs.map(gang => (
+                          <div
+                            key={gang.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                            style={{ color: gang.gang_colour || '#000000' }}
+                          >
+                            <Link 
+                              href={`/gang/${gang.id}`} 
+                              className="hover:text-gray-600 transition-colors"
+                            >
+                              {gang.name}
+                            </Link>
+                            {permissions.canManageTerritories && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveGang(territory.id, gang.id);
+                                }}
+                                className="ml-1 text-gray-400 hover:text-gray-600"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      ) : permissions.canManageTerritories && !territory.ruined ? (
+                        <button
+                          onClick={() => {
+                            setSelectedTerritory(territory);
+                            setShowGangModal(true);
+                          }}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                         >
-                          Add
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })
+                          Add gang
+                        </button>
+                      ) : territory.ruined && !territory.owning_gangs?.length ? (
+                        <span className="text-gray-500 italic text-xs">Ruined territory</span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="w-[100px] px-4 py-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {permissions.canManageTerritories && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditClick(territory)}
+                            className="h-8 w-8 p-0"
+                            aria-label="Edit territory"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            aria-label="Delete territory"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
       </div>
-    </div>
+
+      {/* Territory Gang Modal */}
+      {showGangModal && selectedTerritory && (
+        <TerritoryGangModal
+          isOpen={showGangModal}
+          onClose={() => {
+            setShowGangModal(false);
+            setSelectedTerritory(null);
+          }}
+          onConfirm={handleAssignGang}
+          campaignId={campaignId}
+          territoryName={selectedTerritory.territory_name}
+          existingGangId={selectedTerritory.gang_id}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && territoryToDelete && (
+        <Modal
+          title="Delete Territory"
+          content={`Are you sure you want to remove ${territoryToDelete.name}?`}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setTerritoryToDelete(null);
+          }}
+          onConfirm={async () => {
+            try {
+              await handleRemoveTerritory(territoryToDelete.id);
+              setShowDeleteModal(false);
+              setTerritoryToDelete(null);
+              return false;
+            } catch (error) {
+              console.error('Error removing territory:', error);
+              return false;
+            }
+          }}
+          confirmText="Delete"
+        />
+      )}
+
+      {/* Territory Edit Modal */}
+      {showTerritoryEditModal && territoryToEdit && (
+        <TerritoryEditModal
+          isOpen={showTerritoryEditModal}
+          onClose={() => {
+            setShowTerritoryEditModal(false);
+            setTerritoryToEdit(null);
+          }}
+          onConfirm={handleTerritoryUpdate}
+          territoryName={territoryToEdit.territory_name}
+          currentRuined={territoryToEdit.ruined || false}
+          currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
+        />
+      )}
+
+      {/* Tooltips */}
+      <Tooltip 
+        id="ruined-tooltip" 
+        place="top" 
+        style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
+      />
+      <Tooltip 
+        id="default-territory-tooltip" 
+        place="top" 
+        style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
+      />
+    </>
   );
-} 
+}
