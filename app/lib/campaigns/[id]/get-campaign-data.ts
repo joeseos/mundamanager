@@ -371,7 +371,9 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       territory_id,
       territory_name,
       gang_id,
-      created_at
+      created_at,
+      ruined,
+      default_gang_territory
     `)
     .eq('campaign_id', campaignId);
 
@@ -404,6 +406,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       territory_name: territory.territory_name,
       gang_id: territory.gang_id,
       created_at: territory.created_at,
+      ruined: territory.ruined || false,
+      default_gang_territory: territory.default_gang_territory || false,
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,

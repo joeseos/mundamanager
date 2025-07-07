@@ -25,6 +25,13 @@ export interface RemoveTerritoryParams {
   territoryId: string;
 }
 
+export interface UpdateTerritoryStatusParams {
+  campaignId: string;
+  territoryId: string;
+  ruined: boolean;
+  default_gang_territory: boolean;
+}
+
 /**
  * Assign a gang to a territory with targeted cache invalidation
  */
@@ -151,6 +158,41 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to remove territory from campaign' 
+    };
+  }
+}
+
+/**
+ * Update territory status (ruined) with targeted cache invalidation
+ */
+export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams) {
+  try {
+    const supabase = await createClient();
+    const { campaignId, territoryId, ruined, default_gang_territory } = params;
+    
+    const { error } = await supabase
+      .from('campaign_territories')
+      .update({ 
+        ruined: ruined,
+        default_gang_territory: default_gang_territory
+      })
+      .eq('id', territoryId)
+      .eq('campaign_id', campaignId);
+
+    if (error) throw error;
+
+    // 🎯 TARGETED CACHE INVALIDATION
+    // Invalidate only the affected campaign's territories
+    revalidateTag(`campaign-territories-${campaignId}`);
+    // Also invalidate the general campaign cache for this specific campaign
+    revalidateTag(`campaign-${campaignId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating territory status:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update territory status' 
     };
   }
 }
