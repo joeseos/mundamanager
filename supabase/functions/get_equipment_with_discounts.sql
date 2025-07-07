@@ -2,15 +2,15 @@
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
 
--- Create the new function with all parameters
-create or replace function get_equipment_with_discounts(
-    "gang_type_id" uuid default null,
-    "equipment_category" text default null,
-    "fighter_type_id" uuid default null,
-    "fighter_type_equipment" boolean default null,
-    "equipment_tradingpost" boolean default null
+-- Create the new function with all parameters including weapon profiles
+CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
+    gang_type_id uuid DEFAULT NULL,
+    equipment_category text DEFAULT NULL,
+    fighter_type_id uuid DEFAULT NULL,
+    fighter_type_equipment boolean DEFAULT NULL,
+    equipment_tradingpost boolean DEFAULT NULL
 )
-returns table (
+RETURNS TABLE (
     id uuid,
     equipment_name text,
     trading_post_category text,
@@ -23,160 +23,186 @@ returns table (
     created_at timestamptz,
     fighter_type_equipment boolean,
     equipment_tradingpost boolean,
-    is_custom boolean
+    is_custom boolean,
+    weapon_profiles jsonb
 )
-language sql
-security definer
-stable
-as $$
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
     -- Regular equipment
-    select DISTINCT
+    SELECT DISTINCT
         e.id,
         e.equipment_name,
         e.trading_post_category,
         -- Check for gang-specific availability, default to equipment table's availability if none found
         COALESCE(ea.availability, e.availability) as availability,
         e.cost::numeric as base_cost,
-        case
-            when ed.discount is not null 
-            then e.cost::numeric - ed.discount::numeric
-            else e.cost::numeric
-        end as discounted_cost,
-        case
-            when ed.adjusted_cost is not null
-            then ed.adjusted_cost::numeric
-            else e.cost::numeric
-        end as adjusted_cost,
+        CASE
+            WHEN ed.discount IS NOT NULL 
+            THEN e.cost::numeric - ed.discount::numeric
+            ELSE e.cost::numeric
+        END as discounted_cost,
+        CASE
+            WHEN ed.adjusted_cost IS NOT NULL
+            THEN ed.adjusted_cost::numeric
+            ELSE e.cost::numeric
+        END as adjusted_cost,
         e.equipment_category,
         e.equipment_type,
         e.created_at,
-        case
-            when fte.fighter_type_id is not null or fte.vehicle_type_id is not null then true
-            else false
-        end as fighter_type_equipment,
-        case
+        CASE
+            WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
+            ELSE false
+        END as fighter_type_equipment,
+        CASE
             -- Gang-level access: only check gang's trading post type
-            when get_equipment_with_discounts.fighter_type_id is null then 
-                exists (
-                    select 1
-                    from gang_types gt, trading_post_equipment tpe
-                    where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
-                    and tpe.trading_post_type_id = gt.trading_post_type_id
-                    and tpe.equipment_id = e.id
+            WHEN $3 IS NULL THEN 
+                EXISTS (
+                    SELECT 1
+                    FROM gang_types gt, trading_post_equipment tpe
+                    WHERE gt.gang_type_id = $1
+                    AND tpe.trading_post_type_id = gt.trading_post_type_id
+                    AND tpe.equipment_id = e.id
                 )
             -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
-            else (
-                exists (
-                    select 1
-                    from fighter_equipment_tradingpost fet,
+            ELSE (
+                EXISTS (
+                    SELECT 1
+                    FROM fighter_equipment_tradingpost fet,
                          jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                    where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-                    and equip_id = e.id::text
-                ) OR exists (
-                    select 1
-                    from gang_types gt, trading_post_equipment tpe
-                    where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
-                    and tpe.trading_post_type_id = gt.trading_post_type_id
-                    and tpe.equipment_id = e.id
+                    WHERE fet.fighter_type_id = $3
+                    AND equip_id = e.id::text
+                ) OR EXISTS (
+                    SELECT 1
+                    FROM gang_types gt, trading_post_equipment tpe
+                    WHERE gt.gang_type_id = $1
+                    AND tpe.trading_post_type_id = gt.trading_post_type_id
+                    AND tpe.equipment_id = e.id
                 )
             )
-        end as equipment_tradingpost,
-        false as is_custom
-    from equipment e
+        END as equipment_tradingpost,
+        false as is_custom,
+        -- Aggregate weapon profiles into a JSON array
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', wp.id,
+                        'profile_name', wp.profile_name,
+                        'range_short', wp.range_short,
+                        'range_long', wp.range_long,
+                        'acc_short', wp.acc_short,
+                        'acc_long', wp.acc_long,
+                        'strength', wp.strength,
+                        'ap', wp.ap,
+                        'damage', wp.damage,
+                        'ammo', wp.ammo,
+                        'traits', wp.traits,
+                        'sort_order', wp.sort_order
+                    )
+                    ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
+                )
+                FROM weapon_profiles wp
+                WHERE wp.weapon_id = e.id
+            ),
+            '[]'::jsonb
+        ) as weapon_profiles
+    FROM equipment e
     -- Join with equipment_availability to get gang-specific availability
-    left join equipment_availability ea on e.id = ea.equipment_id 
-        and ea.gang_type_id = get_equipment_with_discounts.gang_type_id
-    left join equipment_discounts ed on e.id = ed.equipment_id 
-        and (
+    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
+        AND ea.gang_type_id = $1
+    LEFT JOIN equipment_discounts ed ON e.id = ed.equipment_id 
+        AND (
             -- Gang-level access: only gang-level discounts
-            (get_equipment_with_discounts.fighter_type_id is null 
-             and ed.gang_type_id = get_equipment_with_discounts.gang_type_id 
-             and ed.fighter_type_id is null)
-            or 
+            ($3 IS NULL 
+             AND ed.gang_type_id = $1 
+             AND ed.fighter_type_id IS NULL)
+            OR 
             -- Fighter-level access: both gang-level and fighter-specific discounts
-            (get_equipment_with_discounts.fighter_type_id is not null 
-             and (
-                 (ed.gang_type_id = get_equipment_with_discounts.gang_type_id and ed.fighter_type_id is null)
-                 or 
-                 (ed.fighter_type_id = get_equipment_with_discounts.fighter_type_id)
+            ($3 IS NOT NULL 
+             AND (
+                 (ed.gang_type_id = $1 AND ed.fighter_type_id IS NULL)
+                 OR 
+                 (ed.fighter_type_id = $3)
              ))
         )
-    left join fighter_type_equipment fte on e.id = fte.equipment_id
-        and (get_equipment_with_discounts.fighter_type_id is null 
-             or fte.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-             or fte.vehicle_type_id = get_equipment_with_discounts.fighter_type_id)
-    where 
+    LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
+        AND ($3 IS NULL 
+             OR fte.fighter_type_id = $3
+             OR fte.vehicle_type_id = $3)
+    WHERE 
         (
-            coalesce(e.core_equipment, false) = false
+            COALESCE(e.core_equipment, false) = false
             OR 
             (
                 e.core_equipment = true 
-                AND (fte.fighter_type_id is not null OR get_equipment_with_discounts.fighter_type_id is null)
+                AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL)
             )
         )
-        and
-        (get_equipment_with_discounts.equipment_category is null 
-         or trim(both from e.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
-        and
+        AND
+        ($2 IS NULL 
+         OR trim(both from e.equipment_category) = trim(both from $2))
+        AND
         (
-            get_equipment_with_discounts.gang_type_id is null
-            or ed.gang_type_id = get_equipment_with_discounts.gang_type_id
-            or ed.gang_type_id is null
+            $1 IS NULL
+            OR ed.gang_type_id = $1
+            OR ed.gang_type_id IS NULL
         )
-        and
+        AND
         (
-            get_equipment_with_discounts.fighter_type_id is null
-            or ed.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-            or ed.fighter_type_id is null
+            $3 IS NULL
+            OR ed.fighter_type_id = $3
+            OR ed.fighter_type_id IS NULL
         )
-        and
+        AND
         (
-            get_equipment_with_discounts.fighter_type_equipment is null
-            or (
-                case
-                    when fte.fighter_type_id is not null or fte.vehicle_type_id is not null then true
-                    else false
-                end
-            ) = get_equipment_with_discounts.fighter_type_equipment
+            $4 IS NULL
+            OR (
+                CASE
+                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
+                    ELSE false
+                END
+            ) = $4
         )
-        and
+        AND
         (
-            get_equipment_with_discounts.equipment_tradingpost is null
-            or (
-                case
+            $5 IS NULL
+            OR (
+                CASE
                     -- Gang-level access: only check gang's trading post type
-                    when get_equipment_with_discounts.fighter_type_id is null then 
-                        exists (
-                            select 1
-                            from gang_types gt, trading_post_equipment tpe
-                            where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
-                            and tpe.trading_post_type_id = gt.trading_post_type_id
-                            and tpe.equipment_id = e.id
+                    WHEN $3 IS NULL THEN 
+                        EXISTS (
+                            SELECT 1
+                            FROM gang_types gt, trading_post_equipment tpe
+                            WHERE gt.gang_type_id = $1
+                            AND tpe.trading_post_type_id = gt.trading_post_type_id
+                            AND tpe.equipment_id = e.id
                         )
                     -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
-                    else (
-                        exists (
-                            select 1
-                            from fighter_equipment_tradingpost fet,
+                    ELSE (
+                        EXISTS (
+                            SELECT 1
+                            FROM fighter_equipment_tradingpost fet,
                                  jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                            where fet.fighter_type_id = get_equipment_with_discounts.fighter_type_id
-                            and equip_id = e.id::text
-                        ) OR exists (
-                            select 1
-                            from gang_types gt, trading_post_equipment tpe
-                            where gt.gang_type_id = get_equipment_with_discounts.gang_type_id
-                            and tpe.trading_post_type_id = gt.trading_post_type_id
-                            and tpe.equipment_id = e.id
+                            WHERE fet.fighter_type_id = $3
+                            AND equip_id = e.id::text
+                        ) OR EXISTS (
+                            SELECT 1
+                            FROM gang_types gt, trading_post_equipment tpe
+                            WHERE gt.gang_type_id = $1
+                            AND tpe.trading_post_type_id = gt.trading_post_type_id
+                            AND tpe.equipment_id = e.id
                         )
                     )
-                end
-            ) = get_equipment_with_discounts.equipment_tradingpost
+                END
+            ) = $5
         )
 
     UNION ALL
 
     -- Custom equipment
-    select 
+    SELECT 
         ce.id,
         ce.equipment_name,
         'Custom' as trading_post_category,
@@ -189,10 +215,35 @@ as $$
         ce.created_at,
         true as fighter_type_equipment,      -- Custom equipment is available for fighters
         true as equipment_tradingpost,       -- Custom equipment is available in trading post
-        true as is_custom
-    from custom_equipment ce
-    where 
+        true as is_custom,
+        -- Custom equipment weapon profiles (if any)
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', cwp.id,
+                        'profile_name', cwp.profile_name,
+                        'range_short', cwp.range_short,
+                        'range_long', cwp.range_long,
+                        'acc_short', cwp.acc_short,
+                        'acc_long', cwp.acc_long,
+                        'strength', cwp.strength,
+                        'ap', cwp.ap,
+                        'damage', cwp.damage,
+                        'ammo', cwp.ammo,
+                        'traits', cwp.traits,
+                        'sort_order', cwp.sort_order
+                    )
+                    ORDER BY COALESCE(cwp.sort_order, 999), cwp.profile_name
+                )
+                FROM custom_weapon_profiles cwp
+                WHERE cwp.custom_equipment_id = ce.id
+            ),
+            '[]'::jsonb
+        ) as weapon_profiles
+    FROM custom_equipment ce
+    WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment
-        and (get_equipment_with_discounts.equipment_category is null 
-         or trim(both from ce.equipment_category) = trim(both from get_equipment_with_discounts.equipment_category))
+        AND ($2 IS NULL 
+         OR trim(both from ce.equipment_category) = trim(both from $2))
 $$;

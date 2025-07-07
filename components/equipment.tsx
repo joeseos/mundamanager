@@ -14,6 +14,7 @@ import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
+import { Tooltip } from 'react-tooltip';
 
 interface ItemModalProps {
   title: string;
@@ -871,7 +872,105 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
                           >
                             <div className="flex-1 pl-4 leading-none">
-                              <span className="text-sm font-medium">{item.equipment_name}</span>
+                              {item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0 ? (
+                                <span 
+                                  className="text-sm font-medium cursor-help"
+                                  data-tooltip-id="weapon-profile-tooltip"
+                                  data-tooltip-html={(() => {
+                                    const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
+                                      const orderA = (a as any).sort_order ?? 1;
+                                      const orderB = (b as any).sort_order ?? 1;
+                                      if (orderA !== orderB) return orderA - orderB;
+                                      return (a.profile_name || '').localeCompare(b.profile_name || '');
+                                    });
+
+                                    // Check if any profile has meaningful data beyond just the name
+                                    const hasProfileData = sortedProfiles.some(profile => 
+                                      profile.range_short || profile.range_long || 
+                                      profile.acc_short || profile.acc_long ||
+                                      profile.strength || profile.ap || 
+                                      profile.damage || profile.ammo || 
+                                      profile.traits
+                                    );
+
+                                    // If no meaningful data, just show profile names
+                                    if (!hasProfileData) {
+                                      return sortedProfiles.map(profile => profile.profile_name).join('\n');
+                                    }
+
+                                    let html = '<div style="font-size: 12px;"><div style="font-weight: bold; text-align: center; margin-bottom: 8px;">Weapon Profiles</div>';
+                                    html += '<table style="width: 100%; border-collapse: collapse;">';
+                                    html += '<thead>';
+                                    html += '<tr>';
+                                    html += '<th style="text-align: left; padding: 4px; min-width: 80px;"></th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;" colspan="2">Rng</th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;" colspan="2">Acc</th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
+                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
+                                    html += '<th style="text-align: left; padding: 4px; border-left: 1px solid #666; min-width: 120px;"></th>';
+                                    html += '</tr>';
+                                    html += '<tr style="border-bottom: 1px solid #666;">';
+                                    html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; border-right: 1px solid #444; font-size: 10px; min-width: 25px;">S</th>';
+                                    html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; border-right: 1px solid #444; font-size: 10px; min-width: 25px;">S</th>';
+                                    html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
+                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
+                                    html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Traits</th>';
+                                    html += '</tr>';
+                                    html += '</thead><tbody>';
+
+                                    sortedProfiles.forEach(profile => {
+                                      // Check if this profile has any meaningful data
+                                      const profileHasData = profile.range_short || profile.range_long || 
+                                                           profile.acc_short || profile.acc_long ||
+                                                           profile.strength || profile.ap || 
+                                                           profile.damage || profile.ammo || 
+                                                           profile.traits;
+                                      
+                                      html += '<tr style="border-bottom: 1px solid #555;">';
+                                      html += `<td style="padding: 4px; font-weight: 500;">${profile.profile_name || '-'}</td>`;
+                                      
+                                      if (profileHasData) {
+                                        // Show "-" for missing values when profile has other data
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center;">${profile.range_long || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center;">${profile.acc_long || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
+                                        html += `<td style="padding: 4px; border-left: 1px solid #555;">${profile.traits || '-'}</td>`;
+                                      } else {
+                                        // Show empty cells for profiles with no data
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                        html += `<td style="padding: 4px; border-left: 1px solid #555;"></td>`;
+                                      }
+                                      html += '</tr>';
+                                    });
+
+                                    html += '</tbody></table></div>';
+                                    return html;
+                                  })()}
+                                >
+                                  {item.equipment_name}
+                                </span>
+                              ) : (
+                                <span className="text-sm font-medium">{item.equipment_name}</span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -942,6 +1041,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
           onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating)}
         />
       )}
+
+      {/* Weapon Profile Tooltip */}
+      <Tooltip
+        id="weapon-profile-tooltip"
+        place="top"
+        className="!bg-gray-900 !text-white !text-xs !max-w-4xl !z-[60]"
+        style={{
+          backgroundColor: '#1f2937',
+          color: 'white',
+          fontSize: '12px',
+          maxWidth: '800px',
+          zIndex: 60
+        }}
+      />
     </div>
   );
 };
