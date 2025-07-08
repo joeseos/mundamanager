@@ -11,6 +11,8 @@ export type Campaign = {
   updated_at: string;
   role?: string;
   status?: string;
+  image_url: string;
+  user_gangs?: { id: string; name: string }[];
 };
 
 // Use React's cache for Server Component memoization
@@ -49,7 +51,7 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
     // Get campaigns
     const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
-      .select('id, campaign_name, campaign_type_id, created_at, updated_at')
+      .select('id, campaign_name, campaign_type_id, created_at, updated_at, image_url')
       .in('id', campaignIds);
 
     if (campaignsError) {
@@ -90,12 +92,49 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
         created_at: campaign.created_at,
         updated_at: campaign.updated_at,
         role: memberData?.role || '',
-        status: memberData?.status || ''
+        status: memberData?.status || '',
+        image_url: campaign.image_url || ''
       };
     }) as Campaign[];
 
+    // For each campaign, fetch the user's gangs participating in that campaign
+    const userGangsByCampaign: Record<string, { id: string; name: string }[]> = {};
+    for (const campaign of campaignsWithDetails) {
+      const { data: campaignGangs, error: campaignGangsError } = await supabase
+        .from('campaign_gangs')
+        .select('gang_id')
+        .eq('campaign_id', campaign.id)
+        .eq('user_id', user.id);
+
+      if (campaignGangsError) {
+        console.error('Error fetching campaign gangs:', campaignGangsError);
+        userGangsByCampaign[campaign.id] = [];
+        continue;
+      }
+
+      const gangIds = campaignGangs.map(g => g.gang_id);
+      let gangs: { id: string; name: string }[] = [];
+      if (gangIds.length > 0) {
+        const { data: gangDetails, error: gangDetailsError } = await supabase
+          .from('gangs')
+          .select('id, name')
+          .in('id', gangIds);
+
+        if (!gangDetailsError && gangDetails) {
+          gangs = gangDetails;
+        }
+      }
+      userGangsByCampaign[campaign.id] = gangs;
+    }
+
+    // Attach user_gangs to each campaign
+    const campaignsWithGangs = campaignsWithDetails.map(campaign => ({
+      ...campaign,
+      user_gangs: userGangsByCampaign[campaign.id] || []
+    }));
+
     // Sort by created_at desc like the SQL function
-    const sortedCampaigns = campaignsWithDetails.sort((a, b) => 
+    const sortedCampaigns = campaignsWithGangs.sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 

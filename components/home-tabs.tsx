@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import MyGangs from '@/components/my-gangs'
 import MyCampaigns from '@/components/my-campaigns'
+import type { Campaign } from '@/app/lib/get-user-campaigns'
 
 interface CampaignType {
   id: string;
@@ -23,18 +24,6 @@ interface Gang {
   rating: number | null;
   created_at: string;
   last_updated: string;
-}
-
-interface Campaign {
-  id: string;
-  campaign_member_id: string;
-  campaign_name: string;
-  campaign_type: string;
-  campaign_type_id: string;
-  created_at: string;
-  updated_at: string;
-  role?: string;
-  status?: string;
 }
 
 interface HomeTabsProps {
