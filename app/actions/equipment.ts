@@ -1,7 +1,9 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
+import { invalidateFighterData } from '@/utils/cache-tags';
+import { getCompleteFighterData } from '@/app/lib/fighter-details';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -63,20 +65,14 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error(error.message || 'Failed to buy equipment');
     }
 
-    // Targeted cache invalidation instead of full path revalidation
+    // Invalidate fighter cache
     if (params.fighter_id) {
-      revalidateTag(`fighter-${params.fighter_id}-equipment`);
-      revalidateTag(`fighter-${params.fighter_id}-stats`);
-      revalidateTag(`fighter-${params.fighter_id}-effects`);
+      invalidateFighterData(params.fighter_id, params.gang_id);
+    } else {
+      // For gang stash purchases, just invalidate gang cache
+      revalidateTag(`gang-${params.gang_id}-credits`);
+      revalidateTag(`gang-${params.gang_id}-rating`);
     }
-    
-    if (params.vehicle_id) {
-      revalidateTag(`vehicle-${params.vehicle_id}-equipment`);
-      revalidateTag(`vehicle-${params.vehicle_id}-stats`);
-    }
-    
-    revalidateTag(`gang-${params.gang_id}-credits`);
-    revalidateTag(`gang-${params.gang_id}-rating`);
     
     return { 
       success: true, 
@@ -152,15 +148,13 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     }
 
     // Get fresh fighter data after deletion for accurate response
-    const { data: updatedFighterData, error: fighterRefreshError } = await supabase.rpc('get_fighter_details', {
-      input_fighter_id: params.fighter_id
-    });
-
-    if (fighterRefreshError) {
+    let freshFighterData = null;
+    try {
+      const completeFighterData = await getCompleteFighterData(params.fighter_id);
+      freshFighterData = completeFighterData;
+    } catch (fighterRefreshError) {
       console.warn('Could not refresh fighter data:', fighterRefreshError);
     }
-
-    const freshFighterData = updatedFighterData?.[0]?.result;
 
     // Calculate equipment details for response - fix TypeScript errors
     const equipmentData = equipmentBefore.equipment as any;
@@ -174,22 +168,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
                          customEquipmentData?.equipment_name || 
                          'Unknown Equipment';
 
-    // Targeted cache invalidation - much more efficient than revalidatePath
-    // Update fighter equipment, effects, and stats
-    revalidateTag(`fighter-${params.fighter_id}-equipment`);
-    revalidateTag(`fighter-${params.fighter_id}-stats`);
-    revalidateTag(`fighter-${params.fighter_id}-effects`);
-    
-    // Update gang rating and credits
-    revalidateTag(`gang-${params.gang_id}-credits`);
-    revalidateTag(`gang-${params.gang_id}-rating`);
-    
-    // If it's vehicle equipment, also revalidate vehicle-specific tags
-    if (params.vehicle_id) {
-      revalidateTag(`vehicle-${params.vehicle_id}-equipment`);
-      revalidateTag(`vehicle-${params.vehicle_id}-stats`);
-      revalidateTag(`vehicle-${params.vehicle_id}-effects`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, params.gang_id);
     
     return { 
       success: true, 
@@ -249,12 +229,10 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<E
       throw new Error(error.message || 'Failed to move equipment to stash');
     }
 
-    // Targeted cache invalidation
-    revalidateTag(`fighter-${params.fighter_id}-equipment`);
-    revalidateTag(`fighter-${params.fighter_id}-stats`);
-    revalidateTag(`gang-${params.gang_id}-stash`);
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, params.gang_id);
     
-    // If it was vehicle equipment, revalidate vehicle tags
+    // If it was vehicle equipment, still need to revalidate vehicle tags
     if (equipmentBefore?.vehicle_id) {
       revalidateTag(`vehicle-${equipmentBefore.vehicle_id}-equipment`);
       revalidateTag(`vehicle-${equipmentBefore.vehicle_id}-stats`);

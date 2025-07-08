@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { invalidateFighterData } from '@/utils/cache-tags';
 
 // Helper function to check if user is admin
 async function checkAdmin(supabase: any): Promise<boolean> {
@@ -115,11 +116,8 @@ export async function addFighterInjury(
       }
     }
 
-    // Revalidate the fighter page
-    revalidatePath(`/fighter/${params.fighter_id}`);
-    if (fighter.gang_id) {
-      revalidatePath(`/gang/${fighter.gang_id}`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,
@@ -207,11 +205,8 @@ export async function deleteFighterInjury(
       };
     }
 
-    // Revalidate the fighter page
-    revalidatePath(`/fighter/${params.fighter_id}`);
-    if (fighter.gang_id) {
-      revalidatePath(`/gang/${fighter.gang_id}`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return { success: true };
 

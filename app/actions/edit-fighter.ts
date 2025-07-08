@@ -1,13 +1,18 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
+import { invalidateFighterData } from '@/utils/cache-tags';
 
 interface EditFighterStatusParams {
   fighter_id: string;
   action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'delete';
   sell_value?: number;
+}
+
+export interface UpdateFighterXpParams {
+  fighter_id: string;
+  xp_to_add: number;
 }
 
 interface EditFighterResult {
@@ -19,6 +24,8 @@ interface EditFighterResult {
       credits: number;
     };
     redirectTo?: string;
+    xp?: number;
+    total_xp?: number;
   };
   error?: string;
 }
@@ -92,8 +99,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -114,8 +120,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -154,8 +159,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (gangUpdateError) throw gangUpdateError;
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -179,8 +183,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -229,8 +232,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           if (updateError) throw updateError;
 
-          revalidatePath(`/fighter/${params.fighter_id}`);
-          revalidatePath(`/gang/${gangId}`);
+          invalidateFighterData(params.fighter_id, gangId);
 
           return {
             success: true,
@@ -250,8 +252,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           if (updateError) throw updateError;
 
-          revalidatePath(`/fighter/${params.fighter_id}`);
-          revalidatePath(`/gang/${gangId}`);
+          invalidateFighterData(params.fighter_id, gangId);
 
           return {
             success: true,
@@ -273,8 +274,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        revalidatePath(`/fighter/${params.fighter_id}`);
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -304,7 +304,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (gangUpdateError) throw gangUpdateError;
 
-        revalidatePath(`/gang/${gangId}`);
+        invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
@@ -321,6 +321,74 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
   } catch (error) {
     console.error('Error in editFighterStatus server action:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
+  }
+}
+
+export async function updateFighterXp(params: UpdateFighterXpParams): Promise<EditFighterResult> {
+  try {
+    const supabase = await createClient();
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const isAdmin = await checkAdmin(supabase);
+
+    // Get fighter data
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, gang_id, xp')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      throw new Error('Fighter not found');
+    }
+
+    // Check permissions
+    if (!isAdmin) {
+      const { data: gang, error: gangError } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangError || !gang || gang.user_id !== user.id) {
+        throw new Error('User does not have permission to edit this fighter');
+      }
+    }
+
+    // Update XP
+    const { data: updatedFighter, error: updateError } = await supabase
+      .from('fighters')
+      .update({ 
+        xp: fighter.xp + params.xp_to_add,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.fighter_id)
+      .select('id, xp')
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Invalidate cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
+
+    return {
+      success: true,
+      data: { 
+        fighter: updatedFighter,
+        xp: updatedFighter.xp,
+        total_xp: updatedFighter.xp
+      }
+    };
+  } catch (error) {
+    console.error('Error updating fighter XP:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'

@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
+import { invalidateFighterData } from '@/utils/cache-tags';
 
 // Types for advancement operations
 export interface AddCharacteristicAdvancementParams {
@@ -163,11 +163,8 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to update fighter XP' };
     }
 
-    // Revalidate the fighter page
-    revalidatePath(`/fighter/${params.fighter_id}`);
-    if (fighter.gang_id) {
-      revalidatePath(`/gang/${fighter.gang_id}`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,
@@ -269,11 +266,8 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Revalidate the fighter page
-    revalidatePath(`/fighter/${params.fighter_id}`);
-    if (fighter.gang_id) {
-      revalidatePath(`/gang/${fighter.gang_id}`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,
@@ -455,11 +449,8 @@ export async function deleteAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Revalidate the fighter page
-    revalidatePath(`/fighter/${params.fighter_id}`);
-    if (fighter.gang_id) {
-      revalidatePath(`/gang/${fighter.gang_id}`);
-    }
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,

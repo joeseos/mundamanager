@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
+import { invalidateFighterData } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -143,10 +144,12 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       throw new Error(`Failed to update gang credits: ${updateError?.message}`);
     }
 
-    // Revalidate relevant paths
-    revalidatePath(`/gang/${gangId}`);
+    // Invalidate fighter cache
     if (equipmentData.fighter_id) {
-      revalidatePath(`/fighter/${equipmentData.fighter_id}`);
+      invalidateFighterData(equipmentData.fighter_id, gangId);
+    } else {
+      // For vehicle equipment or other cases, just invalidate gang cache
+      revalidatePath(`/gang/${gangId}`);
     }
 
     return {
