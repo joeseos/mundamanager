@@ -254,6 +254,10 @@ export default function FighterPage({
           fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
           fighter_type_id: initialFighterData.fighter.fighter_type.id
         },
+        fighter_sub_type: initialFighterData.fighter.fighter_sub_type ? {
+          fighter_sub_type: initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
+          fighter_sub_type_id: initialFighterData.fighter.fighter_sub_type.id
+        } : undefined,
         base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
@@ -371,6 +375,10 @@ export default function FighterPage({
           fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
           fighter_type_id: initialFighterData.fighter.fighter_type.id
         },
+        fighter_sub_type: initialFighterData.fighter.fighter_sub_type ? {
+          fighter_sub_type: initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
+          fighter_sub_type_id: initialFighterData.fighter.fighter_sub_type.id
+        } : undefined,
         base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
