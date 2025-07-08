@@ -15,6 +15,7 @@ import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
+import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -130,30 +131,17 @@ export default function GangInventory({
       for (const itemIndex of selectedItems) {
         const stashItem = stash[itemIndex];
         
-        const requestBody = {
-          p_stash_id: stashItem.id,
+        // Use server action instead of direct API call
+        const result = await moveEquipmentFromStash({
+          stash_id: stashItem.id,
           ...(isVehicleTarget 
-            ? { p_vehicle_id: targetId }
-            : { p_fighter_id: targetId }
+            ? { vehicle_id: targetId }
+            : { fighter_id: targetId }
           )
-        };
+        });
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_from_stash`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify(requestBody)
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Failed to move item ${stashItem.equipment_name || stashItem.vehicle_name}: ${errorText}`);
+        if (!result.success) {
+          console.error(`Failed to move item ${stashItem.equipment_name || stashItem.vehicle_name}: ${result.error}`);
           errorCount++;
           continue;
         }
@@ -161,7 +149,7 @@ export default function GangInventory({
         successCount++;
         
         // Get the response data
-        const responseData = await response.json();
+        const responseData = result.data;
         
         if (isVehicleTarget) {
           // Handle vehicle equipment update
@@ -169,7 +157,7 @@ export default function GangInventory({
           if (targetVehicle) {
             // Create new equipment item for the vehicle with proper typing
             const newEquipment: Equipment & Partial<VehicleEquipment> = {
-              fighter_equipment_id: responseData.equipment_id || stashItem.id,
+              fighter_equipment_id: responseData?.equipment_id || stashItem.id,
               equipment_id: stashItem.equipment_id || '',
               equipment_name: stashItem.equipment_name || '',
               equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
@@ -179,10 +167,10 @@ export default function GangInventory({
               master_crafted: false,
               // Vehicle-specific fields
               vehicle_id: targetId,
-              vehicle_equipment_id: responseData.equipment_id || stashItem.id,
-              vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData.equipment_id || stashItem.id : undefined,
+              vehicle_equipment_id: responseData?.equipment_id || stashItem.id,
+              vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData?.equipment_id || stashItem.id : undefined,
               // Add weapon profiles if this is a weapon
-              weapon_profiles: responseData.weapon_profiles || undefined
+              weapon_profiles: responseData?.weapon_profiles || undefined
             };
 
             // Update the target vehicle's equipment
@@ -224,7 +212,7 @@ export default function GangInventory({
           const currentFighter: FighterProps | undefined = updatedFighter || fighters.find(f => f.id === targetId);
           if (currentFighter) {
             // Check if any weapon profile has master-crafted flag
-            const hasMasterCrafted = (responseData.weapon_profiles || []).some(
+            const hasMasterCrafted = (responseData?.weapon_profiles || []).some(
               (profile: any) => profile.is_master_crafted
             );
             
@@ -239,8 +227,8 @@ export default function GangInventory({
                       weapon_name: stashItem.equipment_name || '',
                       weapon_id: stashItem.equipment_id || stashItem.id,
                       cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData.equipment_id || stashItem.id,
-                      weapon_profiles: responseData.weapon_profiles || [],
+                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
+                      weapon_profiles: responseData?.weapon_profiles || [],
                       is_master_crafted: hasMasterCrafted
                     }
                   ]
@@ -252,7 +240,7 @@ export default function GangInventory({
                       wargear_name: stashItem.equipment_name || '',
                       wargear_id: stashItem.equipment_id || stashItem.id,
                       cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
                       is_master_crafted: hasMasterCrafted
                     }
                   ]

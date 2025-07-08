@@ -2,6 +2,8 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
+import { getCompleteFighterData } from "@/app/lib/fighter-details";
+import { getGangFighters } from "@/app/lib/fighter-data";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -18,18 +20,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   }
 
   try {
-    // Fetch fighter details using the existing RPC function
-    const { data, error } = await supabase.rpc('get_fighter_details', {
-      input_fighter_id: id
-    });
-
-    if (error) {
-      console.error('Error fetching fighter details:', error);
-      redirect("/");
-    }
-
-    const fighterData = data[0]?.result;
-    if (!fighterData) {
+    // Fetch complete fighter data using cached function
+    const fighterData = await getCompleteFighterData(id);
+    
+    if (!fighterData?.fighter) {
       redirect("/");
     }
 
@@ -37,21 +31,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const permissionService = new PermissionService();
     const userPermissions = await permissionService.getFighterPermissions(user.id, id);
 
-    // Fetch gang fighters for the dropdown
-    const { data: gangFighters, error: fightersError } = await supabase
-      .from('fighters')
-      .select('id, fighter_name, fighter_type, xp')
-      .eq('gang_id', fighterData.gang.id);
-
-    if (fightersError) {
-      console.error('Error fetching gang fighters:', fightersError);
-    }
+    // Fetch gang fighters for the dropdown using cached function
+    const gangFighters = await getGangFighters(fighterData.gang.id);
 
     // Pass fighter data and user permissions to client component
     return (
       <FighterPageComponent
         initialFighterData={fighterData}
-        initialGangFighters={gangFighters || []}
+        initialGangFighters={gangFighters}
         userPermissions={userPermissions}
         fighterId={id}
       />

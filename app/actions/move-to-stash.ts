@@ -1,35 +1,29 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
 import { invalidateFighterData } from '@/utils/cache-tags';
 
-interface SellEquipmentParams {
+interface MoveToStashParams {
   fighter_equipment_id: string;
-  manual_cost?: number;
 }
 
-interface SellEquipmentResult {
+interface MoveToStashResult {
   success: boolean;
   data?: {
-    gang: {
-      id: string;
-      credits: number;
-    };
-    equipment_sold: {
+    stash_id: string;
+    equipment_moved: {
       id: string;
       fighter_id?: string;
       vehicle_id?: string;
       equipment_id?: string;
       custom_equipment_id?: string;
-      sell_value: number;
     };
   };
   error?: string;
 }
 
-export async function sellEquipmentFromFighter(params: SellEquipmentParams): Promise<SellEquipmentResult> {
+export async function moveEquipmentToStash(params: MoveToStashParams): Promise<MoveToStashResult> {
   try {
     const supabase = await createClient();
     
@@ -52,13 +46,17 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         vehicle_id,
         equipment_id,
         custom_equipment_id,
-        purchase_cost
+        purchase_cost,
+        original_cost,
+        is_master_crafted
       `)
       .eq('id', params.fighter_equipment_id)
       .single();
 
     if (equipmentError || !equipmentData) {
-      throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found`);
+      console.error('Equipment lookup error:', equipmentError);
+      console.error('Looking for equipment ID:', params.fighter_equipment_id);
+      throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found. Error: ${equipmentError?.message || 'No data returned'}`);
     }
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
@@ -105,76 +103,45 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
 
       if (gang.user_id !== user.id) {
-        throw new Error('User does not have permission to sell this equipment');
+        throw new Error('User does not have permission to move this equipment');
       }
     }
 
-    // Determine sell value (manual or default to purchase cost)
-    const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;
+    // Use the RPC function to move equipment to stash
+    const { data: stashResult, error: stashError } = await supabase
+      .rpc('move_to_gang_stash', {
+        in_fighter_equipment_id: params.fighter_equipment_id,
+        in_user_id: user.id
+      });
 
-    // Start transaction: Delete equipment and update gang credits
-    const { error: deleteError } = await supabase
-      .from('fighter_equipment')
-      .delete()
-      .eq('id', params.fighter_equipment_id);
-
-    if (deleteError) {
-      throw new Error(`Failed to delete equipment: ${deleteError.message}`);
-    }
-
-    // Update gang credits - get current credits and update manually
-    const { data: currentGang, error: getCurrentError } = await supabase
-      .from('gangs')
-      .select('credits')
-      .eq('id', gangId)
-      .single();
-      
-    if (getCurrentError || !currentGang) {
-      throw new Error('Failed to get current gang credits');
-    }
-    
-    const { data: updatedGang, error: updateError } = await supabase
-      .from('gangs')
-      .update({ credits: currentGang.credits + sellValue })
-      .eq('id', gangId)
-      .select('id, credits')
-      .single();
-      
-    if (updateError || !updatedGang) {
-      throw new Error(`Failed to update gang credits: ${updateError?.message}`);
+    if (stashError) {
+      throw new Error(`Failed to move equipment to stash: ${stashError.message}`);
     }
 
     // Invalidate fighter cache
     if (equipmentData.fighter_id) {
       invalidateFighterData(equipmentData.fighter_id, gangId);
-    } else {
-      // For vehicle equipment or other cases, just invalidate gang cache
-      revalidatePath(`/gang/${gangId}`);
     }
 
     return {
       success: true,
       data: {
-        gang: {
-          id: updatedGang.id,
-          credits: updatedGang.credits
-        },
-        equipment_sold: {
+        stash_id: stashResult,
+        equipment_moved: {
           id: equipmentData.id,
           fighter_id: equipmentData.fighter_id || undefined,
           vehicle_id: equipmentData.vehicle_id || undefined,
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
-          sell_value: sellValue
         }
       }
     };
 
   } catch (error) {
-    console.error('Error in sellEquipmentFromFighter server action:', error);
+    console.error('Error in moveEquipmentToStash server action:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
-} 
+}
