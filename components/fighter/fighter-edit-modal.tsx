@@ -542,7 +542,7 @@ export function EditFighterModal({
   // State for tracking if stats are being saved
   const [isSavingStats, setIsSavingStats] = useState(false);
 
-  // Add state for temporary selected fighter type
+  // Add state for temporary selected fighter type - pre-select current type
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(fighter.fighter_type_id || '');
   
   // Add state for selected sub-type
@@ -758,7 +758,7 @@ export function EditFighterModal({
   // Update the currentFighter useEffect
   useEffect(() => {
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId(''); // Always start with no selection
+    setSelectedFighterTypeId(fighter.fighter_type_id || ''); // Pre-select current fighter type
     setSelectedSubTypeId((fighter as any).fighter_sub_type_id || '');
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
@@ -960,7 +960,7 @@ export function EditFighterModal({
       
       // Only update fighter type if explicitly selected, not when selecting sub-types
       // Sub-type changes should NEVER automatically change the fighter type
-      const shouldUpdateFighterType = selectedFighterType;
+      const shouldUpdateFighterType = selectedFighterType && hasExplicitlySelectedType;
       
       
       // Call onSubmit with all values, including sub-type fields
@@ -974,8 +974,8 @@ export function EditFighterModal({
         fighter_type: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_type : undefined,
         fighter_type_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.id : undefined,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : undefined,
-        fighter_sub_type_id: selectedSubType ? selectedSubType.id : undefined
+        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : (selectedSubTypeId === '' ? null : undefined),
+        fighter_sub_type_id: selectedSubType ? selectedSubType.id : (selectedSubTypeId === '' ? null : undefined)
       });
       toast({
         description: 'Fighter updated successfully',
@@ -1100,7 +1100,7 @@ export function EditFighterModal({
             </div>
             
             {/* Sub-type Dropdown - only show when we have sub-types */}
-            {hasExplicitlySelectedType && selectedFighterTypeId && availableSubTypes.length > 1 && availableSubTypes.some(subType => subType.label !== 'Default' && subType.label !== 'Select a sub-type') && (
+            {selectedFighterTypeId && availableSubTypes.length > 1 && availableSubTypes.some(subType => subType.label !== 'Default' && subType.label !== 'Select a sub-type') && (
               <div>
                 <label htmlFor="fighter_sub_type_id" className="block text-sm font-medium mb-1">
                   Fighter Sub-type

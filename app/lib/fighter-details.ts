@@ -49,6 +49,7 @@ export interface FighterType {
 export interface FighterSubType {
   id: string;
   sub_type_name: string;
+  fighter_sub_type: string;
 }
 
 export interface Gang {
@@ -218,7 +219,10 @@ async function _getFighterSubType(fighterSubTypeId: string, supabase: SupabaseCl
     .single();
 
   if (error) return null; // Sub-type is optional
-  return data;
+  return {
+    ...data,
+    fighter_sub_type: data.sub_type_name
+  };
 }
 
 async function _getGang(gangId: string, supabase: SupabaseClient): Promise<Gang> {
