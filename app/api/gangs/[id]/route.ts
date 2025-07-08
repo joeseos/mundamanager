@@ -68,6 +68,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     reputation,
     reputation_operation,
     meat,
+    scavenging_rolls,
     exploration_points,
     note,
     vehicleId,
@@ -160,6 +161,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // Add meat if provided
     if (meat !== undefined) {
       updates.meat = meat;
+    }
+
+    // Add scavenging rolls if provided
+    if (scavenging_rolls !== undefined) {
+      updates.scavenging_rolls = scavenging_rolls;
     }
 
     // Add exploration points if provided
