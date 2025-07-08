@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/client";
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { Button } from "@/components/ui/button";
 
 interface WeaponListProps {
@@ -186,23 +187,20 @@ export function WeaponList({
         throw new Error('Equipment not found');
       }
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_to_gang_stash`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            in_fighter_equipment_id: fighterEquipmentId,
-            in_user_id: session.user.id
-          })
-        }
-      );
+      // Use server action instead of direct API call
+      console.log('Moving equipment to stash:', { 
+        fighterEquipmentId, 
+        equipmentId, 
+        equipmentToStash: equipmentToStash 
+      });
+      
+      const result = await moveEquipmentToStash({
+        fighter_equipment_id: fighterEquipmentId
+      });
 
-      if (!response.ok) throw new Error('Failed to move equipment to stash');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to move equipment to stash');
+      }
 
       const updatedEquipment = equipment.filter(
         item => item.fighter_equipment_id !== fighterEquipmentId

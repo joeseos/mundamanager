@@ -15,6 +15,7 @@ import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
+import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -130,30 +131,17 @@ export default function GangInventory({
       for (const itemIndex of selectedItems) {
         const stashItem = stash[itemIndex];
         
-        const requestBody = {
-          p_stash_id: stashItem.id,
+        // Use server action instead of direct API call
+        const result = await moveEquipmentFromStash({
+          stash_id: stashItem.id,
           ...(isVehicleTarget 
-            ? { p_vehicle_id: targetId }
-            : { p_fighter_id: targetId }
+            ? { vehicle_id: targetId }
+            : { fighter_id: targetId }
           )
-        };
+        });
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/move_from_stash`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify(requestBody)
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Failed to move item ${stashItem.equipment_name || stashItem.vehicle_name}: ${errorText}`);
+        if (!result.success) {
+          console.error(`Failed to move item ${stashItem.equipment_name || stashItem.vehicle_name}: ${result.error}`);
           errorCount++;
           continue;
         }
@@ -161,7 +149,7 @@ export default function GangInventory({
         successCount++;
         
         // Get the response data
-        const responseData = await response.json();
+        const responseData = result.data;
         
         if (isVehicleTarget) {
           // Handle vehicle equipment update

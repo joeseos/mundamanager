@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { Textarea } from '../ui/textarea';
 import { UserPermissions } from '@/types/user-permissions';
+import { updateFighterDetails } from '@/app/actions/edit-fighter';
 
 interface NotesListProps {
   fighterId: string;
@@ -41,18 +42,13 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
         return;
       }
 
-      const response = await fetch(`/api/fighters/${fighterId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ note }),
+      const result = await updateFighterDetails({
+        fighter_id: fighterId,
+        note: note
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update notes');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update notes');
       }
 
       toast({

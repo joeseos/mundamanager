@@ -28,7 +28,7 @@ import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
-import { editFighterStatus, updateFighterXp } from "@/app/actions/edit-fighter";
+import { editFighterStatus, updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
 
 
 
@@ -250,7 +250,10 @@ export default function FighterPage({
       fighter: {
         ...initialFighterData.fighter,
         fighter_class: initialFighterData.fighter.fighter_class,
-        fighter_type: initialFighterData.fighter.fighter_type,
+        fighter_type: {
+          fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
+          fighter_type_id: initialFighterData.fighter.fighter_type.id
+        },
         base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
@@ -364,7 +367,10 @@ export default function FighterPage({
       fighter: {
         ...initialFighterData.fighter,
         fighter_class: initialFighterData.fighter.fighter_class,
-        fighter_type: initialFighterData.fighter.fighter_type,
+        fighter_type: {
+          fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
+          fighter_type_id: initialFighterData.fighter.fighter_type.id
+        },
         base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
@@ -1258,31 +1264,24 @@ export default function FighterPage({
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {
-                  // Transform the data from modal format to API format
-                  const apiData: any = {
-                    fighter_name: values.name, // API expects fighter_name, not name
+                  // Use server action instead of direct API call
+                  const result = await updateFighterDetails({
+                    fighter_id: fighterId,
+                    fighter_name: values.name,
                     label: values.label,
                     kills: values.kills,
-                    cost_adjustment: parseInt(values.costAdjustment) || 0, // Convert to number
+                    cost_adjustment: parseInt(values.costAdjustment) || 0,
                     special_rules: values.special_rules,
-                  };
-
-                  // Add fighter type fields if provided
-                  if (values.fighter_class) apiData.fighter_class = values.fighter_class;
-                  if (values.fighter_class_id) apiData.fighter_class_id = values.fighter_class_id;
-                  if (values.fighter_type) apiData.fighter_type = values.fighter_type;
-                  if (values.fighter_type_id) apiData.fighter_type_id = values.fighter_type_id;
-                  if (values.fighter_sub_type !== undefined) apiData.fighter_sub_type = values.fighter_sub_type;
-                  if (values.fighter_sub_type_id !== undefined) apiData.fighter_sub_type_id = values.fighter_sub_type_id;
-
-                  // Update fighter data via API
-                  const response = await fetch(`/api/fighters/${fighterId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(apiData),
+                    fighter_class: values.fighter_class,
+                    fighter_class_id: values.fighter_class_id,
+                    fighter_type_id: values.fighter_type_id,
+                    fighter_sub_type: values.fighter_sub_type,
+                    fighter_sub_type_id: values.fighter_sub_type_id,
                   });
 
-                  if (!response.ok) throw new Error('Failed to update fighter');
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter');
+                  }
 
                   // Refresh fighter data after successful update
                   router.refresh();

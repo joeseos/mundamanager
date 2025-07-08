@@ -15,6 +15,22 @@ export interface UpdateFighterXpParams {
   xp_to_add: number;
 }
 
+export interface UpdateFighterDetailsParams {
+  fighter_id: string;
+  fighter_name?: string;
+  label?: string;
+  kills?: number;
+  cost_adjustment?: number;
+  special_rules?: string[];
+  fighter_class?: string;
+  fighter_class_id?: string;
+  fighter_type?: string;
+  fighter_type_id?: string;
+  fighter_sub_type?: string | null;
+  fighter_sub_type_id?: string | null;
+  note?: string;
+}
+
 interface EditFighterResult {
   success: boolean;
   data?: {
@@ -28,6 +44,13 @@ interface EditFighterResult {
     total_xp?: number;
   };
   error?: string;
+  fighter?: {
+    id: string;
+    fighter_name: string;
+    label?: string;
+    kills?: number;
+    cost_adjustment?: number;
+  };
 }
 
 export async function editFighterStatus(params: EditFighterStatusParams): Promise<EditFighterResult> {
@@ -389,6 +412,85 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     };
   } catch (error) {
     console.error('Error updating fighter XP:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
+  }
+}
+
+export async function updateFighterDetails(params: UpdateFighterDetailsParams): Promise<EditFighterResult> {
+  try {
+    const supabase = await createClient();
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const isAdmin = await checkAdmin(supabase);
+
+    // Get fighter data
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, gang_id')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      throw new Error('Fighter not found');
+    }
+
+    // Check permissions
+    if (!isAdmin) {
+      const { data: gang, error: gangError } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangError || !gang || gang.user_id !== user.id) {
+        throw new Error('User does not have permission to edit this fighter');
+      }
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name;
+    if (params.label !== undefined) updateData.label = params.label;
+    if (params.kills !== undefined) updateData.kills = params.kills;
+    if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
+    if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
+    if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
+    if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+    if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
+    if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
+    if (params.note !== undefined) updateData.note = params.note;
+
+    // Update fighter
+    const { data: updatedFighter, error: updateError } = await supabase
+      .from('fighters')
+      .update(updateData)
+      .eq('id', params.fighter_id)
+      .select('id, fighter_name, label, kills, cost_adjustment')
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Invalidate cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
+
+    return {
+      success: true,
+      data: { 
+        fighter: updatedFighter
+      }
+    };
+  } catch (error) {
+    console.error('Error updating fighter details:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'
