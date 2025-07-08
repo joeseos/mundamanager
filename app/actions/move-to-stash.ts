@@ -24,9 +24,9 @@ interface MoveToStashResult {
 }
 
 export async function moveEquipmentToStash(params: MoveToStashParams): Promise<MoveToStashResult> {
+  const supabase = await createClient();
+  
   try {
-    const supabase = await createClient();
-    
     // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -107,18 +107,41 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // Use the RPC function to move equipment to stash
-    const { data: stashResult, error: stashError } = await supabase
-      .rpc('move_to_gang_stash', {
-        in_fighter_equipment_id: params.fighter_equipment_id,
-        in_user_id: user.id
-      });
+    // Start database transaction by inserting into gang_stash first
+    const { data: stashData, error: stashInsertError } = await supabase
+      .from('gang_stash')
+      .insert({
+        gang_id: gangId,
+        equipment_id: equipmentData.equipment_id,
+        custom_equipment_id: equipmentData.custom_equipment_id,
+        cost: equipmentData.purchase_cost,
+        is_master_crafted: equipmentData.is_master_crafted || false
+      })
+      .select('id')
+      .single();
 
-    if (stashError) {
-      throw new Error(`Failed to move equipment to stash: ${stashError.message}`);
+    if (stashInsertError || !stashData) {
+      throw new Error(`Failed to insert equipment into gang stash: ${stashInsertError?.message || 'No data returned'}`);
     }
 
-    // Invalidate fighter cache
+    // Delete from fighter_equipment (this completes the move operation)
+    const { error: deleteError } = await supabase
+      .from('fighter_equipment')
+      .delete()
+      .eq('id', params.fighter_equipment_id);
+
+    if (deleteError) {
+      // If delete fails, we should try to rollback the stash insert
+      // Note: Supabase doesn't support transactions in the JS client, so we manually clean up
+      await supabase
+        .from('gang_stash')
+        .delete()
+        .eq('id', stashData.id);
+        
+      throw new Error(`Failed to delete equipment from fighter: ${deleteError.message}`);
+    }
+
+    // Invalidate appropriate caches
     if (equipmentData.fighter_id) {
       invalidateFighterData(equipmentData.fighter_id, gangId);
     }
@@ -126,7 +149,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     return {
       success: true,
       data: {
-        stash_id: stashResult,
+        stash_id: stashData.id,
         equipment_moved: {
           id: equipmentData.id,
           fighter_id: equipmentData.fighter_id || undefined,
