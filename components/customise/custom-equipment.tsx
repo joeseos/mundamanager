@@ -161,7 +161,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
   // Check if create form is valid
   const isCreateFormValid = () => {
     return createForm.equipment_name.trim() !== '' &&
-           createForm.cost > 0 &&
+           createForm.cost >= 0 &&
            createForm.equipment_category !== '';
   };
 
@@ -506,7 +506,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </label>
                   <input
                     type="number"
-                    value={editForm.cost === 0 ? '' : editForm.cost}
+                    value={editForm.cost}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (value === '') {
@@ -656,7 +656,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </label>
                   <input
                     type="number"
-                    value={createForm.cost === 0 ? '' : createForm.cost}
+                    value={createForm.cost}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (value === '') {
