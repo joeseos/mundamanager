@@ -157,7 +157,7 @@ export default function GangInventory({
           if (targetVehicle) {
             // Create new equipment item for the vehicle with proper typing
             const newEquipment: Equipment & Partial<VehicleEquipment> = {
-              fighter_equipment_id: responseData.equipment_id || stashItem.id,
+              fighter_equipment_id: responseData?.equipment_id || stashItem.id,
               equipment_id: stashItem.equipment_id || '',
               equipment_name: stashItem.equipment_name || '',
               equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
@@ -167,10 +167,10 @@ export default function GangInventory({
               master_crafted: false,
               // Vehicle-specific fields
               vehicle_id: targetId,
-              vehicle_equipment_id: responseData.equipment_id || stashItem.id,
-              vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData.equipment_id || stashItem.id : undefined,
+              vehicle_equipment_id: responseData?.equipment_id || stashItem.id,
+              vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData?.equipment_id || stashItem.id : undefined,
               // Add weapon profiles if this is a weapon
-              weapon_profiles: responseData.weapon_profiles || undefined
+              weapon_profiles: responseData?.weapon_profiles || undefined
             };
 
             // Update the target vehicle's equipment
@@ -212,7 +212,7 @@ export default function GangInventory({
           const currentFighter: FighterProps | undefined = updatedFighter || fighters.find(f => f.id === targetId);
           if (currentFighter) {
             // Check if any weapon profile has master-crafted flag
-            const hasMasterCrafted = (responseData.weapon_profiles || []).some(
+            const hasMasterCrafted = (responseData?.weapon_profiles || []).some(
               (profile: any) => profile.is_master_crafted
             );
             
@@ -227,8 +227,8 @@ export default function GangInventory({
                       weapon_name: stashItem.equipment_name || '',
                       weapon_id: stashItem.equipment_id || stashItem.id,
                       cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData.equipment_id || stashItem.id,
-                      weapon_profiles: responseData.weapon_profiles || [],
+                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
+                      weapon_profiles: responseData?.weapon_profiles || [],
                       is_master_crafted: hasMasterCrafted
                     }
                   ]
@@ -240,7 +240,7 @@ export default function GangInventory({
                       wargear_name: stashItem.equipment_name || '',
                       wargear_id: stashItem.equipment_id || stashItem.id,
                       cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData.equipment_id || stashItem.id,
+                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
                       is_master_crafted: hasMasterCrafted
                     }
                   ]
