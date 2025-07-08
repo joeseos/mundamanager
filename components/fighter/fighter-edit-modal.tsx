@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/modal";
-import { FighterEffect, FighterProps as Fighter, FIGHTER_CLASSES, FighterClass } from '@/types/fighter';
+import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
@@ -403,8 +403,6 @@ function CharacterStatsModal({
         <div className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {displayStats.map((stat) => {
-              const propName = getPropertyName(stat.key);
-              const adjustment = adjustments[propName] || 0;
               return (
                 <div key={stat.key} className="border rounded-lg p-2">
                   <div className="flex justify-between items-center">
@@ -458,84 +456,7 @@ function CharacterStatsModal({
   );
 }
 
-// Add helper functions to calculate stat modifiers and get base values
-function calculateStatModifiers(fighter: Fighter, statKey: string): number {
-  let totalModifier = 0;
-  
-  // Process all effect types
-  const processEffects = (effects: FighterEffect[] | undefined) => {
-    effects?.forEach(effect => {
-      effect.fighter_effect_modifiers?.forEach(modifier => {
-        if (modifier.stat_name.toLowerCase() === statKey.toLowerCase()) {
-          totalModifier += parseInt(modifier.numeric_value.toString());
-        }
-      });
-    });
-  };
-  
-  // Process each type of effect
-  processEffects(fighter.effects?.injuries);
-  processEffects(fighter.effects?.advancements);
-  processEffects(fighter.effects?.bionics);
-  processEffects(fighter.effects?.cyberteknika);
-  processEffects(fighter.effects?.['gene-smithing']);
-  processEffects(fighter.effects?.['rig-glitches']);
-  processEffects(fighter.effects?.augmentations);
-  processEffects(fighter.effects?.user);
-  
-  return totalModifier;
-}
 
-function getBaseValue(fighter: Fighter, key: StatKey): number {
-  switch (key) {
-    case "M": return fighter.movement;
-    case "WS": return fighter.weapon_skill;
-    case "BS": return fighter.ballistic_skill;
-    case "S": return fighter.strength;
-    case "T": return fighter.toughness;
-    case "W": return fighter.wounds;
-    case "I": return fighter.initiative;
-    case "A": return fighter.attacks;
-    case "Ld": return fighter.leadership;
-    case "Cl": return fighter.cool;
-    case "Wil": return fighter.willpower;
-    case "Int": return fighter.intelligence;
-    default: return 0;
-  }
-}
-
-// Add this shared helper function above both component definitions
-function calculateTotalStat(fighter: Fighter, statKey: string, baseOverride?: number): number {
-  // Use provided base value or get from fighter
-  const baseValue = baseOverride !== undefined ? 
-    baseOverride : 
-    getBaseValue(fighter, statKey as StatKey);
-  
-  // Get sum of all modifiers
-  const modifiers = calculateStatModifiers(fighter, statKey);
-  
-  // Return total
-  return baseValue + modifiers;
-}
-
-// Safe function to create a temporary effect for optimistic updates
-const createTempEffect = (statName: string, adjustment: number): FighterEffect => {
-  // Create a temporary effect ID
-  const tempEffectId = `temp-${statName}-${Date.now()}`;
-  
-  // Create a properly structured temporary effect
-  return {
-    id: tempEffectId,
-    effect_name: adjustment > 0 ? 'Increase' : 'Decrease',
-    fighter_effect_type_id: 'temp-type-id', // Required by the type
-    fighter_effect_modifiers: [{
-      id: `temp-mod-${statName}-${Date.now()}`,
-      fighter_effect_id: tempEffectId, // Required by the type
-      stat_name: statName,
-      numeric_value: adjustment // Ensure this is a number
-    }]
-  } as FighterEffect;
-};
 
 interface EditFighterModalProps {
   fighter: Fighter;
@@ -598,17 +519,6 @@ export function EditFighterModal({
     typeClassKey?: string;
   }>>([]);
   
-  // Add state for ALL fighter types (for sub-type lookups)
-  const [allFighterTypes, setAllFighterTypes] = useState<Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    gang_type_id: string;
-    total_cost?: number;
-    typeClassKey?: string;
-  }>>([]);
   
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
   
@@ -641,8 +551,6 @@ export function EditFighterModal({
   // Add state for available sub-types
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ value: string; label: string; cost?: number }>>([]);
   
-  // Add state for loading sub-types
-  const [isLoadingSubTypes, setIsLoadingSubTypes] = useState(false);
   
   // Track if fighter type has been explicitly selected in this session
   const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
@@ -723,17 +631,21 @@ export function EditFighterModal({
             subTypesByTypeClass.set(key, []);
           }
           
-          // Add this fighter variant as a sub-type option
+          // Each fighter type record represents a sub-type variant
           const subType = {
-            id: fighter.sub_type?.id || '',
-            fighter_sub_type: fighter.sub_type?.sub_type_name || 'Default',
-            cost: fighter.total_cost,
-            fighter_type_id: fighter.id // Store the fighter type ID for this sub-type
+            id: fighter.sub_type?.id || fighter.id, // Use the sub_type.id or fighter id as the identifier
+            fighter_sub_type: fighter.sub_type?.sub_type_name, // Access the nested sub_type_name
+            cost: fighter.cost || fighter.total_cost, // Use cost or fall back to total_cost
+            fighter_type_id: fighter.id, // This is the fighter type record ID
+            fighter_type_name: fighter.fighter_type,
+            fighter_class_name: fighter.fighter_class
           };
           
-          // Only add if not already in the array
+          
+          // Add all sub-types that have a name and aren't duplicates
           const existing = subTypesByTypeClass.get(key);
-          if (!existing.some((st: any) => st.id === subType.id)) {
+          if (subType.fighter_sub_type && subType.id && 
+              !existing.some((st: any) => st.id === subType.id)) {
             subTypesByTypeClass.get(key).push(subType);
           }
         });
@@ -785,9 +697,8 @@ export function EditFighterModal({
             return (a.fighter_type || "").localeCompare(b.fighter_type || "");
           });
 
-        // Store both the display types and all types for lookups
+        // Store the display types for the dropdown
         setFighterTypes(processedTypes);
-        setAllFighterTypes(Array.from(allFighterTypes.values()));
         
         // If we have a selected fighter type, load its sub-types
         if (fighter.fighter_type_id) {
@@ -797,14 +708,30 @@ export function EditFighterModal({
             const key = `${selectedFighter.fighter_type}-${selectedFighter.fighter_class}`;
             if (subTypesByTypeClass.has(key)) {
               const subTypes = subTypesByTypeClass.get(key);
-              setAvailableSubTypes([
-                DEFAULT_SUB_TYPE_OPTION,
-                ...subTypes.map((subType: any) => ({
-                  value: subType.id,
-                  label: subType.fighter_sub_type || 'Default',
-                  cost: subType.cost
-                }))
-              ]);
+              
+              // Filter for valid sub-types (don't exclude any specific names)
+              const realSubTypes = subTypes.filter((subType: any) => 
+                subType.fighter_sub_type && 
+                subType.id && subType.id.trim() !== ''
+              );
+              
+              if (realSubTypes.length > 0) {
+                // Remove duplicates and sort by name
+                const uniqueSubTypes = realSubTypes
+                  .filter((subType: any, index: number, self: any[]) => 
+                    index === self.findIndex((s: any) => s.id === subType.id)
+                  )
+                  .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
+
+                setAvailableSubTypes([
+                  DEFAULT_SUB_TYPE_OPTION,
+                  ...uniqueSubTypes.map((subType: any) => ({
+                    value: subType.id,
+                    label: subType.fighter_sub_type,
+                    cost: subType.cost
+                  }))
+                ]);
+              }
             }
           }
         }
@@ -867,39 +794,35 @@ export function EditFighterModal({
         fighter_class_id: selectedType.fighter_class_id
       }));
       
-      // Get available sub-types for this type+class
+      // Get available sub-types for this fighter type+class combination
       const key = selectedType.typeClassKey;
       if (key && subTypesByFighterType.has(key)) {
         const subTypes = subTypesByFighterType.get(key) || [];
         
-        // Filter out subTypes that are just "Default"
-        const realSubTypes = subTypes.filter(subType => 
+        // Filter to get valid sub-types
+        const realSubTypes = subTypes.filter((subType: any) => 
           subType.fighter_sub_type && 
-          subType.fighter_sub_type !== 'Default'
+          subType.id && subType.id.trim() !== ''
         );
         
         if (realSubTypes.length > 0) {
-          // If we have meaningful sub-types, show them in the dropdown
-          // Filter out sub-types with empty IDs and ensure unique keys
-          const validSubTypes = subTypes
-            .filter(subType => subType.id && subType.id.trim() !== '')
-            .map((subType, index) => ({
-              value: subType.id,
-              label: subType.fighter_sub_type || 'Default',
-              cost: subType.cost
-            }));
-
-          // Remove duplicates based on value (ID)
-          const uniqueSubTypes = validSubTypes.filter((subType, index, self) => 
-            index === self.findIndex(s => s.value === subType.value)
-          );
+          // Remove duplicates based on sub-type ID and sort by name
+          const uniqueSubTypes = realSubTypes
+            .filter((subType: any, index: number, self: any[]) => 
+              index === self.findIndex((s: any) => s.id === subType.id)
+            )
+            .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
 
           setAvailableSubTypes([
             DEFAULT_SUB_TYPE_OPTION,
-            ...uniqueSubTypes
+            ...uniqueSubTypes.map((subType: any) => ({
+              value: subType.id,
+              label: subType.fighter_sub_type,
+              cost: subType.cost
+            }))
           ]);
         } else {
-          // If we only have default sub-types, don't show the dropdown
+          // If no meaningful sub-types, don't show the dropdown
           setAvailableSubTypes([]);
         }
       } else {
@@ -1020,39 +943,25 @@ export function EditFighterModal({
         fighterTypes.find(ft => ft.id === selectedFighterTypeId) : 
         null;
       
-      // Get the selected sub-type details
-      type SubTypeWithFighterTypeId = { id: string; fighter_sub_type: string; cost: number; fighter_type_id: string; };
-      let selectedSubType: SubTypeWithFighterTypeId | null = null;
+      // Get the selected sub-type details (without affecting fighter type)
+      type SubType = { id: string; fighter_sub_type: string; cost: number; };
+      let selectedSubType: SubType | null = null;
       if (selectedSubTypeId) {
-        // Find the sub-type across all available sub-types
-        let foundSubType: SubTypeWithFighterTypeId | null = null;
-        subTypesByFighterType.forEach((subTypes) => {
-          if (!foundSubType) {
-            const found = subTypes.find((st: any) => st.id === selectedSubTypeId) as SubTypeWithFighterTypeId | undefined;
-            if (found) {
-              foundSubType = found;
-            }
-          }
-        });
-        
-        if (foundSubType) {
-          selectedSubType = foundSubType;
-          
-          // IMPORTANT: When a sub-type is selected, ALWAYS use its fighter_type_id
-          // This overrides any explicit fighter type selection
-          if (foundSubType && (foundSubType as SubTypeWithFighterTypeId).fighter_type_id) {
-            // Look in ALL fighter types, not just the display ones
-            selectedFighterType = allFighterTypes.find(ft => ft.id === (foundSubType as SubTypeWithFighterTypeId).fighter_type_id);
-          }
+        // Find the sub-type in the currently available sub-types only
+        const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
+        if (foundSubType && foundSubType.value) {
+          selectedSubType = {
+            id: foundSubType.value,
+            fighter_sub_type: foundSubType.label,
+            cost: foundSubType.cost || 0
+          };
         }
       }
       
-      // If no sub-type is selected and no explicit fighter type change, 
-      // we should not send fighter type fields (let the server keep current values)
-      const shouldUpdateFighterType = selectedSubType || selectedFighterType;
+      // Only update fighter type if explicitly selected, not when selecting sub-types
+      // Sub-type changes should NEVER automatically change the fighter type
+      const shouldUpdateFighterType = selectedFighterType;
       
-      // First, get the session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
       
       // Call onSubmit with all values, including sub-type fields
       await onSubmit({
@@ -1065,12 +974,8 @@ export function EditFighterModal({
         fighter_type: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_type : undefined,
         fighter_type_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.id : undefined,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType ? (selectedSubType as SubTypeWithFighterTypeId).fighter_sub_type : 
-                          hasExplicitlySelectedType ? null : 
-                          undefined,
-        fighter_sub_type_id: selectedSubType ? (selectedSubType as SubTypeWithFighterTypeId).id : 
-                             hasExplicitlySelectedType ? null : 
-                             undefined
+        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : undefined,
+        fighter_sub_type_id: selectedSubType ? selectedSubType.id : undefined
       });
       toast({
         description: 'Fighter updated successfully',
@@ -1205,7 +1110,7 @@ export function EditFighterModal({
                   value={selectedSubTypeId}
                   onChange={(e) => handleSubTypeChange(e.target.value)}
                   className="w-full p-2 border rounded-md"
-                  disabled={isLoadingSubTypes}
+                  disabled={false}
                 >
                   {availableSubTypes.map((subType) => (
                     <option key={subType.value} value={subType.value}>
