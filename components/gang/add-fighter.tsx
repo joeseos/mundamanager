@@ -1082,12 +1082,12 @@ export default function AddFighter({
           htmlFor="use-base-cost-for-rating" 
           className="text-sm font-medium text-gray-700 cursor-pointer"
         >
-          Use base cost for Fighter Rating
+          Use Listed Cost for Rating
         </label>
         <div className="relative group">
           <ImInfo />
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When checked, the fighter will cost what you enter above, but its rating will be calculated using the base cost. When unchecked, the fighter's rating will be based on what you paid.
+            When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
           </div>
         </div>
       </div>
