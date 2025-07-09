@@ -61,7 +61,7 @@ export function calculateAdjustedStats(fighter: FighterProps) {
     };
 
     // Process all effect types
-    const effectCategories: EffectCategory[] = ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'user'];
+    const effectCategories: EffectCategory[] = ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'equipment', 'user'];
     
     effectCategories.forEach(category => {
       if (Array.isArray(fighter.effects[category])) {

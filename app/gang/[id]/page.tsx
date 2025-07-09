@@ -98,7 +98,17 @@ async function processGangData(gangData: any) {
         intelligence: fighter.intelligence
       },
       skills: processedSkills,
-      effects: fighter.effects || { injuries: [], advancements: [] },
+      effects: fighter.effects || { 
+        injuries: [], 
+        advancements: [], 
+        bionics: [], 
+        cyberteknika: [], 
+        'gene-smithing': [], 
+        'rig-glitches': [], 
+        augmentations: [], 
+        equipment: [], 
+        user: [] 
+      },
       weapons: validEquipment
         .filter((item: Equipment) => item.equipment_type === 'weapon')
         .map((item: Equipment) => ({

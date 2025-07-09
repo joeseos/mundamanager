@@ -60,6 +60,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   const geneSmithingEffects = useMemo(() => calculateEffectsForCategory('gene-smithing'), [calculateEffectsForCategory]);
   const rigGlitchesEffects = useMemo(() => calculateEffectsForCategory('rig-glitches'), [calculateEffectsForCategory]);
   const augmentationsEffects = useMemo(() => calculateEffectsForCategory('augmentations'), [calculateEffectsForCategory]);
+  const equipmentEffects = useMemo(() => calculateEffectsForCategory('equipment'), [calculateEffectsForCategory]);
 
   return (
     <div className="w-full overflow-x-auto">
@@ -175,6 +176,18 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             </tr>
           )}
           
+          {/* Equipment row - only show if fighter has equipment effects */}
+          {fighter.effects?.equipment && fighter.effects.equipment.length > 0 && (
+            <tr className="bg-amber-50">
+              <td className="px-1 py-1 font-medium text-xs">Equipment</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                  {equipmentEffects[stat.key] ? equipmentEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
+          
           {/* Total row - always shown */}
           <tr className="bg-gray-100 font-bold">
             <td className="px-1 py-1 text-xs">Total</td>
@@ -187,7 +200,8 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const geneSmithingValue = geneSmithingEffects[stat.key] || 0;
               const rigGlitchesValue = rigGlitchesEffects[stat.key] || 0;
               const augmentationsValue = augmentationsEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue;
+              const equipmentValue = equipmentEffects[stat.key] || 0;
+              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue;
               
               return (
                 <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
@@ -333,6 +347,7 @@ function CharacterStatsModal({
     processEffects(fighter.effects?.['gene-smithing']);
     processEffects(fighter.effects?.['rig-glitches']);
     processEffects(fighter.effects?.augmentations);
+    processEffects(fighter.effects?.equipment);
     processEffects(fighter.effects?.user);
     
     // Return total (base + existing modifiers)

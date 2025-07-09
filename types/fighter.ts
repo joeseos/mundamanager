@@ -54,7 +54,7 @@ export interface FighterEffectCategory {
 }
 
 // First, let's define the effect categories as a type
-export type EffectCategory = 'injuries' | 'advancements' | 'bionics' | 'cyberteknika' | 'gene-smithing' | 'rig-glitches' | 'augmentations' | 'user';
+export type EffectCategory = 'injuries' | 'advancements' | 'bionics' | 'cyberteknika' | 'gene-smithing' | 'rig-glitches' | 'augmentations' | 'equipment' | 'user';
 
 export interface Skill {
   id: string;
@@ -179,6 +179,7 @@ export interface FighterProps {
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
     augmentations: FighterEffect[];
+    equipment: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];

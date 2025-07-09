@@ -52,6 +52,10 @@ The fighter effects system manages all modifications to fighter statistics throu
 - Advancements
 - Bionics
 - Cyberteknika
+- Gene-smithing
+- Rig-glitches
+- Augmentations
+- Equipment
 - Vehicle Lasting Damages
 - User modifications
 
@@ -76,6 +80,10 @@ interface Fighter {
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
+    'gene-smithing': FighterEffect[];
+    'rig-glitches': FighterEffect[];
+    augmentations: FighterEffect[];
+    equipment: FighterEffect[];
     vehicle_damages: FighterEffect[];
     user: FighterEffect[];
   }
@@ -103,7 +111,7 @@ interface Fighter {
      const adjustedStats = { ...fighter.base_stats };
 
      // Process all effect categories
-     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'vehicle_damages', 'user'].forEach(category => {
+     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'equipment', 'vehicle_damages', 'user'].forEach(category => {
        fighter.effects[category]?.forEach(effect => {
          effect.fighter_effect_modifiers?.forEach(modifier => {
            const statName = modifier.stat_name.toLowerCase();
@@ -171,7 +179,21 @@ interface Fighter {
    fighter.effects.bionics.push(bionic);
    ```
 
-3. **Adding a Vehicle Lasting Damage**
+3. **Adding Equipment Effects**
+   ```typescript
+   const equipmentEffect: FighterEffect = {
+     effect_name: "Psychomancer's harness",
+     fighter_effect_modifiers: [
+       {
+         stat_name: "movement",
+         numeric_value: 2
+       }
+     ]
+   };
+   fighter.effects.equipment.push(equipmentEffect);
+   ```
+
+4. **Adding a Vehicle Lasting Damage**
    ```typescript
    const vehicleDamage: FighterEffect = {
      effect_name: "Loss of Power",
@@ -184,7 +206,7 @@ interface Fighter {
    fighter.effects.vehicle_damages.push(vehicleDamage);
    ```
 
-4. **User Modification**
+5. **User Modification**
    ```typescript
    const userMod: FighterEffect = {
      effect_name: "Custom Bonus",

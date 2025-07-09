@@ -1030,6 +1030,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           'gene-smithing': [] as FighterEffect[],
           'rig-glitches': [] as FighterEffect[],
           augmentations: [] as FighterEffect[],
+          equipment: [] as FighterEffect[],
           user: [] as FighterEffect[]
         },
         base_stats: {

@@ -8,7 +8,8 @@ import { VehicleEquipment } from '@/types/fighter';
 import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
-import { deleteEquipmentFromFighter, moveEquipmentToStash } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -178,9 +179,7 @@ export function VehicleEquipmentList({
       }
 
       const result = await moveEquipmentToStash({
-        fighter_equipment_id: fighterEquipmentId,
-        gang_id: gangId,
-        fighter_id: fighterId
+        fighter_equipment_id: fighterEquipmentId
       });
 
       if (!result.success) {

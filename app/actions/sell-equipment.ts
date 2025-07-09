@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -147,8 +147,22 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Invalidate fighter cache
     if (equipmentData.fighter_id) {
       invalidateFighterData(equipmentData.fighter_id, gangId);
+    } else if (equipmentData.vehicle_id) {
+      // For vehicle equipment, we need to get the fighter_id from the vehicle
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', equipmentData.vehicle_id)
+        .single();
+      
+      if (!vehicleError && vehicleData?.fighter_id) {
+        invalidateFighterData(vehicleData.fighter_id, gangId);
+      }
+      
+      // Also invalidate vehicle-specific cache tags
+      invalidateVehicleData(equipmentData.vehicle_id);
     } else {
-      // For vehicle equipment or other cases, just invalidate gang cache
+      // For other cases, just invalidate gang cache
       revalidatePath(`/gang/${gangId}`);
     }
 

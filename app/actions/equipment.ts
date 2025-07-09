@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
 import { getCompleteFighterData } from '@/app/lib/fighter-details';
 
 interface BuyEquipmentParams {
@@ -22,12 +22,6 @@ interface DeleteEquipmentParams {
   gang_id: string;
   fighter_id: string;
   vehicle_id?: string;
-}
-
-interface MoveToStashParams {
-  fighter_equipment_id: string;
-  gang_id: string;
-  fighter_id: string;
 }
 
 interface EquipmentActionResult {
@@ -68,6 +62,20 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Invalidate fighter cache
     if (params.fighter_id) {
       invalidateFighterData(params.fighter_id, params.gang_id);
+    } else if (params.vehicle_id) {
+      // For vehicle equipment purchases, we need to get the fighter_id from the vehicle
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', params.vehicle_id)
+        .single();
+      
+      if (!vehicleError && vehicleData?.fighter_id) {
+        invalidateFighterData(vehicleData.fighter_id, params.gang_id);
+      }
+      
+      // Also invalidate vehicle-specific cache tags
+      invalidateVehicleData(params.vehicle_id);
     } else {
       // For gang stash purchases, just invalidate gang cache
       revalidateTag(`gang-${params.gang_id}-credits`);
@@ -198,52 +206,3 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
   }
 }
 
-export async function moveEquipmentToStash(params: MoveToStashParams): Promise<EquipmentActionResult> {
-  try {
-    const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-
-    // Get equipment details before moving
-    const { data: equipmentBefore } = await supabase
-      .from('fighter_equipment')
-      .select(`
-        id,
-        vehicle_id,
-        equipment:equipment_id (equipment_name),
-        custom_equipment:custom_equipment_id (equipment_name)
-      `)
-      .eq('id', params.fighter_equipment_id)
-      .single();
-
-    const { data, error } = await supabase.rpc('move_to_gang_stash', {
-      in_fighter_equipment_id: params.fighter_equipment_id,
-      in_user_id: user.id
-    });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to move equipment to stash');
-    }
-
-    // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, params.gang_id);
-    
-    // If it was vehicle equipment, still need to revalidate vehicle tags
-    if (equipmentBefore?.vehicle_id) {
-      revalidateTag(`vehicle-${equipmentBefore.vehicle_id}-equipment`);
-      revalidateTag(`vehicle-${equipmentBefore.vehicle_id}-stats`);
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error in moveEquipmentToStash server action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
-    };
-  }
-} 

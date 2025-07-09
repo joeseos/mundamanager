@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -144,6 +144,20 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     // Invalidate appropriate caches
     if (equipmentData.fighter_id) {
       invalidateFighterData(equipmentData.fighter_id, gangId);
+    } else if (equipmentData.vehicle_id) {
+      // For vehicle equipment, we need to get the fighter_id from the vehicle
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', equipmentData.vehicle_id)
+        .single();
+      
+      if (!vehicleError && vehicleData?.fighter_id) {
+        invalidateFighterData(vehicleData.fighter_id, gangId);
+      }
+      
+      // Also invalidate vehicle-specific cache tags
+      invalidateVehicleData(equipmentData.vehicle_id);
     }
 
     return {

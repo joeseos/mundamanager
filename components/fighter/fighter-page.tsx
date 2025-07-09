@@ -122,6 +122,7 @@ interface Fighter {
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
     augmentations: FighterEffect[];
+    equipment: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -270,6 +271,7 @@ export default function FighterPage({
           'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
           'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
           augmentations: initialFighterData.fighter.effects?.augmentations || [],
+          equipment: initialFighterData.fighter.effects?.equipment || [],
           user: initialFighterData.fighter.effects?.user || []
         }
       },
@@ -391,6 +393,7 @@ export default function FighterPage({
           'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
           'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
           augmentations: initialFighterData.fighter.effects?.augmentations || [],
+          equipment: initialFighterData.fighter.effects?.equipment || [],
           user: initialFighterData.fighter.effects?.user || []
         }
       },
@@ -593,6 +596,8 @@ export default function FighterPage({
           targetCategory = 'rig-glitches';
         } else if (categoryName === 'augmentations') {
           targetCategory = 'augmentations';
+        } else if (categoryName === 'equipment') {
+          targetCategory = 'equipment';
         } else if (categoryName === 'injuries') {
           targetCategory = 'injuries';
         } else if (categoryName === 'advancements') {
@@ -626,7 +631,10 @@ export default function FighterPage({
         equipment: !isVehicleEquipment ? [...prev.equipment, boughtEquipment] : prev.equipment
       };
     });
-  }, []);
+    
+    // Refresh the page to get updated data from server
+    router.refresh();
+  }, [router]);
 
   // Gang fighters are already provided in initialGangFighters, no need to fetch them again
 
@@ -807,6 +815,7 @@ export default function FighterPage({
               'gene-smithing': [], 
               'rig-glitches': [], 
               augmentations: [], 
+              equipment: [], 
               user: [] 
             }}
             vehicles={fighterData.fighter?.vehicles}
