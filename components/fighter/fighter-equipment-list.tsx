@@ -4,11 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import Modal from '../modal';
 import { Equipment } from '@/types/equipment';
-import { createClient } from "@/utils/supabase/client";
-import { List } from "../ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
+import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
 
 interface WeaponListProps {
@@ -73,17 +72,7 @@ export function WeaponList({
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
-  const [session, setSession] = useState<any>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
-
-  useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     setIsLoading(true);
@@ -94,22 +83,15 @@ export function WeaponList({
         throw new Error('Equipment not found');
       }
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_equipment?id=eq.${fighterEquipmentId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        }
-      );
+      // Use server action instead of direct API call
+      const result = await deleteEquipmentFromFighter({
+        fighter_equipment_id: fighterEquipmentId,
+        gang_id: gangId,
+        fighter_id: fighterId
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to delete equipment: ${response.status} ${response.statusText}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete equipment');
       }
       
       const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);

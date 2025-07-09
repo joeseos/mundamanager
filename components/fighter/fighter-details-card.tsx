@@ -79,6 +79,7 @@ interface FighterDetailsCardProps {
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
     augmentations: FighterEffect[];
+    equipment: FighterEffect[];
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
@@ -278,6 +279,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'gene-smithing': effects?.['gene-smithing'] || [],
       'rig-glitches': effects?.['rig-glitches'] || [],
       augmentations: effects?.augmentations || [],
+      equipment: effects?.equipment || [],
       user: effects?.user || []
     },
     fighter_class,

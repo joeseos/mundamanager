@@ -865,6 +865,10 @@ export default function AddFighter({
           advancements: [],
           bionics: [],
           cyberteknika: [],
+          'gene-smithing': [],
+          'rig-glitches': [],
+          augmentations: [],
+          equipment: [],
           user: []
         },
         base_stats: {
