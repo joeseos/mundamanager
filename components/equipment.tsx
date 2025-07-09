@@ -699,340 +699,329 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
-      onMouseDown={handleOverlayClick}
-    >
-      <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-white shadow-xl">
-        <div className="relative border-b p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full absolute right-4 top-4"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </Button>
+    <>
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+        onMouseDown={handleOverlayClick}
+      >
+        <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-white shadow-xl">
+          <div className="relative border-b p-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full absolute right-4 top-4"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
 
-          <div className="flex flex-row gap-3 pr-8">
-            <h2 className="text-xl font-semibold">{title}</h2>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-sm text-gray-600">Gang Credits</span>
-              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                {gangCredits}
-              </span>
+            <div className="flex flex-row gap-3 pr-8">
+              <h2 className="text-xl font-semibold">{title}</h2>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-sm text-gray-600">Gang Credits</span>
+                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+                  {gangCredits}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 justify-center">
-            {!isStashMode && (
-              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
+            <div className="flex items-center gap-3 justify-center">
+              {!isStashMode && (
+                <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
+                  <input
+                    type="radio"
+                    name="equipment-list"
+                    value="fighters-list"
+                    checked={equipmentListType === "fighters-list"}
+                    onChange={() => {
+                      setEquipmentListType("fighters-list");
+                      setEquipment({});
+                    }}
+                    className="mr-1"
+                  />
+                  Fighter's List
+                </label>
+              )}
+              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
-                  value="fighters-list"
-                  checked={equipmentListType === "fighters-list"}
+                  value="fighters-tradingpost"
+                  checked={equipmentListType === "fighters-tradingpost"}
                   onChange={() => {
-                    setEquipmentListType("fighters-list");
+                    setEquipmentListType("fighters-tradingpost");
                     setEquipment({});
                   }}
                   className="mr-1"
                 />
-                Fighter's List
+                Trading Post
               </label>
-            )}
-            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
-              <input
-                type="radio"
-                name="equipment-list"
-                value="fighters-tradingpost"
-                checked={equipmentListType === "fighters-tradingpost"}
-                onChange={() => {
-                  setEquipmentListType("fighters-tradingpost");
-                  setEquipment({});
-                }}
-                className="mr-1"
+              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+                <input
+                  type="radio"
+                  name="equipment-list"
+                  value="unrestricted"
+                  checked={equipmentListType === "unrestricted"}
+                  onChange={() => {
+                    setEquipmentListType("unrestricted");
+                    setEquipment({});
+                  }}
+                  className="mr-1"
+                />
+                Unrestricted
+              </label>
+            </div>
+            <div className="mt-1 flex justify-center">
+              <div className="relative w-[250px]">
+                <input
+                  type="text"
+                  placeholder="Search equipment..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
+                  className="w-full px-3 py-2 pr-8 border rounded-md text-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black text-xl leading-none"
+                    aria-label="Clear search"
+                  >
+                    <LuX size={20} />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="mt-4 flex flex-col md:flex-row gap-4 md:gap-6 px-4">
+              <RangeSlider
+                label="Cost Range"
+                value={costRange}
+                onValueChange={setCostRange}
+                min={minCost}
+                max={maxCost}
+                step={5}
+                className="flex-1"
               />
-              Trading Post
-            </label>
-            <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
-              <input
-                type="radio"
-                name="equipment-list"
-                value="unrestricted"
-                checked={equipmentListType === "unrestricted"}
-                onChange={() => {
-                  setEquipmentListType("unrestricted");
-                  setEquipment({});
-                }}
-                className="mr-1"
+              
+              <RangeSlider
+                label="Availability Range"
+                value={availabilityRange}
+                onValueChange={setAvailabilityRange}
+                min={minAvailability}
+                max={maxAvailability}
+                step={1}
+                formatValue={(val) => `${val}`}
+                className="flex-1"
               />
-              Unrestricted
-            </label>
-          </div>
-          <div className="mt-1 flex justify-center">
-            <div className="relative w-[250px]">
-              <input
-                type="text"
-                placeholder="Search equipment..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
-                className="w-full px-3 py-2 pr-8 border rounded-md text-sm"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black text-xl leading-none"
-                  aria-label="Clear search"
-                >
-                  <LuX size={20} />
-                </button>
-              )}
             </div>
           </div>
-          
-          <div className="mt-4 flex flex-col md:flex-row gap-4 md:gap-6 px-4">
-            <RangeSlider
-              label="Cost Range"
-              value={costRange}
-              onValueChange={setCostRange}
-              min={minCost}
-              max={maxCost}
-              step={5}
-              className="flex-1"
-            />
-            
-            <RangeSlider
-              label="Availability Range"
-              value={availabilityRange}
-              onValueChange={setAvailabilityRange}
-              min={minAvailability}
-              max={maxAvailability}
-              step={1}
-              formatValue={(val) => `${val}`}
-              className="flex-1"
-            />
-          </div>
-        </div>
 
-        <div>
-          <div className="flex flex-col">
-            {error && <p className="text-red-500 p-4">{error}</p>}
+          <div>
+            <div className="flex flex-col">
+              {error && <p className="text-red-500 p-4">{error}</p>}
 
-            {categories
-              .filter(category => {
-                const isVehicleAllowed = isVehicleEquipment && allowedCategories
-                  ? allowedCategories.includes(category.category_name)
-                  : !isVehicleEquipment;
+              {categories
+                .filter(category => {
+                  const isVehicleAllowed = isVehicleEquipment && allowedCategories
+                    ? allowedCategories.includes(category.category_name)
+                    : !isVehicleEquipment;
 
-                const isAvailable = availableCategories.includes(category.category_name);
+                  const isAvailable = availableCategories.includes(category.category_name);
 
-                // When searching, only show categories that have matching equipment
-                const hasMatchingEquipment = !searchQuery || 
-                  (equipment[category.category_name] && 
-                   filterEquipment(equipment[category.category_name]).length > 0);
+                  // When searching, only show categories that have matching equipment
+                  const hasMatchingEquipment = !searchQuery || 
+                    (equipment[category.category_name] && 
+                     filterEquipment(equipment[category.category_name]).length > 0);
 
-                return isVehicleAllowed && isAvailable && hasMatchingEquipment;
-              })
-              .sort((a, b) => {
-                const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
-                const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
-                return rankA - rankB;
-              })
-              .map((category) => (
-              <div key={category.id}>
-                <Button
-                  variant="ghost"
-                  className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-gray-50 hover:bg-gray-100 mb-[1px]"
-                  onClick={() => toggleCategory(category)}
-                >
-                  <span>{category.category_name}</span>
-                  <ChevronRight
-                    className={`h-4 w-4 transition-transform duration-200 ${
-                      expandedCategories.has(category.category_name) ? "rotate-90" : ""
-                    }`}
-                  />
-                </Button>
+                  return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+                })
+                .sort((a, b) => {
+                  const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
+                  const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
+                  return rankA - rankB;
+                })
+                .map((category) => (
+                  <div key={category.id}>
+                    <Button
+                      variant="ghost"
+                      className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-gray-50 hover:bg-gray-100 mb-[1px]"
+                      onClick={() => toggleCategory(category)}
+                    >
+                      <span>{category.category_name}</span>
+                      <ChevronRight
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          expandedCategories.has(category.category_name) ? "rotate-90" : ""
+                        }`}
+                      />
+                    </Button>
 
-                {expandedCategories.has(category.category_name) && (
-                  <div className="bg-gray-50">
-                    {categoryLoadingStates[category.category_name] ? (
-                      <div className="flex justify-center py-4">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-                      </div>
-                    ) : equipment[category.category_name]?.length ? (
-                      filterEquipment(equipment[category.category_name])
-                        .map((item, itemIndex) => {
-                        const affordable = canAffordEquipment(item);
-                        const hasAdjustedCost = (item.adjusted_cost ?? item.cost) < (item.base_cost ?? item.cost);
-
-                        return (
-                          <div
-                            key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
-                            className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
-                          >
-                            <div className="flex-1 pl-4 leading-none">
-                              {item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0 ? (
-                                <span 
-                                  className="text-sm font-medium cursor-help"
-                                  data-tooltip-id="weapon-profile-tooltip"
-                                  data-tooltip-html={(() => {
-                                    const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
-                                      const orderA = (a as any).sort_order ?? 1;
-                                      const orderB = (b as any).sort_order ?? 1;
-                                      if (orderA !== orderB) return orderA - orderB;
-                                      return (a.profile_name || '').localeCompare(b.profile_name || '');
-                                    });
-
-                                    // Check if any profile has meaningful data beyond just the name
-                                    const hasProfileData = sortedProfiles.some(profile => 
-                                      profile.range_short || profile.range_long || 
-                                      profile.acc_short || profile.acc_long ||
-                                      profile.strength || profile.ap || 
-                                      profile.damage || profile.ammo || 
-                                      profile.traits
-                                    );
-
-                                    // If no meaningful data, just show profile names
-                                    if (!hasProfileData) {
-                                      return sortedProfiles.map(profile => profile.profile_name).join('\n');
-                                    }
-
-                                    let html = '<div style="font-size: 12px;"><div style="font-weight: bold; text-align: center; margin-bottom: 8px;">Weapon Profiles</div>';
-                                    html += '<table style="width: 100%; border-collapse: collapse;">';
-                                    html += '<thead>';
-                                    html += '<tr>';
-                                    html += '<th style="text-align: left; padding: 4px; min-width: 80px;"></th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;" colspan="2">Rng</th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;" colspan="2">Acc</th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
-                                    html += '<th style="text-align: center; padding: 4px; border-left: 1px solid #666;"></th>';
-                                    html += '<th style="text-align: left; padding: 4px; border-left: 1px solid #666; min-width: 120px;"></th>';
-                                    html += '</tr>';
-                                    html += '<tr style="border-bottom: 1px solid #666;">';
-                                    html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; border-right: 1px solid #444; font-size: 10px; min-width: 25px;">S</th>';
-                                    html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; border-right: 1px solid #444; font-size: 10px; min-width: 25px;">S</th>';
-                                    html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
-                                    html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
-                                    html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Traits</th>';
-                                    html += '</tr>';
-                                    html += '</thead><tbody>';
-
-                                    sortedProfiles.forEach(profile => {
-                                      // Check if this profile has any meaningful data
-                                      const profileHasData = profile.range_short || profile.range_long || 
-                                                           profile.acc_short || profile.acc_long ||
-                                                           profile.strength || profile.ap || 
-                                                           profile.damage || profile.ammo || 
-                                                           profile.traits;
-                                      
-                                      html += '<tr style="border-bottom: 1px solid #555;">';
-                                      html += `<td style="padding: 4px; font-weight: 500;">${profile.profile_name || '-'}</td>`;
-                                      
-                                      if (profileHasData) {
-                                        // Show "-" for missing values when profile has other data
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center;">${profile.range_long || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center;">${profile.acc_long || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
-                                        html += `<td style="padding: 4px; border-left: 1px solid #555;">${profile.traits || '-'}</td>`;
-                                      } else {
-                                        // Show empty cells for profiles with no data
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                        html += `<td style="padding: 4px; border-left: 1px solid #555;"></td>`;
-                                      }
-                                      html += '</tr>';
-                                    });
-
-                                    html += '</tbody></table></div>';
-                                    return html;
-                                  })()}
-                                >
-                                  {item.equipment_name}
-                                </span>
-                              ) : (
-                                <span className="text-sm font-medium">{item.equipment_name}</span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
-                                <div className="flex items-center gap-1">
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
-                                    item.adjusted_cost < (item.base_cost ?? item.cost) ? 'bg-green-500' : 'bg-red-500'
-                                  }`}>
-                                    <span className="text-[10px] font-medium">{item.adjusted_cost}</span>
-                                  </div>
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
-                                    <span className="text-[10px] font-medium">{item.base_cost}</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
-                                  <span className="text-[10px] font-medium">{item.cost}</span>
-                                </div>
-                              )}
-
-                              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
-                                <span className="text-[10px] font-medium">{item.availability}</span>
-                              </div>
-
-                              {(
-                                <Button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setBuyModalData(item);
-                                  }}
-                                  className={`text-white text-xs py-0.5 px-2 h-6 ${
-                                    affordable
-                                      ? "bg-green-500 hover:bg-green-600"
-                                      : "bg-gray-500 hover:bg-gray-600"
-                                  }`}
-                                >
-                                  Buy
-                                </Button>
-                              )}
-                            </div>
+                    {expandedCategories.has(category.category_name) && (
+                      <div className="bg-gray-50">
+                        {categoryLoadingStates[category.category_name] ? (
+                          <div className="flex justify-center py-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                           </div>
-                        );
-                      })
-                    ) : (
-                      <p className="text-gray-500 italic text-center p-4">
-                        No equipment available.
-                      </p>
+                        ) : equipment[category.category_name]?.length ? (
+                          filterEquipment(equipment[category.category_name])
+                            .map((item, itemIndex) => {
+                              const affordable = canAffordEquipment(item);
+                              const tooltipProps = (item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0)
+                                ? {
+                                    'data-tooltip-id': 'weapon-profile-tooltip',
+                                    'data-tooltip-html': (() => {
+                                      const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
+                                        const orderA = (a as any).sort_order ?? 1;
+                                        const orderB = (b as any).sort_order ?? 1;
+                                        if (orderA !== orderB) return orderA - orderB;
+                                        return (a.profile_name || '').localeCompare(b.profile_name || '');
+                                      });
+                                      // Check if any profile has meaningful data beyond just the name
+                                      const hasProfileData = sortedProfiles.some(profile => 
+                                        profile.range_short || profile.range_long || 
+                                        profile.acc_short || profile.acc_long ||
+                                        profile.strength || profile.ap || 
+                                        profile.damage || profile.ammo || 
+                                        profile.traits
+                                      );
+                                      // If no meaningful data, just show profile names
+                                      if (!hasProfileData) {
+                                        return sortedProfiles.map(profile => profile.profile_name).join('\n');
+                                      }
+                                      let html = '<div style="font-size: 12px;">';
+                                      html += '<table style="width: 100%; border-collapse: collapse;">';
+                                      html += '<thead>';
+                                      html += '<tr>';
+                                      html += '<th style="text-align: left; min-width: 80px;"></th>';
+                                      html += '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
+                                      html += '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
+                                      html += '<th style="text-align: center; solid #666;"></th>';
+                                      html += '<th style="text-align: center; solid #666;"></th>';
+                                      html += '<th style="text-align: center; solid #666;"></th>';
+                                      html += '<th style="text-align: center; solid #666;"></th>';
+                                      html += '<th style="text-align: left; solid #666; min-width: 120px;"></th>';
+                                      html += '</tr>';
+                                      html += '<tr style="border-bottom: 1px solid #666;">';
+                                      html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
+                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
+                                      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Traits</th>';
+                                      html += '</tr>';
+                                      html += '</thead><tbody>';
+                                      sortedProfiles.forEach(profile => {
+                                        // Check if this profile has any meaningful data
+                                        const profileHasData = profile.range_short || profile.range_long || 
+                                                             profile.acc_short || profile.acc_long ||
+                                                             profile.strength || profile.ap || 
+                                                             profile.damage || profile.ammo || 
+                                                             profile.traits;
+                                        html += '<tr style="border-bottom: 1px solid #555;">';
+                                        html += `<td style="padding: 2px; font-weight: 500;">${profile.profile_name || '-'}</td>`;
+                                        if (profileHasData) {
+                                          // Show "-" for missing values when profile has other data
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center;">${profile.range_long || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center;">${profile.acc_long || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
+                                          html += `<td style="padding: 4px; border-left: 1px solid #555;">${profile.traits || '-'}</td>`;
+                                        } else {
+                                          // Show empty cells for profiles with no data
+                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 4px;"></td>`;
+                                        }
+                                        html += '</tr>';
+                                      });
+                                      html += '</tbody></table></div>';
+                                      return html;
+                                    })()
+                                  }
+                                : {};
+                              return (
+                                <div
+                                  key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
+                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
+                                >
+                                  <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
+                                    <span className="text-sm font-medium">{item.equipment_name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
+                                      <div className="flex items-center gap-1">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
+                                          item.adjusted_cost < (item.base_cost ?? item.cost) ? 'bg-green-500' : 'bg-red-500'
+                                        }`}>
+                                          <span className="text-[10px] font-medium">{item.adjusted_cost}</span>
+                                        </div>
+                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
+                                          <span className="text-[10px] font-medium">{item.base_cost}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
+                                        <span className="text-[10px] font-medium">{item.cost}</span>
+                                      </div>
+                                    )}
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                      <span className="text-[10px] font-medium">{item.availability}</span>
+                                    </div>
+                                    <Button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBuyModalData(item);
+                                      }}
+                                      className={`text-white text-xs py-0.5 px-2 h-6 ${
+                                        affordable
+                                          ? "bg-green-500 hover:bg-green-600"
+                                          : "bg-gray-500 hover:bg-gray-600"
+                                      }`}
+                                    >
+                                      Buy
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                        ) : (
+                          <div className="flex justify-center py-4">
+                            <p className="text-gray-500">No equipment found in this category.</p>
+                          </div>
+                        )}
+                      </div>
                     )}
+                    <div className="h-[1px] w-full bg-gray-200" />
                   </div>
-                )}
-                <div className="h-[1px] w-full bg-gray-200" />
-              </div>
-            ))}
-            {availableCategories.length === 0 && equipmentListType !== 'unrestricted' && (
-              <p className="text-gray-500 italic text-center p-4">
-                No equipment available.
-              </p>
+                ))}
+            </div>
+            {buyModalData && (
+              <PurchaseModal
+                item={buyModalData}
+                gangCredits={gangCredits}
+                onClose={() => setBuyModalData(null)}
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating) => {
+                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating);
+                }}
+              />
             )}
           </div>
         </div>
       </div>
-
+      {/* Purchase Modal and Tooltip */}
       {buyModalData && (
         <PurchaseModal
           item={buyModalData}
@@ -1041,7 +1030,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
           onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating)}
         />
       )}
-
       {/* Weapon Profile Tooltip */}
       <Tooltip
         id="weapon-profile-tooltip"
@@ -1055,7 +1043,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           zIndex: 60
         }}
       />
-    </div>
+    </>
   );
 };
 
