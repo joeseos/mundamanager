@@ -14,6 +14,7 @@ interface CampaignBasic {
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
+  note: string;
   campaign_types: {
     campaign_type_name: string;
   } | null;
@@ -107,7 +108,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       updated_at,
       has_meat,
       has_exploration_points,
-      has_scavenging_rolls
+      has_scavenging_rolls,
+      note
     `)
     .eq('id', campaignId)
     .single();
