@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -144,9 +144,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       throw new Error(`Failed to update gang credits: ${updateError?.message}`);
     }
 
-    // Invalidate fighter cache
+    // Invalidate caches - selling equipment affects gang credits/rating
     if (equipmentData.fighter_id) {
-      invalidateFighterData(equipmentData.fighter_id, gangId);
+      // Fighter equipment sales affect both fighter data and gang financials
+      invalidateFighterDataWithFinancials(equipmentData.fighter_id, gangId);
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -156,14 +157,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .single();
       
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterData(vehicleData.fighter_id, gangId);
+        invalidateFighterDataWithFinancials(vehicleData.fighter_id, gangId);
       }
       
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     } else {
-      // For other cases, just invalidate gang cache
-      revalidatePath(`/gang/${gangId}`);
+      // For other cases, invalidate gang financials
+      invalidateGangFinancials(gangId);
     }
 
     return {
