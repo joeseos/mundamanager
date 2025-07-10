@@ -16,6 +16,7 @@ import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 
 interface Gang {
   id: string;
@@ -89,6 +90,7 @@ interface CampaignPageContentProps {
     description: string;
     created_at: string;
     updated_at: string | null;
+    note: string | null;
     members: any[];
     territories: Territory[];
     has_meat: boolean;
@@ -171,16 +173,6 @@ export default function CampaignPageContent({
 
   // Fix: Include app-level admin status in isAdmin check
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
-
-
-
-
-
-
-
-
-
-
 
   const refreshData = async () => {
     try {
@@ -539,10 +531,11 @@ export default function CampaignPageContent({
           {/* Notes tab content */}
           {activeTab === 3 && (
             <div>
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl md:text-2xl font-bold">Notes</h2>
-              </div>
-              <p className="text-gray-600">Notes content coming soon...</p>
+            <CampaignNotes
+              campaignId={campaignData.id}
+              initialNote={campaignData.note || ''}
+              onNoteUpdate={refreshData}
+            />
             </div>
           )}
 

@@ -92,6 +92,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_meat: campaignBasic.has_meat,
       has_exploration_points: campaignBasic.has_exploration_points,
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
+      note: campaignBasic.note,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,

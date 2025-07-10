@@ -42,6 +42,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       description: campaignBasic.description,
       created_at: campaignBasic.created_at,
       updated_at: campaignBasic.updated_at,
+      note: campaignBasic.note,
       has_meat: campaignBasic.has_meat,
       has_exploration_points: campaignBasic.has_exploration_points,
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,

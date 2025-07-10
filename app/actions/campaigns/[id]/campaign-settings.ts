@@ -6,11 +6,12 @@ import { redirect } from "next/navigation";
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
-  campaign_name: string;
-  description: string;
-  has_meat: boolean;
-  has_exploration_points: boolean;
-  has_scavenging_rolls: boolean;
+  campaign_name?: string;
+  description?: string;
+  has_meat?: boolean;
+  has_exploration_points?: boolean;
+  has_scavenging_rolls?: boolean;
+  note?: string;
 }
 
 /**
@@ -25,27 +26,28 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       description,
       has_meat,
       has_exploration_points,
-      has_scavenging_rolls
+      has_scavenging_rolls,
+      note
     } = params;
+
+    // Only include provided fields in the update
+    const updateData: any = { updated_at: new Date().toISOString() };
+    if (campaign_name !== undefined) updateData.campaign_name = campaign_name;
+    if (description !== undefined) updateData.description = description;
+    if (has_meat !== undefined) updateData.has_meat = has_meat;
+    if (has_exploration_points !== undefined) updateData.has_exploration_points = has_exploration_points;
+    if (has_scavenging_rolls !== undefined) updateData.has_scavenging_rolls = has_scavenging_rolls;
+    if (note !== undefined) updateData.note = note;
 
     const { error } = await supabase
       .from('campaigns')
-      .update({
-        campaign_name,
-        description,
-        has_meat,
-        has_exploration_points,
-        has_scavenging_rolls,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', campaignId);
 
     if (error) throw error;
 
     // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's basic info
     revalidateTag(`campaign-basic-${campaignId}`);
-    // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
 
     return { success: true };
