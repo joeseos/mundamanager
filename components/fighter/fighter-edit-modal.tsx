@@ -584,9 +584,6 @@ export function EditFighterModal({
       try {
         setIsLoadingFighterTypes(true);
         
-        // Get the session for authentication
-        const { data: { session } } = await supabase.auth.getSession();
-        
         // Get the gang type ID to use in the request
         const gangTypeId = (fighter as any).gang_type_id;
         
@@ -596,28 +593,9 @@ export function EditFighterModal({
           return;
         }
         
-        // Use the RPC endpoint to get all fighter data including sub-types
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_add_fighter_details`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            },
-            body: JSON.stringify({
-              p_gang_type_id: gangTypeId
-            })
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to load fighter types');
-        }
-        
-        const data = await response.json();
+        // Use the new server action to get all fighter data including sub-types
+        const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
+        const data = await getFighterTypesUncachedClient(gangTypeId);
         
         // Create a map to group fighters by type+class and find default/cheapest for each
         const allFighterTypes = new Map();

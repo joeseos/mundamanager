@@ -427,22 +427,10 @@ const handleAlignmentChange = (value: string) => {
 
   const fetchFighterTypes = async (variantList: Array<{ id: string, variant: string }> = gang_variants ?? []) => {
     try {
+      const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
+      
       // Fetch base Gang fighter types
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({ p_gang_type_id: gang_type_id })
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch Gang fighter types');
-
-      let baseData = await response.json();
+      let baseData = await getFighterTypesUncachedClient(gang_type_id);
 
       // If variantList, fetch Gang Variants fighter types
       for (const variant of variantList) {
@@ -453,21 +441,7 @@ const handleAlignmentChange = (value: string) => {
           baseData = baseData.filter((type: any) => type.fighter_class !== 'Leader');
         }
 
-        const variantResponse = await fetch(
-          'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_add_fighter_details',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
-            body: JSON.stringify({ p_gang_type_id: variantModifier.variantGangTypeId })
-          }
-        );
-
-        if (!variantResponse.ok) throw new Error(`Failed to fetch fighters for variant ${variant.variant}`);
-
-        const variantData = await variantResponse.json();
+        const variantData = await getFighterTypesUncachedClient(variantModifier.variantGangTypeId);
         baseData = [...baseData, ...variantData];
       }
 
@@ -477,13 +451,32 @@ const handleAlignmentChange = (value: string) => {
           fighter_type_id: type.id,
           fighter_type: type.fighter_type,
           fighter_class: type.fighter_class,
+          gang_type: type.gang_type,
+          gang_type_id: type.gang_type_id,
+          movement: type.movement,
+          weapon_skill: type.weapon_skill,
+          ballistic_skill: type.ballistic_skill,
+          strength: type.strength,
+          toughness: type.toughness,
+          wounds: type.wounds,
+          initiative: type.initiative,
+          leadership: type.leadership,
+          cool: type.cool,
+          willpower: type.willpower,
+          intelligence: type.intelligence,
+          attacks: type.attacks,
+          limitation: type.limitation,
+          alignment: type.alignment,
           sub_type: type.sub_type,
-          fighter_sub_type_id: type.fighter_sub_type_id,
+          fighter_sub_type_id: type.sub_type?.id || type.fighter_sub_type_id,
           cost: type.cost,
           total_cost: type.total_cost,
           equipment_selection: type.equipment_selection,
           default_equipment: type.default_equipment || [],
-          special_rules: type.special_rules || []
+          special_rules: type.special_rules || [],
+          is_gang_addition: type.is_gang_addition || false,
+          alliance_id: type.alliance_id || '',
+          alliance_crew_name: type.alliance_crew_name || ''
         }))
         .sort((a: FighterType, b: FighterType) => {
           const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
