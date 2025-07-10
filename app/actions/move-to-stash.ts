@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -141,7 +141,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       throw new Error(`Failed to delete equipment from fighter: ${deleteError.message}`);
     }
 
-    // Invalidate appropriate caches
+    // Invalidate appropriate caches - moving equipment to stash affects gang overview
     if (equipmentData.fighter_id) {
       invalidateFighterData(equipmentData.fighter_id, gangId);
     } else if (equipmentData.vehicle_id) {
@@ -159,6 +159,9 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     }
+    
+    // Always invalidate gang overview to refresh stash display
+    invalidateGangFinancials(gangId);
 
     return {
       success: true,

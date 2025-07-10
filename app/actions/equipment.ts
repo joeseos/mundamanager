@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateFighterData, invalidateVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
 import { getCompleteFighterData } from '@/app/lib/fighter-details';
 
 interface BuyEquipmentParams {
@@ -59,9 +59,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error(error.message || 'Failed to buy equipment');
     }
 
-    // Invalidate fighter cache
+    // Invalidate caches - all equipment purchases affect gang credits/rating
     if (params.fighter_id) {
-      invalidateFighterData(params.fighter_id, params.gang_id);
+      // Fighter equipment purchases affect both fighter data and gang financials
+      invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
     } else if (params.vehicle_id) {
       // For vehicle equipment purchases, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -71,15 +72,14 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         .single();
       
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterData(vehicleData.fighter_id, params.gang_id);
+        invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
       }
       
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(params.vehicle_id);
     } else {
-      // For gang stash purchases, just invalidate gang cache
-      revalidateTag(`gang-${params.gang_id}-credits`);
-      revalidateTag(`gang-${params.gang_id}-rating`);
+      // For gang stash purchases, invalidate gang financials
+      invalidateGangFinancials(params.gang_id);
     }
     
     return { 
@@ -176,8 +176,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
                          customEquipmentData?.equipment_name || 
                          'Unknown Equipment';
 
-    // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, params.gang_id);
+    // Invalidate fighter cache and gang financials (since deleting equipment refunds credits)
+    invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
     
     return { 
       success: true, 
