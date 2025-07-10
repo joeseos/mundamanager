@@ -137,24 +137,6 @@ export async function getAvailableInjuries() {
   )();
 }
 
-async function _getFighterTypes(gangTypeId: string, supabase: SupabaseClient) {
-  const { data, error } = await supabase.rpc('get_add_fighter_details', {
-    p_gang_type_id: gangTypeId
-  });
-  if (error) throw error;
-  return data;
-}
-
-export async function getFighterTypes(gangTypeId: string) {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      return _getFighterTypes(gangTypeId, supabase);
-    },
-    [`fighter-types-${gangTypeId}`],
-    {
-      tags: ['fighter-types', `fighter-types-${gangTypeId}`],
-      revalidate: 3600 // 1 hour for reference data
-    }
-  )();
-}
+// Fighter types function has been moved to get-fighter-types.ts
+// Re-export for backward compatibility
+export { getFighterTypes } from './get-fighter-types';

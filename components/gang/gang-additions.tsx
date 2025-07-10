@@ -271,25 +271,44 @@ export default function GangAdditions({
 
   const fetchGangAdditionTypes = async () => {
     try {
-      const response = await fetch(
-        'https://iojoritxhpijprgkjfre.supabase.co/rest/v1/rpc/get_fighter_types_with_cost',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          },
-          body: JSON.stringify({
-            "p_gang_type_id": gangTypeId,
-            "p_is_gang_addition": true
-          })
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch gang addition types');
-      const data = await response.json();
+      const { getGangAdditionTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
+      const data = await getGangAdditionTypesUncachedClient(gangTypeId);
       
-      setGangAdditionTypes(data);
+      // Transform server action response to match existing FighterType interface
+      const transformedData = data.map((type: any) => ({
+        id: type.id,
+        fighter_type_id: type.id, // Map id to fighter_type_id for compatibility
+        fighter_type: type.fighter_type,
+        fighter_class: type.fighter_class,
+        gang_type: type.gang_type,
+        cost: type.cost,
+        gang_type_id: type.gang_type_id,
+        special_rules: type.special_rules || [],
+        total_cost: type.total_cost,
+        movement: type.movement,
+        weapon_skill: type.weapon_skill,
+        ballistic_skill: type.ballistic_skill,
+        strength: type.strength,
+        toughness: type.toughness,
+        wounds: type.wounds,
+        initiative: type.initiative,
+        leadership: type.leadership,
+        cool: type.cool,
+        willpower: type.willpower,
+        intelligence: type.intelligence,
+        attacks: type.attacks,
+        limitation: type.limitation,
+        alignment: type.alignment,
+        default_equipment: type.default_equipment || [],
+        is_gang_addition: type.is_gang_addition || true,
+        alliance_id: type.alliance_id || '',
+        alliance_crew_name: type.alliance_crew_name || '',
+        equipment_selection: type.equipment_selection,
+        sub_type: type.sub_type,
+        fighter_sub_type_id: type.sub_type?.id
+      }));
+      
+      setGangAdditionTypes(transformedData);
     } catch (error) {
       console.error('Error fetching gang addition types:', error);
       toast({
