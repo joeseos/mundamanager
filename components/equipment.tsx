@@ -898,7 +898,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       html += '<th style="text-align: center; solid #666;"></th>';
                                       html += '<th style="text-align: center; solid #666;"></th>';
                                       html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: left; solid #666; min-width: 120px;"></th>';
+                                      html += '<th style="text-align: left; solid #666;"></th>';
                                       html += '</tr>';
                                       html += '<tr style="border-bottom: 1px solid #666;">';
                                       html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
@@ -910,7 +910,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
                                       html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
                                       html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
-                                      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Traits</th>';
+                                      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
                                       html += '</tr>';
                                       html += '</thead><tbody>';
                                       sortedProfiles.forEach(profile => {
@@ -921,29 +921,29 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                                              profile.damage || profile.ammo || 
                                                              profile.traits;
                                         html += '<tr style="border-bottom: 1px solid #555;">';
-                                        html += `<td style="padding: 2px; font-weight: 500;">${profile.profile_name || '-'}</td>`;
+                                        html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
                                         if (profileHasData) {
                                           // Show "-" for missing values when profile has other data
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center;">${profile.range_long || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center;">${profile.acc_long || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
-                                          html += `<td style="padding: 4px; border-left: 1px solid #555;">${profile.traits || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.range_long || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.acc_long || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
+                                          html += `<td style="padding: 3px; vertical-align: top; border-left: 1px solid #555; word-break: normal; white-space: normal; max-width: 22vw;">${profile.traits || '-'}</td>`;
                                         } else {
                                           // Show empty cells for profiles with no data
-                                          html += `<td style="padding: 4px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 4px;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                          html += `<td style="padding: 3px;"></td>`;
                                         }
                                         html += '</tr>';
                                       });
@@ -1033,13 +1033,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
       {/* Weapon Profile Tooltip */}
       <Tooltip
         id="weapon-profile-tooltip"
-        place="top"
-        className="!bg-gray-900 !text-white !text-xs !max-w-4xl !z-[60]"
+        place="top-start"
+        className="!bg-gray-900 !text-white !text-xs !z-[60]"
         style={{
           backgroundColor: '#1f2937',
           color: 'white',
+          padding: '6px',
           fontSize: '12px',
-          maxWidth: '800px',
+          maxWidth: '97vw',
+          marginLeft: '-10px',
           zIndex: 60
         }}
       />
