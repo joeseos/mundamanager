@@ -618,8 +618,6 @@ export default function GangInventory({
               onGangCreditsUpdate(newGangCredits);
             }
 
-            // Close the modal and show success message
-            setShowTradingPost(false);
             toast({
               title: "Equipment Purchased",
               description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
