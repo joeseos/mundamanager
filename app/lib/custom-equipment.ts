@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from '@/utils/supabase/server';
 
 export interface CustomEquipment {
   id: string;
@@ -16,9 +16,11 @@ export interface CustomEquipment {
   updated_at?: string;
 }
 
-export async function getUserCustomEquipment(userId: string): Promise<CustomEquipment[]> {
+export async function getUserCustomEquipment(
+  userId: string
+): Promise<CustomEquipment[]> {
   const supabase = await createClient();
-  
+
   const { data: customEquipment, error } = await supabase
     .from('custom_equipment')
     .select('*')
@@ -33,12 +35,17 @@ export async function getUserCustomEquipment(userId: string): Promise<CustomEqui
   return customEquipment || [];
 }
 
-export async function getUserCustomEquipmentByCategory(category?: string): Promise<CustomEquipment[]> {
+export async function getUserCustomEquipmentByCategory(
+  category?: string
+): Promise<CustomEquipment[]> {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
@@ -53,7 +60,9 @@ export async function getUserCustomEquipmentByCategory(category?: string): Promi
     query = query.eq('equipment_category', category);
   }
 
-  const { data: customEquipment, error } = await query.order('equipment_name', { ascending: true });
+  const { data: customEquipment, error } = await query.order('equipment_name', {
+    ascending: true,
+  });
 
   if (error) {
     console.error('Error fetching custom equipment by category:', error);
@@ -61,4 +70,4 @@ export async function getUserCustomEquipmentByCategory(category?: string): Promi
   }
 
   return customEquipment || [];
-} 
+}

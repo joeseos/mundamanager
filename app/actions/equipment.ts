@@ -1,8 +1,12 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { createClient } from '@/utils/supabase/server';
+import { revalidateTag } from 'next/cache';
+import {
+  invalidateFighterDataWithFinancials,
+  invalidateVehicleData,
+  invalidateGangFinancials,
+} from '@/utils/cache-tags';
 import { getCompleteFighterData } from '@/app/lib/fighter-details';
 
 interface BuyEquipmentParams {
@@ -30,13 +34,17 @@ interface EquipmentActionResult {
   error?: string;
 }
 
-export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
+export async function buyEquipmentForFighter(
+  params: BuyEquipmentParams
+): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -51,7 +59,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       manual_cost: params.manual_cost ?? null,
       master_crafted: params.master_crafted || false,
       use_base_cost_for_rating: params.use_base_cost_for_rating ?? true,
-      buy_for_gang_stash: params.buy_for_gang_stash || false
+      buy_for_gang_stash: params.buy_for_gang_stash || false,
     });
 
     if (error) {
@@ -70,38 +78,46 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         .select('fighter_id')
         .eq('id', params.vehicle_id)
         .single();
-      
+
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
+        invalidateFighterDataWithFinancials(
+          vehicleData.fighter_id,
+          params.gang_id
+        );
       }
-      
+
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(params.vehicle_id);
     } else {
       // For gang stash purchases, invalidate gang financials
       invalidateGangFinancials(params.gang_id);
     }
-    
-    return { 
-      success: true, 
-      data
+
+    return {
+      success: true,
+      data,
     };
   } catch (error) {
     console.error('Error in buyEquipmentForFighter server action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
 
-export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams): Promise<EquipmentActionResult> {
+export async function deleteEquipmentFromFighter(
+  params: DeleteEquipmentParams
+): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -109,7 +125,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Get equipment details before deletion to return proper response data
     const { data: equipmentBefore, error: equipmentError } = await supabase
       .from('fighter_equipment')
-      .select(`
+      .select(
+        `
         id,
         fighter_id,
         vehicle_id,
@@ -124,25 +141,30 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           equipment_name,
           cost
         )
-      `)
+      `
+      )
       .eq('id', params.fighter_equipment_id)
       .single();
 
     if (equipmentError || !equipmentBefore) {
-      throw new Error(`Equipment with ID ${params.fighter_equipment_id} not found`);
+      throw new Error(
+        `Equipment with ID ${params.fighter_equipment_id} not found`
+      );
     }
 
     // Get associated fighter effects before deletion (they'll be cascade deleted)
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
-      .select(`
+      .select(
+        `
         id,
         effect_name,
         fighter_effect_modifiers (
           stat_name,
           numeric_value
         )
-      `)
+      `
+      )
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Delete the equipment (cascade will handle fighter effects automatically)
@@ -158,7 +180,9 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Get fresh fighter data after deletion for accurate response
     let freshFighterData = null;
     try {
-      const completeFighterData = await getCompleteFighterData(params.fighter_id);
+      const completeFighterData = await getCompleteFighterData(
+        params.fighter_id
+      );
       freshFighterData = completeFighterData;
     } catch (fighterRefreshError) {
       console.warn('Could not refresh fighter data:', fighterRefreshError);
@@ -167,42 +191,45 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Calculate equipment details for response - fix TypeScript errors
     const equipmentData = equipmentBefore.equipment as any;
     const customEquipmentData = equipmentBefore.custom_equipment as any;
-    
-    const equipmentCost = equipmentData?.cost || 
-                         customEquipmentData?.cost || 
-                         equipmentBefore.purchase_cost || 0;
 
-    const equipmentName = equipmentData?.equipment_name || 
-                         customEquipmentData?.equipment_name || 
-                         'Unknown Equipment';
+    const equipmentCost =
+      equipmentData?.cost ||
+      customEquipmentData?.cost ||
+      equipmentBefore.purchase_cost ||
+      0;
+
+    const equipmentName =
+      equipmentData?.equipment_name ||
+      customEquipmentData?.equipment_name ||
+      'Unknown Equipment';
 
     // Invalidate fighter cache and gang financials (since deleting equipment refunds credits)
     invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       data: {
         deletedEquipment: {
           id: equipmentBefore.id,
           equipment_name: equipmentName,
           cost: equipmentCost,
           fighter_id: equipmentBefore.fighter_id,
-          vehicle_id: equipmentBefore.vehicle_id
+          vehicle_id: equipmentBefore.vehicle_id,
         },
         deletedEffects: associatedEffects || [],
         // Return fresh fighter data so frontend can update immediately without waiting for revalidation
         updatedFighter: freshFighterData?.fighter || null,
         updatedGang: freshFighterData?.gang || null,
         // Include vehicle data if this was vehicle equipment
-        updatedVehicle: freshFighterData?.fighter?.vehicles?.[0] || null
-      }
+        updatedVehicle: freshFighterData?.fighter?.vehicles?.[0] || null,
+      },
     };
   } catch (error) {
     console.error('Error in deleteEquipmentFromFighter server action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
-

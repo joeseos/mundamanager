@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
-  
+
   const { searchParams } = new URL(request.url);
   const fetch_type = searchParams.get('fetch_type');
   const vehicle_id = searchParams.get('vehicle_id');
@@ -13,12 +13,14 @@ export async function GET(request: Request) {
     if (vehicle_id) {
       const { data: vehicleDetails, error } = await supabase
         .from('vehicle_types')
-        .select(`
+        .select(
+          `
           *,
           fighter_type_equipment!vehicle_type_id (
             equipment_id
           )
-        `)
+        `
+        )
         .eq('id', vehicle_id)
         .single();
 
@@ -26,9 +28,10 @@ export async function GET(request: Request) {
 
       // Transform equipment list data
       if (vehicleDetails) {
-        vehicleDetails.equipment_list = vehicleDetails.fighter_type_equipment?.map(
-          (item: { equipment_id: string }) => item.equipment_id
-        ) || [];
+        vehicleDetails.equipment_list =
+          vehicleDetails.fighter_type_equipment?.map(
+            (item: { equipment_id: string }) => item.equipment_id
+          ) || [];
         delete vehicleDetails.fighter_type_equipment;
       }
 
@@ -69,7 +72,10 @@ export async function GET(request: Request) {
     return NextResponse.json(gangTypes);
   } catch (error) {
     console.error('Error fetching data:', error);
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch data' },
+      { status: 500 }
+    );
   }
 }
 
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
 
   try {
     const vehicleData = await request.json();
-    
+
     // Convert string values to numbers for numeric fields
     const formattedData = {
       ...vehicleData,
@@ -91,11 +97,14 @@ export async function POST(request: Request) {
       body_slots: parseInt(vehicleData.body_slots),
       drive_slots: parseInt(vehicleData.drive_slots),
       engine_slots: parseInt(vehicleData.engine_slots),
-      gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id),
+      gang_type_id:
+        vehicleData.gang_type_id === '0'
+          ? null
+          : parseInt(vehicleData.gang_type_id),
       // Initialize occupied slots to 0
       body_slots_occupied: 0,
       drive_slots_occupied: 0,
-      engine_slots_occupied: 0
+      engine_slots_occupied: 0,
     };
 
     const { data, error } = await supabase
@@ -128,7 +137,7 @@ export async function PUT(request: Request) {
 
     console.log('Received vehicle data:', {
       ...vehicleData,
-      equipment_list
+      equipment_list,
     });
 
     if (!vehicle_id || typeof vehicle_id !== 'string') {
@@ -150,11 +159,12 @@ export async function PUT(request: Request) {
       body_slots: parseInt(vehicleData.body_slots),
       drive_slots: parseInt(vehicleData.drive_slots),
       engine_slots: parseInt(vehicleData.engine_slots),
-      gang_type_id: vehicleData.gang_type_id === "0" ? null : vehicleData.gang_type_id,
+      gang_type_id:
+        vehicleData.gang_type_id === '0' ? null : vehicleData.gang_type_id,
       handling: vehicleData.handling,
       save: vehicleData.save,
       special_rules: vehicleData.special_rules,
-      vehicle_type: vehicleData.vehicle_type
+      vehicle_type: vehicleData.vehicle_type,
     };
 
     // First update the vehicle type
@@ -178,11 +188,13 @@ export async function PUT(request: Request) {
 
     // 2. Insert new equipment associations if there are any
     if (equipment_list.length > 0) {
-      const equipmentAssociations = equipment_list.map((equipment_id: string) => ({
-        equipment_id,
-        fighter_type_id: null,
-        vehicle_type_id: vehicle_id
-      }));
+      const equipmentAssociations = equipment_list.map(
+        (equipment_id: string) => ({
+          equipment_id,
+          fighter_type_id: null,
+          vehicle_type_id: vehicle_id,
+        })
+      );
 
       const { error: insertError } = await supabase
         .from('fighter_type_equipment')
@@ -194,9 +206,8 @@ export async function PUT(request: Request) {
     // Return the updated vehicle with its equipment list
     return NextResponse.json({
       ...updatedVehicle,
-      equipment_list
+      equipment_list,
     });
-
   } catch (error) {
     console.error('Error in PUT:', error);
     return NextResponse.json(
@@ -204,4 +215,4 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

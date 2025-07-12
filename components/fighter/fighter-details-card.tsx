@@ -3,27 +3,28 @@ import { Button } from '../ui/button';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterEffects, FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
-import { TbMeatOff } from "react-icons/tb";
-import { GiCrossedChains } from "react-icons/gi";
-import { IoSkull } from "react-icons/io5";
-import { LuArmchair } from "react-icons/lu";
-import { MdChair } from "react-icons/md";
-import { FaMedkit } from "react-icons/fa";
+import {
+  FighterEffects,
+  FighterProps,
+  FighterEffect,
+  Vehicle,
+} from '@/types/fighter';
+import { TbMeatOff } from 'react-icons/tb';
+import { GiCrossedChains } from 'react-icons/gi';
+import { IoSkull } from 'react-icons/io5';
+import { LuArmchair } from 'react-icons/lu';
+import { MdChair } from 'react-icons/md';
+import { FaMedkit } from 'react-icons/fa';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 
-
 // Vehicle equipment profile interface
-
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
 }
-
-
 
 interface FighterEffectStatModifier {
   id: string;
@@ -71,8 +72,8 @@ interface FighterDetailsCardProps {
   recovery?: boolean;
   fighter_class?: string;
   kills: number;
-  effects?: { 
-    injuries: FighterEffect[]; 
+  effects?: {
+    injuries: FighterEffect[];
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
@@ -89,19 +90,23 @@ interface FighterDetailsCardProps {
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
-const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | VehicleEquipment)[] = []) => {
-  if (!baseStats) return {
-    movement: 0,
-    front: 0,
-    side: 0,
-    rear: 0,
-    hull_points: 0,
-    handling: 0,
-    save: 0,
-    body_slots: 0,
-    drive_slots: 0,
-    engine_slots: 0,
-  };
+const calculateVehicleStats = (
+  baseStats: any,
+  vehicleEquipment: (Equipment | VehicleEquipment)[] = []
+) => {
+  if (!baseStats)
+    return {
+      movement: 0,
+      front: 0,
+      side: 0,
+      rear: 0,
+      hull_points: 0,
+      handling: 0,
+      save: 0,
+      body_slots: 0,
+      drive_slots: 0,
+      engine_slots: 0,
+    };
 
   // Start with base stats
   const stats = {
@@ -116,23 +121,30 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     drive_slots: baseStats.drive_slots || 0,
     engine_slots: baseStats.engine_slots || 0,
   };
-  
+
   // Apply modifiers from vehicle effects (both lasting damages and vehicle upgrades)
   if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades"];
-    effectCategories.forEach(categoryName => {
+    const effectCategories = ['lasting damages', 'vehicle upgrades'];
+    effectCategories.forEach((categoryName) => {
       if (baseStats.effects && baseStats.effects[categoryName]) {
         baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
-          if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
-            effect.fighter_effect_modifiers.forEach(modifier => {
+          if (
+            effect.fighter_effect_modifiers &&
+            Array.isArray(effect.fighter_effect_modifiers)
+          ) {
+            effect.fighter_effect_modifiers.forEach((modifier) => {
               // Convert stat_name to lowercase to match our stats object keys
               const statName = modifier.stat_name.toLowerCase();
-              
+
               // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
-              if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
+              if (
+                statName === 'body_slots' ||
+                statName === 'drive_slots' ||
+                statName === 'engine_slots'
+              ) {
                 return;
               }
-              
+
               // Only apply if the stat exists in our stats object
               if (statName in stats) {
                 // Apply the numeric modifier to the appropriate stat
@@ -149,13 +161,16 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
 };
 
 // Helper function for slot pill colors
-const getPillColor = (occupied: number | undefined, total: number | undefined) => {
+const getPillColor = (
+  occupied: number | undefined,
+  total: number | undefined
+) => {
   const occupiedValue = occupied || 0;
   const totalValue = total || 0;
-  
-  if (occupiedValue > totalValue) return "bg-red-500";
-  if (occupiedValue === totalValue) return "bg-gray-500";
-  return "bg-green-500";
+
+  if (occupiedValue > totalValue) return 'bg-red-500';
+  if (occupiedValue === totalValue) return 'bg-gray-500';
+  return 'bg-green-500';
 };
 
 // Calculate occupied slots from effects system
@@ -166,34 +181,41 @@ const calculateOccupiedSlots = (vehicle: any) => {
 
   // Count from new effects system - each piece of equipment with vehicle upgrade effects consumes slots
   if (vehicle?.effects) {
-    const effectCategories = ["vehicle upgrades"];
-    effectCategories.forEach(categoryName => {
+    const effectCategories = ['vehicle upgrades'];
+    effectCategories.forEach((categoryName) => {
       if (vehicle.effects[categoryName]) {
         vehicle.effects[categoryName].forEach((effect: any) => {
           // Check what type of slot this equipment uses based on its slot modifiers
-          if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+          if (
+            effect.fighter_effect_modifiers &&
+            Array.isArray(effect.fighter_effect_modifiers)
+          ) {
             let usesBodySlot = false;
             let usesDriveSlot = false;
             let usesEngineSlot = false;
 
             effect.fighter_effect_modifiers.forEach((modifier: any) => {
               const statName = modifier.stat_name.toLowerCase();
-              
+
               // Check for explicit slot modifiers - this is the only method now
               if (statName === 'body_slots' && modifier.numeric_value > 0) {
                 usesBodySlot = true;
-              }
-              else if (statName === 'drive_slots' && modifier.numeric_value > 0) {
+              } else if (
+                statName === 'drive_slots' &&
+                modifier.numeric_value > 0
+              ) {
                 usesDriveSlot = true;
-              }
-              else if (statName === 'engine_slots' && modifier.numeric_value > 0) {
+              } else if (
+                statName === 'engine_slots' &&
+                modifier.numeric_value > 0
+              ) {
                 usesEngineSlot = true;
               }
             });
 
             // Count the slot usage (each effect/equipment uses 1 slot of its type)
             if (usesBodySlot) bodyOccupied++;
-            if (usesDriveSlot) driveOccupied++;  
+            if (usesDriveSlot) driveOccupied++;
             if (usesEngineSlot) engineOccupied++;
           }
         });
@@ -241,49 +263,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   vehicles,
   vehicleEquipment = [],
   gangId,
-  userPermissions
+  userPermissions,
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
-  const fighterData = useMemo<FighterProps>(() => ({
-    id,
-    fighter_name: name,
-    fighter_type: type,
-    fighter_sub_type: sub_type,
-    credits,
-    movement,
-    weapon_skill,
-    ballistic_skill,
-    strength,
-    toughness,
-    wounds,
-    initiative,
-    attacks,
-    leadership,
-    cool,
-    willpower,
-    intelligence,
-    xp: xp ?? 0,
-    kills,
-    advancements: {
-      characteristics: advancements?.characteristics || {},
-      skills: advancements?.skills || {}
-    },
-    weapons: [],
-    wargear: [],
-    special_rules: [],
-    effects: {
-      injuries: effects?.injuries || [],
-      advancements: effects?.advancements || [],
-      bionics: effects?.bionics || [],
-      cyberteknika: effects?.cyberteknika || [],
-      'gene-smithing': effects?.['gene-smithing'] || [],
-      'rig-glitches': effects?.['rig-glitches'] || [],
-      augmentations: effects?.augmentations || [],
-      equipment: effects?.equipment || [],
-      user: effects?.user || []
-    },
-    fighter_class,
-    base_stats: {
+  const fighterData = useMemo<FighterProps>(
+    () => ({
+      id,
+      fighter_name: name,
+      fighter_type: type,
+      fighter_sub_type: sub_type,
+      credits,
       movement,
       weapon_skill,
       ballistic_skill,
@@ -295,9 +284,63 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       leadership,
       cool,
       willpower,
-      intelligence
-    },
-    current_stats: {
+      intelligence,
+      xp: xp ?? 0,
+      kills,
+      advancements: {
+        characteristics: advancements?.characteristics || {},
+        skills: advancements?.skills || {},
+      },
+      weapons: [],
+      wargear: [],
+      special_rules: [],
+      effects: {
+        injuries: effects?.injuries || [],
+        advancements: effects?.advancements || [],
+        bionics: effects?.bionics || [],
+        cyberteknika: effects?.cyberteknika || [],
+        'gene-smithing': effects?.['gene-smithing'] || [],
+        'rig-glitches': effects?.['rig-glitches'] || [],
+        augmentations: effects?.augmentations || [],
+        equipment: effects?.equipment || [],
+        user: effects?.user || [],
+      },
+      fighter_class,
+      base_stats: {
+        movement,
+        weapon_skill,
+        ballistic_skill,
+        strength,
+        toughness,
+        wounds,
+        initiative,
+        attacks,
+        leadership,
+        cool,
+        willpower,
+        intelligence,
+      },
+      current_stats: {
+        movement,
+        weapon_skill,
+        ballistic_skill,
+        strength,
+        toughness,
+        wounds,
+        initiative,
+        attacks,
+        leadership,
+        cool,
+        willpower,
+        intelligence,
+      },
+    }),
+    [
+      id,
+      name,
+      type,
+      sub_type,
+      credits,
       movement,
       weapon_skill,
       ballistic_skill,
@@ -309,61 +352,73 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       leadership,
       cool,
       willpower,
-      intelligence
-    }
-  }), [
-    id, name, type, sub_type, credits, movement, weapon_skill, ballistic_skill,
-    strength, toughness, wounds, initiative, attacks, leadership,
-    cool, willpower, intelligence, xp, kills, advancements, effects,
-    fighter_class
-  ]);
+      intelligence,
+      xp,
+      kills,
+      advancements,
+      effects,
+      fighter_class,
+    ]
+  );
   const canShowEditButtons = userPermissions.canEdit;
   const isCrew = fighter_class === 'Crew';
-  
+
   // Calculate modified stats including effects (injuries/advancements)
-  const modifiedStats = useMemo(() => 
-    calculateAdjustedStats(fighterData),
+  const modifiedStats = useMemo(
+    () => calculateAdjustedStats(fighterData),
     [fighterData]
   );
 
   // Calculate vehicle stats once
-  const vehicleStats = useMemo(() => 
-    isCrew ? calculateVehicleStats(vehicles?.[0], vehicleEquipment) : null,
+  const vehicleStats = useMemo(
+    () =>
+      isCrew ? calculateVehicleStats(vehicles?.[0], vehicleEquipment) : null,
     [isCrew, vehicles, vehicleEquipment]
   );
 
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
-  const stats = useMemo<Record<string, string | number>>(() => ({
-    ...(isCrew ? {
-      'M': `${vehicleStats?.movement}"`,
-      'Front': vehicleStats?.front,
-      'Side': vehicleStats?.side,
-      'Rear': vehicleStats?.rear,
-      'HP': vehicleStats?.hull_points,
-      'Hnd': `${vehicleStats?.handling}+`,
-      'Sv': `${vehicleStats?.save}+`,
-      'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
-      'Ld': `${modifiedStats.leadership}+`,
-      'Cl': `${modifiedStats.cool}+`,
-      'Wil': `${modifiedStats.willpower}+`,
-      'Int': `${modifiedStats.intelligence}+`,
-      'XP': xp ?? 0
-    } : {
-      'M': `${modifiedStats.movement}"`,
-      'WS': `${modifiedStats.weapon_skill}+`,
-      'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
-      'S': modifiedStats.strength,
-      'T': modifiedStats.toughness,
-      'W': modifiedStats.wounds,
-      'I': `${modifiedStats.initiative}+`,
-      'A': modifiedStats.attacks,
-      'Ld': `${modifiedStats.leadership}+`,
-      'Cl': `${modifiedStats.cool}+`,
-      'Wil': `${modifiedStats.willpower}+`,
-      'Int': `${modifiedStats.intelligence}+`,
-      'XP': xp ?? 0
-    })
-  }), [isCrew, vehicleStats, vehicles, modifiedStats, xp]);
+  const stats = useMemo<Record<string, string | number>>(
+    () => ({
+      ...(isCrew
+        ? {
+            M: `${vehicleStats?.movement}"`,
+            Front: vehicleStats?.front,
+            Side: vehicleStats?.side,
+            Rear: vehicleStats?.rear,
+            HP: vehicleStats?.hull_points,
+            Hnd: `${vehicleStats?.handling}+`,
+            Sv: `${vehicleStats?.save}+`,
+            BS:
+              modifiedStats.ballistic_skill === 0
+                ? '-'
+                : `${modifiedStats.ballistic_skill}+`,
+            Ld: `${modifiedStats.leadership}+`,
+            Cl: `${modifiedStats.cool}+`,
+            Wil: `${modifiedStats.willpower}+`,
+            Int: `${modifiedStats.intelligence}+`,
+            XP: xp ?? 0,
+          }
+        : {
+            M: `${modifiedStats.movement}"`,
+            WS: `${modifiedStats.weapon_skill}+`,
+            BS:
+              modifiedStats.ballistic_skill === 0
+                ? '-'
+                : `${modifiedStats.ballistic_skill}+`,
+            S: modifiedStats.strength,
+            T: modifiedStats.toughness,
+            W: modifiedStats.wounds,
+            I: `${modifiedStats.initiative}+`,
+            A: modifiedStats.attacks,
+            Ld: `${modifiedStats.leadership}+`,
+            Cl: `${modifiedStats.cool}+`,
+            Wil: `${modifiedStats.willpower}+`,
+            Int: `${modifiedStats.intelligence}+`,
+            XP: xp ?? 0,
+          }),
+    }),
+    [isCrew, vehicleStats, vehicles, modifiedStats, xp]
+  );
 
   return (
     <div className="relative">
@@ -372,28 +427,36 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           <div
             className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
             style={{
-              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+              backgroundImage:
+                "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
               height: '65px',
               marginTop: '0px',
               marginLeft: '-0.5em',
               zIndex: 0,
               backgroundPosition: 'center',
-              backgroundSize: '100% 100%'
-            }}>
-            <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+              backgroundSize: '100% 100%',
+            }}
+          >
+            <div
+              className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap"
+              style={{ height: '62px', marginTop: '0px' }}
+            >
               {label && (
                 <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
               <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">
+                  {name}
+                </div>
                 <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
-                  {sub_type?.fighter_sub_type && `, ${sub_type.fighter_sub_type}`}
+                  {sub_type?.fighter_sub_type &&
+                    `, ${sub_type.fighter_sub_type}`}
                 </div>
               </div>
             </div>
@@ -407,7 +470,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           {recovery && <FaMedkit className="text-blue-500" />}
         </div>
         <div className="bg-[#FFFFFF] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-          <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
+          <span className="leading-6 font-bold text-2xl">
+            {Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}
+          </span>
           <span className="leading-3 text-xs">Credits</span>
         </div>
       </div>
@@ -435,32 +500,48 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             Edit Fighter
           </Button>
         </div>
-      </div> 
+      </div>
       <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
-        <div className="mt-4">
-          {fighter_class === 'Crew' && (
-            <p className="text-base text-gray-600">
-              {vehicles?.[0]
-                ? vehicles[0].vehicle_name
-                  ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
-                  : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
-                : 'None'}
-            </p>
-          )}
-          {fighter_class === 'Crew' && vehicleStats && (() => {
+      <div className="mt-4">
+        {fighter_class === 'Crew' && (
+          <p className="text-base text-gray-600">
+            {vehicles?.[0]
+              ? vehicles[0].vehicle_name
+                ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
+              : 'None'}
+          </p>
+        )}
+        {fighter_class === 'Crew' &&
+          vehicleStats &&
+          (() => {
             const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
             return (
               <div className="flex items-center gap-1 mt-2">
                 <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>
+                <span
+                  className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}
+                >
+                  Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}
+                </span>
+                <span
+                  className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}
+                >
+                  Drive: {occupiedSlots.driveOccupied}/
+                  {vehicleStats.drive_slots}
+                </span>
+                <span
+                  className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}
+                >
+                  Engine: {occupiedSlots.engineOccupied}/
+                  {vehicleStats.engine_slots}
+                </span>
               </div>
             );
           })()}
-        </div>
+      </div>
     </div>
   );
-}); 
+});

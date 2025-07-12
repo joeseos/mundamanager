@@ -11,7 +11,11 @@ interface NotesListProps {
   userPermissions: UserPermissions;
 }
 
-export function NotesList({ fighterId, initialNote = '', userPermissions }: NotesListProps) {
+export function NotesList({
+  fighterId,
+  initialNote = '',
+  userPermissions,
+}: NotesListProps) {
   // Ensure note is always a string
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -44,7 +48,7 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
 
       const result = await updateFighterDetails({
         fighter_id: fighterId,
-        note: note
+        note: note,
       });
 
       if (!result.success) {
@@ -52,18 +56,20 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
       }
 
       toast({
-        description: "Notes updated successfully",
-        variant: "default"
+        description: 'Notes updated successfully',
+        variant: 'default',
       });
 
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating notes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update notes');
+      setError(
+        error instanceof Error ? error.message : 'Failed to update notes'
+      );
       toast({
-        title: "Error",
-        description: "Failed to update notes",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update notes',
+        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);
@@ -76,7 +82,9 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
         <h3 className="text-lg font-semibold">Notes</h3>
         <div className="flex items-center gap-2">
           {isEditing && (
-            <span className={`text-sm ${charCount > 1000 ? 'text-red-500' : 'text-gray-500'}`}>
+            <span
+              className={`text-sm ${charCount > 1000 ? 'text-red-500' : 'text-gray-500'}`}
+            >
               {charCount}/1000 characters
             </span>
           )}
@@ -98,11 +106,14 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
                   onClick={handleSave}
                   disabled={charCount > 1000 || isSaving}
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)} disabled={!userPermissions.canEdit}>
+              <Button
+                onClick={() => setIsEditing(true)}
+                disabled={!userPermissions.canEdit}
+              >
                 Edit
               </Button>
             )}
@@ -110,9 +121,7 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
         </div>
       </div>
 
-      {error && (
-        <p className="text-red-500 text-sm">{error}</p>
-      )}
+      {error && <p className="text-red-500 text-sm">{error}</p>}
 
       {isEditing ? (
         <Textarea

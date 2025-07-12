@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -8,7 +8,10 @@ export async function GET(request: Request) {
   const equipmentId = searchParams.get('equipment_id');
 
   if (!equipmentId) {
-    return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Equipment ID is required' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -19,20 +22,22 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('trading_post_equipment')
-      .select(`
+      .select(
+        `
         trading_post_type_id,
         trading_post_types!inner(
           id,
           trading_post_name
         )
-      `)
+      `
+      )
       .eq('equipment_id', equipmentId);
 
     if (error) throw error;
 
     // Extract just the trading post type IDs
-    const tradingPostIds = data.map(item => item.trading_post_type_id);
-    
+    const tradingPostIds = data.map((item) => item.trading_post_type_id);
+
     return NextResponse.json(tradingPostIds);
   } catch (error) {
     console.error('Error fetching equipment trading posts:', error);
@@ -55,7 +60,10 @@ export async function POST(request: Request) {
     const { equipment_id, trading_post_ids } = await request.json();
 
     if (!equipment_id) {
-      return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Equipment ID is required' },
+        { status: 400 }
+      );
     }
 
     // First, delete existing associations for this equipment
@@ -68,10 +76,12 @@ export async function POST(request: Request) {
 
     // Then, insert new associations if any are provided
     if (trading_post_ids && trading_post_ids.length > 0) {
-      const associations = trading_post_ids.map((trading_post_type_id: string) => ({
-        equipment_id,
-        trading_post_type_id
-      }));
+      const associations = trading_post_ids.map(
+        (trading_post_type_id: string) => ({
+          equipment_id,
+          trading_post_type_id,
+        })
+      );
 
       const { error: insertError } = await supabase
         .from('trading_post_equipment')
@@ -88,4 +98,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

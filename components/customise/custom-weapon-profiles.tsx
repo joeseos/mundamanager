@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { ImInfo } from "react-icons/im";
+import { ImInfo } from 'react-icons/im';
 
 export interface CustomWeaponProfile {
   id?: string;
@@ -26,7 +26,11 @@ interface CustomWeaponProfilesProps {
   disabled?: boolean;
 }
 
-export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false }: CustomWeaponProfilesProps) {
+export function CustomWeaponProfiles({
+  profiles,
+  onProfilesChange,
+  disabled = false,
+}: CustomWeaponProfilesProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const { toast } = useToast();
 
@@ -41,7 +45,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     damage: '',
     ammo: '',
     traits: '',
-    sort_order: profiles.length
+    sort_order: profiles.length,
   });
 
   const handleAddProfile = () => {
@@ -51,12 +55,13 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     setEditingIndex(updatedProfiles.length - 1);
   };
 
-  const handleUpdateProfile = (index: number, field: keyof CustomWeaponProfile, value: string | number) => {
+  const handleUpdateProfile = (
+    index: number,
+    field: keyof CustomWeaponProfile,
+    value: string | number
+  ) => {
     const updatedProfiles = [...profiles];
-    updatedProfiles[index] = {
-      ...updatedProfiles[index],
-      [field]: value
-    };
+    updatedProfiles[index] = { ...updatedProfiles[index], [field]: value };
     onProfilesChange(updatedProfiles);
   };
 
@@ -72,24 +77,29 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
 
   const handleSaveProfile = (index: number) => {
     const profile = profiles[index];
-    
+
     // Validate required fields
-    if (!profile.range_short || !profile.range_long || !profile.acc_short || 
-        !profile.acc_long || !profile.strength || !profile.ap || 
-        !profile.damage || !profile.ammo) {
+    if (
+      !profile.range_short ||
+      !profile.range_long ||
+      !profile.acc_short ||
+      !profile.acc_long ||
+      !profile.strength ||
+      !profile.ap ||
+      !profile.damage ||
+      !profile.ammo
+    ) {
       toast({
-        title: "Validation Error",
-        description: "All weapon profile fields except Profile Name and Traits are required",
-        variant: "destructive",
+        title: 'Validation Error',
+        description:
+          'All weapon profile fields except Profile Name and Traits are required',
+        variant: 'destructive',
       });
       return;
     }
 
     setEditingIndex(null);
-    toast({
-      title: "Success",
-      description: "Weapon profile saved",
-    });
+    toast({ title: 'Success', description: 'Weapon profile saved' });
   };
 
   const handleCancelEdit = (index: number) => {
@@ -102,9 +112,16 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
   };
 
   const isProfileValid = (profile: CustomWeaponProfile): boolean => {
-    return !!(profile.range_short && profile.range_long && profile.acc_short && 
-              profile.acc_long && profile.strength && profile.ap && 
-              profile.damage && profile.ammo);
+    return !!(
+      profile.range_short &&
+      profile.range_long &&
+      profile.acc_short &&
+      profile.acc_long &&
+      profile.strength &&
+      profile.ap &&
+      profile.damage &&
+      profile.ammo
+    );
   };
 
   if (disabled) {
@@ -127,14 +144,17 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
       </div>
 
       {profiles.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No weapon profiles added yet.</p>
+        <p className="text-sm text-gray-500 italic">
+          No weapon profiles added yet.
+        </p>
       ) : (
         <div className="space-y-3">
           {profiles.map((profile, index) => (
             <div key={index} className="border rounded-lg p-3 space-y-3">
               <div className="flex justify-between items-center">
                 <h5 className="text-sm font-medium">
-                  Profile {index + 1} {profile.profile_name ? `- ${profile.profile_name}` : ''}
+                  Profile {index + 1}{' '}
+                  {profile.profile_name ? `- ${profile.profile_name}` : ''}
                 </h5>
                 <div className="flex gap-2">
                   {editingIndex === index ? (
@@ -192,14 +212,25 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <div className="relative group">
                         <ImInfo />
                         <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                          This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it's suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like "- gas shells" or "- shatter shells".
+                          This name will be displayed on the fighter card next
+                          to the weapon stats. If the weapon has only one
+                          profile, it&apos;s suggested to name it the same as
+                          the weapon name. For multiple profiles, use
+                          descriptive names like &quot;- gas shells&quot; or
+                          &quot;- shatter shells&quot;.
                         </div>
                       </div>
                     </div>
                     <input
                       type="text"
                       value={profile.profile_name || ''}
-                      onChange={(e) => handleUpdateProfile(index, 'profile_name', e.target.value)}
+                      onChange={(e) =>
+                        handleUpdateProfile(
+                          index,
+                          'profile_name',
+                          e.target.value
+                        )
+                      }
                       className="w-full p-2 border rounded-md text-sm"
                       placeholder="e.g. Single Shot, Rapid Fire"
                     />
@@ -213,7 +244,13 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.range_short}
-                        onChange={(e) => handleUpdateProfile(index, 'range_short', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(
+                            index,
+                            'range_short',
+                            e.target.value
+                          )
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. 6"
                       />
@@ -226,7 +263,13 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.range_long}
-                        onChange={(e) => handleUpdateProfile(index, 'range_long', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(
+                            index,
+                            'range_long',
+                            e.target.value
+                          )
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. 18"
                       />
@@ -239,7 +282,13 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.acc_short}
-                        onChange={(e) => handleUpdateProfile(index, 'acc_short', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(
+                            index,
+                            'acc_short',
+                            e.target.value
+                          )
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. +1"
                       />
@@ -252,7 +301,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.acc_long}
-                        onChange={(e) => handleUpdateProfile(index, 'acc_long', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(index, 'acc_long', e.target.value)
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. -1"
                       />
@@ -267,7 +318,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.strength}
-                        onChange={(e) => handleUpdateProfile(index, 'strength', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(index, 'strength', e.target.value)
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. 3, S+1"
                       />
@@ -280,7 +333,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.ap}
-                        onChange={(e) => handleUpdateProfile(index, 'ap', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(index, 'ap', e.target.value)
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. -1, -"
                       />
@@ -293,7 +348,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.damage}
-                        onChange={(e) => handleUpdateProfile(index, 'damage', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(index, 'damage', e.target.value)
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. 1, D3"
                       />
@@ -306,7 +363,9 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                       <input
                         type="text"
                         value={profile.ammo}
-                        onChange={(e) => handleUpdateProfile(index, 'ammo', e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateProfile(index, 'ammo', e.target.value)
+                        }
                         className="w-full p-2 border rounded-md text-sm"
                         placeholder="e.g. 6+, -"
                       />
@@ -320,21 +379,39 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     <input
                       type="text"
                       value={profile.traits || ''}
-                      onChange={(e) => handleUpdateProfile(index, 'traits', e.target.value)}
+                      onChange={(e) =>
+                        handleUpdateProfile(index, 'traits', e.target.value)
+                      }
                       className="w-full p-2 border rounded-md text-sm"
-                      placeholder="e.g. Rapid Fire (1), Blast (3&quot;)"
+                      placeholder='e.g. Rapid Fire (1), Blast (3")'
                     />
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div><strong>Range:</strong> {profile.range_short || '-'} / {profile.range_long || '-'}</div>
-                  <div><strong>Acc:</strong> {profile.acc_short || '-'} / {profile.acc_long || '-'}</div>
-                  <div><strong>Str:</strong> {profile.strength || '-'}</div>
-                  <div><strong>AP:</strong> {profile.ap || '-'}</div>
-                  <div><strong>Dmg:</strong> {profile.damage || '-'}</div>
-                  <div><strong>Ammo:</strong> {profile.ammo || '-'}</div>
-                  <div className="col-span-2 md:col-span-2"><strong>Traits:</strong> {profile.traits || 'None'}</div>
+                  <div>
+                    <strong>Range:</strong> {profile.range_short || '-'} /{' '}
+                    {profile.range_long || '-'}
+                  </div>
+                  <div>
+                    <strong>Acc:</strong> {profile.acc_short || '-'} /{' '}
+                    {profile.acc_long || '-'}
+                  </div>
+                  <div>
+                    <strong>Str:</strong> {profile.strength || '-'}
+                  </div>
+                  <div>
+                    <strong>AP:</strong> {profile.ap || '-'}
+                  </div>
+                  <div>
+                    <strong>Dmg:</strong> {profile.damage || '-'}
+                  </div>
+                  <div>
+                    <strong>Ammo:</strong> {profile.ammo || '-'}
+                  </div>
+                  <div className="col-span-2 md:col-span-2">
+                    <strong>Traits:</strong> {profile.traits || 'None'}
+                  </div>
                 </div>
               )}
             </div>
@@ -343,4 +420,4 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
       )}
     </div>
   );
-} 
+}

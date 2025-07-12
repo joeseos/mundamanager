@@ -13,14 +13,17 @@ async function _getGangFighters(gangId: string, supabase: SupabaseClient) {
   return data;
 }
 
-async function _getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: SupabaseClient) {
+async function _getAdvancementCategories(
+  advancementType: 'characteristic' | 'skill',
+  supabase: SupabaseClient
+) {
   if (advancementType === 'characteristic') {
     const { data, error } = await supabase
       .from('fighter_effect_types')
       .select('*')
       .eq('fighter_effect_category_id', '789b2065-c26d-453b-a4d5-81c04c5d4419')
       .order('effect_name');
-    
+
     if (error) throw error;
     return data;
   } else {
@@ -28,7 +31,7 @@ async function _getAdvancementCategories(advancementType: 'characteristic' | 'sk
       .from('skill_types')
       .select('*')
       .order('name');
-    
+
     if (error) throw error;
     return data;
   }
@@ -49,13 +52,19 @@ export const getGangFighters = async (gangId: string) => {
     },
     [`gang-fighters-${gangId}`],
     {
-      tags: [CACHE_TAGS.GANG_FIGHTERS_LIST(gangId), 'gang-fighters', `gang-fighters-${gangId}`],
-      revalidate: false
+      tags: [
+        CACHE_TAGS.GANG_FIGHTERS_LIST(gangId),
+        'gang-fighters',
+        `gang-fighters-${gangId}`,
+      ],
+      revalidate: false,
     }
   )();
 };
 
-export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill') {
+export async function getAdvancementCategories(
+  advancementType: 'characteristic' | 'skill'
+) {
   const supabase = await createClient();
   return unstable_cache(
     async () => {
@@ -63,16 +72,25 @@ export async function getAdvancementCategories(advancementType: 'characteristic'
     },
     [`advancement-categories-${advancementType}`],
     {
-      tags: ['advancement-categories', `advancement-categories-${advancementType}`],
-      revalidate: 3600 // 1 hour for reference data
+      tags: [
+        'advancement-categories',
+        `advancement-categories-${advancementType}`,
+      ],
+      revalidate: 3600, // 1 hour for reference data
     }
   )();
 }
 
-async function _getFighterAvailableAdvancements(fighterId: string, supabase: SupabaseClient) {
-  const { data, error } = await supabase.rpc('get_fighter_available_advancements', {
-    fighter_id: fighterId
-  });
+async function _getFighterAvailableAdvancements(
+  fighterId: string,
+  supabase: SupabaseClient
+) {
+  const { data, error } = await supabase.rpc(
+    'get_fighter_available_advancements',
+    {
+      fighter_id: fighterId,
+    }
+  );
   if (error) throw error;
   return data;
 }
@@ -85,15 +103,22 @@ export async function getFighterAvailableAdvancements(fighterId: string) {
     },
     [`fighter-available-advancements-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'fighter-available-advancements', `fighter-available-advancements-${fighterId}`],
-      revalidate: false
+      tags: [
+        CACHE_TAGS.FIGHTER_PAGE(fighterId),
+        'fighter-available-advancements',
+        `fighter-available-advancements-${fighterId}`,
+      ],
+      revalidate: false,
     }
   )();
 }
 
-async function _getAvailableSkills(fighterId: string, supabase: SupabaseClient) {
+async function _getAvailableSkills(
+  fighterId: string,
+  supabase: SupabaseClient
+) {
   const { data, error } = await supabase.rpc('get_available_skills', {
-    fighter_id: fighterId
+    fighter_id: fighterId,
   });
   if (error) throw error;
   return data;
@@ -107,8 +132,12 @@ export async function getAvailableSkills(fighterId: string) {
     },
     [`available-skills-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'available-skills', `available-skills-${fighterId}`],
-      revalidate: false
+      tags: [
+        CACHE_TAGS.FIGHTER_PAGE(fighterId),
+        'available-skills',
+        `available-skills-${fighterId}`,
+      ],
+      revalidate: false,
     }
   )();
 }
@@ -132,7 +161,7 @@ export async function getAvailableInjuries() {
     ['available-injuries'],
     {
       tags: ['available-injuries'],
-      revalidate: 3600 // 1 hour for reference data
+      revalidate: 3600, // 1 hour for reference data
     }
   )();
 }

@@ -1,19 +1,19 @@
 'use client';
 
-import { signUpAction } from "@/app/actions";
-import { FormMessage, Message } from "@/components/form-message";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, use } from "react";
+import { signUpAction } from '@/app/actions';
+import { FormMessage, Message } from '@/components/form-message';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, use } from 'react';
 
 export default function Page(props: { searchParams: Promise<Message> }) {
   const searchParams = use(props.searchParams);
-  const [passwordError, setPasswordError] = useState<string>("");
-  const [usernameError, setUsernameError] = useState<string>("");
-  const [emailError, setEmailError] = useState<string>("");
-  const [emailConfirmError, setEmailConfirmError] = useState<string>("");
+  const [passwordError, setPasswordError] = useState<string>('');
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [emailError, setEmailError] = useState<string>('');
+  const [emailConfirmError, setEmailConfirmError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState({
@@ -29,12 +29,12 @@ export default function Page(props: { searchParams: Promise<Message> }) {
       hasLowerCase: /[a-z]/.test(password),
       hasUpperCase: /[A-Z]/.test(password),
       hasNumber: /\d/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=[\]{}|;:,.<>?~]/.test(password),
       hasMinLength: password.length >= 6,
     });
   };
 
-  if ("message" in searchParams) {
+  if ('message' in searchParams) {
     return (
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full p-4">
@@ -42,7 +42,10 @@ export default function Page(props: { searchParams: Promise<Message> }) {
             <p className="text-lg mb-4">
               Please check your email to verify your account.
             </p>
-            <Link href="/sign-in" className="text-lg text-white hover:underline">
+            <Link
+              href="/sign-in"
+              className="text-lg text-white hover:underline"
+            >
               Sign in here once verified
             </Link>
           </div>
@@ -63,14 +66,16 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     const confirmEmail = formData.get('confirmEmail') as string;
 
     if (email !== confirmEmail) {
-      setEmailConfirmError("Emails do not match");
+      setEmailConfirmError('Emails do not match');
       setIsSubmitting(false);
       return;
     }
 
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
-      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setUsernameError(
+        'Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens'
+      );
       setIsSubmitting(false);
       return;
     }
@@ -78,28 +83,38 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     const hasLowerCase = /[a-z]/.test(password);
     const hasUpperCase = /[A-Z]/.test(password);
     const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{}|;:,.<>?~]/.test(password);
     const hasMinLength = password.length >= 6;
 
-    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
-      setPasswordError("Password must contain at least 6 characters, including uppercase, lowercase, number, and special character");
+    if (
+      !hasLowerCase ||
+      !hasUpperCase ||
+      !hasNumber ||
+      !hasSpecialChar ||
+      !hasMinLength
+    ) {
+      setPasswordError(
+        'Password must contain at least 6 characters, including uppercase, lowercase, number, and special character'
+      );
       setIsSubmitting(false);
       return;
     }
 
-    setPasswordError("");
-    setUsernameError("");
-    setEmailError("");
-    setEmailConfirmError("");
+    setPasswordError('');
+    setUsernameError('');
+    setEmailError('');
+    setEmailConfirmError('');
 
     try {
       const result = await signUpAction(formData);
       if (result?.message) {
         router.push(`/sign-up?message=${encodeURIComponent(result.message)}`);
       } else if (result?.error) {
-        if (result.error.includes("email is already registered")) {
-          setEmailError("This email is already registered. Please sign in instead");
-        } else if (result.error.includes("Username already taken")) {
+        if (result.error.includes('email is already registered')) {
+          setEmailError(
+            'This email is already registered. Please sign in instead'
+          );
+        } else if (result.error.includes('Username already taken')) {
           setUsernameError(result.error);
         } else {
           router.push(`/sign-up?error=${encodeURIComponent(result.error)}`);
@@ -117,20 +132,22 @@ export default function Page(props: { searchParams: Promise<Message> }) {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full p-4">
-        <form 
+        <form
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
         >
           <h1 className="text-2xl font-medium text-white mb-2">Sign up</h1>
           <p className="text-sm text-white mb-8">
-            Already have an account?{" "}
+            Already have an account?{' '}
             <Link className="text-white font-medium underline" href="/sign-in">
               Sign in
             </Link>
           </p>
           <div className="flex flex-col gap-4">
             <div>
-              <Label htmlFor="username" className="text-white">Username</Label>
+              <Label htmlFor="username" className="text-white">
+                Username
+              </Label>
               <Input
                 id="username"
                 name="username"
@@ -148,14 +165,16 @@ export default function Page(props: { searchParams: Promise<Message> }) {
             </div>
 
             <div>
-              <Label htmlFor="email" className="text-white">Email</Label>
-              <Input 
+              <Label htmlFor="email" className="text-white">
+                Email
+              </Label>
+              <Input
                 id="email"
-                name="email" 
+                name="email"
                 type="email"
-                placeholder="you@example.com" 
-                required 
-                className="text-black mt-1" 
+                placeholder="you@example.com"
+                required
+                className="text-black mt-1"
                 autoComplete="email"
               />
               {emailError && (
@@ -164,23 +183,27 @@ export default function Page(props: { searchParams: Promise<Message> }) {
             </div>
 
             <div>
-              <Label htmlFor="confirmEmail" className="text-white">Confirm Email</Label>
-              <Input 
+              <Label htmlFor="confirmEmail" className="text-white">
+                Confirm Email
+              </Label>
+              <Input
                 id="confirmEmail"
-                name="confirmEmail" 
+                name="confirmEmail"
                 type="email"
-                placeholder="you@example.com" 
-                required 
-                className="text-black mt-1" 
+                placeholder="you@example.com"
+                required
+                className="text-black mt-1"
                 autoComplete="email"
               />
               {emailConfirmError && (
                 <p className="text-red-400 text-sm mt-1">{emailConfirmError}</p>
               )}
             </div>
-            
+
             <div>
-              <Label htmlFor="password" className="text-white">Password</Label>
+              <Label htmlFor="password" className="text-white">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -196,26 +219,56 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 <p className="text-red-400 text-sm mt-1">{passwordError}</p>
               )}
               <div className="mt-2 text-sm space-y-1">
-                <p className={passwordRequirements.hasMinLength ? "text-green-400" : "text-gray-400"}>
+                <p
+                  className={
+                    passwordRequirements.hasMinLength
+                      ? 'text-green-400'
+                      : 'text-gray-400'
+                  }
+                >
                   ✓ At least 6 characters
                 </p>
-                <p className={passwordRequirements.hasLowerCase ? "text-green-400" : "text-gray-400"}>
+                <p
+                  className={
+                    passwordRequirements.hasLowerCase
+                      ? 'text-green-400'
+                      : 'text-gray-400'
+                  }
+                >
                   ✓ One lowercase letter
                 </p>
-                <p className={passwordRequirements.hasUpperCase ? "text-green-400" : "text-gray-400"}>
+                <p
+                  className={
+                    passwordRequirements.hasUpperCase
+                      ? 'text-green-400'
+                      : 'text-gray-400'
+                  }
+                >
                   ✓ One uppercase letter
                 </p>
-                <p className={passwordRequirements.hasNumber ? "text-green-400" : "text-gray-400"}>
+                <p
+                  className={
+                    passwordRequirements.hasNumber
+                      ? 'text-green-400'
+                      : 'text-gray-400'
+                  }
+                >
                   ✓ One number
                 </p>
-                <p className={passwordRequirements.hasSpecialChar ? "text-green-400" : "text-gray-400"}>
+                <p
+                  className={
+                    passwordRequirements.hasSpecialChar
+                      ? 'text-green-400'
+                      : 'text-gray-400'
+                  }
+                >
                   ✓ One special character (!@#$%^&*()_+-=[]{}|;:,&lt;&gt;?~)
                 </p>
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >

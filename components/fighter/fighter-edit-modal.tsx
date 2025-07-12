@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Input } from "@/components/ui/input";
-import Modal from "@/components/modal";
+import { Input } from '@/components/ui/input';
+import Modal from '@/components/modal';
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
-import { Button } from "@/components/ui/button";
-import { Plus, Minus, X } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { Button } from '@/components/ui/button';
+import { Plus, Minus, X } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { createClient } from '@/utils/supabase/client';
 
@@ -28,21 +28,21 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
     { key: 'leadership', label: 'Ld' },
     { key: 'cool', label: 'Cl' },
     { key: 'willpower', label: 'Wil' },
-    { key: 'intelligence', label: 'Int' }
+    { key: 'intelligence', label: 'Int' },
   ];
 
   // IMPORTANT FIX: Get base values from original fighter properties directly
   const getStat = (fighter: Fighter, key: string): number => {
     // Return original base values from fighter object
-    return fighter[key as keyof Fighter] as number || 0;
+    return (fighter[key as keyof Fighter] as number) || 0;
   };
 
   // Single function to calculate effects for any category
   const calculateEffectsForCategory = useMemo(() => {
     return (categoryName: keyof typeof fighter.effects) => {
       const effects: Record<string, number> = {};
-      fighter.effects?.[categoryName]?.forEach(effect => {
-        effect.fighter_effect_modifiers?.forEach(modifier => {
+      fighter.effects?.[categoryName]?.forEach((effect) => {
+        effect.fighter_effect_modifiers?.forEach((modifier) => {
           const statName = modifier.stat_name.toLowerCase();
           const numValue = parseInt(modifier.numeric_value.toString());
           effects[statName] = (effects[statName] || 0) + numValue;
@@ -53,14 +53,38 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   }, [fighter.effects]);
 
   // Calculate all effect categories using the single function
-  const injuryEffects = useMemo(() => calculateEffectsForCategory('injuries'), [calculateEffectsForCategory]);
-  const advancementEffects = useMemo(() => calculateEffectsForCategory('advancements'), [calculateEffectsForCategory]);
-  const userEffects = useMemo(() => calculateEffectsForCategory('user'), [calculateEffectsForCategory]);
-  const bionicsEffects = useMemo(() => calculateEffectsForCategory('bionics'), [calculateEffectsForCategory]);
-  const geneSmithingEffects = useMemo(() => calculateEffectsForCategory('gene-smithing'), [calculateEffectsForCategory]);
-  const rigGlitchesEffects = useMemo(() => calculateEffectsForCategory('rig-glitches'), [calculateEffectsForCategory]);
-  const augmentationsEffects = useMemo(() => calculateEffectsForCategory('augmentations'), [calculateEffectsForCategory]);
-  const equipmentEffects = useMemo(() => calculateEffectsForCategory('equipment'), [calculateEffectsForCategory]);
+  const injuryEffects = useMemo(
+    () => calculateEffectsForCategory('injuries'),
+    [calculateEffectsForCategory]
+  );
+  const advancementEffects = useMemo(
+    () => calculateEffectsForCategory('advancements'),
+    [calculateEffectsForCategory]
+  );
+  const userEffects = useMemo(
+    () => calculateEffectsForCategory('user'),
+    [calculateEffectsForCategory]
+  );
+  const bionicsEffects = useMemo(
+    () => calculateEffectsForCategory('bionics'),
+    [calculateEffectsForCategory]
+  );
+  const geneSmithingEffects = useMemo(
+    () => calculateEffectsForCategory('gene-smithing'),
+    [calculateEffectsForCategory]
+  );
+  const rigGlitchesEffects = useMemo(
+    () => calculateEffectsForCategory('rig-glitches'),
+    [calculateEffectsForCategory]
+  );
+  const augmentationsEffects = useMemo(
+    () => calculateEffectsForCategory('augmentations'),
+    [calculateEffectsForCategory]
+  );
+  const equipmentEffects = useMemo(
+    () => calculateEffectsForCategory('equipment'),
+    [calculateEffectsForCategory]
+  );
 
   return (
     <div className="w-full overflow-x-auto">
@@ -68,8 +92,13 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
         <thead>
           <tr>
             <th className="px-1 py-1 text-xs text-left">Type</th>
-            {stats.map(stat => (
-              <th key={stat.key} className="min-w-[20px] max-w-[20px] border-l border-gray-300 text-center text-xs">{stat.label}</th>
+            {stats.map((stat) => (
+              <th
+                key={stat.key}
+                className="min-w-[20px] max-w-[20px] border-l border-gray-300 text-center text-xs"
+              >
+                {stat.label}
+              </th>
             ))}
           </tr>
         </thead>
@@ -77,121 +106,166 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           {/* Base row - always shown */}
           <tr className="bg-gray-100">
             <td className="px-1 py-1 font-medium text-xs">Base</td>
-            {stats.map(stat => {
+            {stats.map((stat) => {
               const baseValue = getStat(fighter, stat.key);
-              
+
               return (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {stat.key === 'movement' ? `${baseValue}"` :
-                   stat.key === 'wounds' || stat.key === 'attacks' || 
-                   stat.key === 'strength' || stat.key === 'toughness' ? 
-                   baseValue : 
-                   `${baseValue}+`}
+                <td
+                  key={stat.key}
+                  className="border-l border-gray-300 text-center text-xs"
+                >
+                  {stat.key === 'movement'
+                    ? `${baseValue}"`
+                    : stat.key === 'wounds' ||
+                        stat.key === 'attacks' ||
+                        stat.key === 'strength' ||
+                        stat.key === 'toughness'
+                      ? baseValue
+                      : `${baseValue}+`}
                 </td>
               );
             })}
           </tr>
-          
+
           {/* Injury row - only show if fighter has injuries */}
           {fighter.effects?.injuries && fighter.effects.injuries.length > 0 && (
             <tr className="bg-red-50">
               <td className="px-1 py-1 font-medium text-xs">Injuries</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+              {stats.map((stat) => (
+                <td
+                  key={stat.key}
+                  className="border-l border-gray-300 text-center text-xs"
+                >
                   {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
                 </td>
               ))}
             </tr>
           )}
-          
+
           {/* Advancements row - only show if fighter has advancements */}
-          {fighter.effects?.advancements && fighter.effects.advancements.length > 0 && (
-            <tr className="bg-blue-50">
-              <td className="px-1 py-1 font-medium text-xs">Adv.</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
-                </td>
-              ))}
-            </tr>
-          )}
-          
+          {fighter.effects?.advancements &&
+            fighter.effects.advancements.length > 0 && (
+              <tr className="bg-blue-50">
+                <td className="px-1 py-1 font-medium text-xs">Adv.</td>
+                {stats.map((stat) => (
+                  <td
+                    key={stat.key}
+                    className="border-l border-gray-300 text-center text-xs"
+                  >
+                    {advancementEffects[stat.key]
+                      ? advancementEffects[stat.key]
+                      : '-'}
+                  </td>
+                ))}
+              </tr>
+            )}
+
           {/* Bionics row - only show if fighter has bionics */}
           {fighter.effects?.bionics && fighter.effects.bionics.length > 0 && (
             <tr className="bg-yellow-50">
               <td className="px-1 py-1 font-medium text-xs">Bionics</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+              {stats.map((stat) => (
+                <td
+                  key={stat.key}
+                  className="border-l border-gray-300 text-center text-xs"
+                >
                   {bionicsEffects[stat.key] ? bionicsEffects[stat.key] : '-'}
                 </td>
               ))}
             </tr>
           )}
-          
+
           {/* User row - only show if fighter has user effects */}
           {fighter.effects?.user && fighter.effects.user.length > 0 && (
             <tr className="bg-green-50">
               <td className="px-1 py-1 font-medium text-xs">User</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+              {stats.map((stat) => (
+                <td
+                  key={stat.key}
+                  className="border-l border-gray-300 text-center text-xs"
+                >
                   {userEffects[stat.key] ? userEffects[stat.key] : '-'}
                 </td>
               ))}
             </tr>
           )}
-          
+
           {/* Gene-Smithing row - only show if fighter has gene-smithing effects */}
-          {fighter.effects?.['gene-smithing'] && fighter.effects['gene-smithing'].length > 0 && (
-            <tr className="bg-purple-50">
-              <td className="px-1 py-1 font-medium text-xs">Gene-Smithing</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {geneSmithingEffects[stat.key] ? geneSmithingEffects[stat.key] : '-'}
-                </td>
-              ))}
-            </tr>
-          )}
-          
+          {fighter.effects?.['gene-smithing'] &&
+            fighter.effects['gene-smithing'].length > 0 && (
+              <tr className="bg-purple-50">
+                <td className="px-1 py-1 font-medium text-xs">Gene-Smithing</td>
+                {stats.map((stat) => (
+                  <td
+                    key={stat.key}
+                    className="border-l border-gray-300 text-center text-xs"
+                  >
+                    {geneSmithingEffects[stat.key]
+                      ? geneSmithingEffects[stat.key]
+                      : '-'}
+                  </td>
+                ))}
+              </tr>
+            )}
+
           {/* Rig-Glitches row - only show if fighter has rig-glitches effects */}
-          {fighter.effects?.['rig-glitches'] && fighter.effects['rig-glitches'].length > 0 && (
-            <tr className="bg-pink-50">
-              <td className="px-1 py-1 font-medium text-xs">Rig-Glitches</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {rigGlitchesEffects[stat.key] ? rigGlitchesEffects[stat.key] : '-'}
-                </td>
-              ))}
-            </tr>
-          )}
-          
+          {fighter.effects?.['rig-glitches'] &&
+            fighter.effects['rig-glitches'].length > 0 && (
+              <tr className="bg-pink-50">
+                <td className="px-1 py-1 font-medium text-xs">Rig-Glitches</td>
+                {stats.map((stat) => (
+                  <td
+                    key={stat.key}
+                    className="border-l border-gray-300 text-center text-xs"
+                  >
+                    {rigGlitchesEffects[stat.key]
+                      ? rigGlitchesEffects[stat.key]
+                      : '-'}
+                  </td>
+                ))}
+              </tr>
+            )}
+
           {/* Augmentations row - only show if fighter has augmentations effects */}
-          {fighter.effects?.augmentations && fighter.effects.augmentations.length > 0 && (
-            <tr className="bg-teal-50">
-              <td className="px-1 py-1 font-medium text-xs">Augmentations</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {augmentationsEffects[stat.key] ? augmentationsEffects[stat.key] : '-'}
-                </td>
-              ))}
-            </tr>
-          )}
-          
+          {fighter.effects?.augmentations &&
+            fighter.effects.augmentations.length > 0 && (
+              <tr className="bg-teal-50">
+                <td className="px-1 py-1 font-medium text-xs">Augmentations</td>
+                {stats.map((stat) => (
+                  <td
+                    key={stat.key}
+                    className="border-l border-gray-300 text-center text-xs"
+                  >
+                    {augmentationsEffects[stat.key]
+                      ? augmentationsEffects[stat.key]
+                      : '-'}
+                  </td>
+                ))}
+              </tr>
+            )}
+
           {/* Equipment row - only show if fighter has equipment effects */}
-          {fighter.effects?.equipment && fighter.effects.equipment.length > 0 && (
-            <tr className="bg-amber-50">
-              <td className="px-1 py-1 font-medium text-xs">Equipment</td>
-              {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {equipmentEffects[stat.key] ? equipmentEffects[stat.key] : '-'}
-                </td>
-              ))}
-            </tr>
-          )}
-          
+          {fighter.effects?.equipment &&
+            fighter.effects.equipment.length > 0 && (
+              <tr className="bg-amber-50">
+                <td className="px-1 py-1 font-medium text-xs">Equipment</td>
+                {stats.map((stat) => (
+                  <td
+                    key={stat.key}
+                    className="border-l border-gray-300 text-center text-xs"
+                  >
+                    {equipmentEffects[stat.key]
+                      ? equipmentEffects[stat.key]
+                      : '-'}
+                  </td>
+                ))}
+              </tr>
+            )}
+
           {/* Total row - always shown */}
           <tr className="bg-gray-100 font-bold">
             <td className="px-1 py-1 text-xs">Total</td>
-            {stats.map(stat => {
+            {stats.map((stat) => {
               const baseValue = getStat(fighter, stat.key);
               const injuryValue = injuryEffects[stat.key] || 0;
               const advancementValue = advancementEffects[stat.key] || 0;
@@ -201,15 +275,30 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const rigGlitchesValue = rigGlitchesEffects[stat.key] || 0;
               const augmentationsValue = augmentationsEffects[stat.key] || 0;
               const equipmentValue = equipmentEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue;
-              
+              const total =
+                baseValue +
+                injuryValue +
+                advancementValue +
+                bionicsValue +
+                userValue +
+                geneSmithingValue +
+                rigGlitchesValue +
+                augmentationsValue +
+                equipmentValue;
+
               return (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
-                  {stat.key === 'movement' ? `${total}"` :
-                   stat.key === 'wounds' || stat.key === 'attacks' || 
-                   stat.key === 'strength' || stat.key === 'toughness' ? 
-                   total : 
-                   `${total}+`}
+                <td
+                  key={stat.key}
+                  className="border-l border-gray-300 text-center text-xs"
+                >
+                  {stat.key === 'movement'
+                    ? `${total}"`
+                    : stat.key === 'wounds' ||
+                        stat.key === 'attacks' ||
+                        stat.key === 'strength' ||
+                        stat.key === 'toughness'
+                      ? total
+                      : `${total}+`}
                 </td>
               );
             })}
@@ -221,7 +310,19 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
 }
 
 // Define StatKey type and Stat interface for the new stats modal
-type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Ld" | "Cl" | "Wil" | "Int";
+type StatKey =
+  | 'M'
+  | 'WS'
+  | 'BS'
+  | 'S'
+  | 'T'
+  | 'W'
+  | 'I'
+  | 'A'
+  | 'Ld'
+  | 'Cl'
+  | 'Wil'
+  | 'Int';
 
 interface Stat {
   key: StatKey;
@@ -230,12 +331,12 @@ interface Stat {
 }
 
 // Character Stats Modal component - update title and close button
-function CharacterStatsModal({ 
-  onClose, 
+function CharacterStatsModal({
+  onClose,
   fighter,
   onUpdateStats,
-  isSaving = false
-}: { 
+  isSaving = false,
+}: {
   onClose: () => void;
   fighter: Fighter;
   onUpdateStats: (stats: Record<string, number>) => void;
@@ -254,61 +355,78 @@ function CharacterStatsModal({
     leadership: 0,
     cool: 0,
     willpower: 0,
-    intelligence: 0
+    intelligence: 0,
   });
-  
+
   // Map fighter stats to our format for display
   const displayStats = useMemo((): Stat[] => {
     return [
-      { key: "M", name: "Movement", value: `${fighter.movement}"` },
-      { key: "WS", name: "Weapon Skill", value: `${fighter.weapon_skill}+` },
-      { key: "BS", name: "Ballistic Skill", value: `${fighter.ballistic_skill}+` },
-      { key: "S", name: "Strength", value: `${fighter.strength}` },
-      { key: "T", name: "Toughness", value: `${fighter.toughness}` },
-      { key: "W", name: "Wounds", value: `${fighter.wounds}` },
-      { key: "I", name: "Initiative", value: `${fighter.initiative}+` },
-      { key: "A", name: "Attacks", value: `${fighter.attacks}` },
-      { key: "Ld", name: "Leadership", value: `${fighter.leadership}+` },
-      { key: "Cl", name: "Cool", value: `${fighter.cool}+` },
-      { key: "Wil", name: "Willpower", value: `${fighter.willpower}+` },
-      { key: "Int", name: "Intelligence", value: `${fighter.intelligence}+` },
+      { key: 'M', name: 'Movement', value: `${fighter.movement}"` },
+      { key: 'WS', name: 'Weapon Skill', value: `${fighter.weapon_skill}+` },
+      {
+        key: 'BS',
+        name: 'Ballistic Skill',
+        value: `${fighter.ballistic_skill}+`,
+      },
+      { key: 'S', name: 'Strength', value: `${fighter.strength}` },
+      { key: 'T', name: 'Toughness', value: `${fighter.toughness}` },
+      { key: 'W', name: 'Wounds', value: `${fighter.wounds}` },
+      { key: 'I', name: 'Initiative', value: `${fighter.initiative}+` },
+      { key: 'A', name: 'Attacks', value: `${fighter.attacks}` },
+      { key: 'Ld', name: 'Leadership', value: `${fighter.leadership}+` },
+      { key: 'Cl', name: 'Cool', value: `${fighter.cool}+` },
+      { key: 'Wil', name: 'Willpower', value: `${fighter.willpower}+` },
+      { key: 'Int', name: 'Intelligence', value: `${fighter.intelligence}+` },
     ];
   }, [fighter]);
 
   // Get the property name from the stat key
   const getPropertyName = (key: StatKey): string => {
     switch (key) {
-      case "M": return "movement";
-      case "WS": return "weapon_skill";
-      case "BS": return "ballistic_skill";
-      case "S": return "strength";
-      case "T": return "toughness";
-      case "W": return "wounds";
-      case "I": return "initiative";
-      case "A": return "attacks";
-      case "Ld": return "leadership";
-      case "Cl": return "cool";
-      case "Wil": return "willpower";
-      case "Int": return "intelligence";
-      default: return "";
+      case 'M':
+        return 'movement';
+      case 'WS':
+        return 'weapon_skill';
+      case 'BS':
+        return 'ballistic_skill';
+      case 'S':
+        return 'strength';
+      case 'T':
+        return 'toughness';
+      case 'W':
+        return 'wounds';
+      case 'I':
+        return 'initiative';
+      case 'A':
+        return 'attacks';
+      case 'Ld':
+        return 'leadership';
+      case 'Cl':
+        return 'cool';
+      case 'Wil':
+        return 'willpower';
+      case 'Int':
+        return 'intelligence';
+      default:
+        return '';
     }
   };
-  
+
   // Handle increasing a stat
   const handleIncrease = (key: StatKey) => {
     const propName = getPropertyName(key);
-    setAdjustments(prev => ({
+    setAdjustments((prev) => ({
       ...prev,
-      [propName]: prev[propName] + 1
+      [propName]: prev[propName] + 1,
     }));
   };
-  
+
   // Handle decreasing a stat
   const handleDecrease = (key: StatKey) => {
     const propName = getPropertyName(key);
-    setAdjustments(prev => ({
+    setAdjustments((prev) => ({
       ...prev,
-      [propName]: prev[propName] - 1
+      [propName]: prev[propName] - 1,
     }));
   };
 
@@ -317,29 +435,29 @@ function CharacterStatsModal({
     const propName = getPropertyName(key);
     return fighter[propName as keyof Fighter] as number;
   };
-  
+
   // This function now correctly gets the total including ALL modifiers
   // but does NOT include our adjustments (those are handled separately)
   const getCurrentTotal = (key: StatKey): number => {
     const propName = getPropertyName(key);
-    
+
     // Get base value
     const baseValue = fighter[propName as keyof Fighter] as number;
-    
+
     // Get all modifiers from effects (injuries, advancements, user effects)
     let modifiers = 0;
-    
+
     // Process all effect types
     const processEffects = (effects: FighterEffect[] | undefined) => {
-      effects?.forEach(effect => {
-        effect.fighter_effect_modifiers?.forEach(modifier => {
+      effects?.forEach((effect) => {
+        effect.fighter_effect_modifiers?.forEach((modifier) => {
           if (modifier.stat_name.toLowerCase() === propName.toLowerCase()) {
             modifiers += parseInt(modifier.numeric_value.toString());
           }
         });
       });
     };
-    
+
     processEffects(fighter.effects?.injuries);
     processEffects(fighter.effects?.advancements);
     processEffects(fighter.effects?.bionics);
@@ -349,41 +467,43 @@ function CharacterStatsModal({
     processEffects(fighter.effects?.augmentations);
     processEffects(fighter.effects?.equipment);
     processEffects(fighter.effects?.user);
-    
+
     // Return total (base + existing modifiers)
     return baseValue + modifiers;
   };
-  
+
   // This function gets what the new total will be after our adjustments
   const getAdjustedTotal = (key: StatKey): string => {
     const propName = getPropertyName(key);
-    
+
     // Start with the current total (including all existing modifiers)
     const currentTotal = getCurrentTotal(key);
-    
+
     // Add our new adjustment
     const withAdjustment = currentTotal + (adjustments[propName] || 0);
-    
+
     // Format based on stat type
-    if (key === "M") return `${withAdjustment}"`;
-    if (key === "W" || key === "A" || key === "S" || key === "T") return `${withAdjustment}`;
+    if (key === 'M') return `${withAdjustment}"`;
+    if (key === 'W' || key === 'A' || key === 'S' || key === 'T')
+      return `${withAdjustment}`;
     return `${withAdjustment}+`;
   };
-  
+
   // Get the base display value (without any adjustments)
   const getBaseDisplay = (key: StatKey): string => {
     const baseValue = getBaseValue(key);
-    
+
     // Format the base value appropriately
-    if (key === "M") return `${baseValue}"`;
-    if (key === "W" || key === "A" || key === "S" || key === "T") return `${baseValue}`;
+    if (key === 'M') return `${baseValue}"`;
+    if (key === 'W' || key === 'A' || key === 'S' || key === 'T')
+      return `${baseValue}`;
     return `${baseValue}+`;
   };
-  
+
   const handleSave = () => {
     // Only include stats that have been adjusted
     const updatedStats: Record<string, number> = {};
-    
+
     Object.entries(adjustments).forEach(([propName, adjustment]) => {
       if (adjustment !== 0) {
         // IMPORTANT: We're sending the adjustment directly, NOT the new base value
@@ -391,7 +511,7 @@ function CharacterStatsModal({
         updatedStats[propName] = adjustment;
       }
     });
-    
+
     // Only call if there are actual changes
     if (Object.keys(updatedStats).length > 0) {
       onUpdateStats(updatedStats);
@@ -402,10 +522,15 @@ function CharacterStatsModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[100]">
-      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={isSaving ? undefined : onClose}></div>
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50"
+        onClick={isSaving ? undefined : onClose}
+      ></div>
       <div className="bg-white rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl md:text-2xl font-bold">Adjust Characteristics</h2>
+          <h2 className="text-xl md:text-2xl font-bold">
+            Adjust Characteristics
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-xl"
@@ -461,17 +586,17 @@ function CharacterStatsModal({
         </div>
 
         <div className="flex justify-end p-4 border-t gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Confirm"}
+            {isSaving ? 'Saving...' : 'Confirm'}
           </Button>
         </div>
       </div>
     </div>
   );
 }
-
-
 
 interface EditFighterModalProps {
   fighter: Fighter;
@@ -506,7 +631,7 @@ export function EditFighterModal({
   initialValues,
   onClose,
   onSubmit,
-  onStatsUpdate
+  onStatsUpdate,
 }: EditFighterModalProps) {
   // Update form state to include fighter type fields
   const [formValues, setFormValues] = useState({
@@ -518,58 +643,72 @@ export function EditFighterModal({
     fighter_class_id: (fighter as any).fighter_class_id || '',
     fighter_type: fighter.fighter_type || '',
     fighter_type_id: fighter.fighter_type_id || '',
-    special_rules: Array.isArray(fighter.special_rules) ? fighter.special_rules : [], 
-    stats: {} as Record<string, number>
+    special_rules: Array.isArray(fighter.special_rules)
+      ? fighter.special_rules
+      : [],
+    stats: {} as Record<string, number>,
   });
-  
+
   // Add state for fighter types
-  const [fighterTypes, setFighterTypes] = useState<Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    gang_type_id: string;
-    total_cost?: number;
-    typeClassKey?: string;
-  }>>([]);
-  
-  
+  const [fighterTypes, setFighterTypes] = useState<
+    Array<{
+      id: string;
+      fighter_type: string;
+      fighter_class: string;
+      fighter_class_id?: string;
+      special_rules?: string[];
+      gang_type_id: string;
+      total_cost?: number;
+      typeClassKey?: string;
+    }>
+  >([]);
+
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
-  
+
   // Add state for sub-types by fighter type
-  const [subTypesByFighterType, setSubTypesByFighterType] = useState<Map<string, Array<{
-    id: string;
-    fighter_sub_type: string;
-    cost: number;
-    fighter_type_id: string;
-  }>>>(new Map());
-  
+  const [subTypesByFighterType, setSubTypesByFighterType] = useState<
+    Map<
+      string,
+      Array<{
+        id: string;
+        fighter_sub_type: string;
+        cost: number;
+        fighter_type_id: string;
+      }>
+    >
+  >(new Map());
+
   // Add state for new special rule input
   const [newSpecialRule, setNewSpecialRule] = useState('');
 
   // Local state for tracking current fighter state (including all modifications)
   const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
-  
+
   // State for showing the stats modal
   const [showStatsModal, setShowStatsModal] = useState(false);
-  
+
   // State for tracking if stats are being saved
   const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
-  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(fighter.fighter_type_id || '');
-  
+  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(
+    fighter.fighter_type_id || ''
+  );
+
   // Add state for selected sub-type
-  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>((fighter as any).fighter_sub_type_id || '');
-  
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>(
+    (fighter as any).fighter_sub_type_id || ''
+  );
+
   // Add state for available sub-types
-  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ value: string; label: string; cost?: number }>>([]);
-  
-  
+  const [availableSubTypes, setAvailableSubTypes] = useState<
+    Array<{ value: string; label: string; cost?: number }>
+  >([]);
+
   // Track if fighter type has been explicitly selected in this session
-  const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
-  
+  const [hasExplicitlySelectedType, setHasExplicitlySelectedType] =
+    useState(false);
+
   // Use ref to track the last loaded gang type ID to avoid unnecessary reloads
   const lastGangTypeId = useRef<string>('');
 
@@ -580,33 +719,35 @@ export function EditFighterModal({
         console.error('No gang ID available to load fighter types');
         return;
       }
-      
+
       try {
         setIsLoadingFighterTypes(true);
-        
+
         // Get the gang type ID to use in the request
         const gangTypeId = (fighter as any).gang_type_id;
-        
+
         if (!gangTypeId) {
           console.error('No gang type ID available to load fighter types');
           setIsLoadingFighterTypes(false);
           return;
         }
-        
+
         // Use the new server action to get all fighter data including sub-types
-        const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
+        const { getFighterTypesUncachedClient } = await import(
+          '@/app/lib/get-fighter-types'
+        );
         const data = await getFighterTypesUncachedClient(gangTypeId);
-        
+
         // Create a map to group fighters by type+class and find default/cheapest for each
         const allFighterTypes = new Map();
-        
+
         // Create a map to store sub-types by fighter type+class key
         const subTypesByTypeClass = new Map();
-        
+
         // Process all fighter types
         data.forEach((fighter: any) => {
           const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
-          
+
           // Store ALL fighter types by their ID for sub-type lookups
           allFighterTypes.set(fighter.id, {
             id: fighter.id,
@@ -616,14 +757,14 @@ export function EditFighterModal({
             special_rules: fighter.special_rules || [],
             gang_type_id: fighter.gang_type_id,
             total_cost: fighter.total_cost,
-            typeClassKey: key
+            typeClassKey: key,
           });
-          
+
           // Store this fighter as a potential sub-type
           if (!subTypesByTypeClass.has(key)) {
             subTypesByTypeClass.set(key, []);
           }
-          
+
           // Each fighter type record represents a sub-type variant
           const subType = {
             id: fighter.sub_type?.id || fighter.id, // Use the sub_type.id or fighter id as the identifier
@@ -631,36 +772,40 @@ export function EditFighterModal({
             cost: fighter.cost || fighter.total_cost, // Use cost or fall back to total_cost
             fighter_type_id: fighter.id, // This is the fighter type record ID
             fighter_type_name: fighter.fighter_type,
-            fighter_class_name: fighter.fighter_class
+            fighter_class_name: fighter.fighter_class,
           };
-          
-          
+
           // Add all sub-types that have a name and aren't duplicates
           const existing = subTypesByTypeClass.get(key);
-          if (subType.fighter_sub_type && subType.id && 
-              !existing.some((st: any) => st.id === subType.id)) {
+          if (
+            subType.fighter_sub_type &&
+            subType.id &&
+            !existing.some((st: any) => st.id === subType.id)
+          ) {
             subTypesByTypeClass.get(key).push(subType);
           }
         });
-        
+
         // Store the sub-types map for later use
         setSubTypesByFighterType(subTypesByTypeClass);
-        
+
         // Create a map to group fighters by type+class for the dropdown (showing only one per type+class)
         const typeClassDisplayMap = new Map();
-        
+
         data.forEach((fighter: any) => {
           const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
-          
+
           if (!typeClassDisplayMap.has(key)) {
             typeClassDisplayMap.set(key, fighter);
           } else {
             const current = typeClassDisplayMap.get(key);
-            
+
             // If this fighter has no sub-type, prefer it as default for display
-            const hasSubType = fighter.sub_type && Object.keys(fighter.sub_type).length > 0;
-            const currentHasSubType = current.sub_type && Object.keys(current.sub_type).length > 0;
-            
+            const hasSubType =
+              fighter.sub_type && Object.keys(fighter.sub_type).length > 0;
+            const currentHasSubType =
+              current.sub_type && Object.keys(current.sub_type).length > 0;
+
             if (!hasSubType && currentHasSubType) {
               typeClassDisplayMap.set(key, fighter);
             }
@@ -670,7 +815,7 @@ export function EditFighterModal({
             }
           }
         });
-        
+
         // Process and create the final fighter types array for the dropdown
         const processedTypes = Array.from(typeClassDisplayMap.values())
           .map((fighter) => ({
@@ -681,48 +826,59 @@ export function EditFighterModal({
             special_rules: fighter.special_rules || [],
             gang_type_id: fighter.gang_type_id,
             total_cost: fighter.total_cost,
-            typeClassKey: `${fighter.fighter_type}-${fighter.fighter_class}`
+            typeClassKey: `${fighter.fighter_type}-${fighter.fighter_class}`,
           }))
           .sort((a, b) => {
-            const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-            const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+            const rankA =
+              fighterClassRank[a.fighter_class?.toLowerCase() || ''] ??
+              Infinity;
+            const rankB =
+              fighterClassRank[b.fighter_class?.toLowerCase() || ''] ??
+              Infinity;
             if (rankA !== rankB) return rankA - rankB;
-            return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+            return (a.fighter_type || '').localeCompare(b.fighter_type || '');
           });
 
         // Store the display types for the dropdown
         setFighterTypes(processedTypes);
-        
+
         // If we have a selected fighter type, load its sub-types
         if (fighter.fighter_type_id) {
           // Find the selected fighter type in our new data
-          const selectedFighter = data.find((ft: any) => ft.id === fighter.fighter_type_id);
+          const selectedFighter = data.find(
+            (ft: any) => ft.id === fighter.fighter_type_id
+          );
           if (selectedFighter) {
             const key = `${selectedFighter.fighter_type}-${selectedFighter.fighter_class}`;
             if (subTypesByTypeClass.has(key)) {
               const subTypes = subTypesByTypeClass.get(key);
-              
+
               // Filter for valid sub-types (don't exclude any specific names)
-              const realSubTypes = subTypes.filter((subType: any) => 
-                subType.fighter_sub_type && 
-                subType.id && subType.id.trim() !== ''
+              const realSubTypes = subTypes.filter(
+                (subType: any) =>
+                  subType.fighter_sub_type &&
+                  subType.id &&
+                  subType.id.trim() !== ''
               );
-              
+
               if (realSubTypes.length > 0) {
                 // Remove duplicates and sort by name
                 const uniqueSubTypes = realSubTypes
-                  .filter((subType: any, index: number, self: any[]) => 
-                    index === self.findIndex((s: any) => s.id === subType.id)
+                  .filter(
+                    (subType: any, index: number, self: any[]) =>
+                      index === self.findIndex((s: any) => s.id === subType.id)
                   )
-                  .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
+                  .sort((a: any, b: any) =>
+                    a.fighter_sub_type.localeCompare(b.fighter_sub_type)
+                  );
 
                 setAvailableSubTypes([
                   DEFAULT_SUB_TYPE_OPTION,
                   ...uniqueSubTypes.map((subType: any) => ({
                     value: subType.id,
                     label: subType.fighter_sub_type,
-                    cost: subType.cost
-                  }))
+                    cost: subType.cost,
+                  })),
                 ]);
               }
             }
@@ -732,21 +888,28 @@ export function EditFighterModal({
         console.error('Error loading fighter types:', error);
         toast({
           description: 'Failed to load fighter types',
-          variant: "destructive"
+          variant: 'destructive',
         });
       } finally {
         setIsLoadingFighterTypes(false);
       }
     };
-    
+
     // Only load data if the modal is open and we don't already have data for this gang type
-    if (isOpen && 
-        (!fighterTypes.length || 
-         (fighter as any).gang_type_id !== lastGangTypeId.current)) {
+    if (
+      isOpen &&
+      (!fighterTypes.length ||
+        (fighter as any).gang_type_id !== lastGangTypeId.current)
+    ) {
       lastGangTypeId.current = (fighter as any).gang_type_id;
       loadFighterTypes();
     }
-  }, [isOpen, fighter.gang_id, (fighter as any).gang_type_id, fighterTypes.length]);
+  }, [
+    isOpen,
+    fighter.gang_id,
+    (fighter as any).gang_type_id,
+    fighterTypes.length,
+  ]);
 
   // Update the currentFighter useEffect
   useEffect(() => {
@@ -758,9 +921,9 @@ export function EditFighterModal({
   }, [fighter.id]); // Only update when fighter ID changes
 
   const handleChange = (field: string, value: any) => {
-    setFormValues(prev => ({
+    setFormValues((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -768,51 +931,54 @@ export function EditFighterModal({
   const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
     setSelectedSubTypeId(''); // Reset sub-type when fighter type changes
-    
+
     // Set flag to indicate user has explicitly selected a fighter type
     setHasExplicitlySelectedType(true);
-    
+
     // Find the selected fighter type
-    const selectedType = fighterTypes.find(ft => ft.id === fighterTypeId);
-    
+    const selectedType = fighterTypes.find((ft) => ft.id === fighterTypeId);
+
     if (selectedType) {
       // Use the fighter_class_id directly from the API data
       // No need for a fallback mapping anymore
-      
+
       // Update form values with selected type
-      setFormValues(prev => ({
+      setFormValues((prev) => ({
         ...prev,
         fighter_type: selectedType.fighter_type,
         fighter_class: selectedType.fighter_class,
-        fighter_class_id: selectedType.fighter_class_id
+        fighter_class_id: selectedType.fighter_class_id,
       }));
-      
+
       // Get available sub-types for this fighter type+class combination
       const key = selectedType.typeClassKey;
       if (key && subTypesByFighterType.has(key)) {
         const subTypes = subTypesByFighterType.get(key) || [];
-        
+
         // Filter to get valid sub-types
-        const realSubTypes = subTypes.filter((subType: any) => 
-          subType.fighter_sub_type && 
-          subType.id && subType.id.trim() !== ''
+        const realSubTypes = subTypes.filter(
+          (subType: any) =>
+            subType.fighter_sub_type && subType.id && subType.id.trim() !== ''
         );
-        
+
         if (realSubTypes.length > 0) {
           // Remove duplicates based on sub-type ID and sort by name
           const uniqueSubTypes = realSubTypes
-            .filter((subType: any, index: number, self: any[]) => 
-              index === self.findIndex((s: any) => s.id === subType.id)
+            .filter(
+              (subType: any, index: number, self: any[]) =>
+                index === self.findIndex((s: any) => s.id === subType.id)
             )
-            .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
+            .sort((a: any, b: any) =>
+              a.fighter_sub_type.localeCompare(b.fighter_sub_type)
+            );
 
           setAvailableSubTypes([
             DEFAULT_SUB_TYPE_OPTION,
             ...uniqueSubTypes.map((subType: any) => ({
               value: subType.id,
               label: subType.fighter_sub_type,
-              cost: subType.cost
-            }))
+              cost: subType.cost,
+            })),
           ]);
         } else {
           // If no meaningful sub-types, don't show the dropdown
@@ -823,7 +989,7 @@ export function EditFighterModal({
       }
     }
   };
-  
+
   // Add handler for sub-type change
   const handleSubTypeChange = (subTypeId: string) => {
     setSelectedSubTypeId(subTypeId);
@@ -832,25 +998,25 @@ export function EditFighterModal({
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
-    
+
     // Avoid duplicates
     if (formValues.special_rules.includes(newSpecialRule.trim())) {
       setNewSpecialRule('');
       return;
     }
-    
-    setFormValues(prev => ({
+
+    setFormValues((prev) => ({
       ...prev,
-      special_rules: [...prev.special_rules, newSpecialRule.trim()]
+      special_rules: [...prev.special_rules, newSpecialRule.trim()],
     }));
     setNewSpecialRule('');
   };
 
   // Add handler for removing a special rule
   const handleRemoveSpecialRule = (ruleToRemove: string) => {
-    setFormValues(prev => ({
+    setFormValues((prev) => ({
       ...prev,
-      special_rules: prev.special_rules.filter(rule => rule !== ruleToRemove)
+      special_rules: prev.special_rules.filter((rule) => rule !== ruleToRemove),
     }));
   };
 
@@ -859,13 +1025,13 @@ export function EditFighterModal({
       setShowStatsModal(false);
       return;
     }
-    
+
     try {
       setIsSavingStats(true);
-      
+
       // Make a clean copy of the fighter BEFORE any adjustments
       const cleanFighter = { ...currentFighter };
-      
+
       // Send the update to the server with the correct sign (positive or negative)
       const response = await fetch('/api/fighters/effects', {
         method: 'POST',
@@ -874,17 +1040,17 @@ export function EditFighterModal({
         },
         body: JSON.stringify({
           fighter_id: fighter.id,
-          stats // This should already include negative values when decreasing
+          stats, // This should already include negative values when decreasing
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to save stat changes');
       }
-      
+
       // Process the server response
       const result = await response.json();
-      
+
       // Update with the actual server data including any new effects
       const serverUpdatedFighter = {
         ...cleanFighter, // Use the clean fighter as the base
@@ -894,34 +1060,36 @@ export function EditFighterModal({
           advancements: cleanFighter.effects?.advancements || [],
           bionics: cleanFighter.effects?.bionics || [],
           cyberteknika: cleanFighter.effects?.cyberteknika || [],
-          user: result.effects || []
-        }
+          user: result.effects || [],
+        },
       };
-      
+
       // Update local state with server data
       setCurrentFighter(serverUpdatedFighter);
-      
+
       // Notify parent component with the fully updated fighter
       if (onStatsUpdate) {
         onStatsUpdate(serverUpdatedFighter);
       }
-      
+
       // Show success toast message with proper formatting
       toast({
-        description: "Fighter characteristics updated successfully",
-        variant: "default",
+        description: 'Fighter characteristics updated successfully',
+        variant: 'default',
       });
-      
+
       // Close the modal only after successful update
       setShowStatsModal(false);
-      
     } catch (error) {
       console.error('Error saving stats:', error);
-      
+
       // Show error toast message with proper formatting
       toast({
-        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
-        variant: "destructive",
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to update fighter characteristics',
+        variant: 'destructive',
       });
     } finally {
       setIsSavingStats(false);
@@ -932,47 +1100,69 @@ export function EditFighterModal({
   const handleConfirm = async () => {
     try {
       // Get the selected fighter type details - use existing if not explicitly changed
-      let selectedFighterType = selectedFighterTypeId ? 
-        fighterTypes.find(ft => ft.id === selectedFighterTypeId) : 
-        null;
-      
+      const selectedFighterType = selectedFighterTypeId
+        ? fighterTypes.find((ft) => ft.id === selectedFighterTypeId)
+        : null;
+
       // Get the selected sub-type details (without affecting fighter type)
-      type SubType = { id: string; fighter_sub_type: string; cost: number; };
+      type SubType = { id: string; fighter_sub_type: string; cost: number };
       let selectedSubType: SubType | null = null;
       if (selectedSubTypeId) {
         // Find the sub-type in the currently available sub-types only
-        const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
+        const foundSubType = availableSubTypes.find(
+          (st) => st.value === selectedSubTypeId
+        );
         if (foundSubType && foundSubType.value) {
           selectedSubType = {
             id: foundSubType.value,
             fighter_sub_type: foundSubType.label,
-            cost: foundSubType.cost || 0
+            cost: foundSubType.cost || 0,
           };
         }
       }
-      
+
       // Only update fighter type if explicitly selected, not when selecting sub-types
       // Sub-type changes should NEVER automatically change the fighter type
-      const shouldUpdateFighterType = selectedFighterType && hasExplicitlySelectedType;
-      
-      
+      const shouldUpdateFighterType =
+        selectedFighterType && hasExplicitlySelectedType;
+
       // Call onSubmit with all values, including sub-type fields
       await onSubmit({
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_class : undefined,
-        fighter_class_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_class_id : undefined,
-        fighter_type: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_type : undefined,
-        fighter_type_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.id : undefined,
+        fighter_class:
+          shouldUpdateFighterType && selectedFighterType
+            ? selectedFighterType.fighter_class
+            : undefined,
+        fighter_class_id:
+          shouldUpdateFighterType && selectedFighterType
+            ? selectedFighterType.fighter_class_id
+            : undefined,
+        fighter_type:
+          shouldUpdateFighterType && selectedFighterType
+            ? selectedFighterType.fighter_type
+            : undefined,
+        fighter_type_id:
+          shouldUpdateFighterType && selectedFighterType
+            ? selectedFighterType.id
+            : undefined,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : (selectedSubTypeId === '' ? null : undefined),
-        fighter_sub_type_id: selectedSubType ? selectedSubType.id : (selectedSubTypeId === '' ? null : undefined)
+        fighter_sub_type: selectedSubType
+          ? selectedSubType.fighter_sub_type
+          : selectedSubTypeId === ''
+            ? null
+            : undefined,
+        fighter_sub_type_id: selectedSubType
+          ? selectedSubType.id
+          : selectedSubTypeId === ''
+            ? null
+            : undefined,
       });
       toast({
         description: 'Fighter updated successfully',
-        variant: "default"
+        variant: 'default',
       });
       onClose();
       return true;
@@ -980,7 +1170,7 @@ export function EditFighterModal({
       console.error('Error updating fighter:', error);
       toast({
         description: 'Failed to update fighter',
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     }
@@ -1008,11 +1198,14 @@ export function EditFighterModal({
                 className="w-full"
               />
             </div>
-            
+
             {/* Cost Adjustment and Kills - Move this section before Fighter Type */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label htmlFor="label" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="label"
+                  className="block text-sm font-medium mb-1"
+                >
                   Label
                 </label>
                 <Input
@@ -1026,19 +1219,27 @@ export function EditFighterModal({
                 />
               </div>
               <div>
-                <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="costAdjustment"
+                  className="block text-sm font-medium mb-1"
+                >
                   Cost Adjustment
                 </label>
                 <Input
                   id="costAdjustment"
                   type="number"
                   value={formValues.costAdjustment}
-                  onChange={(e) => handleChange('costAdjustment', e.target.value)}
+                  onChange={(e) =>
+                    handleChange('costAdjustment', e.target.value)
+                  }
                   className="w-full"
                 />
               </div>
               <div>
-                <label htmlFor="kills" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="kills"
+                  className="block text-sm font-medium mb-1"
+                >
                   Kills
                 </label>
                 <Input
@@ -1050,10 +1251,13 @@ export function EditFighterModal({
                 />
               </div>
             </div>
-            
+
             {/* Fighter Type Dropdown */}
             <div>
-              <label htmlFor="fighter_type_id" className="block text-sm font-medium mb-1">
+              <label
+                htmlFor="fighter_type_id"
+                className="block text-sm font-medium mb-1"
+              >
                 Change Fighter Type
               </label>
               <select
@@ -1064,25 +1268,34 @@ export function EditFighterModal({
                 disabled={isLoadingFighterTypes}
               >
                 <option value="">
-                  {isLoadingFighterTypes ? "Loading fighter types..." : "Select a fighter type"}
+                  {isLoadingFighterTypes
+                    ? 'Loading fighter types...'
+                    : 'Select a fighter type'}
                 </option>
                 {fighterTypes
                   .sort((a, b) => {
-                    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-                    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+                    const rankA =
+                      fighterClassRank[a.fighter_class?.toLowerCase() || ''] ??
+                      Infinity;
+                    const rankB =
+                      fighterClassRank[b.fighter_class?.toLowerCase() || ''] ??
+                      Infinity;
                     if (rankA !== rankB) return rankA - rankB;
-                    return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+                    return (a.fighter_type || '').localeCompare(
+                      b.fighter_type || ''
+                    );
                   })
                   .map((type) => (
                     <option key={type.id} value={type.id}>
-                      {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
+                      {`${type.fighter_type} (${type.fighter_class || 'Unknown Class'})`}
                     </option>
                   ))}
               </select>
               {fighter.fighter_type && (
                 <div className="mt-1 text-sm text-gray-500">
-                  Current: {typeof (fighter as any).fighter_type === 'object' 
-                    ? (fighter as any).fighter_type.fighter_type 
+                  Current:{' '}
+                  {typeof (fighter as any).fighter_type === 'object'
+                    ? (fighter as any).fighter_type.fighter_type
                     : fighter.fighter_type}
                   {` `}
                   {typeof fighter.fighter_class === 'object'
@@ -1091,36 +1304,47 @@ export function EditFighterModal({
                 </div>
               )}
             </div>
-            
+
             {/* Sub-type Dropdown - only show when we have sub-types */}
-            {selectedFighterTypeId && availableSubTypes.length > 1 && availableSubTypes.some(subType => subType.label !== 'Default' && subType.label !== 'Select a sub-type') && (
-              <div>
-                <label htmlFor="fighter_sub_type_id" className="block text-sm font-medium mb-1">
-                  Fighter Sub-type
-                </label>
-                <select
-                  id="fighter_sub_type_id"
-                  value={selectedSubTypeId}
-                  onChange={(e) => handleSubTypeChange(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                  disabled={false}
-                >
-                  {availableSubTypes.map((subType) => (
-                    <option key={subType.value} value={subType.value}>
-                      {subType.label}
-                    </option>
-                  ))}
-                </select>
-                {(fighter as any).fighter_sub_type && (
-                  <div className="mt-1 text-sm text-gray-500">
-                    Current: {typeof (fighter as any).fighter_sub_type === 'object' 
-                      ? (fighter as any).fighter_sub_type.sub_type_name || (fighter as any).fighter_sub_type.fighter_sub_type
-                      : (fighter as any).fighter_sub_type}
-                  </div>
-                )}
-              </div>
-            )}
-            
+            {selectedFighterTypeId &&
+              availableSubTypes.length > 1 &&
+              availableSubTypes.some(
+                (subType) =>
+                  subType.label !== 'Default' &&
+                  subType.label !== 'Select a sub-type'
+              ) && (
+                <div>
+                  <label
+                    htmlFor="fighter_sub_type_id"
+                    className="block text-sm font-medium mb-1"
+                  >
+                    Fighter Sub-type
+                  </label>
+                  <select
+                    id="fighter_sub_type_id"
+                    value={selectedSubTypeId}
+                    onChange={(e) => handleSubTypeChange(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                    disabled={false}
+                  >
+                    {availableSubTypes.map((subType) => (
+                      <option key={subType.value} value={subType.value}>
+                        {subType.label}
+                      </option>
+                    ))}
+                  </select>
+                  {(fighter as any).fighter_sub_type && (
+                    <div className="mt-1 text-sm text-gray-500">
+                      Current:{' '}
+                      {typeof (fighter as any).fighter_sub_type === 'object'
+                        ? (fighter as any).fighter_sub_type.sub_type_name ||
+                          (fighter as any).fighter_sub_type.fighter_sub_type
+                        : (fighter as any).fighter_sub_type}
+                    </div>
+                  )}
+                </div>
+              )}
+
             {/* Special Rules Section */}
             <div>
               <label className="block text-sm font-medium mb-1">
@@ -1140,14 +1364,11 @@ export function EditFighterModal({
                     }
                   }}
                 />
-                <Button
-                  onClick={handleAddSpecialRule}
-                  type="button"
-                >
+                <Button onClick={handleAddSpecialRule} type="button">
                   Add
                 </Button>
               </div>
-              
+
               {/* Display existing special rules as tags */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {formValues.special_rules.map((rule, index) => (
@@ -1167,13 +1388,13 @@ export function EditFighterModal({
                 ))}
               </div>
             </div>
-            
+
             {/* Characteristics */}
             <div>
               <h3 className="text-sm font-medium mb-2">Characteristics</h3>
               <FighterCharacteristicTable fighter={currentFighter} />
-              <Button 
-                onClick={() => setShowStatsModal(true)} 
+              <Button
+                onClick={() => setShowStatsModal(true)}
                 className="w-full mt-2"
               >
                 Adjust Characteristics
@@ -1184,11 +1405,11 @@ export function EditFighterModal({
         onClose={onClose}
         onConfirm={handleConfirm}
       />
-      
+
       {/* Stats modal */}
       {showStatsModal && (
-        <CharacterStatsModal 
-          onClose={() => setShowStatsModal(false)} 
+        <CharacterStatsModal
+          onClose={() => setShowStatsModal(false)}
           fighter={currentFighter}
           onUpdateStats={handleUpdateStats}
           isSaving={isSavingStats}
@@ -1196,4 +1417,4 @@ export function EditFighterModal({
       )}
     </>
   );
-} 
+}

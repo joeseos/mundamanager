@@ -3,9 +3,19 @@
 import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/custom-equipment';
-import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/custom-equipment';
-import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/custom-weapon-profiles';
-import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
+import {
+  updateCustomEquipment,
+  deleteCustomEquipment,
+  createCustomEquipment,
+} from '@/app/actions/custom-equipment';
+import {
+  saveCustomWeaponProfiles,
+  getCustomWeaponProfiles,
+} from '@/app/actions/custom-weapon-profiles';
+import {
+  CustomWeaponProfiles,
+  CustomWeaponProfile,
+} from './custom-weapon-profiles';
 import Modal from '@/components/modal';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -19,11 +29,18 @@ interface EquipmentCategory {
   category_name: string;
 }
 
-export function CustomiseEquipment({ className, initialEquipment = [] }: CustomiseEquipmentProps) {
-  const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
+export function CustomiseEquipment({
+  className,
+  initialEquipment = [],
+}: CustomiseEquipmentProps) {
+  const [equipment, setEquipment] =
+    useState<CustomEquipment[]>(initialEquipment);
   const [isLoading, setIsLoading] = useState(false);
-  const [editModalData, setEditModalData] = useState<CustomEquipment | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<CustomEquipment | null>(null);
+  const [editModalData, setEditModalData] = useState<CustomEquipment | null>(
+    null
+  );
+  const [deleteModalData, setDeleteModalData] =
+    useState<CustomEquipment | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [editForm, setEditForm] = useState({
@@ -32,7 +49,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
-    availability_number: 1
+    availability_number: 1,
   });
   const [createForm, setCreateForm] = useState({
     equipment_name: '',
@@ -40,23 +57,34 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
     availability_number: 1,
     cost: 0,
     equipment_category: '',
-    equipment_type: 'wargear' as 'wargear' | 'weapon'
+    equipment_type: 'wargear' as 'wargear' | 'weapon',
   });
-  const [createWeaponProfiles, setCreateWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
-  const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
-  const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
+  const [createWeaponProfiles, setCreateWeaponProfiles] = useState<
+    CustomWeaponProfile[]
+  >([]);
+  const [editWeaponProfiles, setEditWeaponProfiles] = useState<
+    CustomWeaponProfile[]
+  >([]);
+  const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<
+    CustomWeaponProfile[]
+  >([]);
   const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
   const { toast } = useToast();
 
   // Helper functions for availability
-  const combineAvailability = (letter: 'C' | 'R' | 'E' | 'I', number: number): string => {
+  const combineAvailability = (
+    letter: 'C' | 'R' | 'E' | 'I',
+    number: number
+  ): string => {
     if (letter === 'C' || letter === 'E') {
       return letter;
     }
     return `${letter}${number}`;
   };
 
-  const parseAvailability = (availability: string): { letter: 'C' | 'R' | 'E' | 'I', number: number } => {
+  const parseAvailability = (
+    availability: string
+  ): { letter: 'C' | 'R' | 'E' | 'I'; number: number } => {
     if (availability === 'C' || availability === 'E') {
       return { letter: availability, number: 1 };
     }
@@ -92,9 +120,9 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast({
-        title: "Error",
-        description: "Failed to load equipment categories",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load equipment categories',
+        variant: 'destructive',
       });
     }
   };
@@ -108,16 +136,16 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       availability_number: 1,
       cost: 0,
       equipment_category: '',
-      equipment_type: 'wargear'
+      equipment_type: 'wargear',
     });
     setCreateWeaponProfiles([]);
   };
 
   // Handle create form changes
   const handleCreateFormChange = (field: string, value: string | number) => {
-    setCreateForm(prev => ({
+    setCreateForm((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -128,29 +156,36 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
       const newEquipment = await createCustomEquipment({
         ...createForm,
-        availability: combineAvailability(createForm.availability_letter, createForm.availability_number)
+        availability: combineAvailability(
+          createForm.availability_letter,
+          createForm.availability_number
+        ),
       });
 
       // Save weapon profiles if this is a weapon and there are profiles
-      if (createForm.equipment_type === 'weapon' && createWeaponProfiles.length > 0) {
+      if (
+        createForm.equipment_type === 'weapon' &&
+        createWeaponProfiles.length > 0
+      ) {
         await saveCustomWeaponProfiles(newEquipment.id, createWeaponProfiles);
       }
-      
+
       // Add to local state
-      setEquipment(prev => [...prev, newEquipment]);
+      setEquipment((prev) => [...prev, newEquipment]);
 
       toast({
-        title: "Success",
-        description: "Custom equipment created successfully",
+        title: 'Success',
+        description: 'Custom equipment created successfully',
       });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error creating equipment:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create equipment",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Failed to create equipment',
+        variant: 'destructive',
       });
       return false; // Return false to keep modal open
     } finally {
@@ -160,9 +195,11 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
   // Check if create form is valid
   const isCreateFormValid = () => {
-    return createForm.equipment_name.trim() !== '' &&
-           createForm.cost >= 0 &&
-           createForm.equipment_category !== '';
+    return (
+      createForm.equipment_name.trim() !== '' &&
+      createForm.cost >= 0 &&
+      createForm.equipment_category !== ''
+    );
   };
 
   // Define columns for the equipment list
@@ -170,31 +207,34 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
     {
       key: 'equipment_name',
       label: 'Name',
-      width: '30%'
+      width: '30%',
     },
     {
       key: 'equipment_category',
       label: 'Category',
-      width: '20%'
+      width: '20%',
     },
     {
       key: 'equipment_type',
       label: 'Type',
       width: '15%',
-      render: (value) => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '-'
+      render: (value) =>
+        value
+          ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+          : '-',
     },
     {
       key: 'cost',
       label: 'Cost',
       align: 'right',
       width: '10%',
-      render: (value) => value ? String(value) : '-'
+      render: (value) => (value ? String(value) : '-'),
     },
     {
       key: 'availability',
       label: 'Availability',
-      width: '15%'
-    }
+      width: '15%',
+    },
   ];
 
   // Define actions for each equipment item
@@ -203,14 +243,14 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       label: 'Edit',
       onClick: (item: CustomEquipment) => handleEditEquipment(item),
       variant: 'outline',
-      size: 'sm'
+      size: 'sm',
     },
     {
       label: 'Delete',
       onClick: (item: CustomEquipment) => handleDeleteEquipment(item),
       variant: 'destructive',
-      size: 'sm'
-    }
+      size: 'sm',
+    },
   ];
 
   const handleEditEquipment = async (equipment: CustomEquipment) => {
@@ -220,14 +260,15 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       equipment_name: equipment.equipment_name || '',
       cost: equipment.cost || 0,
       equipment_category: equipment.equipment_category || '',
-      equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
+      equipment_type:
+        (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: parsed.letter,
-      availability_number: parsed.number
+      availability_number: parsed.number,
     });
-    
+
     // Reset weapon profiles modification flag
     setWeaponProfilesModified(false);
-    
+
     // Fetch categories if not already loaded
     if (categories.length === 0) {
       fetchCategories();
@@ -262,7 +303,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       equipment_category: '',
       equipment_type: 'wargear',
       availability_letter: 'C',
-      availability_number: 1
+      availability_number: 1,
     });
     setEditWeaponProfiles([]);
     setOriginalEditWeaponProfiles([]);
@@ -283,14 +324,17 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
     try {
       setIsLoading(true);
-      
+
       // Call the server action to update the equipment
       const updatedEquipment = await updateCustomEquipment(editModalData.id, {
         equipment_name: editForm.equipment_name,
         cost: editForm.cost,
         equipment_category: editForm.equipment_category,
         equipment_type: editForm.equipment_type,
-        availability: combineAvailability(editForm.availability_letter, editForm.availability_number)
+        availability: combineAvailability(
+          editForm.availability_letter,
+          editForm.availability_number
+        ),
       });
 
       // Handle weapon profiles based on equipment type
@@ -300,33 +344,35 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
         if (weaponProfilesModified) {
           await saveCustomWeaponProfiles(equipmentIdToUse, editWeaponProfiles);
         }
-      } else if (editModalData.equipment_type === 'weapon' && editForm.equipment_type === 'wargear') {
+      } else if (
+        editModalData.equipment_type === 'weapon' &&
+        editForm.equipment_type === 'wargear'
+      ) {
         // Delete weapon profiles if changing from weapon to wargear
         const equipmentIdToUse = updatedEquipment?.id || editModalData.id;
         await saveCustomWeaponProfiles(equipmentIdToUse, []); // Save empty array to delete all profiles
       }
 
       // Update the local state with the updated equipment
-      setEquipment(prev => 
-        prev.map(item => 
-          item.id === editModalData.id 
-            ? { ...item, ...updatedEquipment }
-            : item
+      setEquipment((prev) =>
+        prev.map((item) =>
+          item.id === editModalData.id ? { ...item, ...updatedEquipment } : item
         )
       );
 
       toast({
-        title: "Success",
-        description: "Equipment updated successfully",
+        title: 'Success',
+        description: 'Equipment updated successfully',
       });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error updating equipment:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update equipment",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Failed to update equipment',
+        variant: 'destructive',
       });
       return false; // Return false to keep modal open
     } finally {
@@ -339,27 +385,28 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
 
     try {
       setIsLoading(true);
-      
+
       // Call the server action to delete the equipment
       await deleteCustomEquipment(deleteModalData.id);
 
       // Update the local state by removing the deleted equipment
-      setEquipment(prev => 
-        prev.filter(item => item.id !== deleteModalData.id)
+      setEquipment((prev) =>
+        prev.filter((item) => item.id !== deleteModalData.id)
       );
 
       toast({
-        title: "Success",
-        description: "Equipment deleted successfully",
+        title: 'Success',
+        description: 'Equipment deleted successfully',
       });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error deleting equipment:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete equipment",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Failed to delete equipment',
+        variant: 'destructive',
       });
       return false; // Return false to keep modal open
     } finally {
@@ -368,9 +415,9 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
   };
 
   const handleFormChange = async (field: string, value: string | number) => {
-    setEditForm(prev => ({
+    setEditForm((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
 
     // If equipment type is changed to weapon, load weapon profiles
@@ -424,19 +471,26 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   <input
                     type="text"
                     value={editForm.equipment_name}
-                    onChange={(e) => handleFormChange('equipment_name', e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange('equipment_name', e.target.value)
+                    }
                     className="w-full p-2 border rounded-md"
                     placeholder="Enter equipment name"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Equipment Type *
                   </label>
                   <select
                     value={editForm.equipment_type}
-                    onChange={(e) => handleFormChange('equipment_type', e.target.value as 'wargear' | 'weapon')}
+                    onChange={(e) =>
+                      handleFormChange(
+                        'equipment_type',
+                        e.target.value as 'wargear' | 'weapon'
+                      )
+                    }
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="wargear">Wargear</option>
@@ -450,7 +504,9 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </label>
                   <select
                     value={editForm.equipment_category}
-                    onChange={(e) => handleFormChange('equipment_category', e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange('equipment_category', e.target.value)
+                    }
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select category</option>
@@ -469,7 +525,12 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   <div className="flex gap-2">
                     <select
                       value={editForm.availability_letter}
-                      onChange={(e) => handleFormChange('availability_letter', e.target.value as 'C' | 'R' | 'E' | 'I')}
+                      onChange={(e) =>
+                        handleFormChange(
+                          'availability_letter',
+                          e.target.value as 'C' | 'R' | 'E' | 'I'
+                        )
+                      }
                       className="p-2 border rounded-md"
                     >
                       <option value="C">C</option>
@@ -479,19 +540,33 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                     </select>
                     <input
                       type="number"
-                      value={editForm.availability_letter === 'C' || editForm.availability_letter === 'E' ? '' : (editForm.availability_number === 1 ? '' : editForm.availability_number)}
+                      value={
+                        editForm.availability_letter === 'C' ||
+                        editForm.availability_letter === 'E'
+                          ? ''
+                          : editForm.availability_number === 1
+                            ? ''
+                            : editForm.availability_number
+                      }
                       onChange={(e) => {
                         const value = e.target.value;
                         if (value === '') {
                           handleFormChange('availability_number', 1);
                         } else {
                           const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 1 && numValue <= 20) {
+                          if (
+                            !isNaN(numValue) &&
+                            numValue >= 1 &&
+                            numValue <= 20
+                          ) {
                             handleFormChange('availability_number', numValue);
                           }
                         }
                       }}
-                      disabled={editForm.availability_letter === 'C' || editForm.availability_letter === 'E'}
+                      disabled={
+                        editForm.availability_letter === 'C' ||
+                        editForm.availability_letter === 'E'
+                      }
                       className="flex-1 p-2 border rounded-md disabled:bg-gray-100 disabled:text-gray-400"
                       placeholder="1-20"
                       min="1"
@@ -548,9 +623,13 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
           title="Delete Equipment"
           content={
             <div className="space-y-4">
-              <p>Are you sure you want to delete <strong>{deleteModalData.equipment_name}</strong>?</p>
+              <p>
+                Are you sure you want to delete{' '}
+                <strong>{deleteModalData.equipment_name}</strong>?
+              </p>
               <p className="text-sm text-gray-600">
-                <strong>Warning:</strong> This equipment will be removed from all fighters that currently have it equipped.
+                <strong>Warning:</strong> This equipment will be removed from
+                all fighters that currently have it equipped.
               </p>
             </div>
           }
@@ -574,7 +653,9 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   <input
                     type="text"
                     value={createForm.equipment_name}
-                    onChange={(e) => handleCreateFormChange('equipment_name', e.target.value)}
+                    onChange={(e) =>
+                      handleCreateFormChange('equipment_name', e.target.value)
+                    }
                     className="w-full p-2 border rounded-md"
                     placeholder="Enter equipment name"
                   />
@@ -586,7 +667,12 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </label>
                   <select
                     value={createForm.equipment_type}
-                    onChange={(e) => handleCreateFormChange('equipment_type', e.target.value as 'wargear' | 'weapon')}
+                    onChange={(e) =>
+                      handleCreateFormChange(
+                        'equipment_type',
+                        e.target.value as 'wargear' | 'weapon'
+                      )
+                    }
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="wargear">Wargear</option>
@@ -600,7 +686,12 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   </label>
                   <select
                     value={createForm.equipment_category}
-                    onChange={(e) => handleCreateFormChange('equipment_category', e.target.value)}
+                    onChange={(e) =>
+                      handleCreateFormChange(
+                        'equipment_category',
+                        e.target.value
+                      )
+                    }
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select category</option>
@@ -619,7 +710,12 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                   <div className="flex gap-2">
                     <select
                       value={createForm.availability_letter}
-                      onChange={(e) => handleCreateFormChange('availability_letter', e.target.value as 'C' | 'R' | 'E' | 'I')}
+                      onChange={(e) =>
+                        handleCreateFormChange(
+                          'availability_letter',
+                          e.target.value as 'C' | 'R' | 'E' | 'I'
+                        )
+                      }
                       className="p-2 border rounded-md"
                     >
                       <option value="C">C</option>
@@ -629,19 +725,36 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                     </select>
                     <input
                       type="number"
-                      value={createForm.availability_letter === 'C' || createForm.availability_letter === 'E' ? '' : (createForm.availability_number === 1 ? '' : createForm.availability_number)}
+                      value={
+                        createForm.availability_letter === 'C' ||
+                        createForm.availability_letter === 'E'
+                          ? ''
+                          : createForm.availability_number === 1
+                            ? ''
+                            : createForm.availability_number
+                      }
                       onChange={(e) => {
                         const value = e.target.value;
                         if (value === '') {
                           handleCreateFormChange('availability_number', 1);
                         } else {
                           const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 1 && numValue <= 20) {
-                            handleCreateFormChange('availability_number', numValue);
+                          if (
+                            !isNaN(numValue) &&
+                            numValue >= 1 &&
+                            numValue <= 20
+                          ) {
+                            handleCreateFormChange(
+                              'availability_number',
+                              numValue
+                            );
                           }
                         }
                       }}
-                      disabled={createForm.availability_letter === 'C' || createForm.availability_letter === 'E'}
+                      disabled={
+                        createForm.availability_letter === 'C' ||
+                        createForm.availability_letter === 'E'
+                      }
                       className="flex-1 p-2 border rounded-md disabled:bg-gray-100 disabled:text-gray-400"
                       placeholder="1-20"
                       min="1"
@@ -694,4 +807,4 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       )}
     </div>
   );
-} 
+}

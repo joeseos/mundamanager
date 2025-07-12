@@ -1,4 +1,3 @@
-import { Weapon } from './weapon';
 import { Equipment as BaseEquipment } from '@/types/equipment';
 
 export interface FighterType {
@@ -50,11 +49,20 @@ export interface FighterEffectCategory {
   id: string;
   created_at: string; // Timestamp with timezone
   updated_at: string | null; // Timestamp with timezone, can be null
-  category_name: string
+  category_name: string;
 }
 
 // First, let's define the effect categories as a type
-export type EffectCategory = 'injuries' | 'advancements' | 'bionics' | 'cyberteknika' | 'gene-smithing' | 'rig-glitches' | 'augmentations' | 'equipment' | 'user';
+export type EffectCategory =
+  | 'injuries'
+  | 'advancements'
+  | 'bionics'
+  | 'cyberteknika'
+  | 'gene-smithing'
+  | 'rig-glitches'
+  | 'augmentations'
+  | 'equipment'
+  | 'user';
 
 export interface Skill {
   id: string;
@@ -76,19 +84,15 @@ export interface FighterEffect {
     stat_name: string;
     numeric_value: number;
   }[];
-  type_specific_data?: {
-    xp_cost?: number;
-    credits_increase?: number;
-    [key: string]: any;
-  } | string;
+  type_specific_data?:
+    | { xp_cost?: number; credits_increase?: number; [key: string]: any }
+    | string;
   created_at?: string; // Explicitly mark as optional
 }
 
 export interface FighterEffects {
   injuries: FighterEffect[];
 }
-
-
 
 export interface VehicleEquipment extends BaseEquipment {
   vehicle_id: string;
@@ -117,20 +121,21 @@ export interface Vehicle {
   engine_slots_occupied?: number;
   special_rules: string[];
   equipment: Array<BaseEquipment & Partial<VehicleEquipment>>;
-  effects?: {
-    [key: string]: FighterEffect[];
-  };
+  effects?: { [key: string]: FighterEffect[] };
 }
 
 // Define a standard skills type that all components should use
-export type FighterSkills = Record<string, {
-  id: string;
-  credits_increase: number;
-  xp_cost: number;
-  is_advance: boolean;
-  acquired_at: string;
-  fighter_injury_id?: string | null;
-}>;
+export type FighterSkills = Record<
+  string,
+  {
+    id: string;
+    credits_increase: number;
+    xp_cost: number;
+    is_advance: boolean;
+    acquired_at: string;
+    fighter_injury_id?: string | null;
+  }
+>;
 
 export interface FighterProps {
   id: string;
@@ -183,7 +188,7 @@ export interface FighterProps {
     user: FighterEffect[];
   };
   vehicles?: Vehicle[];
-  
+
   // Base stats (original values)
   base_stats: {
     movement: number;
@@ -199,7 +204,7 @@ export interface FighterProps {
     willpower: number;
     intelligence: number;
   };
-  
+
   // Current stats (after modifications)
   current_stats: {
     movement: number;
@@ -249,8 +254,7 @@ export const FIGHTER_CLASSES = [
   'Juve',
   'Crew',
   'Exotic Beast',
-  'Brute'
+  'Brute',
 ] as const;
 
-export type FighterClass = typeof FIGHTER_CLASSES[number];
-
+export type FighterClass = (typeof FIGHTER_CLASSES)[number];

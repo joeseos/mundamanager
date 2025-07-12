@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
@@ -8,10 +8,12 @@ export async function PATCH(request: Request) {
     const { campaignId, userId, newRole } = await request.json();
 
     // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if the user making the request is the OWNER
@@ -21,10 +23,12 @@ export async function PATCH(request: Request) {
       .eq('campaign_id', campaignId)
       .eq('user_id', user.id);
 
-    const isOwner = requesterRoles?.some((row: { role: string }) => row.role === 'OWNER');
+    const isOwner = requesterRoles?.some(
+      (row: { role: string }) => row.role === 'OWNER'
+    );
     if (!isOwner) {
       return NextResponse.json(
-        { error: "Only the campaign owner can change roles" },
+        { error: 'Only the campaign owner can change roles' },
         { status: 403 }
       );
     }
@@ -43,7 +47,7 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error('Error updating member role:', error);
     return NextResponse.json(
-      { error: "Failed to update member role" }, 
+      { error: 'Failed to update member role' },
       { status: 500 }
     );
   }
@@ -56,9 +60,11 @@ export async function DELETE(request: Request) {
     const { campaignId, memberId } = await request.json();
 
     // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if the user making the request is an OWNER
@@ -68,10 +74,12 @@ export async function DELETE(request: Request) {
       .eq('campaign_id', campaignId)
       .eq('user_id', user.id);
 
-    const isOwner = requesterRoles?.some((row: { role: string }) => row.role === 'OWNER');
+    const isOwner = requesterRoles?.some(
+      (row: { role: string }) => row.role === 'OWNER'
+    );
     if (!isOwner) {
       return NextResponse.json(
-        { error: "Only the campaign owner can remove members" },
+        { error: 'Only the campaign owner can remove members' },
         { status: 403 }
       );
     }
@@ -95,7 +103,7 @@ export async function DELETE(request: Request) {
 
       if ((ownerCount ?? 0) <= 1) {
         return NextResponse.json(
-          { error: "Cannot remove the last owner of the campaign" },
+          { error: 'Cannot remove the last owner of the campaign' },
           { status: 403 }
         );
       }
@@ -113,8 +121,8 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error removing member:', error);
     return NextResponse.json(
-      { error: "Failed to remove member" },
+      { error: 'Failed to remove member' },
       { status: 500 }
     );
   }
-} 
+}

@@ -44,9 +44,12 @@ export async function addCharacteristicAdvancement(
 ): Promise<AdvancementResult> {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
@@ -103,7 +106,7 @@ export async function addCharacteristicAdvancement(
       ...(effectType.type_specific_data || {}),
       times_increased: timesIncreased,
       xp_cost: params.xp_cost,
-      credits_increase: params.credits_increase
+      credits_increase: params.credits_increase,
     };
 
     // Insert the new advancement as a fighter effect
@@ -114,7 +117,7 @@ export async function addCharacteristicAdvancement(
         fighter_effect_type_id: params.fighter_effect_type_id,
         effect_name: effectType.effect_name,
         type_specific_data: mergedTypeData,
-        user_id: user.id
+        user_id: user.id,
       })
       .select('id')
       .single();
@@ -141,7 +144,7 @@ export async function addCharacteristicAdvancement(
       .insert({
         fighter_effect_id: insertedEffect.id,
         stat_name: statName,
-        numeric_value: modifierTemplate.default_numeric_value
+        numeric_value: modifierTemplate.default_numeric_value,
       });
 
     if (modifierInsertError) {
@@ -151,9 +154,9 @@ export async function addCharacteristicAdvancement(
     // Update fighter's XP
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
+      .update({
         xp: fighter.xp - params.xp_cost,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', params.fighter_id)
       .select('id, xp')
@@ -170,16 +173,15 @@ export async function addCharacteristicAdvancement(
       success: true,
       fighter: updatedFighter,
       advancement: {
-        credits_increase: params.credits_increase
+        credits_increase: params.credits_increase,
       },
-      remaining_xp: updatedFighter.xp
+      remaining_xp: updatedFighter.xp,
     };
-
   } catch (error) {
     console.error('Error adding characteristic advancement:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
@@ -189,9 +191,12 @@ export async function addSkillAdvancement(
 ): Promise<AdvancementResult> {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
@@ -230,31 +235,31 @@ export async function addSkillAdvancement(
         xp_cost: params.xp_cost,
         is_advance: params.is_advance ?? true,
         user_id: user.id,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .select('id, fighter_id, skill_id, credits_increase, xp_cost, is_advance')
       .single();
 
     if (insertError || !insertedSkill) {
       console.error('Database insert error:', insertError);
-      return { 
-        success: false, 
-        error: insertError?.message || 'Failed to insert fighter skill'
+      return {
+        success: false,
+        error: insertError?.message || 'Failed to insert fighter skill',
       };
     }
 
     // Update fighter's XP and conditionally set free_skill to false
     const updateData: any = {
       xp: fighter.xp - params.xp_cost,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
-    
+
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
     if (!(params.is_advance ?? true) && fighter.free_skill) {
       updateData.free_skill = false;
     }
-    
+
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
       .update(updateData)
@@ -273,16 +278,15 @@ export async function addSkillAdvancement(
       success: true,
       fighter: updatedFighter,
       advancement: {
-        credits_increase: params.credits_increase
+        credits_increase: params.credits_increase,
       },
-      remaining_xp: updatedFighter.xp
+      remaining_xp: updatedFighter.xp,
     };
-
   } catch (error) {
     console.error('Error adding skill advancement:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
@@ -292,9 +296,12 @@ export async function deleteAdvancement(
 ): Promise<AdvancementResult> {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
@@ -323,7 +330,7 @@ export async function deleteAdvancement(
 
     if (params.advancement_type === 'skill') {
       // Handle skill deletion
-      
+
       // Check if skill exists and get skill data
       const { data: skillData, error: skillError } = await supabase
         .from('fighter_skills')
@@ -336,7 +343,10 @@ export async function deleteAdvancement(
       }
 
       if (skillData.fighter_id !== params.fighter_id) {
-        return { success: false, error: 'Skill does not belong to this fighter' };
+        return {
+          success: false,
+          error: 'Skill does not belong to this fighter',
+        };
       }
 
       xpToRefund = skillData.xp_cost || 0;
@@ -344,10 +354,12 @@ export async function deleteAdvancement(
       // Get fighter type info
       const { data: fighterTypeData, error: fighterTypeError } = await supabase
         .from('fighters')
-        .select(`
+        .select(
+          `
           fighter_type_id,
           fighter_types!inner(id, free_skill)
-        `)
+        `
+        )
         .eq('id', params.fighter_id)
         .single();
 
@@ -355,8 +367,8 @@ export async function deleteAdvancement(
         return { success: false, error: 'Fighter type not found' };
       }
 
-      const fighterType = Array.isArray(fighterTypeData.fighter_types) 
-        ? fighterTypeData.fighter_types[0] 
+      const fighterType = Array.isArray(fighterTypeData.fighter_types)
+        ? fighterTypeData.fighter_types[0]
         : fighterTypeData.fighter_types;
 
       // Delete the skill
@@ -391,13 +403,13 @@ export async function deleteAdvancement(
 
       // Determine free_skill status
       // If fighter type has free_skill = true AND remaining skills <= default skills AND deleted skill was NOT default
-      newFreeSkillStatus = fighterType.free_skill && 
-                          (remainingSkillCount || 0) <= (defaultSkillCount || 0) && 
-                          (wasDefaultSkill || 0) === 0;
-
+      newFreeSkillStatus =
+        fighterType.free_skill &&
+        (remainingSkillCount || 0) <= (defaultSkillCount || 0) &&
+        (wasDefaultSkill || 0) === 0;
     } else {
       // Handle effect deletion
-      
+
       // Check if effect exists and get effect data
       const { data: effectData, error: effectError } = await supabase
         .from('fighter_effects')
@@ -410,11 +422,17 @@ export async function deleteAdvancement(
       }
 
       if (effectData.fighter_id !== params.fighter_id) {
-        return { success: false, error: 'Effect does not belong to this fighter' };
+        return {
+          success: false,
+          error: 'Effect does not belong to this fighter',
+        };
       }
 
       // Extract XP cost from type_specific_data
-      if (effectData.type_specific_data && typeof effectData.type_specific_data === 'object') {
+      if (
+        effectData.type_specific_data &&
+        typeof effectData.type_specific_data === 'object'
+      ) {
         const typeData = effectData.type_specific_data as any;
         xpToRefund = typeData.xp_cost || 0;
       }
@@ -436,10 +454,10 @@ export async function deleteAdvancement(
     // Update fighter's XP and free_skill status
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
+      .update({
         xp: fighter.xp + xpToRefund,
         free_skill: newFreeSkillStatus,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', params.fighter_id)
       .select('id, xp')
@@ -455,14 +473,13 @@ export async function deleteAdvancement(
     return {
       success: true,
       fighter: updatedFighter,
-      remaining_xp: updatedFighter.xp
+      remaining_xp: updatedFighter.xp,
     };
-
   } catch (error) {
     console.error('Error deleting advancement:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
-} 
+}

@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 export async function DELETE(
   request: Request,
@@ -49,7 +49,8 @@ export async function DELETE(
     if (deleteError) throw deleteError;
 
     // Calculate new credits
-    const newFighterCredits = fighter.credits + (action === 'sell' ? weapon.cost : 0);
+    const newFighterCredits =
+      fighter.credits + (action === 'sell' ? weapon.cost : 0);
 
     // Update fighter credits
     const { data: updatedFighter, error: updateFighterError } = await supabase
@@ -85,13 +86,22 @@ export async function DELETE(
       gangCredits = updatedGang.credits;
     }
 
-    return NextResponse.json({ 
-      message: action === 'sell' ? "Equipment sold and credits updated successfully" : "Equipment deleted successfully", 
-      credits: updatedFighter.credits,
-      gangCredits
-    }, { status: 200 });
+    return NextResponse.json(
+      {
+        message:
+          action === 'sell'
+            ? 'Equipment sold and credits updated successfully'
+            : 'Equipment deleted successfully',
+        credits: updatedFighter.credits,
+        gangCredits,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error:', error);
-    return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to process request' },
+      { status: 500 }
+    );
   }
 }

@@ -4,99 +4,116 @@ import { checkAdmin } from '@/utils/auth';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  
+
   try {
     // Check for admin access
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const equipmentId = searchParams.get('equipment_id');
     const fetchCategories = searchParams.get('categories') === 'true';
     const fetchModifiers = searchParams.get('modifiers') === 'true';
     const modifierId = searchParams.get('modifier_id');
-    
-    console.log('GET request params:', { id, equipmentId, fetchCategories, fetchModifiers, modifierId });
-    
+
+    console.log('GET request params:', {
+      id,
+      equipmentId,
+      fetchCategories,
+      fetchModifiers,
+      modifierId,
+    });
+
     // Handle categories request
     if (fetchCategories) {
       console.log('Fetching fighter effect categories');
-      
+
       const { data, error } = await supabase
         .from('fighter_effect_categories')
         .select('*')
         .order('category_name');
-      
+
       if (error) {
         console.error('Error fetching fighter effect categories:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       console.log(`Found ${data?.length || 0} fighter effect categories`);
       return NextResponse.json(data || []);
     }
-    
+
     // Handle specific modifier request
     if (modifierId) {
       console.log('Fetching specific modifier:', modifierId);
-      
+
       const { data, error } = await supabase
         .from('fighter_effect_type_modifiers')
         .select('*')
         .eq('id', modifierId)
         .single();
-      
+
       if (error) {
         console.error('Error fetching modifier:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json(data);
     }
-    
+
     // Handle specific modifiers request for an effect type
     if (fetchModifiers && id) {
       console.log('Fetching modifiers for effect type:', id);
-      
+
       const { data, error } = await supabase
         .from('fighter_effect_type_modifiers')
         .select('*')
         .eq('fighter_effect_type_id', id);
-      
+
       if (error) {
         console.error('Error fetching modifiers:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       console.log(`Found ${data?.length || 0} modifiers`);
       return NextResponse.json(data || []);
     }
-    
+
     // Handle equipment filtering
     if (equipmentId) {
-      console.log('Trying to find fighter effects for equipment ID:', equipmentId);
-      
+      console.log(
+        'Trying to find fighter effects for equipment ID:',
+        equipmentId
+      );
+
       // Try a raw SQL query approach for JSONB filtering
       try {
         // Execute a raw SQL query to properly filter by equipment_id in the JSONB
-        const { data, error } = await supabase.from('fighter_effect_types')
-          .select(`
+        const { data, error } = await supabase
+          .from('fighter_effect_types')
+          .select(
+            `
             id,
             effect_name,
             fighter_effect_category_id,
             type_specific_data,
             fighter_effect_categories(id, category_name)
-          `)
-          .or(`type_specific_data->equipment_id.eq.${equipmentId},type_specific_data->equipment_id.eq."${equipmentId}"`);
-        
+          `
+          )
+          .or(
+            `type_specific_data->equipment_id.eq.${equipmentId},type_specific_data->equipment_id.eq."${equipmentId}"`
+          );
+
         if (error) {
           console.error('Error with SQL query:', error);
         } else {
-          console.log('Found fighter effects with SQL query:', data?.length || 0);
-          
+          console.log(
+            'Found fighter effects with SQL query:',
+            data?.length || 0
+          );
+
           // If we have effect types, get the modifiers for each
           if (data && data.length > 0) {
             try {
@@ -104,31 +121,38 @@ export async function GET(request: NextRequest) {
               const { data: modifiers, error: modifiersError } = await supabase
                 .from('fighter_effect_type_modifiers')
                 .select('*')
-                .in('fighter_effect_type_id', data.map(effect => effect.id));
-              
+                .in(
+                  'fighter_effect_type_id',
+                  data.map((effect) => effect.id)
+                );
+
               if (modifiersError) {
                 console.error('Error fetching modifiers:', modifiersError);
               } else {
                 // Add modifiers to each fighter effect type
-                const fighterEffectTypes = data.map(effect => ({
+                const fighterEffectTypes = data.map((effect) => ({
                   ...effect,
-                  modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
+                  modifiers: modifiers
+                    ? modifiers.filter(
+                        (m) => m.fighter_effect_type_id === effect.id
+                      )
+                    : [],
                 }));
-                
+
                 return NextResponse.json(fighterEffectTypes);
               }
             } catch (e) {
               console.error('Error processing modifiers:', e);
             }
           }
-          
+
           // If we get here, just return the data without modifiers
           return NextResponse.json(data || []);
         }
       } catch (e) {
         console.error('Error with SQL approach:', e);
       }
-      
+
       // If SQL approach failed, try a different method
       try {
         const { data, error } = await supabase.from('fighter_effect_types')
@@ -139,24 +163,26 @@ export async function GET(request: NextRequest) {
             type_specific_data,
             fighter_effect_categories(id, category_name)
           `);
-          
+
         if (error) {
           console.error('Error fetching all fighter effects:', error);
         } else {
           // Manually filter on the client side
-          const filteredData = data.filter(item => {
+          const filteredData = data.filter((item) => {
             try {
               const typeSpecificData = item.type_specific_data;
-              return typeSpecificData && 
-                     typeSpecificData.equipment_id && 
-                     typeSpecificData.equipment_id === equipmentId;
+              return (
+                typeSpecificData &&
+                typeSpecificData.equipment_id &&
+                typeSpecificData.equipment_id === equipmentId
+              );
             } catch (e) {
               return false;
             }
           });
-          
+
           console.log('Manually filtered data count:', filteredData.length);
-          
+
           // If we have effect types, get the modifiers for each
           if (filteredData.length > 0) {
             try {
@@ -164,60 +190,66 @@ export async function GET(request: NextRequest) {
               const { data: modifiers, error: modifiersError } = await supabase
                 .from('fighter_effect_type_modifiers')
                 .select('*')
-                .in('fighter_effect_type_id', filteredData.map(effect => effect.id));
-              
+                .in(
+                  'fighter_effect_type_id',
+                  filteredData.map((effect) => effect.id)
+                );
+
               if (modifiersError) {
                 console.error('Error fetching modifiers:', modifiersError);
               } else {
                 // Add modifiers to each fighter effect type
-                const fighterEffectTypes = filteredData.map(effect => ({
+                const fighterEffectTypes = filteredData.map((effect) => ({
                   ...effect,
-                  modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
+                  modifiers: modifiers
+                    ? modifiers.filter(
+                        (m) => m.fighter_effect_type_id === effect.id
+                      )
+                    : [],
                 }));
-                
+
                 return NextResponse.json(fighterEffectTypes);
               }
             } catch (e) {
               console.error('Error processing modifiers:', e);
             }
           }
-          
+
           // If we get here, just return the filtered data without modifiers
           return NextResponse.json(filteredData || []);
         }
       } catch (e) {
         console.error('Error with manual filtering approach:', e);
       }
-      
+
       // If all approaches failed, return empty array
       console.log('All approaches failed, returning empty array');
       return NextResponse.json([]);
     }
-    
+
     // Default query if no equipment_id is provided
-    let query = supabase
-      .from('fighter_effect_types')
-      .select(`
+    let query = supabase.from('fighter_effect_types').select(`
         id,
         effect_name,
         fighter_effect_category_id,
         type_specific_data,
         fighter_effect_categories(id, category_name)
       `);
-    
+
     if (id) {
       query = query.eq('id', id);
     }
-    
+
+    // eslint-disable-next-line prefer-const
     let { data: fighterEffectTypes, error } = await query;
-    
+
     if (error) {
       console.error('Error fetching fighter effects:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    
+
     console.log('Found fighter effect types:', fighterEffectTypes?.length || 0);
-    
+
     // If we have effect types, get the modifiers for each
     if (fighterEffectTypes && fighterEffectTypes.length > 0) {
       try {
@@ -225,81 +257,102 @@ export async function GET(request: NextRequest) {
         const { data: modifiers, error: modifiersError } = await supabase
           .from('fighter_effect_type_modifiers')
           .select('*')
-          .in('fighter_effect_type_id', fighterEffectTypes.map(effect => effect.id));
-        
+          .in(
+            'fighter_effect_type_id',
+            fighterEffectTypes.map((effect) => effect.id)
+          );
+
         if (modifiersError) {
           console.error('Error fetching modifiers:', modifiersError);
-          return NextResponse.json({ error: modifiersError.message }, { status: 500 });
+          return NextResponse.json(
+            { error: modifiersError.message },
+            { status: 500 }
+          );
         }
-        
+
         // Add modifiers to each fighter effect type
-        fighterEffectTypes = fighterEffectTypes.map(effect => ({
+        fighterEffectTypes = fighterEffectTypes.map((effect) => ({
           ...effect,
-          modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
+          modifiers: modifiers
+            ? modifiers.filter((m) => m.fighter_effect_type_id === effect.id)
+            : [],
         }));
       } catch (modifierError) {
         console.error('Error processing modifiers:', modifierError);
-        return NextResponse.json({ error: 'Error processing modifiers' }, { status: 500 });
+        return NextResponse.json(
+          { error: 'Error processing modifiers' },
+          { status: 500 }
+        );
       }
     }
-    
+
     return NextResponse.json(fighterEffectTypes || []);
   } catch (error) {
     console.error('Unexpected error in GET /fighter-effects:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'An unexpected error occurred' 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  
+
   try {
     // Check for admin access
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const body = await request.json();
     console.log('POST request body:', body);
-    
+
     // Check if this is a category request
     if (body.request_type === 'category') {
       console.log('Creating fighter effect category');
-      
+
       // Validate required fields
       if (!body.category_name) {
-        return NextResponse.json({ error: 'Category name is required' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Category name is required' },
+          { status: 400 }
+        );
       }
-      
+
       // Create fighter effect category
       const { data, error } = await supabase
         .from('fighter_effect_categories')
-        .insert({
-          category_name: body.category_name
-        })
+        .insert({ category_name: body.category_name })
         .select()
         .single();
-      
+
       if (error) {
         console.error('Error creating fighter effect category:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json(data);
     }
-    
+
     // Check if this is a modifier request
     if (body.fighter_effect_type_id && body.stat_name !== undefined) {
       console.log('Creating fighter effect modifier');
-      
+
       // Validate required fields
       if (!body.fighter_effect_type_id || !body.stat_name) {
-        return NextResponse.json({ error: 'Fighter effect type ID and stat name are required' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Fighter effect type ID and stat name are required' },
+          { status: 400 }
+        );
       }
-      
+
       // Create fighter effect type modifier
       try {
         const { data, error } = await supabase
@@ -307,56 +360,66 @@ export async function POST(request: NextRequest) {
           .insert({
             fighter_effect_type_id: body.fighter_effect_type_id,
             stat_name: body.stat_name,
-            default_numeric_value: body.default_numeric_value
+            default_numeric_value: body.default_numeric_value,
           })
           .select()
           .single();
-        
+
         if (error) {
           console.error('Error creating fighter effect modifier:', error);
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
-        
+
         return NextResponse.json(data);
       } catch (error) {
         console.error('Error in modifier creation:', error);
-        return NextResponse.json({ 
-          error: error instanceof Error ? error.message : 'Error creating modifier' 
-        }, { status: 500 });
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Error creating modifier',
+          },
+          { status: 500 }
+        );
       }
     }
-    
+
     // Regular fighter effect creation
-    
+
     // Validate required fields
     if (!body.effect_name) {
-      return NextResponse.json({ error: 'Effect name is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Effect name is required' },
+        { status: 400 }
+      );
     }
-    
+
     // Ensure equipment_id is a properly formatted string
     let typeSpecificData = null;
     if (body.type_specific_data) {
       if (typeof body.type_specific_data === 'object') {
         // If it's already an object, ensure equipment_id is a string
         typeSpecificData = {
-          equipment_id: String(body.type_specific_data.equipment_id)
+          equipment_id: String(body.type_specific_data.equipment_id),
         };
       } else if (typeof body.type_specific_data === 'string') {
         // If it's a string, try to parse it as JSON
         try {
           const parsed = JSON.parse(body.type_specific_data);
-          typeSpecificData = {
-            equipment_id: String(parsed.equipment_id)
-          };
+          typeSpecificData = { equipment_id: String(parsed.equipment_id) };
         } catch (e) {
           console.error('Error parsing type_specific_data as JSON:', e);
-          return NextResponse.json({ error: 'Invalid JSON in type_specific_data' }, { status: 400 });
+          return NextResponse.json(
+            { error: 'Invalid JSON in type_specific_data' },
+            { status: 400 }
+          );
         }
       }
     }
-    
+
     console.log('Formatted type_specific_data for insert:', typeSpecificData);
-    
+
     // Create fighter effect type
     try {
       const { data, error } = await supabase
@@ -364,76 +427,95 @@ export async function POST(request: NextRequest) {
         .insert({
           effect_name: body.effect_name,
           fighter_effect_category_id: body.fighter_effect_category_id || null,
-          type_specific_data: typeSpecificData
+          type_specific_data: typeSpecificData,
         })
         .select()
         .single();
-      
+
       if (error) {
         console.error('Error creating fighter effect:', error);
-        
+
         // Try alternative approach if there's a JSON error
         if (error.message.includes('invalid input syntax for type json')) {
           console.log('Trying alternative JSON approach');
-          
+
           // Try using JSON.stringify and direct DB parameter approach
           const { data: altData, error: altError } = await supabase
             .from('fighter_effect_types')
             .insert({
               effect_name: body.effect_name,
-              fighter_effect_category_id: body.fighter_effect_category_id || null,
-              type_specific_data: JSON.stringify(typeSpecificData)
+              fighter_effect_category_id:
+                body.fighter_effect_category_id || null,
+              type_specific_data: JSON.stringify(typeSpecificData),
             })
             .select()
             .single();
-          
+
           if (altError) {
             console.error('Alternative approach also failed:', altError);
-            return NextResponse.json({ error: altError.message }, { status: 500 });
+            return NextResponse.json(
+              { error: altError.message },
+              { status: 500 }
+            );
           }
-          
+
           return NextResponse.json(altData);
         }
-        
+
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json(data);
     } catch (insertError) {
       console.error('Exception during insert operation:', insertError);
-      return NextResponse.json({ 
-        error: insertError instanceof Error ? insertError.message : 'Error during insert operation' 
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          error:
+            insertError instanceof Error
+              ? insertError.message
+              : 'Error during insert operation',
+        },
+        { status: 500 }
+      );
     }
   } catch (error: any) {
     console.error('Error in POST handler:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
-  
+
   try {
     // Check for admin access
     const isAdmin = await checkAdmin(supabase);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const isModifier = searchParams.get('is_modifier') === 'true';
     const isCategory = searchParams.get('is_category') === 'true';
-    
+
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
-    
-    console.log(`Deleting ${isCategory ? 'category' : isModifier ? 'modifier' : 'fighter effect'} with id:`, id);
-    
+
+    console.log(
+      `Deleting ${isCategory ? 'category' : isModifier ? 'modifier' : 'fighter effect'} with id:`,
+      id
+    );
+
     // If it's a category, check for dependencies and delete it
     if (isCategory) {
       // First check if there are any fighter effect types using this category
@@ -441,75 +523,90 @@ export async function DELETE(request: NextRequest) {
         .from('fighter_effect_types')
         .select('id')
         .eq('fighter_effect_category_id', id);
-      
+
       if (checkError) {
         console.error('Error checking related effect types:', checkError);
-        return NextResponse.json({ error: checkError.message }, { status: 500 });
+        return NextResponse.json(
+          { error: checkError.message },
+          { status: 500 }
+        );
       }
-      
+
       // If there are related effect types, don't allow deletion
       if (relatedEffects && relatedEffects.length > 0) {
-        return NextResponse.json({ 
-          error: `Cannot delete category. It is being used by ${relatedEffects.length} fighter effect type(s).` 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: `Cannot delete category. It is being used by ${relatedEffects.length} fighter effect type(s).`,
+          },
+          { status: 400 }
+        );
       }
-      
+
       // Delete the category
       const { error } = await supabase
         .from('fighter_effect_categories')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
         console.error('Error deleting fighter effect category:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json({ success: true });
     }
-    
+
     // If it's a modifier, just delete it
     if (isModifier) {
       const { error } = await supabase
         .from('fighter_effect_type_modifiers')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
         console.error('Error deleting fighter effect modifier:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json({ success: true });
     }
-    
+
     // For fighter effect type, first delete related modifiers
     const { error: modifiersError } = await supabase
       .from('fighter_effect_type_modifiers')
       .delete()
       .eq('fighter_effect_type_id', id);
-    
+
     if (modifiersError) {
       console.error('Error deleting modifiers:', modifiersError);
-      return NextResponse.json({ error: modifiersError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: modifiersError.message },
+        { status: 500 }
+      );
     }
-    
+
     // Then delete the fighter effect type
     const { error } = await supabase
       .from('fighter_effect_types')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       console.error('Error deleting fighter effect:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in DELETE handler:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
-} 
+}

@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import { Textarea } from "@/components/ui/textarea";
-import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { updateCampaignSettings } from '@/app/actions/campaigns/[id]/campaign-settings';
 
 interface CampaignNotesProps {
   campaignId: string;
@@ -12,7 +12,11 @@ interface CampaignNotesProps {
   onNoteUpdate?: (updatedNote: string) => void;
 }
 
-export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: CampaignNotesProps) {
+export function CampaignNotes({
+  campaignId,
+  initialNote = '',
+  onNoteUpdate,
+}: CampaignNotesProps) {
   const NOTE_CHAR_LIMIT = 2500;
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -47,17 +51,21 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         throw new Error(result.error);
       }
       toast({
-        description: "Campaign Notes updated successfully",
-        variant: "default"
+        description: 'Campaign Notes updated successfully',
+        variant: 'default',
       });
       setIsEditing(false);
       onNoteUpdate?.(note);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to update campaign notes');
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update campaign notes'
+      );
       toast({
-        title: "Error",
-        description: "Failed to update campaign notes",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update campaign notes',
+        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);
@@ -70,7 +78,9 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         <h2 className="text-xl md:text-2xl font-bold mb-6">Notes</h2>
         <div className="flex items-center gap-2">
           {isEditing && (
-            <span className={`text-sm ${charCount > NOTE_CHAR_LIMIT ? 'text-red-500' : 'text-gray-500'}`}>
+            <span
+              className={`text-sm ${charCount > NOTE_CHAR_LIMIT ? 'text-red-500' : 'text-gray-500'}`}
+            >
               {charCount}/{NOTE_CHAR_LIMIT} characters
             </span>
           )}
@@ -92,32 +102,32 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
                   onClick={handleSave}
                   disabled={charCount > NOTE_CHAR_LIMIT || isSaving}
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)}>
-                Edit
-              </Button>
+              <Button onClick={() => setIsEditing(true)}>Edit</Button>
             )}
           </div>
         </div>
       </div>
-      {error && (
-        <p className="text-red-500 text-sm">{error}</p>
-      )}
+      {error && <p className="text-red-500 text-sm">{error}</p>}
       {isEditing ? (
         <Textarea
           value={note}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            setNote(e.target.value)
+          }
           className="min-h-[200px]"
           placeholder="Add notes here..."
         />
       ) : (
-        <div className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}>
+        <div
+          className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}
+        >
           {note || 'No notes added.'}
         </div>
       )}
     </div>
   );
-} 
+}

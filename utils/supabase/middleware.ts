@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
+import { createServerClient } from '@supabase/ssr';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const updateSession = async (request: NextRequest) => {
   try {
@@ -41,7 +41,7 @@ export const updateSession = async (request: NextRequest) => {
             // If the cookie is removed, update the cookies for the request and response
             request.cookies.set({
               name,
-              value: "",
+              value: '',
               ...options,
             });
             response = NextResponse.next({
@@ -51,14 +51,14 @@ export const updateSession = async (request: NextRequest) => {
             });
             response.cookies.set({
               name,
-              value: "",
+              value: '',
               ...options,
             });
           },
         },
       }
     );
-    
+
     // This will refresh session if expired - required for Server Components
     // https://supabase.com/docs/guides/auth/server-side/nextjs
     await supabase.auth.getUser();
@@ -66,7 +66,7 @@ export const updateSession = async (request: NextRequest) => {
     return response;
   } catch (e) {
     // If you are here, a Supabase client could not be created!
-    console.error("Supabase client error in middleware:", e);
+    console.error('Supabase client error in middleware:', e);
     return NextResponse.next({
       request: {
         headers: request.headers,

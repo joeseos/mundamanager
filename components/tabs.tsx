@@ -14,7 +14,7 @@ const Tabs = ({ children, tabTitles, tabIcons, onTabChange }: TabsProps) => {
 
   const defaultTabTitles = ['Gang', 'Stash', 'Notes'];
   const titles = tabTitles || defaultTabTitles;
-  
+
   // Call onTabChange whenever activeTab changes
   useEffect(() => {
     if (onTabChange) {
@@ -41,7 +41,8 @@ const Tabs = ({ children, tabTitles, tabIcons, onTabChange }: TabsProps) => {
             } flex items-center justify-center`}
           >
             {tabIcons && tabIcons[index]} {/* Render the icon */}
-            <span className="ml-2 hidden sm:inline">{title}</span> {/* Text visible only on small screens and larger */}
+            <span className="ml-2 hidden sm:inline">{title}</span>{' '}
+            {/* Text visible only on small screens and larger */}
           </button>
         ))}
       </div>

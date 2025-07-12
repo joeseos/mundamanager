@@ -2,62 +2,64 @@ import React from 'react';
 
 // Add these types at the top of the file
 type CrewStats = {
-  'M': string | number;
-  'Front': string | number;
-  'Side': string | number;
-  'Rear': string | number;
-  'HP': string | number;
-  'Hnd': string;
-  'Sv': string;
-  'BS': string;
-  'Ld': string;
-  'Cl': string;
-  'Wil': string;
-  'Int': string;
-  'XP': number;
-}
+  M: string | number;
+  Front: string | number;
+  Side: string | number;
+  Rear: string | number;
+  HP: string | number;
+  Hnd: string;
+  Sv: string;
+  BS: string;
+  Ld: string;
+  Cl: string;
+  Wil: string;
+  Int: string;
+  XP: number;
+};
 
 type FighterStats = {
-  'M': string;
-  'WS': string;
-  'BS': string;
-  'S': number;
-  'T': number;
-  'W': number;
-  'I': string;
-  'A': number;
-  'Ld': string;
-  'Cl': string;
-  'Wil': string;
-  'Int': string;
-  'XP': number;
-}
+  M: string;
+  WS: string;
+  BS: string;
+  S: number;
+  T: number;
+  W: number;
+  I: string;
+  A: number;
+  Ld: string;
+  Cl: string;
+  Wil: string;
+  Int: string;
+  XP: number;
+};
 
 export type StatsType = CrewStats | FighterStats;
 
-export const Table: React.FC<React.HTMLAttributes<HTMLTableElement>> = ({ children, ...props }) => (
-  <table {...props}>{children}</table>
-);
+export const Table: React.FC<React.HTMLAttributes<HTMLTableElement>> = ({
+  children,
+  ...props
+}) => <table {...props}>{children}</table>;
 
-export const TableHead: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ children, ...props }) => (
-  <thead {...props}>{children}</thead>
-);
+export const TableHead: React.FC<
+  React.HTMLAttributes<HTMLTableSectionElement>
+> = ({ children, ...props }) => <thead {...props}>{children}</thead>;
 
-export const TableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ children, ...props }) => (
-  <tbody {...props}>{children}</tbody>
-);
+export const TableBody: React.FC<
+  React.HTMLAttributes<HTMLTableSectionElement>
+> = ({ children, ...props }) => <tbody {...props}>{children}</tbody>;
 
-export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({ children, ...props }) => (
-  <tr {...props}>{children}</tr>
-);
+export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
+  children,
+  ...props
+}) => <tr {...props}>{children}</tr>;
 
-export const TableHeader: React.FC<React.ThHTMLAttributes<HTMLTableHeaderCellElement>> = ({ children, ...props }) => (
-  <th {...props}>{children}</th>
-);
+export const TableHeader: React.FC<
+  React.ThHTMLAttributes<HTMLTableHeaderCellElement>
+> = ({ children, ...props }) => <th {...props}>{children}</th>;
 
-export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement>> = ({ children, ...props }) => (
-  <td {...props}>{children}</td>
-);
+export const TableCell: React.FC<
+  React.TdHTMLAttributes<HTMLTableDataCellElement>
+> = ({ children, ...props }) => <td {...props}>{children}</td>;
 
 interface StatsTableProps {
   data?: StatsType;
@@ -66,6 +68,7 @@ interface StatsTableProps {
 }
 
 // Add a type for valid stat keys
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type StatKey = keyof CrewStats | keyof FighterStats;
 
 export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
@@ -78,8 +81,36 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   // Define the order of stats based on fighter type
   const statOrder = isCrew
-    ? ['M', 'Front', 'Side', 'Rear', 'HP', 'Hnd', 'Sv', 'BS', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const
-    : ['M', 'WS', 'BS', 'S', 'T', 'W', 'I', 'A', 'Ld', 'Cl', 'Wil', 'Int', 'XP'] as const;
+    ? ([
+        'M',
+        'Front',
+        'Side',
+        'Rear',
+        'HP',
+        'Hnd',
+        'Sv',
+        'BS',
+        'Ld',
+        'Cl',
+        'Wil',
+        'Int',
+        'XP',
+      ] as const)
+    : ([
+        'M',
+        'WS',
+        'BS',
+        'S',
+        'T',
+        'W',
+        'I',
+        'A',
+        'Ld',
+        'Cl',
+        'Wil',
+        'Int',
+        'XP',
+      ] as const);
 
   // Type guard to check if data is CrewStats
   const isCrewStats = (data: StatsType): data is CrewStats => {
@@ -93,7 +124,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   // Filter and sort the stats according to the correct order
   const orderedStats = statOrder
-    .filter(key => {
+    .filter((key) => {
       if (isCrew && isCrewStats(data)) {
         return key in data;
       }
@@ -129,7 +160,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
       if (key === 'BS') return 'border-l-[1px] border-[#a05236]';
     } else {
       if (key === 'Ld') return 'border-l-[1px] border-[#a05236]';
-      }
+    }
 
     if (key === 'XP') return 'border-l-[1px] border-[#a05236]';
     return '';
@@ -141,13 +172,19 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   return (
     <div className="w-full">
-      <table className={`w-full text-[11px] border-collapse ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
+      <table
+        className={`w-full text-[11px] border-collapse ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}
+      >
         <thead>
           {/* Conditionally Render Toughness Header Row */}
           {isCrew && viewMode === 'normal' && (
             <tr>
-              <th colSpan={1}></th>{/* Empty column before Toughness */}
-              <th colSpan={3} className="text-[11px] sm:text-xs font-semibold text-center print:hidden">
+              <th colSpan={1}></th>
+              {/* Empty column before Toughness */}
+              <th
+                colSpan={3}
+                className="text-[11px] sm:text-xs font-semibold text-center print:hidden"
+              >
                 Toughness
               </th>
             </tr>
@@ -171,17 +208,23 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                   <>
                     {/* Full label: only if normal view and not small screen */}
                     {viewMode === 'normal' && (
-                      <span className="hidden sm:inline">{columnRenameMap[key].full}</span>
+                      <span className="hidden sm:inline">
+                        {columnRenameMap[key].full}
+                      </span>
                     )}
                     {/* Short label: if not normal view, or on small screen */}
-                    {(viewMode !== 'normal') && (
+                    {viewMode !== 'normal' && (
                       <span>{columnRenameMap[key].short}</span>
                     )}
                     {viewMode === 'normal' && (
-                      <span className="sm:hidden">{columnRenameMap[key].short}</span>
+                      <span className="sm:hidden">
+                        {columnRenameMap[key].short}
+                      </span>
                     )}
                   </>
-                ) : key}
+                ) : (
+                  key
+                )}
               </th>
             ))}
           </tr>

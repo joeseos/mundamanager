@@ -1,4 +1,4 @@
-'use server'
+'use server';
 
 import { createClient } from '@/utils/supabase/server';
 import { unstable_cache } from 'next/cache';
@@ -84,17 +84,23 @@ interface GetFighterTypesResult {
 }
 
 // Internal helper function that consolidates both SQL functions
-async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: any) {
+async function _getFighterTypesUnified(
+  params: GetFighterTypesParams,
+  supabase: any
+) {
   try {
     let data;
-    
+
     if (params.isGangAddition) {
       // Use get_fighter_types_with_cost for gang additions
-      const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
-        p_gang_type_id: params.gangTypeId || null,
-        p_is_gang_addition: true
-      });
-      
+      const { data: result, error } = await supabase.rpc(
+        'get_fighter_types_with_cost',
+        {
+          p_gang_type_id: params.gangTypeId || null,
+          p_is_gang_addition: true,
+        }
+      );
+
       if (error) throw error;
       data = result;
     } else {
@@ -102,21 +108,25 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
       if (!params.gangTypeId) {
         throw new Error('Gang type ID is required for regular fighters');
       }
-      
-      const { data: result, error } = await supabase.rpc('get_add_fighter_details', {
-        p_gang_type_id: params.gangTypeId
-      });
-      
+
+      const { data: result, error } = await supabase.rpc(
+        'get_add_fighter_details',
+        {
+          p_gang_type_id: params.gangTypeId,
+        }
+      );
+
       if (error) throw error;
       data = result;
     }
-    
+
     return { success: true, data };
   } catch (error) {
     console.error('Error in _getFighterTypesUnified:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
@@ -126,10 +136,12 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
  * Replaces both get_add_fighter_details and get_fighter_types_with_cost RPC calls
  * Note: Cached version for server-side calls
  */
-export async function getFighterTypesUnified(params: GetFighterTypesParams): Promise<GetFighterTypesResult> {
+export async function getFighterTypesUnified(
+  params: GetFighterTypesParams
+): Promise<GetFighterTypesResult> {
   try {
     const supabase = await createClient();
-    
+
     // For gang additions, use a different cache key pattern
     if (params.isGangAddition) {
       return unstable_cache(
@@ -138,16 +150,22 @@ export async function getFighterTypesUnified(params: GetFighterTypesParams): Pro
         },
         [`gang-addition-types-${params.gangTypeId || 'all'}`],
         {
-          tags: ['gang-addition-types', `gang-addition-types-${params.gangTypeId || 'all'}`],
-          revalidate: 3600 // 1 hour for reference data
+          tags: [
+            'gang-addition-types',
+            `gang-addition-types-${params.gangTypeId || 'all'}`,
+          ],
+          revalidate: 3600, // 1 hour for reference data
         }
       )();
     } else {
       // For regular fighters, maintain the existing cache pattern
       if (!params.gangTypeId) {
-        return { success: false, error: 'Gang type ID is required for regular fighters' };
+        return {
+          success: false,
+          error: 'Gang type ID is required for regular fighters',
+        };
       }
-      
+
       return unstable_cache(
         async () => {
           return _getFighterTypesUnified(params, supabase);
@@ -155,15 +173,16 @@ export async function getFighterTypesUnified(params: GetFighterTypesParams): Pro
         [`fighter-types-${params.gangTypeId}`],
         {
           tags: ['fighter-types', `fighter-types-${params.gangTypeId}`],
-          revalidate: 3600 // 1 hour for reference data
+          revalidate: 3600, // 1 hour for reference data
         }
       )();
     }
   } catch (error) {
     console.error('Error in getFighterTypesUnified:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
@@ -172,15 +191,18 @@ export async function getFighterTypesUnified(params: GetFighterTypesParams): Pro
  * Direct version without caching for client component calls
  * Use this when calling from client components to avoid cookies() conflict
  */
-export async function getFighterTypesUncached(params: GetFighterTypesParams): Promise<GetFighterTypesResult> {
+export async function getFighterTypesUncached(
+  params: GetFighterTypesParams
+): Promise<GetFighterTypesResult> {
   try {
     const supabase = await createClient();
     return _getFighterTypesUnified(params, supabase);
   } catch (error) {
     console.error('Error in getFighterTypesUncached:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
@@ -190,17 +212,19 @@ export async function getFighterTypesUncached(params: GetFighterTypesParams): Pr
  * Maintains the same interface as the existing getFighterTypes function
  * Note: Direct call without caching since these are used from client components
  */
-export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUnified({ 
-    gangTypeId, 
-    isGangAddition: false, 
-    includeClassId: true 
+export async function getFighterTypes(
+  gangTypeId: string
+): Promise<FighterType[]> {
+  const result = await getFighterTypesUnified({
+    gangTypeId,
+    isGangAddition: false,
+    includeClassId: true,
   });
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch fighter types');
   }
-  
+
   return result.data || [];
 }
 
@@ -208,45 +232,51 @@ export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]
  * Function for gang additions - cached version for server components
  * Provides same interface as the RPC call in gang-additions.tsx
  */
-export async function getGangAdditionTypes(gangTypeId?: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUnified({ 
-    gangTypeId, 
-    isGangAddition: true 
+export async function getGangAdditionTypes(
+  gangTypeId?: string
+): Promise<FighterType[]> {
+  const result = await getFighterTypesUnified({
+    gangTypeId,
+    isGangAddition: true,
   });
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch gang addition types');
   }
-  
+
   return result.data || [];
 }
 
 /**
  * Uncached versions for client component calls
  */
-export async function getFighterTypesUncachedClient(gangTypeId: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUncached({ 
-    gangTypeId, 
-    isGangAddition: false, 
-    includeClassId: true 
+export async function getFighterTypesUncachedClient(
+  gangTypeId: string
+): Promise<FighterType[]> {
+  const result = await getFighterTypesUncached({
+    gangTypeId,
+    isGangAddition: false,
+    includeClassId: true,
   });
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch fighter types');
   }
-  
+
   return result.data || [];
 }
 
-export async function getGangAdditionTypesUncachedClient(gangTypeId?: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUncached({ 
-    gangTypeId, 
-    isGangAddition: true 
+export async function getGangAdditionTypesUncachedClient(
+  gangTypeId?: string
+): Promise<FighterType[]> {
+  const result = await getFighterTypesUncached({
+    gangTypeId,
+    isGangAddition: true,
   });
-  
+
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch gang addition types');
   }
-  
+
   return result.data || [];
 }

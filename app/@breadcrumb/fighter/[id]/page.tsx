@@ -1,5 +1,5 @@
-import { Home } from 'lucide-react'
-import { createClient } from "@/utils/supabase/server"
+import { Home } from 'lucide-react';
+import { createClient } from '@/utils/supabase/server';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,37 +7,39 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import Link from 'next/link'
+} from '@/components/ui/breadcrumb';
+import Link from 'next/link';
 
 export default async function FighterBreadcrumb({
-  params
+  params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = await params
-  const supabase = await createClient()
-  
+  const { id } = await params;
+  const supabase = await createClient();
+
   const { data: fighterData } = await supabase
     .from('fighters')
-    .select(`
+    .select(
+      `
       fighter_name,
       gang_id,
       gang:gang_id (
         name
       )
-    `)
+    `
+    )
     .eq('id', id)
-    .single()
+    .single();
 
-  const gangName = fighterData?.gang 
-    ? Array.isArray(fighterData.gang) 
-      ? (fighterData.gang[0] as any)?.name || '' 
+  const gangName = fighterData?.gang
+    ? Array.isArray(fighterData.gang)
+      ? (fighterData.gang[0] as any)?.name || ''
       : (fighterData.gang as any)?.name || ''
-    : ''
+    : '';
 
   return (
-    <div 
+    <div
       className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
@@ -48,8 +50,8 @@ export default async function FighterBreadcrumb({
           <BreadcrumbList aria-label="Breadcrumb navigation">
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link 
-                  href="/" 
+                <Link
+                  href="/"
                   className="text-gray-600 hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -59,14 +61,13 @@ export default async function FighterBreadcrumb({
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator 
-              className="text-gray-400"
-              aria-hidden="true"
-            >/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
+              /
+            </BreadcrumbSeparator>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link 
-                  href={`/gang/${fighterData?.gang_id}`} 
+                <Link
+                  href={`/gang/${fighterData?.gang_id}`}
                   className="text-gray-600 hover:text-primary"
                   aria-label={`Navigate to ${gangName || 'Gang'}`}
                 >
@@ -74,12 +75,11 @@ export default async function FighterBreadcrumb({
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator 
-              className="text-gray-400"
-              aria-hidden="true"
-            >/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
+              /
+            </BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage 
+              <BreadcrumbPage
                 className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
@@ -90,5 +90,5 @@ export default async function FighterBreadcrumb({
         </Breadcrumb>
       </div>
     </div>
-  )
-} 
+  );
+}

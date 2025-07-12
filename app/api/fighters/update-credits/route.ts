@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -7,7 +7,10 @@ export async function POST(request: Request) {
   const { fighter_id, amount } = await request.json();
 
   if (!fighter_id || amount === undefined) {
-    return NextResponse.json({ error: "Missing fighter_id or amount" }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Missing fighter_id or amount' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -33,9 +36,15 @@ export async function POST(request: Request) {
 
     if (updateError) throw updateError;
 
-    return NextResponse.json({ message: "Credits updated successfully", credits: data.credits }, { status: 200 });
+    return NextResponse.json(
+      { message: 'Credits updated successfully', credits: data.credits },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("Error updating fighter credits:", error);
-    return NextResponse.json({ error: "Failed to update fighter credits" }, { status: 500 });
+    console.error('Error updating fighter credits:', error);
+    return NextResponse.json(
+      { error: 'Failed to update fighter credits' },
+      { status: 500 }
+    );
   }
 }

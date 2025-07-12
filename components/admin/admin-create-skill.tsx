@@ -1,23 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { skillSetRank } from "@/utils/skillSetRank";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { skillSetRank } from '@/utils/skillSetRank';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
   onSubmit?: () => void;
 }
 
-export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
+export function AdminCreateSkillModal({
+  onClose,
+  onSubmit,
+}: AdminCreateSkillModalProps) {
   const [skillName, setSkillName] = useState('');
-  const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
+  const [skillTypeList, setSkillTypes] = useState<
+    Array<{ id: string; skill_type: string }>
+  >([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -32,7 +37,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         console.error('Error fetching Skill Sets:', error);
         toast({
           description: 'Failed to load Skill Sets',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -43,8 +48,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const handleSubmit = async () => {
     if (!skillName || !skillType) {
       toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
       });
       return;
     }
@@ -67,8 +72,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
 
       toast({
-        description: "Skill created successfully",
-        variant: "default"
+        description: 'Skill created successfully',
+        variant: 'default',
       });
 
       if (onSubmit) {
@@ -79,7 +84,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       console.error('Error creating skill:', error);
       toast({
         description: 'Failed to create skill',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -89,8 +94,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const handleSubmitType = async () => {
     if (!skillTypeName) {
       toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
       });
       return;
     }
@@ -103,7 +108,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: skillTypeName
+          name: skillTypeName,
         }),
       });
 
@@ -112,8 +117,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
 
       toast({
-        description: "Skill Set created successfully",
-        variant: "default"
+        description: 'Skill Set created successfully',
+        variant: 'default',
       });
 
       if (onSubmit) {
@@ -124,7 +129,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       console.error('Error creating Skill Set:', error);
       toast({
         description: 'Failed to create Skill Set',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -139,8 +144,13 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Add Skill</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required. However, some fields are mutually exclusive.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+              Add Skill
+            </h3>
+            <p className="text-sm text-gray-500">
+              Fields marked with * are required. However, some fields are
+              mutually exclusive.
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -160,33 +170,43 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 value={skillType}
                 onChange={(e) => setSkillType(e.target.value)}
                 className="w-full p-2 border rounded-md"
-                disabled={skillTypeName !== ""}
+                disabled={skillTypeName !== ''}
               >
                 <option value="">Select a skill set</option>
 
                 {Object.entries(
                   skillTypeList
                     .sort((a, b) => {
-                      const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                      const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+                      const rankA =
+                        skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+                      const rankB =
+                        skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
                       return rankA - rankB;
                     })
-                    .reduce((groups, type) => {
-                      const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted skill sets
+                    .reduce(
+                      (groups, type) => {
+                        const rank =
+                          skillSetRank[type.skill_type.toLowerCase()] ??
+                          Infinity;
+                        let groupLabel = 'Misc.'; // Default category for unlisted skill sets
 
-                      if (rank <= 19) groupLabel = "Universal Skills";
-                      else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                      else if (rank <= 59) groupLabel = "Wyrd Powers";
-                      else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                      else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                      else if (rank <= 89) groupLabel = "Legendary Names";
-                      else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+                        if (rank <= 19) groupLabel = 'Universal Skills';
+                        else if (rank <= 39)
+                          groupLabel = 'Gang-specific Skills';
+                        else if (rank <= 59) groupLabel = 'Wyrd Powers';
+                        else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+                        else if (rank <= 79)
+                          groupLabel = 'Psychoteric Whispers';
+                        else if (rank <= 89) groupLabel = 'Legendary Names';
+                        else if (rank <= 99)
+                          groupLabel = 'Ironhead Squat Mining Clans';
 
-                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                      groups[groupLabel].push(type);
-                      return groups;
-                    }, {} as Record<string, typeof skillTypeList>)
+                        if (!groups[groupLabel]) groups[groupLabel] = [];
+                        groups[groupLabel].push(type);
+                        return groups;
+                      },
+                      {} as Record<string, typeof skillTypeList>
+                    )
                 ).map(([groupLabel, skillList]) => (
                   <optgroup key={groupLabel} label={groupLabel}>
                     {skillList.map((type) => (
@@ -198,7 +218,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 ))}
               </select>
               {skillTypeName !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Skill Set.</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  Clear the Skill Set Name field to select a Skill Set.
+                </p>
               )}
             </div>
 
@@ -229,7 +251,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 disabled={skillType !== ''}
               />
               {skillType !== '' && (
-                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  Clear the Skill Set selection to enter a Skill Set Name.
+                </p>
               )}
             </div>
           </div>
@@ -246,7 +270,9 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
+            disabled={
+              !skillName || !skillType || skillTypeName !== '' || isLoading
+            }
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Skill'}

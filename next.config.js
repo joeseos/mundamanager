@@ -58,6 +58,6 @@ const nextConfig = {
   generateEtags: true,
   pageExtensions: ['tsx', 'ts'],
   productionBrowserSourceMaps: false,
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

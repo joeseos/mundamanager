@@ -26,4 +26,4 @@ export interface VehicleProps {
   created_at: string;
   fighter_id?: string | null;
   equipment: Array<Equipment & Partial<VehicleEquipment>>;
-} 
+}

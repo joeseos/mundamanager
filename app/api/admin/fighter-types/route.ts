@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -36,12 +36,15 @@ export async function GET(request: Request) {
       if (defaultsError) throw defaultsError;
 
       // Get the unique fighter_type_ids using Array.from instead of spread operator
-      const fighterTypeIds = Array.from(new Set(defaultsData.map(d => d.fighter_type_id)));
+      const fighterTypeIds = Array.from(
+        new Set(defaultsData.map((d) => d.fighter_type_id))
+      );
 
       // Then get the fighter types using those IDs
       const { data: fighterTypes, error } = await supabase
         .from('fighter_types')
-        .select(`
+        .select(
+          `
           id,
           fighter_type,
           gang_type_id,
@@ -68,7 +71,8 @@ export async function GET(request: Request) {
             equipment_id,
             adjusted_cost
           )
-        `)
+        `
+        )
         .in('id', fighterTypeIds);
 
       if (error) throw error;
@@ -80,7 +84,8 @@ export async function GET(request: Request) {
     if (id) {
       const { data: fighterType, error } = await supabase
         .from('fighter_types')
-        .select(`
+        .select(
+          `
           id,
           fighter_type,
           gang_type_id,
@@ -107,7 +112,8 @@ export async function GET(request: Request) {
             equipment_id,
             adjusted_cost
           )
-        `)
+        `
+        )
         .eq('id', id)
         .single();
 
@@ -135,14 +141,22 @@ export async function GET(request: Request) {
       }
 
       // Fetch equipment selection
-      const { data: equipmentSelection, error: equipmentSelectionError } = await supabase
-        .from('fighter_equipment_selections')
-        .select('equipment_selection')
-        .eq('fighter_type_id', id)
-        .single();
+      const { data: equipmentSelection, error: equipmentSelectionError } =
+        await supabase
+          .from('fighter_equipment_selections')
+          .select('equipment_selection')
+          .eq('fighter_type_id', id)
+          .single();
 
-      if (equipmentSelectionError && equipmentSelectionError.code !== 'PGRST116') { // Ignore not found error
-        console.error('Error fetching equipment selection:', equipmentSelectionError);
+      if (
+        equipmentSelectionError &&
+        equipmentSelectionError.code !== 'PGRST116'
+      ) {
+        // Ignore not found error
+        console.error(
+          'Error fetching equipment selection:',
+          equipmentSelectionError
+        );
         throw equipmentSelectionError;
       }
 
@@ -188,23 +202,28 @@ export async function GET(request: Request) {
         .eq('fighter_type_id', fighterType.id)
         .single();
 
-      if (tradingPostError && tradingPostError.code !== 'PGRST116') { // Ignore not found error
-        console.error('Error fetching trading post equipment:', tradingPostError);
+      if (tradingPostError && tradingPostError.code !== 'PGRST116') {
+        // Ignore not found error
+        console.error(
+          'Error fetching trading post equipment:',
+          tradingPostError
+        );
         throw tradingPostError;
       }
 
       const formattedFighterType = {
         ...fighterType,
-        default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
-        default_skills: defaultSkills?.map(d => d.skill_id) || [],
-        equipment_list: equipmentList?.map(e => e.equipment_id) || [],
-        equipment_discounts: fighterType.equipment_discounts?.map(d => ({
-          equipment_id: d.equipment_id,
-          adjusted_cost: d.adjusted_cost
-        })) || [],
+        default_equipment: defaultEquipment?.map((d) => d.equipment_id) || [],
+        default_skills: defaultSkills?.map((d) => d.skill_id) || [],
+        equipment_list: equipmentList?.map((e) => e.equipment_id) || [],
+        equipment_discounts:
+          fighterType.equipment_discounts?.map((d) => ({
+            equipment_id: d.equipment_id,
+            adjusted_cost: d.adjusted_cost,
+          })) || [],
         equipment_selection: equipmentSelection?.equipment_selection || null,
         trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
-        gang_type_costs: gangTypeCosts || []
+        gang_type_costs: gangTypeCosts || [],
       };
 
       return NextResponse.json(formattedFighterType);
@@ -212,12 +231,15 @@ export async function GET(request: Request) {
 
     // If direct fighter_type and fighter_class are provided, use those instead of ID lookup
     if (fighter_type && fighter_class) {
-      console.log(`Direct search by fighter_type=${fighter_type} and fighter_class=${fighter_class}`);
-      
+      console.log(
+        `Direct search by fighter_type=${fighter_type} and fighter_class=${fighter_class}`
+      );
+
       // Find all fighters with matching type and class with all details
       const { data: relatedFighterTypes, error: relatedError } = await supabase
         .from('fighter_types')
-        .select(`
+        .select(
+          `
           id,
           fighter_type,
           gang_type_id,
@@ -244,7 +266,8 @@ export async function GET(request: Request) {
             equipment_id,
             adjusted_cost
           )
-        `)
+        `
+        )
         .eq('fighter_type', fighter_type)
         .eq('fighter_class', fighter_class);
 
@@ -253,21 +276,24 @@ export async function GET(request: Request) {
         throw relatedError;
       }
 
-      console.log('Found fighters by name and class:', relatedFighterTypes?.length);
-      
+      console.log(
+        'Found fighters by name and class:',
+        relatedFighterTypes?.length
+      );
+
       if (!relatedFighterTypes || relatedFighterTypes.length === 0) {
         return NextResponse.json(
           { error: 'No fighter types found matching those criteria' },
           { status: 404 }
         );
       }
-      
+
       // Get the fighter sub-types for these fighters
       const subTypeIds = relatedFighterTypes
-        .map(ft => ft.fighter_sub_type_id)
-        .filter(id => id !== null && id !== undefined) as string[];
-      
-      let subTypes: { id: string; sub_type_name: string; }[] = [];
+        .map((ft) => ft.fighter_sub_type_id)
+        .filter((id) => id !== null && id !== undefined) as string[];
+
+      let subTypes: { id: string; sub_type_name: string }[] = [];
       if (subTypeIds.length > 0) {
         const { data: subTypeData, error: subTypeError } = await supabase
           .from('fighter_sub_types')
@@ -281,20 +307,24 @@ export async function GET(request: Request) {
           subTypes = subTypeData || [];
         }
       }
-      
+
       // Get the complete data for each fighter
       const fighterDetails = await Promise.all(
         relatedFighterTypes.map(async (fighter: any) => {
           try {
             // Fetch default equipment
-            const { data: defaultEquipment, error: equipmentError } = await supabase
-              .from('fighter_defaults')
-              .select('equipment_id')
-              .eq('fighter_type_id', fighter.id)
-              .not('equipment_id', 'is', null);
+            const { data: defaultEquipment, error: equipmentError } =
+              await supabase
+                .from('fighter_defaults')
+                .select('equipment_id')
+                .eq('fighter_type_id', fighter.id)
+                .not('equipment_id', 'is', null);
 
             if (equipmentError) {
-              console.error('Error fetching default equipment:', equipmentError);
+              console.error(
+                'Error fetching default equipment:',
+                equipmentError
+              );
               throw equipmentError;
             }
 
@@ -311,57 +341,83 @@ export async function GET(request: Request) {
             }
 
             // Fetch equipment list
-            const { data: equipmentList, error: equipmentListError } = await supabase
-              .from('fighter_type_equipment')
-              .select('equipment_id')
-              .eq('fighter_type_id', fighter.id);
+            const { data: equipmentList, error: equipmentListError } =
+              await supabase
+                .from('fighter_type_equipment')
+                .select('equipment_id')
+                .eq('fighter_type_id', fighter.id);
 
             if (equipmentListError) {
-              console.error('Error fetching equipment list:', equipmentListError);
+              console.error(
+                'Error fetching equipment list:',
+                equipmentListError
+              );
               throw equipmentListError;
             }
 
             // Fetch equipment selection
-            const { data: equipmentSelectionData, error: equipmentSelectionError } = await supabase
+            const {
+              data: equipmentSelectionData,
+              error: equipmentSelectionError,
+            } = await supabase
               .from('fighter_equipment_selections')
               .select('equipment_selection')
               .eq('fighter_type_id', fighter.id)
               .single();
 
             // Ignore not found error for equipment selection
-            if (equipmentSelectionError && equipmentSelectionError.code !== 'PGRST116') {
-              console.error('Error fetching equipment selection:', equipmentSelectionError);
+            if (
+              equipmentSelectionError &&
+              equipmentSelectionError.code !== 'PGRST116'
+            ) {
+              console.error(
+                'Error fetching equipment selection:',
+                equipmentSelectionError
+              );
               throw equipmentSelectionError;
             }
 
             // Fetch trading post equipment
-            const { data: tradingPostData, error: tradingPostError } = await supabase
-              .from('fighter_equipment_tradingpost')
-              .select('equipment_tradingpost')
-              .eq('fighter_type_id', fighter.id)
-              .single();
+            const { data: tradingPostData, error: tradingPostError } =
+              await supabase
+                .from('fighter_equipment_tradingpost')
+                .select('equipment_tradingpost')
+                .eq('fighter_type_id', fighter.id)
+                .single();
 
             // Ignore not found error for trading post
             if (tradingPostError && tradingPostError.code !== 'PGRST116') {
-              console.error('Error fetching trading post equipment:', tradingPostError);
+              console.error(
+                'Error fetching trading post equipment:',
+                tradingPostError
+              );
               throw tradingPostError;
             }
 
             return {
               ...fighter,
-              default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
-              default_skills: defaultSkills?.map(d => d.skill_id) || [],
-              equipment_list: equipmentList?.map(e => e.equipment_id) || [],
-              equipment_discounts: fighter.equipment_discounts?.map((d: any) => ({
-                equipment_id: d.equipment_id,
-                adjusted_cost: d.adjusted_cost
-              })) || [],
-              equipment_selection: equipmentSelectionData?.equipment_selection || null,
-              trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              default_equipment:
+                defaultEquipment?.map((d) => d.equipment_id) || [],
+              default_skills: defaultSkills?.map((d) => d.skill_id) || [],
+              equipment_list: equipmentList?.map((e) => e.equipment_id) || [],
+              equipment_discounts:
+                fighter.equipment_discounts?.map((d: any) => ({
+                  equipment_id: d.equipment_id,
+                  adjusted_cost: d.adjusted_cost,
+                })) || [],
+              equipment_selection:
+                equipmentSelectionData?.equipment_selection || null,
+              trading_post_equipment:
+                tradingPostData?.equipment_tradingpost || [],
+              is_default:
+                !fighter.fighter_sub_type_id ||
+                fighter.fighter_sub_type_id === null,
             };
           } catch (error) {
-            console.error(`Error getting details for fighter ${fighter.id}:`, error);
+            console.error(
+              `Error getting details for fighter ${fighter.id}:`,
+              error
+            );
             // Return basic fighter data if there's an error
             return {
               ...fighter,
@@ -371,37 +427,44 @@ export async function GET(request: Request) {
               equipment_discounts: [],
               equipment_selection: null,
               trading_post_equipment: [],
-              is_default: !fighter.fighter_sub_type_id || fighter.fighter_sub_type_id === null
+              is_default:
+                !fighter.fighter_sub_type_id ||
+                fighter.fighter_sub_type_id === null,
             };
           }
         })
       );
-      
+
       // Sort fighters: Default first, then by sub-type name
       fighterDetails.sort((a, b) => {
         if (a.is_default && !b.is_default) return -1;
         if (!a.is_default && b.is_default) return 1;
-        
-        const aSubType = subTypes.find(st => st.id === a.fighter_sub_type_id);
-        const bSubType = subTypes.find(st => st.id === b.fighter_sub_type_id);
-        
-        return (aSubType?.sub_type_name || '').localeCompare(bSubType?.sub_type_name || '');
+
+        const aSubType = subTypes.find((st) => st.id === a.fighter_sub_type_id);
+        const bSubType = subTypes.find((st) => st.id === b.fighter_sub_type_id);
+
+        return (aSubType?.sub_type_name || '').localeCompare(
+          bSubType?.sub_type_name || ''
+        );
       });
-      
-      console.log(`Returning ${fighterDetails.length} fighter details with ${subTypes.length} sub-types`);
-      
+
+      console.log(
+        `Returning ${fighterDetails.length} fighter details with ${subTypes.length} sub-types`
+      );
+
       return NextResponse.json({
         fighter_type,
         fighter_class,
         fighters: fighterDetails,
-        sub_types: subTypes
+        sub_types: subTypes,
       });
     }
 
     // Default case - fetch all fighter types, with optional gang filtering
     let query = supabase
       .from('fighter_types')
-      .select(`
+      .select(
+        `
         id,
         fighter_type,
         gang_type_id,
@@ -429,10 +492,11 @@ export async function GET(request: Request) {
           equipment_id,
           adjusted_cost
         )
-      `)
+      `
+      )
       .order('gang_type', { ascending: true })
       .order('fighter_type', { ascending: true });
-    
+
     // Add gang type filter if requested and gang_type_id is provided
     if (filter_by_gang && gang_type_id) {
       console.log(`Filtering fighters by gang_type_id: ${gang_type_id}`);
@@ -443,7 +507,6 @@ export async function GET(request: Request) {
 
     if (error) throw error;
     return NextResponse.json(fighterTypes);
-
   } catch (error) {
     console.error('Error in GET fighter-types:', error);
     return NextResponse.json(
@@ -460,7 +523,10 @@ export async function PUT(request: Request) {
   const id = searchParams.get('id');
 
   if (!id) {
-    return NextResponse.json({ error: 'Fighter type ID is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Fighter type ID is required' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -473,8 +539,10 @@ export async function PUT(request: Request) {
     console.log('Received update data:', data);
     console.log('Equipment selection data received:', {
       exists: !!data.equipment_selection,
-      keys: data.equipment_selection ? Object.keys(data.equipment_selection) : [],
-      content: data.equipment_selection
+      keys: data.equipment_selection
+        ? Object.keys(data.equipment_selection)
+        : [],
+      content: data.equipment_selection,
     });
 
     // Update fighter type
@@ -503,7 +571,7 @@ export async function PUT(request: Request) {
         special_rules: data.special_rules,
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
-        updated_at: data.updated_at
+        updated_at: data.updated_at,
       })
       .eq('id', id);
 
@@ -525,11 +593,13 @@ export async function PUT(request: Request) {
 
     // Insert new equipment defaults
     if (data.default_equipment?.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
-        fighter_type_id: id,
-        equipment_id: equipmentId,
-        skill_id: null
-      }));
+      const equipmentDefaults = data.default_equipment.map(
+        (equipmentId: string) => ({
+          fighter_type_id: id,
+          equipment_id: equipmentId,
+          skill_id: null,
+        })
+      );
 
       const { error: insertEquipError } = await supabase
         .from('fighter_defaults')
@@ -546,7 +616,7 @@ export async function PUT(request: Request) {
       const skillDefaults = data.default_skills.map((skillId: string) => ({
         fighter_type_id: id,
         skill_id: skillId,
-        equipment_id: null
+        equipment_id: null,
       }));
 
       const { error: insertSkillError } = await supabase
@@ -571,10 +641,12 @@ export async function PUT(request: Request) {
 
       // Then insert new equipment list entries
       if (data.equipment_list.length > 0) {
-        const equipmentList = data.equipment_list.map((equipment_id: string) => ({
-          fighter_type_id: id,
-          equipment_id
-        }));
+        const equipmentList = data.equipment_list.map(
+          (equipment_id: string) => ({
+            fighter_type_id: id,
+            equipment_id,
+          })
+        );
 
         const { error: insertError } = await supabase
           .from('fighter_type_equipment')
@@ -596,15 +668,14 @@ export async function PUT(request: Request) {
 
       // If there are new ones to add
       if (data.equipment_discounts.length > 0) {
-        const adjustedCostRecords = data.equipment_discounts.map((adjusted_cost: {
-          equipment_id: string;
-          adjusted_cost: number;
-        }) => ({
-          equipment_id: adjusted_cost.equipment_id,
-          fighter_type_id: id,
-          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
-          gang_type_id: null // Set to null since this is a fighter type adjusted_cost
-        }));
+        const adjustedCostRecords = data.equipment_discounts.map(
+          (adjusted_cost: { equipment_id: string; adjusted_cost: number }) => ({
+            equipment_id: adjusted_cost.equipment_id,
+            fighter_type_id: id,
+            adjusted_cost: adjusted_cost.adjusted_cost.toString(),
+            gang_type_id: null, // Set to null since this is a fighter type adjusted_cost
+          })
+        );
 
         if (adjustedCostRecords.length > 0) {
           const { error: insertError } = await supabase
@@ -621,26 +692,42 @@ export async function PUT(request: Request) {
       console.log('Processing equipment selection:', data.equipment_selection);
 
       // Check if we have any content in the equipment selection
-      const hasSelection = data.equipment_selection &&
-        (Object.values(data.equipment_selection.optional).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.single).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
+      const hasSelection =
+        data.equipment_selection &&
+        (Object.values(data.equipment_selection.optional).some(
+          isNonEmptyArray
+        ) ||
+          Object.values(data.equipment_selection.single).some(
+            isNonEmptyArray
+          ) ||
+          Object.values(data.equipment_selection.multiple).some(
+            isNonEmptyArray
+          ));
 
       if (hasSelection) {
-        console.log('About to upsert equipment_selection:', JSON.stringify(data.equipment_selection, null, 2));
+        console.log(
+          'About to upsert equipment_selection:',
+          JSON.stringify(data.equipment_selection, null, 2)
+        );
         const { error: upsertError } = await supabase
           .from('fighter_equipment_selections')
-          .upsert({
-            fighter_type_id: id,
-            equipment_selection: data.equipment_selection
-          }, {
-            onConflict: 'fighter_type_id',
-            ignoreDuplicates: false
-          });
+          .upsert(
+            {
+              fighter_type_id: id,
+              equipment_selection: data.equipment_selection,
+            },
+            {
+              onConflict: 'fighter_type_id',
+              ignoreDuplicates: false,
+            }
+          );
 
         if (upsertError) {
           console.error('Error upserting equipment selection:', upsertError);
-          console.error('Equipment selection data that failed:', data.equipment_selection);
+          console.error(
+            'Equipment selection data that failed:',
+            data.equipment_selection
+          );
           throw upsertError;
         } else {
           console.log('Successfully upserted equipment selection data');
@@ -653,7 +740,10 @@ export async function PUT(request: Request) {
           .eq('fighter_type_id', id);
 
         if (deleteError) {
-          console.error('Error deleting empty equipment selection:', deleteError);
+          console.error(
+            'Error deleting empty equipment selection:',
+            deleteError
+          );
           throw deleteError;
         }
         console.log('No equipment selection content, deleted any existing row');
@@ -669,7 +759,9 @@ export async function PUT(request: Request) {
         console.error('Error deleting equipment selection:', deleteError);
         throw deleteError;
       }
-      console.log('No equipment_selection field in update data, deleted any existing row');
+      console.log(
+        'No equipment_selection field in update data, deleted any existing row'
+      );
     }
 
     // Handle trading post equipment
@@ -689,7 +781,7 @@ export async function PUT(request: Request) {
           .insert({
             fighter_type_id: id,
             equipment_tradingpost: data.trading_post_equipment,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           });
 
         if (insertError) throw insertError;
@@ -699,30 +791,33 @@ export async function PUT(request: Request) {
     // Handle gang-specific costs
     if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
       console.log('Processing gang-specific costs:', data.gang_type_costs);
-      
+
       // First delete existing costs
       const { error: deleteError } = await supabase
         .from('fighter_type_gang_cost')
         .delete()
         .eq('fighter_type_id', id);
-        
+
       if (deleteError) {
-        console.error('Error deleting existing gang-specific costs:', deleteError);
+        console.error(
+          'Error deleting existing gang-specific costs:',
+          deleteError
+        );
         throw deleteError;
       }
-      
+
       // Then insert new costs if any exist
       if (data.gang_type_costs.length > 0) {
         const gangCostsToInsert = data.gang_type_costs.map((cost: any) => ({
           fighter_type_id: id,
           gang_type_id: cost.gang_type_id,
-          adjusted_cost: cost.adjusted_cost
+          adjusted_cost: cost.adjusted_cost,
         }));
-        
+
         const { error: insertError } = await supabase
           .from('fighter_type_gang_cost')
           .insert(gangCostsToInsert);
-          
+
         if (insertError) {
           console.error('Error inserting gang-specific costs:', insertError);
           throw insertError;
@@ -734,9 +829,9 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error in PUT fighter-type:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error updating fighter type',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
@@ -797,7 +892,7 @@ export async function POST(request: Request) {
         attacks: data.attacks,
         special_rules: data.special_rules,
         free_skill: data.free_skill,
-        is_gang_addition: data.is_gang_addition
+        is_gang_addition: data.is_gang_addition,
       })
       .select()
       .single();
@@ -806,15 +901,14 @@ export async function POST(request: Request) {
 
     // Handle equipment adjusted costs if provided
     if (data.equipment_discounts && data.equipment_discounts.length > 0) {
-      const adjustedCostRecords = data.equipment_discounts.map((adjusted_cost: {
-        equipment_id: string;
-        adjusted_cost: number;
-      }) => ({
-        equipment_id: adjusted_cost.equipment_id,
-        fighter_type_id: newFighterType.id,
-        adjusted_cost: adjusted_cost.adjusted_cost.toString(),
-        gang_type_id: null // Set to null since this is a fighter type adjusted_cost
-      }));
+      const adjustedCostRecords = data.equipment_discounts.map(
+        (adjusted_cost: { equipment_id: string; adjusted_cost: number }) => ({
+          equipment_id: adjusted_cost.equipment_id,
+          fighter_type_id: newFighterType.id,
+          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
+          gang_type_id: null, // Set to null since this is a fighter type adjusted_cost
+        })
+      );
 
       const { error: adjustedCostError } = await supabase
         .from('equipment_discounts')
@@ -825,10 +919,12 @@ export async function POST(request: Request) {
 
     // Handle default equipment if provided
     if (data.default_equipment && data.default_equipment.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
-        fighter_type_id: newFighterType.id,
-        equipment_id: equipmentId
-      }));
+      const equipmentDefaults = data.default_equipment.map(
+        (equipmentId: string) => ({
+          fighter_type_id: newFighterType.id,
+          equipment_id: equipmentId,
+        })
+      );
 
       const { error: equipmentError } = await supabase
         .from('fighter_defaults')
@@ -842,7 +938,7 @@ export async function POST(request: Request) {
       const skillDefaults = data.default_skills.map((skillId: string) => ({
         fighter_type_id: newFighterType.id,
         skill_id: skillId,
-        equipment_id: null
+        equipment_id: null,
       }));
 
       const { error: skillError } = await supabase
@@ -856,7 +952,7 @@ export async function POST(request: Request) {
     if (data.equipment_list && data.equipment_list.length > 0) {
       const equipmentList = data.equipment_list.map((equipment_id: string) => ({
         fighter_type_id: newFighterType.id,
-        equipment_id
+        equipment_id,
       }));
 
       const { error: equipmentListError } = await supabase
@@ -873,7 +969,7 @@ export async function POST(request: Request) {
         .insert({
           fighter_type_id: newFighterType.id,
           equipment_tradingpost: data.trading_post_equipment,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         });
 
       if (tradingPostError) throw tradingPostError;
@@ -883,9 +979,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in POST:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error creating fighter type',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
@@ -899,7 +995,10 @@ export async function PATCH(request: Request) {
   const id = searchParams.get('id');
 
   if (!id) {
-    return NextResponse.json({ error: 'Fighter type ID is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Fighter type ID is required' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -909,17 +1008,20 @@ export async function PATCH(request: Request) {
     }
 
     const data = await request.json();
-    
+
     // Only allow updating the is_gang_addition field
     if (data.is_gang_addition === undefined) {
-      return NextResponse.json({ error: 'is_gang_addition field is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'is_gang_addition field is required' },
+        { status: 400 }
+      );
     }
 
     // Update only the is_gang_addition field
     const { error: updateError } = await supabase
       .from('fighter_types')
       .update({
-        is_gang_addition: data.is_gang_addition
+        is_gang_addition: data.is_gang_addition,
       })
       .eq('id', id);
 
@@ -928,15 +1030,18 @@ export async function PATCH(request: Request) {
       throw updateError;
     }
 
-    return NextResponse.json({ success: true, is_gang_addition: data.is_gang_addition });
+    return NextResponse.json({
+      success: true,
+      is_gang_addition: data.is_gang_addition,
+    });
   } catch (error) {
     console.error('Error in PATCH fighter-type:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error updating fighter type',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
-} 
+}

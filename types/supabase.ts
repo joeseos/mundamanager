@@ -4,197 +4,197 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[]
+  | Json[];
 
 export interface Database {
   public: {
     Tables: {
       campaigns: {
         Row: {
-          id: string
-          campaign_name: string
-          campaign_type_id: string
-          created_at: string
-          updated_at: string | null
-          status: string | null
-        }
+          id: string;
+          campaign_name: string;
+          campaign_type_id: string;
+          created_at: string;
+          updated_at: string | null;
+          status: string | null;
+        };
         Insert: {
-          id?: string
-          campaign_name: string
-          campaign_type_id: string
-          created_at?: string
-          updated_at?: string | null
-          status?: string | null
-        }
+          id?: string;
+          campaign_name: string;
+          campaign_type_id: string;
+          created_at?: string;
+          updated_at?: string | null;
+          status?: string | null;
+        };
         Update: {
-          id?: string
-          campaign_name?: string
-          campaign_type_id?: string
-          created_at?: string
-          updated_at?: string | null
-          status?: string | null
-        }
-      }
+          id?: string;
+          campaign_name?: string;
+          campaign_type_id?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          status?: string | null;
+        };
+      };
       fighters: {
         Row: {
-          id: string
-          fighter_name: string
-          fighter_type_id: string
-          gang_id: string
-          credits: number
-          xp: number | null
-          total_xp: number | null
-          created_at: string
-          updated_at: string | null
-        }
+          id: string;
+          fighter_name: string;
+          fighter_type_id: string;
+          gang_id: string;
+          credits: number;
+          xp: number | null;
+          total_xp: number | null;
+          created_at: string;
+          updated_at: string | null;
+        };
         Insert: {
-          id?: string
-          fighter_name: string
-          fighter_type_id: string
-          gang_id: string
-          credits?: number
-          xp?: number | null
-          total_xp?: number | null
-          created_at?: string
-          updated_at?: string | null
-        }
+          id?: string;
+          fighter_name: string;
+          fighter_type_id: string;
+          gang_id: string;
+          credits?: number;
+          xp?: number | null;
+          total_xp?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
         Update: {
-          id?: string
-          fighter_name?: string
-          fighter_type_id?: string
-          gang_id?: string
-          credits?: number
-          xp?: number | null
-          total_xp?: number | null
-          created_at?: string
-          updated_at?: string | null
-        }
-      }
+          id?: string;
+          fighter_name?: string;
+          fighter_type_id?: string;
+          gang_id?: string;
+          credits?: number;
+          xp?: number | null;
+          total_xp?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+      };
       gangs: {
         Row: {
-          id: string
-          name: string
-          gang_type_id: string
-          credits: number
-          reputation: number
-          user_id: string
-          created_at: string
-          updated_at: string | null
-        }
+          id: string;
+          name: string;
+          gang_type_id: string;
+          credits: number;
+          reputation: number;
+          user_id: string;
+          created_at: string;
+          updated_at: string | null;
+        };
         Insert: {
-          id?: string
-          name: string
-          gang_type_id: string
-          credits?: number
-          reputation?: number
-          user_id: string
-          created_at?: string
-          updated_at?: string | null
-        }
+          id?: string;
+          name: string;
+          gang_type_id: string;
+          credits?: number;
+          reputation?: number;
+          user_id: string;
+          created_at?: string;
+          updated_at?: string | null;
+        };
         Update: {
-          id?: string
-          name?: string
-          gang_type_id?: string
-          credits?: number
-          reputation?: number
-          user_id?: string
-          created_at?: string
-          updated_at?: string | null
-        }
-      }
+          id?: string;
+          name?: string;
+          gang_type_id?: string;
+          credits?: number;
+          reputation?: number;
+          user_id?: string;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+      };
       equipment: {
         Row: {
-          id: string
-          equipment_name: string
-          cost: number
-          created_at: string
-        }
+          id: string;
+          equipment_name: string;
+          cost: number;
+          created_at: string;
+        };
         Insert: {
-          id?: string
-          equipment_name: string
-          cost: number
-          created_at?: string
-        }
+          id?: string;
+          equipment_name: string;
+          cost: number;
+          created_at?: string;
+        };
         Update: {
-          id?: string
-          equipment_name?: string
-          cost?: number
-          created_at?: string
-        }
-      }
+          id?: string;
+          equipment_name?: string;
+          cost?: number;
+          created_at?: string;
+        };
+      };
       fighter_equipment: {
         Row: {
-          id: string
-          fighter_id: string
-          equipment_id: string
-          created_at: string
-        }
+          id: string;
+          fighter_id: string;
+          equipment_id: string;
+          created_at: string;
+        };
         Insert: {
-          id?: string
-          fighter_id: string
-          equipment_id: string
-          created_at?: string
-        }
+          id?: string;
+          fighter_id: string;
+          equipment_id: string;
+          created_at?: string;
+        };
         Update: {
-          id?: string
-          fighter_id?: string
-          equipment_id?: string
-          created_at?: string
-        }
-      }
+          id?: string;
+          fighter_id?: string;
+          equipment_id?: string;
+          created_at?: string;
+        };
+      };
       gang_types: {
         Row: {
-          id: string
-          gang_type_name: string
-          created_at: string
-        }
+          id: string;
+          gang_type_name: string;
+          created_at: string;
+        };
         Insert: {
-          id?: string
-          gang_type_name: string
-          created_at?: string
-        }
+          id?: string;
+          gang_type_name: string;
+          created_at?: string;
+        };
         Update: {
-          id?: string
-          gang_type_name?: string
-          created_at?: string
-        }
-      }
-    }
+          id?: string;
+          gang_type_name?: string;
+          created_at?: string;
+        };
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
       delete_fighter_and_equipment: {
         Args: {
-          fighter_id: string
-          operations: Json[]
-        }
-        Returns: Json
-      }
+          fighter_id: string;
+          operations: Json[];
+        };
+        Returns: Json;
+      };
       get_fighter_details: {
         Args: {
-          input_fighter_id: string
-        }
-        Returns: Json[]
-      }
+          input_fighter_id: string;
+        };
+        Returns: Json[];
+      };
       sell_equipment_from_fighter: {
         Args: {
-          fighter_equipment_id: string
-        }
+          fighter_equipment_id: string;
+        };
         Returns: {
           equipment_sold: {
-            id: string
-            sell_value: number
-          }
+            id: string;
+            sell_value: number;
+          };
           gang: {
-            id: string
-            credits: number
-          }
-        }
-      }
-    }
+            id: string;
+            credits: number;
+          };
+        };
+      };
+    };
     Enums: {
-      [_ in never]: never
-    }
-  }
-} 
+      [_ in never]: never;
+    };
+  };
+}

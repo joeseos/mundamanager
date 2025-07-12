@@ -1,11 +1,11 @@
-'use client'
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import Modal from '@/components/modal';
-import { createClient } from "@/utils/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { createClient } from '@/utils/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface DeleteGangButtonProps {
   gangId: string;
@@ -33,10 +33,15 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
       setIsDeleting(true);
 
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session) {
-        throw new GangDeleteError('You must be logged in to delete a gang', 401);
+        throw new GangDeleteError(
+          'You must be logged in to delete a gang',
+          401
+        );
       }
 
       const deleteResponse = await fetch(
@@ -45,26 +50,33 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Prefer': 'return=representation'
-          }
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            Authorization: `Bearer ${session.access_token}`,
+            Prefer: 'return=representation',
+          },
         }
       );
 
       if (!deleteResponse.ok) {
         const errorData = await deleteResponse.json().catch(() => null);
-        
+
         switch (deleteResponse.status) {
           case 401:
-            throw new GangDeleteError('Your session has expired. Please log in again.', 401);
+            throw new GangDeleteError(
+              'Your session has expired. Please log in again.',
+              401
+            );
           case 403:
-            throw new GangDeleteError('You do not have permission to delete this gang', 403);
+            throw new GangDeleteError(
+              'You do not have permission to delete this gang',
+              403
+            );
           case 404:
             throw new GangDeleteError('Gang not found', 404);
           default:
             throw new GangDeleteError(
-              errorData?.message || 'An unexpected error occurred while deleting the gang',
+              errorData?.message ||
+                'An unexpected error occurred while deleting the gang',
               deleteResponse.status
             );
         }
@@ -72,28 +84,35 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
 
       // Try to get the deleted data to confirm deletion
       const deletedData = await deleteResponse.json().catch(() => null);
-      
-      if (!deletedData || (Array.isArray(deletedData) && deletedData.length === 0)) {
-        throw new GangDeleteError('Gang could not be deleted - no changes made', 403);
+
+      if (
+        !deletedData ||
+        (Array.isArray(deletedData) && deletedData.length === 0)
+      ) {
+        throw new GangDeleteError(
+          'Gang could not be deleted - no changes made',
+          403
+        );
       }
 
       toast({
-        description: "Gang successfully deleted",
-        variant: "default"
+        description: 'Gang successfully deleted',
+        variant: 'default',
       });
 
       router.push('/');
     } catch (error) {
       console.error('Error deleting gang:', error);
-      
-      const message = error instanceof GangDeleteError 
-        ? error.message 
-        : 'An unexpected error occurred. Please try again.';
+
+      const message =
+        error instanceof GangDeleteError
+          ? error.message
+          : 'An unexpected error occurred. Please try again.';
 
       toast({
-        title: "Error",
+        title: 'Error',
         description: message,
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsDeleting(false);

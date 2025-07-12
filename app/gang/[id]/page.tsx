@@ -1,30 +1,38 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
-import GangPageContent from "@/components/gang/gang-page-content";
-import { FighterProps, FighterSkills } from "@/types/fighter";
-import { FighterType } from "@/types/fighter-type";
-import { Equipment } from "@/types/equipment";
+import { createClient } from '@/utils/supabase/server';
+import { redirect, notFound } from 'next/navigation';
+import GangPageContent from '@/components/gang/gang-page-content';
+import { FighterProps, FighterSkills } from '@/types/fighter';
+import { FighterType } from '@/types/fighter-type';
+import { Equipment } from '@/types/equipment';
 
 // Move processGangData function here (server-side processing)
 async function processGangData(gangData: any) {
   const processedFighters = gangData.fighters.map((fighter: any) => {
     // Filter out null equipment entries and process equipment
-    const validEquipment = (fighter.equipment?.filter((item: Equipment | null) => item !== null) || []) as Equipment[];
-    
+    const validEquipment = (fighter.equipment?.filter(
+      (item: Equipment | null) => item !== null
+    ) || []) as Equipment[];
+
     // Only process vehicle data for crew fighters
-    const vehicle = fighter.fighter_class === 'Crew' && fighter.vehicles?.[0] ? {
-      ...fighter.vehicles[0],
-      equipment: fighter.vehicles[0].equipment || []
-    } : undefined;
+    const vehicle =
+      fighter.fighter_class === 'Crew' && fighter.vehicles?.[0]
+        ? {
+            ...fighter.vehicles[0],
+            equipment: fighter.vehicles[0].equipment || [],
+          }
+        : undefined;
 
     // Ensure skills is processed correctly
     const processedSkills: FighterSkills = {};
-    
+
     if (fighter.skills) {
       // If skills is an object with string keys (new format)
-      if (typeof fighter.skills === 'object' && !Array.isArray(fighter.skills)) {
+      if (
+        typeof fighter.skills === 'object' &&
+        !Array.isArray(fighter.skills)
+      ) {
         Object.assign(processedSkills, fighter.skills);
-      } 
+      }
       // If skills is an array (old format), convert to object
       else if (Array.isArray(fighter.skills)) {
         fighter.skills.forEach((skill: any) => {
@@ -35,7 +43,7 @@ async function processGangData(gangData: any) {
               xp_cost: skill.xp_cost,
               is_advance: skill.is_advance,
               acquired_at: skill.acquired_at,
-              fighter_injury_id: skill.fighter_injury_id
+              fighter_injury_id: skill.fighter_injury_id,
             };
           }
         });
@@ -67,7 +75,7 @@ async function processGangData(gangData: any) {
       xp: fighter.xp ?? 0,
       advancements: {
         characteristics: fighter.advancements?.characteristics || {},
-        skills: fighter.advancements?.skills || {}
+        skills: fighter.advancements?.skills || {},
       },
       base_stats: {
         movement: fighter.movement,
@@ -81,7 +89,7 @@ async function processGangData(gangData: any) {
         leadership: fighter.leadership,
         cool: fighter.cool,
         willpower: fighter.willpower,
-        intelligence: fighter.intelligence
+        intelligence: fighter.intelligence,
       },
       current_stats: {
         movement: fighter.movement,
@@ -95,37 +103,40 @@ async function processGangData(gangData: any) {
         leadership: fighter.leadership,
         cool: fighter.cool,
         willpower: fighter.willpower,
-        intelligence: fighter.intelligence
+        intelligence: fighter.intelligence,
       },
       skills: processedSkills,
-      effects: fighter.effects || { 
-        injuries: [], 
-        advancements: [], 
-        bionics: [], 
-        cyberteknika: [], 
-        'gene-smithing': [], 
-        'rig-glitches': [], 
-        augmentations: [], 
-        equipment: [], 
-        user: [] 
+      effects: fighter.effects || {
+        injuries: [],
+        advancements: [],
+        bionics: [],
+        cyberteknika: [],
+        'gene-smithing': [],
+        'rig-glitches': [],
+        augmentations: [],
+        equipment: [],
+        user: [],
       },
-      weapons: validEquipment
-        .filter((item: Equipment) => item.equipment_type === 'weapon')
-        .map((item: Equipment) => ({
-          weapon_name: item.equipment_name,
-          weapon_id: item.equipment_id,
-          cost: item.cost,
-          fighter_weapon_id: item.fighter_weapon_id || item.fighter_equipment_id,
-          weapon_profiles: item.weapon_profiles || []
-        })) || [],
-      wargear: validEquipment
-        .filter((item: Equipment) => item.equipment_type === 'wargear')
-        .map((item: Equipment) => ({
-          wargear_name: item.equipment_name,
-          wargear_id: item.equipment_id,
-          cost: item.cost,
-          fighter_weapon_id: item.fighter_weapon_id
-        })) || [],
+      weapons:
+        validEquipment
+          .filter((item: Equipment) => item.equipment_type === 'weapon')
+          .map((item: Equipment) => ({
+            weapon_name: item.equipment_name,
+            weapon_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id:
+              item.fighter_weapon_id || item.fighter_equipment_id,
+            weapon_profiles: item.weapon_profiles || [],
+          })) || [],
+      wargear:
+        validEquipment
+          .filter((item: Equipment) => item.equipment_type === 'wargear')
+          .map((item: Equipment) => ({
+            wargear_name: item.equipment_name,
+            wargear_id: item.equipment_id,
+            cost: item.cost,
+            fighter_weapon_id: item.fighter_weapon_id,
+          })) || [],
       vehicles: fighter.vehicles || [],
       special_rules: fighter.special_rules || [],
       note: fighter.note,
@@ -144,7 +155,7 @@ async function processGangData(gangData: any) {
   try {
     const { getFighterTypes } = await import('@/app/lib/get-fighter-types');
     const fighterTypes = await getFighterTypes(gangData.gang_type_id);
-    
+
     // Transform server response to match UI expectations
     processedFighterTypes = fighterTypes.map((type: any) => ({
       id: type.id,
@@ -176,43 +187,52 @@ async function processGangData(gangData: any) {
       special_rules: type.special_rules || [],
       is_gang_addition: type.is_gang_addition || false,
       alliance_id: type.alliance_id || '',
-      alliance_crew_name: type.alliance_crew_name || ''
+      alliance_crew_name: type.alliance_crew_name || '',
     }));
   } catch (error) {
     console.error('Error fetching fighter types:', error);
     // Continue with empty array if fetch fails
   }
-  
+
   // init or fix positioning for all fighters
   let positioning = gangData.positioning || {};
 
   // If no positions exist, create initial positions sorted by fighter name
   if (Object.keys(positioning).length === 0) {
-    const sortedFighters = [...processedFighters].sort((a, b) => 
+    const sortedFighters = [...processedFighters].sort((a, b) =>
       a.fighter_name.localeCompare(b.fighter_name)
     );
-    
-    positioning = sortedFighters.reduce((acc, fighter, index) => ({
-      ...acc,
-      [index]: fighter.id
-    }), {});
+
+    positioning = sortedFighters.reduce(
+      (acc, fighter, index) => ({
+        ...acc,
+        [index]: fighter.id,
+      }),
+      {}
+    );
   } else {
     // First, filter out any positions referencing non-existent fighters
-    const validFighterIds = new Set(processedFighters.map((f: FighterProps) => f.id));
+    const validFighterIds = new Set(
+      processedFighters.map((f: FighterProps) => f.id)
+    );
     const validPositions: Record<string, string> = {};
-    
-    Object.entries(positioning as Record<string, string>).forEach(([pos, fighterId]) => {
-      if (validFighterIds.has(fighterId)) {
-        validPositions[pos] = fighterId;
+
+    Object.entries(positioning as Record<string, string>).forEach(
+      ([pos, fighterId]) => {
+        if (validFighterIds.has(fighterId)) {
+          validPositions[pos] = fighterId;
+        }
       }
-    });
+    );
 
     // Handle existing positions - fix any gaps
-    const currentPositions = Object.keys(validPositions).map(pos => Number(pos)).sort((a, b) => a - b);
+    const currentPositions = Object.keys(validPositions)
+      .map((pos) => Number(pos))
+      .sort((a, b) => a - b);
     let expectedPosition = 0;
     const positionMapping: Record<number, number> = {};
 
-    currentPositions.forEach(position => {
+    currentPositions.forEach((position) => {
       positionMapping[position] = expectedPosition;
       expectedPosition++;
     });
@@ -220,7 +240,8 @@ async function processGangData(gangData: any) {
     // Create new positioning object with corrected positions
     const newPositioning: Record<number, string> = {};
     for (const [pos, fighterId] of Object.entries(validPositions)) {
-      newPositioning[positionMapping[Number(pos)] ?? expectedPosition++] = fighterId;
+      newPositioning[positionMapping[Number(pos)] ?? expectedPosition++] =
+        fighterId;
     }
     positioning = newPositioning;
 
@@ -233,7 +254,8 @@ async function processGangData(gangData: any) {
   }
 
   // Check if positions have changed from what's in the database
-  const positionsHaveChanged = !gangData.positioning || 
+  const positionsHaveChanged =
+    !gangData.positioning ||
     Object.entries(positioning).some(
       ([id, pos]) => gangData.positioning[id] !== pos
     );
@@ -254,7 +276,7 @@ async function processGangData(gangData: any) {
   const processedData = {
     ...gangData,
     alignment: gangData.alignment,
-    alliance_name: gangData.alliance_name || "",
+    alliance_name: gangData.alliance_name || '',
     fighters: processedFighters,
     fighterTypes: processedFighterTypes,
     campaigns: gangData.campaigns?.map((campaign: any) => ({
@@ -265,7 +287,7 @@ async function processGangData(gangData: any) {
       has_meat: campaign.has_meat ?? false,
       has_exploration_points: campaign.has_exploration_points ?? false,
       has_scavenging_rolls: campaign.has_scavenging_rolls ?? false,
-      territories: campaign.territories || []
+      territories: campaign.territories || [],
     })),
     stash: (gangData.stash || []).map((item: any) => ({
       id: item.id,
@@ -277,49 +299,54 @@ async function processGangData(gangData: any) {
       equipment_category: item.equipment_category,
       vehicle_id: item.vehicle_id,
       equipment_id: item.equipment_id,
-      custom_equipment_id: item.custom_equipment_id
+      custom_equipment_id: item.custom_equipment_id,
     })),
     vehicles: gangData.vehicles || [],
     positioning,
-    gang_variants: gangData.gang_variants?.map((variant: any) => {
-      // Handle different possible data structures
-      if (variant.gang_variant_types) {
-        return {
-          id: variant.gang_variant_types.id,
-          variant: variant.gang_variant_types.variant
-        };
-      } else if (variant.id && variant.variant) {
-        return {
-          id: variant.id,
-          variant: variant.variant
-        };
-      } else {
-        return {
-          id: variant,
-          variant: variant
-        };
-      }
-    }) || []
+    gang_variants:
+      gangData.gang_variants?.map((variant: any) => {
+        // Handle different possible data structures
+        if (variant.gang_variant_types) {
+          return {
+            id: variant.gang_variant_types.id,
+            variant: variant.gang_variant_types.variant,
+          };
+        } else if (variant.id && variant.variant) {
+          return {
+            id: variant.id,
+            variant: variant.variant,
+          };
+        } else {
+          return {
+            id: variant,
+            variant: variant,
+          };
+        }
+      }) || [],
   };
 
   processedData.user_id = gangData.user_id;
   return processedData;
 }
 
-export default async function GangPage(props: { params: Promise<{ id: string }> }) {
+export default async function GangPage(props: {
+  params: Promise<{ id: string }>;
+}) {
   const params = await props.params;
   const supabase = await createClient();
 
   // Get authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-    redirect("/sign-in");
+    redirect('/sign-in');
   }
 
   try {
     // Fetch gang data using server-side RPC call
     const { data, error } = await supabase.rpc('get_gang_details', {
-      p_gang_id: params.id
+      p_gang_id: params.id,
     });
 
     if (error) {
@@ -328,14 +355,14 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     }
 
     const [gangData] = data || [];
-    
+
     if (!gangData) {
       notFound();
     }
 
     // Process the data server-side
     const processedData = await processGangData(gangData);
-    
+
     return (
       <GangPageContent
         initialGangData={processedData}

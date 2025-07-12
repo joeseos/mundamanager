@@ -1,22 +1,22 @@
 'use client';
 
-import { signInAction } from "@/app/actions";
-import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { signInAction } from '@/app/actions';
+import { FormMessage, Message } from '@/components/form-message';
+import { SubmitButton } from '@/components/submit-button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from '@/utils/supabase/client';
 
 export default function SignIn() {
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
-  
+
   useEffect(() => {
     // Check if user is already authenticated and redirect if needed
     async function checkAuth() {
@@ -25,9 +25,9 @@ export default function SignIn() {
         router.push('/');
       }
     }
-    
+
     checkAuth();
-    
+
     // Extract error message from URL params on initial load
     const error = searchParams.get('error');
     if (error) {
@@ -39,7 +39,7 @@ export default function SignIn() {
   let topMessage: Message | null = null;
   const success = searchParams.get('success');
   const message = searchParams.get('message');
-  
+
   if (success) {
     topMessage = { success };
   } else if (message) {
@@ -48,7 +48,7 @@ export default function SignIn() {
 
   async function clientAction(formData: FormData) {
     const result = await signInAction(formData);
-    
+
     // If we get a non-redirect result with an error, display it
     if (result && 'error' in result) {
       setErrorMessage(result.error);
@@ -64,26 +64,26 @@ export default function SignIn() {
             <FormMessage message={topMessage} />
           </div>
         )}
-        <form 
+        <form
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           action={clientAction}
         >
           <h1 className="text-2xl font-medium text-white mb-2">Sign in</h1>
           <p className="text-sm text-white mb-8">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{' '}
             <Link className="text-white font-medium underline" href="/sign-up">
               Sign up
             </Link>
           </p>
           <div className="flex flex-col gap-4">
             <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              name="email" 
+            <Input
+              id="email"
+              name="email"
               type="email"
-              placeholder="you@example.com" 
-              required 
-              className="text-black" 
+              placeholder="you@example.com"
+              required
+              className="text-black"
               autoComplete="email"
             />
             <Label htmlFor="password">Password</Label>
@@ -97,12 +97,10 @@ export default function SignIn() {
               autoComplete="current-password"
             />
             {errorMessage && (
-              <div className="text-red-500 text-sm">
-                {errorMessage}
-              </div>
+              <div className="text-red-500 text-sm">{errorMessage}</div>
             )}
-            <Link 
-              href="/reset-password" 
+            <Link
+              href="/reset-password"
               className="text-sm text-white hover:underline self-end"
             >
               Forgot your password?

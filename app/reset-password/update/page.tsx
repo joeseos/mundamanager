@@ -1,12 +1,12 @@
 'use client';
 
-import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { FormMessage, Message } from '@/components/form-message';
+import { SubmitButton } from '@/components/submit-button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 function UpdatePasswordFormContent() {
   const [message, setMessage] = useState<Message>({} as Message);
@@ -22,29 +22,41 @@ function UpdatePasswordFormContent() {
         const type = searchParams.get('type');
 
         if (!token_hash || !type) {
-          router.push('/sign-in?error=' + encodeURIComponent('Invalid password reset link'));
+          router.push(
+            '/sign-in?error=' +
+              encodeURIComponent('Invalid password reset link')
+          );
           return;
         }
 
         // Exchange the token for a session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
         if (!session) {
           // If no session, verify the OTP to create one
           const { error: verifyError } = await supabase.auth.verifyOtp({
             token_hash,
-            type: 'recovery'
+            type: 'recovery',
           });
 
           if (verifyError) {
             console.error('Error verifying token:', verifyError);
-            router.push('/sign-in?error=' + encodeURIComponent('Invalid or expired password reset link'));
+            router.push(
+              '/sign-in?error=' +
+                encodeURIComponent('Invalid or expired password reset link')
+            );
             return;
           }
         }
       } catch (error) {
         console.error('Error in recovery flow:', error);
-        router.push('/sign-in?error=' + encodeURIComponent('An error occurred during password reset'));
+        router.push(
+          '/sign-in?error=' +
+            encodeURIComponent('An error occurred during password reset')
+        );
       }
     };
 
@@ -74,7 +86,12 @@ function UpdatePasswordFormContent() {
       } else {
         // Sign out after password update
         await supabase.auth.signOut();
-        router.push('/sign-in?success=' + encodeURIComponent('Password updated successfully. Please sign in with your new password.'));
+        router.push(
+          '/sign-in?success=' +
+            encodeURIComponent(
+              'Password updated successfully. Please sign in with your new password.'
+            )
+        );
       }
     } catch (error) {
       console.error('Error updating password:', error);
@@ -85,7 +102,10 @@ function UpdatePasswordFormContent() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col w-full max-w-sm mx-auto text-white">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col w-full max-w-sm mx-auto text-white"
+    >
       <h1 className="text-2xl font-medium text-white mb-2">Set New Password</h1>
       <p className="text-sm text-white mb-8">
         Please enter your new password below.
@@ -103,7 +123,7 @@ function UpdatePasswordFormContent() {
             minLength={6}
           />
         </div>
-        
+
         <div>
           <Label htmlFor="confirmPassword">Confirm New Password</Label>
           <Input
@@ -117,10 +137,10 @@ function UpdatePasswordFormContent() {
           />
         </div>
 
-        <SubmitButton 
+        <SubmitButton
           type="submit"
           disabled={isSubmitting}
-          pendingText="Updating..." 
+          pendingText="Updating..."
           className="mt-2"
         >
           Update Password
@@ -140,4 +160,4 @@ export default function ResetPasswordPage() {
       </div>
     </main>
   );
-} 
+}

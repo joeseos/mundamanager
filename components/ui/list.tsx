@@ -14,7 +14,13 @@ export interface ListColumn {
 export interface ListAction {
   label: string;
   onClick: (item: any) => void;
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  variant?:
+    | 'default'
+    | 'destructive'
+    | 'outline'
+    | 'secondary'
+    | 'ghost'
+    | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   disabled?: (item: any) => boolean;
   className?: string;
@@ -40,12 +46,12 @@ export function List<T = any>({
   columns,
   actions = [],
   onAdd,
-  addButtonText = "Add",
+  addButtonText = 'Add',
   addButtonDisabled,
-  emptyMessage = "No items yet.",
-  className = "",
+  emptyMessage = 'No items yet.',
+  className = '',
   isLoading = false,
-  sortBy
+  sortBy,
 }: ListProps<T>) {
   // Sort items if sortBy function is provided
   const sortedItems = sortBy ? [...items].sort(sortBy) : items;
@@ -61,7 +67,11 @@ export function List<T = any>({
     }
   };
 
-  const renderCellContent = (column: ListColumn, item: T, index: number): React.ReactNode => {
+  const renderCellContent = (
+    column: ListColumn,
+    item: T,
+    index: number
+  ): React.ReactNode => {
     if (column.render) {
       return column.render(item[column.key as keyof T], item, index);
     }
@@ -78,10 +88,10 @@ export function List<T = any>({
       <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
         {onAdd && (
-          <Button 
+          <Button
             onClick={onAdd}
             className="bg-black hover:bg-gray-800 text-white"
-            disabled={isLoading || (addButtonDisabled === true)}
+            disabled={isLoading || addButtonDisabled === true}
           >
             {addButtonText}
           </Button>
@@ -91,11 +101,11 @@ export function List<T = any>({
       <div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
-            {(sortedItems.length > 0) && (
+            {sortedItems.length > 0 && (
               <thead>
                 <tr className="bg-gray-100">
                   {columns.map((column) => (
-                    <th 
+                    <th
                       key={column.key}
                       className={`px-1 py-1 ${getAlignmentClass(column.align)}`}
                       style={column.width ? { width: column.width } : undefined}
@@ -112,18 +122,18 @@ export function List<T = any>({
             <tbody>
               {sortedItems.length === 0 ? (
                 <tr>
-                  <td 
-                    colSpan={columns.length + (actions.length > 0 ? 1 : 0)} 
+                  <td
+                    colSpan={columns.length + (actions.length > 0 ? 1 : 0)}
                     className="text-gray-500 italic text-center py-4"
                   >
-                    {isLoading ? "Loading..." : emptyMessage}
+                    {isLoading ? 'Loading...' : emptyMessage}
                   </td>
                 </tr>
               ) : (
                 sortedItems.map((item, index) => (
                   <tr key={index} className="border-t">
                     {columns.map((column) => (
-                      <td 
+                      <td
                         key={column.key}
                         className={`px-1 py-1 ${getAlignmentClass(column.align)}`}
                       >
@@ -139,7 +149,9 @@ export function List<T = any>({
                               variant={action.variant || 'destructive'}
                               size={action.size || 'sm'}
                               onClick={() => action.onClick(item)}
-                              disabled={action.disabled ? action.disabled(item) : false}
+                              disabled={
+                                action.disabled ? action.disabled(item) : false
+                              }
                               className={`text-xs px-1.5 h-6 ${action.className || ''}`}
                             >
                               {action.label}

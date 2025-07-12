@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
   const supabase = await createClient();
@@ -14,8 +14,8 @@ export async function GET() {
     return NextResponse.json(territories);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch territories" }, 
+      { error: 'Failed to fetch territories' },
       { status: 500 }
     );
   }
-} 
+}

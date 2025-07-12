@@ -1,24 +1,26 @@
 'use client';
 
-import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Users, Edit, Sword, Car, X, BookOpen } from "lucide-react";
-import { useState, useEffect } from "react";
-import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
-import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
-import { AdminCreateEquipmentModal } from "@/components/admin/admin-create-equipment";
-import { AdminEditEquipmentModal } from "@/components/admin/admin-edit-equipment";
-import { AdminCreateSkillModal } from "@/components/admin/admin-create-skill";
-import { AdminEditSkillModal } from "@/components/admin/admin-edit-skill";
-import Modal from "@/components/modal";
-import { useToast } from "@/components/ui/use-toast";
-import { ToastProvider } from "@/components/ui/toast";
-import { Input } from "@/components/ui/input";
+import { createClient } from '@/utils/supabase/server';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Users, Edit, Sword, Car, X, BookOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AdminCreateFighterTypeModal } from '@/components/admin/admin-create-fighter-type';
+import { AdminEditFighterTypeModal } from '@/components/admin/admin-edit-fighter-type';
+import { AdminCreateEquipmentModal } from '@/components/admin/admin-create-equipment';
+import { AdminEditEquipmentModal } from '@/components/admin/admin-edit-equipment';
+import { AdminCreateSkillModal } from '@/components/admin/admin-create-skill';
+import { AdminEditSkillModal } from '@/components/admin/admin-edit-skill';
+import Modal from '@/components/modal';
+import { useToast } from '@/components/ui/use-toast';
+import { ToastProvider } from '@/components/ui/toast';
+import { Input } from '@/components/ui/input';
 
 // Add this CSS class to remove arrows from number inputs while keeping numeric validation
-const numericInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
-const regularInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2";
+const numericInputClass =
+  'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
+const regularInputClass =
+  'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2';
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -30,11 +32,19 @@ export default function AdminPage() {
   const [showEditEquipment, setShowEditEquipment] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
-  const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
-  const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);
+  const [gangTypes, setGangTypes] = useState<
+    { gang_type_id: number; gang_type: string }[]
+  >([]);
+  const [vehicleTypes, setVehicleTypes] = useState<
+    { id: number; vehicle_type: string }[]
+  >([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
-  const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
-  const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
+  const [equipment, setEquipment] = useState<
+    Array<{ id: string; equipment_name: string }>
+  >([]);
+  const [equipmentListSelections, setEquipmentListSelections] = useState<
+    string[]
+  >([]);
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -50,26 +60,32 @@ export default function AdminPage() {
     engine_slots: '',
     special_rules: '',
     vehicle_type: '',
-    gang_type_id: ''
+    gang_type_id: '',
   });
 
-  const handleVehicleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setVehicleForm(prev => ({
+  const handleVehicleFormChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    setVehicleForm((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     }));
   };
 
-  const handleSpecialRulesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleSpecialRulesChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
     // Split by commas, trim whitespace, and filter out empty strings
     const rulesArray = e.target.value
       .split(',')
-      .map(rule => rule.trim())
-      .filter(rule => rule.length > 0);
+      .map((rule) => rule.trim())
+      .filter((rule) => rule.length > 0);
 
-    setVehicleForm(prev => ({
+    setVehicleForm((prev) => ({
       ...prev,
-      special_rules: rulesArray.join(',')
+      special_rules: rulesArray.join(','),
     }));
   };
 
@@ -86,7 +102,9 @@ export default function AdminPage() {
 
   const fetchVehicleTypes = async () => {
     try {
-      const response = await fetch('/api/admin/vehicles?fetch_type=vehicle_types');
+      const response = await fetch(
+        '/api/admin/vehicles?fetch_type=vehicle_types'
+      );
       if (!response.ok) throw new Error('Failed to fetch vehicle types');
       const data = await response.json();
       setVehicleTypes(data);
@@ -105,7 +123,7 @@ export default function AdminPage() {
       console.error('Error fetching equipment:', error);
       toast({
         description: 'Failed to load equipment',
-        variant: "destructive"
+        variant: 'destructive',
       });
     }
   };
@@ -119,8 +137,11 @@ export default function AdminPage() {
       setGangTypes(gangData);
 
       // Then fetch vehicle details
-      const vehicleResponse = await fetch(`/api/admin/vehicles?vehicle_id=${vehicleId}`);
-      if (!vehicleResponse.ok) throw new Error('Failed to fetch vehicle details');
+      const vehicleResponse = await fetch(
+        `/api/admin/vehicles?vehicle_id=${vehicleId}`
+      );
+      if (!vehicleResponse.ok)
+        throw new Error('Failed to fetch vehicle details');
       const vehicleData = await vehicleResponse.json();
 
       if (!vehicleData) {
@@ -144,19 +165,20 @@ export default function AdminPage() {
         body_slots: vehicleData.body_slots?.toString() || '',
         drive_slots: vehicleData.drive_slots?.toString() || '',
         engine_slots: vehicleData.engine_slots?.toString() || '',
-        special_rules: Array.isArray(vehicleData.special_rules) 
-          ? vehicleData.special_rules.join(', ') 
+        special_rules: Array.isArray(vehicleData.special_rules)
+          ? vehicleData.special_rules.join(', ')
           : '',
         vehicle_type: vehicleData.vehicle_type || '',
-        gang_type_id: vehicleData.gang_type_id ? vehicleData.gang_type_id.toString() : "0"
+        gang_type_id: vehicleData.gang_type_id
+          ? vehicleData.gang_type_id.toString()
+          : '0',
       });
-
     } catch (error) {
       console.error('Error fetching vehicle details:', error);
       toast({
-        title: "Error",
-        description: "Failed to fetch vehicle details",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to fetch vehicle details',
+        variant: 'destructive',
       });
     }
   };
@@ -177,7 +199,7 @@ export default function AdminPage() {
       engine_slots: '',
       special_rules: '',
       vehicle_type: '',
-      gang_type_id: ''
+      gang_type_id: '',
     });
     setSelectedVehicle('');
     setEquipmentListSelections([]);
@@ -185,41 +207,41 @@ export default function AdminPage() {
 
   const adminSections = [
     {
-      title: "Add Fighter Type",
-      description: "Add a new fighter type",
+      title: 'Add Fighter Type',
+      description: 'Add a new fighter type',
       action: () => setIsModalOpen(true),
-      icon: Users
+      icon: Users,
     },
     {
-      title: "Edit Fighter Type",
-      description: "Modify existing fighter types",
+      title: 'Edit Fighter Type',
+      description: 'Modify existing fighter types',
       action: () => setShowEditFighterType(true),
-      icon: Edit
+      icon: Edit,
     },
     {
-      title: "Add Equipment",
-      description: "Add new equipment and weapons",
+      title: 'Add Equipment',
+      description: 'Add new equipment and weapons',
       action: () => setShowCreateEquipment(true),
-      icon: Sword
+      icon: Sword,
     },
     {
-      title: "Edit Equipment",
-      description: "Modify existing equipment",
+      title: 'Edit Equipment',
+      description: 'Modify existing equipment',
       action: () => setShowEditEquipment(true),
-      icon: Edit
+      icon: Edit,
     },
     {
-      title: "Add Vehicle Type",
-      description: "Add a new vehicle type",
+      title: 'Add Vehicle Type',
+      description: 'Add a new vehicle type',
       action: () => {
         setShowAddVehicle(true);
         fetchGangTypes();
       },
-      icon: Car
+      icon: Car,
     },
     {
-      title: "Edit Vehicle Type",
-      description: "Modify existing vehicle types",
+      title: 'Edit Vehicle Type',
+      description: 'Modify existing vehicle types',
       action: () => {
         setShowEditVehicle(true);
         fetchVehicleTypes();
@@ -227,20 +249,20 @@ export default function AdminPage() {
         // Only fetch equipment when editing vehicle types
         fetchEquipment();
       },
-      icon: Edit
+      icon: Edit,
     },
     {
-      title: "Add Skill",
-      description: "Add a new skill or skill set",
+      title: 'Add Skill',
+      description: 'Add a new skill or skill set',
       action: () => setShowCreateSkill(true),
-      icon: BookOpen
+      icon: BookOpen,
     },
     {
-      title: "Edit Skill",
-      description:"Edit a skill or skill set",
+      title: 'Edit Skill',
+      description: 'Edit a skill or skill set',
       action: () => setShowEditSkill(true),
-      icon: Edit
-    }
+      icon: Edit,
+    },
   ];
 
   return (
@@ -249,8 +271,10 @@ export default function AdminPage() {
         <main className="flex min-h-screen flex-col items-center">
           <div className="container mx-auto max-w-4xl w-full space-y-4">
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-              <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
-              
+              <h1 className="text-xl md:text-2xl font-bold mb-4">
+                Admin Dashboard
+              </h1>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {adminSections.map((section) => (
                   <button
@@ -358,7 +382,10 @@ export default function AdminPage() {
                         <option value="">Select a gang type</option>
                         <option value="0">Generic</option>
                         {gangTypes.map((gangType) => (
-                          <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                          <option
+                            key={gangType.gang_type_id}
+                            value={gangType.gang_type_id}
+                          >
                             {gangType.gang_type}
                           </option>
                         ))}
@@ -560,7 +587,10 @@ export default function AdminPage() {
                     },
                     body: JSON.stringify({
                       ...vehicleForm,
-                      gang_type_id: vehicleForm.gang_type_id === "0" ? null : parseInt(vehicleForm.gang_type_id),
+                      gang_type_id:
+                        vehicleForm.gang_type_id === '0'
+                          ? null
+                          : parseInt(vehicleForm.gang_type_id),
                       cost: parseInt(vehicleForm.cost),
                       movement: parseInt(vehicleForm.movement),
                       front: parseInt(vehicleForm.front),
@@ -572,8 +602,8 @@ export default function AdminPage() {
                       engine_slots: parseInt(vehicleForm.engine_slots),
                       special_rules: vehicleForm.special_rules
                         .split(',')
-                        .map(rule => rule.trim())
-                        .filter(rule => rule.length > 0),
+                        .map((rule) => rule.trim())
+                        .filter((rule) => rule.length > 0),
                     }),
                   });
 
@@ -582,8 +612,8 @@ export default function AdminPage() {
                   }
 
                   toast({
-                    title: "Success",
-                    description: "Vehicle type has been created successfully",
+                    title: 'Success',
+                    description: 'Vehicle type has been created successfully',
                   });
 
                   resetVehicleForm();
@@ -591,9 +621,9 @@ export default function AdminPage() {
                 } catch (error) {
                   console.error('Error submitting vehicle type:', error);
                   toast({
-                    title: "Error",
-                    description: "Failed to create vehicle type",
-                    variant: "destructive",
+                    title: 'Error',
+                    description: 'Failed to create vehicle type',
+                    variant: 'destructive',
                   });
                   return false; // Keep modal open
                 }
@@ -611,7 +641,8 @@ export default function AdminPage() {
                     {/* Vehicle Type Selection Dropdown */}
                     <div className="col-span-3">
                       <label className="block text-sm font-medium text-gray-700">
-                        Select Vehicle Type <span className="text-gray-700">*</span>
+                        Select Vehicle Type{' '}
+                        <span className="text-gray-700">*</span>
                       </label>
                       <select
                         value={selectedVehicle}
@@ -637,7 +668,8 @@ export default function AdminPage() {
                     {/* Add Vehicle Type Name Input */}
                     <div className="col-span-3">
                       <label className="block text-sm font-medium text-gray-700">
-                        Vehicle Type Name <span className="text-gray-700">*</span>
+                        Vehicle Type Name{' '}
+                        <span className="text-gray-700">*</span>
                       </label>
                       <input
                         type="text"
@@ -667,7 +699,10 @@ export default function AdminPage() {
                         <option value="">Select a gang type</option>
                         <option value="0">Generic</option>
                         {gangTypes.map((gangType) => (
-                          <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                          <option
+                            key={gangType.gang_type_id}
+                            value={gangType.gang_type_id}
+                          >
                             {gangType.gang_type}
                           </option>
                         ))}
@@ -861,18 +896,28 @@ export default function AdminPage() {
                         value=""
                         onChange={(e) => {
                           const value = e.target.value;
-                          if (value && !equipmentListSelections.includes(value)) {
-                            setEquipmentListSelections([...equipmentListSelections, value]);
+                          if (
+                            value &&
+                            !equipmentListSelections.includes(value)
+                          ) {
+                            setEquipmentListSelections([
+                              ...equipmentListSelections,
+                              value,
+                            ]);
                           }
-                          e.target.value = "";
+                          e.target.value = '';
                         }}
                         className="w-full p-2 border rounded-md"
                         disabled={!selectedVehicle}
                       >
                         <option value="">Available equipment</option>
                         {equipment
-                          .filter(item => !equipmentListSelections.includes(item.id))
-                          .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                          .filter(
+                            (item) => !equipmentListSelections.includes(item.id)
+                          )
+                          .sort((a, b) =>
+                            a.equipment_name.localeCompare(b.equipment_name)
+                          )
                           .map((item) => (
                             <option key={item.id} value={item.id}>
                               {item.equipment_name}
@@ -882,18 +927,24 @@ export default function AdminPage() {
 
                       <div className="mt-2 flex flex-wrap gap-2">
                         {equipmentListSelections.map((equipId) => {
-                          const item = equipment.find(e => e.id === equipId);
+                          const item = equipment.find((e) => e.id === equipId);
                           if (!item) return null;
-                          
+
                           return (
-                            <div 
+                            <div
                               key={item.id}
                               className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                             >
                               <span>{item.equipment_name}</span>
                               <button
                                 type="button"
-                                onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item.id))}
+                                onClick={() =>
+                                  setEquipmentListSelections(
+                                    equipmentListSelections.filter(
+                                      (id) => id !== item.id
+                                    )
+                                  )
+                                }
                                 className="hover:text-red-500 focus:outline-none"
                               >
                                 <X className="h-4 w-4" />
@@ -940,10 +991,10 @@ export default function AdminPage() {
                       ...vehicleForm,
                       special_rules: vehicleForm.special_rules
                         .split(',')
-                        .map(rule => rule.trim())
-                        .filter(rule => rule.length > 0),
+                        .map((rule) => rule.trim())
+                        .filter((rule) => rule.length > 0),
                       id: selectedVehicle,
-                      equipment_list: equipmentListSelections
+                      equipment_list: equipmentListSelections,
                     }),
                   });
 
@@ -952,8 +1003,8 @@ export default function AdminPage() {
                   }
 
                   toast({
-                    title: "Success",
-                    description: "Vehicle type has been updated successfully",
+                    title: 'Success',
+                    description: 'Vehicle type has been updated successfully',
                   });
 
                   resetVehicleForm();
@@ -961,9 +1012,9 @@ export default function AdminPage() {
                 } catch (error) {
                   console.error('Error updating vehicle type:', error);
                   toast({
-                    title: "Error",
-                    description: "Failed to update vehicle type",
-                    variant: "destructive",
+                    title: 'Error',
+                    description: 'Failed to update vehicle type',
+                    variant: 'destructive',
                   });
                   return false;
                 }
@@ -975,4 +1026,4 @@ export default function AdminPage() {
       </ToastProvider>
     </>
   );
-} 
+}

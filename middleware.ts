@@ -1,14 +1,12 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
-import { createClient } from "@/utils/supabase/server";
+import { type NextRequest, NextResponse } from 'next/server';
+import { updateSession } from '@/utils/supabase/middleware';
+import { createClient } from '@/utils/supabase/server';
 
 export async function middleware(request: NextRequest) {
-  console.log("Middleware called for path:", request.nextUrl.pathname);
+  console.log('Middleware called for path:', request.nextUrl.pathname);
 
   // List of paths that should skip session handling
-  const skipSessionPaths = [
-    '/reset-password/update'
-  ];
+  const skipSessionPaths = ['/reset-password/update'];
 
   // Only update session for non-skip paths
   const res = skipSessionPaths.includes(request.nextUrl.pathname)
@@ -17,22 +15,24 @@ export async function middleware(request: NextRequest) {
 
   // Check if the user is authenticated
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  console.log("User authenticated:", !!user);
+  console.log('User authenticated:', !!user);
 
   // List of paths that don't require authentication
   const publicPaths = [
-    '/sign-in', 
-    '/sign-up', 
-    '/auth/callback', 
+    '/sign-in',
+    '/sign-up',
+    '/auth/callback',
     '/reset-password',
-    '/reset-password/update'
+    '/reset-password/update',
   ];
 
   // Check for password reset flow
-  const isPasswordResetFlow = 
-    request.nextUrl.pathname.startsWith('/reset-password') || 
+  const isPasswordResetFlow =
+    request.nextUrl.pathname.startsWith('/reset-password') ||
     request.nextUrl.pathname.startsWith('/auth/callback');
 
   // Allow access to public paths and password reset flow
@@ -42,22 +42,24 @@ export async function middleware(request: NextRequest) {
 
   // Redirect to sign-in if user is not authenticated
   if (!user) {
-    console.log("Redirecting to sign-in page");
+    console.log('Redirecting to sign-in page');
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
     const response = NextResponse.redirect(redirectUrl);
-    
-    const redirectPath = request.nextUrl.pathname.startsWith('/images/') ? '/' : request.nextUrl.pathname;
-    response.cookies.set('redirectPath', redirectPath, { 
-      httpOnly: true, 
+
+    const redirectPath = request.nextUrl.pathname.startsWith('/images/')
+      ? '/'
+      : request.nextUrl.pathname;
+    response.cookies.set('redirectPath', redirectPath, {
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 5 // 5 minutes
+      maxAge: 60 * 5, // 5 minutes
     });
     return response;
   }
 
-  console.log("Continuing to requested page");
+  console.log('Continuing to requested page');
 
   // Inside the middleware function, after checking user authentication
   if (request.nextUrl.pathname.startsWith('/admin')) {
@@ -89,7 +91,7 @@ export const config = {
      * - static assets (fonts, documents, etc.)
      * - Next.js special files (robots, sitemap, manifest, etc.)
      * - development and health check endpoints
-     * 
+     *
      * This maximizes performance by only running middleware on actual page routes
      * that need authentication handling.
      */

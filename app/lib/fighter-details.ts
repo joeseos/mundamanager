@@ -143,10 +143,14 @@ export interface CompleteFighterData {
 }
 
 // Internal helper functions
-async function _getFighterBasic(fighterId: string, supabase: SupabaseClient): Promise<FighterBasic> {
+async function _getFighterBasic(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<FighterBasic> {
   const { data, error } = await supabase
     .from('fighters')
-    .select(`
+    .select(
+      `
       id,
       fighter_name,
       label,
@@ -179,26 +183,32 @@ async function _getFighterBasic(fighterId: string, supabase: SupabaseClient): Pr
       gang_id,
       fighter_type_id,
       fighter_sub_type_id
-    `)
+    `
+    )
     .eq('id', fighterId)
     .single();
 
   if (error) throw error;
-  
+
   return {
     ...data,
     total_xp: data.xp, // For now, total_xp equals current xp
   };
 }
 
-async function _getFighterType(fighterTypeId: string, supabase: SupabaseClient): Promise<FighterType> {
+async function _getFighterType(
+  fighterTypeId: string,
+  supabase: SupabaseClient
+): Promise<FighterType> {
   const { data, error } = await supabase
     .from('fighter_types')
-    .select(`
+    .select(
+      `
       id,
       fighter_type,
       alliance_crew_name
-    `)
+    `
+    )
     .eq('id', fighterTypeId)
     .single();
 
@@ -206,34 +216,44 @@ async function _getFighterType(fighterTypeId: string, supabase: SupabaseClient):
   return data;
 }
 
-async function _getFighterSubType(fighterSubTypeId: string, supabase: SupabaseClient): Promise<FighterSubType | null> {
+async function _getFighterSubType(
+  fighterSubTypeId: string,
+  supabase: SupabaseClient
+): Promise<FighterSubType | null> {
   if (!fighterSubTypeId) return null;
-  
+
   const { data, error } = await supabase
     .from('fighter_sub_types')
-    .select(`
+    .select(
+      `
       id,
       sub_type_name
-    `)
+    `
+    )
     .eq('id', fighterSubTypeId)
     .single();
 
   if (error) return null; // Sub-type is optional
   return {
     ...data,
-    fighter_sub_type: data.sub_type_name
+    fighter_sub_type: data.sub_type_name,
   };
 }
 
-async function _getGang(gangId: string, supabase: SupabaseClient): Promise<Gang> {
+async function _getGang(
+  gangId: string,
+  supabase: SupabaseClient
+): Promise<Gang> {
   const { data, error } = await supabase
     .from('gangs')
-    .select(`
+    .select(
+      `
       id,
       credits,
       gang_type_id,
       positioning
-    `)
+    `
+    )
     .eq('id', gangId)
     .single();
 
@@ -241,10 +261,14 @@ async function _getGang(gangId: string, supabase: SupabaseClient): Promise<Gang>
   return data;
 }
 
-async function _getFighterEquipment(fighterId: string, supabase: SupabaseClient): Promise<FighterEquipment[]> {
+async function _getFighterEquipment(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<FighterEquipment[]> {
   const { data, error } = await supabase
     .from('fighter_equipment')
-    .select(`
+    .select(
+      `
       id,
       equipment_id,
       custom_equipment_id,
@@ -259,28 +283,39 @@ async function _getFighterEquipment(fighterId: string, supabase: SupabaseClient)
         equipment_name,
         equipment_type
       )
-    `)
+    `
+    )
     .eq('fighter_id', fighterId)
     .is('vehicle_id', null);
 
   if (error) throw error;
 
-  return (data || []).map(item => ({
+  return (data || []).map((item) => ({
     fighter_equipment_id: item.id,
     equipment_id: item.equipment_id || undefined,
     custom_equipment_id: item.custom_equipment_id || undefined,
-    equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-    equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
+    equipment_name:
+      (item.equipment as any)?.equipment_name ||
+      (item.custom_equipment as any)?.equipment_name ||
+      'Unknown',
+    equipment_type:
+      (item.equipment as any)?.equipment_type ||
+      (item.custom_equipment as any)?.equipment_type ||
+      'unknown',
     purchase_cost: item.purchase_cost || 0,
     original_cost: item.original_cost,
     is_master_crafted: item.is_master_crafted || false,
   }));
 }
 
-async function _getFighterSkills(fighterId: string, supabase: SupabaseClient): Promise<Record<string, FighterSkill>> {
+async function _getFighterSkills(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<Record<string, FighterSkill>> {
   const { data, error } = await supabase
     .from('fighter_skills')
-    .select(`
+    .select(
+      `
       id,
       credits_increase,
       xp_cost,
@@ -290,13 +325,14 @@ async function _getFighterSkills(fighterId: string, supabase: SupabaseClient): P
       skill:skill_id (
         name
       )
-    `)
+    `
+    )
     .eq('fighter_id', fighterId);
 
   if (error) throw error;
 
   const skills: Record<string, FighterSkill> = {};
-  (data || []).forEach(skillData => {
+  (data || []).forEach((skillData) => {
     const skillName = (skillData.skill as any)?.name;
     if (skillName) {
       skills[skillName] = {
@@ -314,10 +350,14 @@ async function _getFighterSkills(fighterId: string, supabase: SupabaseClient): P
   return skills;
 }
 
-async function _getFighterEffects(fighterId: string, supabase: SupabaseClient): Promise<Record<string, FighterEffect[]>> {
+async function _getFighterEffects(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<Record<string, FighterEffect[]>> {
   const { data, error } = await supabase
     .from('fighter_effects')
-    .select(`
+    .select(
+      `
       id,
       effect_name,
       type_specific_data,
@@ -334,17 +374,20 @@ async function _getFighterEffects(fighterId: string, supabase: SupabaseClient): 
         stat_name,
         numeric_value
       )
-    `)
+    `
+    )
     .eq('fighter_id', fighterId)
     .is('vehicle_id', null);
 
   if (error) throw error;
 
   const effectsByCategory: Record<string, FighterEffect[]> = {};
-  
-  (data || []).forEach(effectData => {
-    const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-    
+
+  (data || []).forEach((effectData) => {
+    const categoryName =
+      (effectData.fighter_effect_type as any)?.fighter_effect_category
+        ?.category_name || 'uncategorized';
+
     if (!effectsByCategory[categoryName]) {
       effectsByCategory[categoryName] = [];
     }
@@ -362,10 +405,14 @@ async function _getFighterEffects(fighterId: string, supabase: SupabaseClient): 
   return effectsByCategory;
 }
 
-async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient): Promise<FighterVehicle[]> {
+async function _getFighterVehicles(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<FighterVehicle[]> {
   const { data, error } = await supabase
     .from('vehicles')
-    .select(`
+    .select(
+      `
       id,
       created_at,
       movement,
@@ -383,19 +430,21 @@ async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient):
       vehicle_type_id,
       vehicle_type,
       cost
-    `)
+    `
+    )
     .eq('fighter_id', fighterId);
 
   if (error) throw error;
 
   // For each vehicle, get equipment and effects
   const vehicles: FighterVehicle[] = [];
-  
+
   for (const vehicle of data || []) {
     // Get vehicle equipment
     const { data: equipmentData } = await supabase
       .from('fighter_equipment')
-      .select(`
+      .select(
+        `
         id,
         equipment_id,
         custom_equipment_id,
@@ -410,15 +459,22 @@ async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient):
           equipment_name,
           equipment_type
         )
-      `)
+      `
+      )
       .eq('vehicle_id', vehicle.id);
 
-    const equipment: FighterEquipment[] = (equipmentData || []).map(item => ({
+    const equipment: FighterEquipment[] = (equipmentData || []).map((item) => ({
       fighter_equipment_id: item.id,
       equipment_id: item.equipment_id || undefined,
       custom_equipment_id: item.custom_equipment_id || undefined,
-      equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-      equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
+      equipment_name:
+        (item.equipment as any)?.equipment_name ||
+        (item.custom_equipment as any)?.equipment_name ||
+        'Unknown',
+      equipment_type:
+        (item.equipment as any)?.equipment_type ||
+        (item.custom_equipment as any)?.equipment_type ||
+        'unknown',
       purchase_cost: item.purchase_cost || 0,
       original_cost: item.original_cost,
       is_master_crafted: item.is_master_crafted || false,
@@ -427,7 +483,8 @@ async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient):
     // Get vehicle effects
     const { data: effectsData } = await supabase
       .from('fighter_effects')
-      .select(`
+      .select(
+        `
         id,
         effect_name,
         type_specific_data,
@@ -444,13 +501,16 @@ async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient):
           stat_name,
           numeric_value
         )
-      `)
+      `
+      )
       .eq('vehicle_id', vehicle.id);
 
     const effectsByCategory: Record<string, FighterEffect[]> = {};
-    (effectsData || []).forEach(effectData => {
-      const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-      
+    (effectsData || []).forEach((effectData) => {
+      const categoryName =
+        (effectData.fighter_effect_type as any)?.fighter_effect_category
+          ?.category_name || 'uncategorized';
+
       if (!effectsByCategory[categoryName]) {
         effectsByCategory[categoryName] = [];
       }
@@ -475,10 +535,14 @@ async function _getFighterVehicles(fighterId: string, supabase: SupabaseClient):
   return vehicles;
 }
 
-async function _getFighterCampaigns(fighterId: string, supabase: SupabaseClient): Promise<Campaign[]> {
+async function _getFighterCampaigns(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<Campaign[]> {
   const { data, error } = await supabase
     .from('fighters')
-    .select(`
+    .select(
+      `
       gang:gang_id (
         campaign_gangs (
           role,
@@ -495,7 +559,8 @@ async function _getFighterCampaigns(fighterId: string, supabase: SupabaseClient)
           )
         )
       )
-    `)
+    `
+    )
     .eq('id', fighterId)
     .single();
 
@@ -503,7 +568,7 @@ async function _getFighterCampaigns(fighterId: string, supabase: SupabaseClient)
 
   const campaigns: Campaign[] = [];
   const campaignGangs = (data.gang as any)?.campaign_gangs || [];
-  
+
   campaignGangs.forEach((cg: any) => {
     if (cg.campaign) {
       campaigns.push({
@@ -525,10 +590,13 @@ async function _getFighterCampaigns(fighterId: string, supabase: SupabaseClient)
 }
 
 // Main orchestration function
-async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClient): Promise<CompleteFighterData> {
+async function _getCompleteFighterData(
+  fighterId: string,
+  supabase: SupabaseClient
+): Promise<CompleteFighterData> {
   // Fetch basic fighter data first
   const fighterBasic = await _getFighterBasic(fighterId, supabase);
-  
+
   // Fetch all related data in parallel
   const [
     fighterType,
@@ -538,7 +606,7 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
     skills,
     effects,
     vehicles,
-    campaigns
+    campaigns,
   ] = await Promise.all([
     _getFighterType(fighterBasic.fighter_type_id, supabase),
     _getFighterSubType(fighterBasic.fighter_sub_type_id || '', supabase),
@@ -547,23 +615,40 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
     _getFighterSkills(fighterId, supabase),
     _getFighterEffects(fighterId, supabase),
     _getFighterVehicles(fighterId, supabase),
-    _getFighterCampaigns(fighterId, supabase)
+    _getFighterCampaigns(fighterId, supabase),
   ]);
 
   // Calculate total credits (including equipment, skills, effects, vehicles)
-  const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
-  const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
-  const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
-    const creditsIncrease = effect.type_specific_data?.credits_increase || 0;
-    return sum + creditsIncrease;
-  }, 0);
+  const equipmentCost = equipment.reduce(
+    (sum, eq) => sum + eq.purchase_cost,
+    0
+  );
+  const skillsCost = Object.values(skills).reduce(
+    (sum, skill) => sum + skill.credits_increase,
+    0
+  );
+  const effectsCost = Object.values(effects)
+    .flat()
+    .reduce((sum, effect) => {
+      const creditsIncrease = effect.type_specific_data?.credits_increase || 0;
+      return sum + creditsIncrease;
+    }, 0);
   const vehiclesCost = vehicles.reduce((sum, vehicle) => {
     const vehicleCost = vehicle.cost;
-    const vehicleEquipmentCost = vehicle.equipment.reduce((eqSum, eq) => eqSum + eq.purchase_cost, 0);
+    const vehicleEquipmentCost = vehicle.equipment.reduce(
+      (eqSum, eq) => eqSum + eq.purchase_cost,
+      0
+    );
     return sum + vehicleCost + vehicleEquipmentCost;
   }, 0);
 
-  const totalCredits = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + (fighterBasic.cost_adjustment || 0) + vehiclesCost;
+  const totalCredits =
+    fighterBasic.credits +
+    equipmentCost +
+    skillsCost +
+    effectsCost +
+    (fighterBasic.cost_adjustment || 0) +
+    vehiclesCost;
 
   return {
     fighter: {
@@ -586,7 +671,9 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
  * Cache key: complete-fighter-data-{fighterId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCompleteFighterData = async (fighterId: string): Promise<CompleteFighterData> => {
+export const getCompleteFighterData = async (
+  fighterId: string
+): Promise<CompleteFighterData> => {
   const supabase = await createClient();
   return unstable_cache(
     async () => {
@@ -594,8 +681,12 @@ export const getCompleteFighterData = async (fighterId: string): Promise<Complet
     },
     [`complete-fighter-data-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'complete-fighter-data', `complete-fighter-data-${fighterId}`],
-      revalidate: false
+      tags: [
+        CACHE_TAGS.FIGHTER_PAGE(fighterId),
+        'complete-fighter-data',
+        `complete-fighter-data-${fighterId}`,
+      ],
+      revalidate: false,
     }
   )();
 };

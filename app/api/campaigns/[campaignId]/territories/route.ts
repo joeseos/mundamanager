@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 interface Territory {
   id: string;
@@ -16,14 +16,17 @@ interface CampaignTerritory {
   gang_name?: string;
 }
 
-export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ campaignId: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
     return NextResponse.json(
-      { error: "Campaign ID is required" },
+      { error: 'Campaign ID is required' },
       { status: 400 }
     );
   }
@@ -31,9 +34,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   try {
     const { data, error } = await supabase
       .from('campaign_territories')
-      .select(`
+      .select(
+        `
         territory_name
-      `)
+      `
+      )
       .eq('campaign_id', campaignId);
 
     if (error) throw error;
@@ -42,20 +47,23 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   } catch (error) {
     console.error('Error fetching territories:', error);
     return NextResponse.json(
-      { error: "Failed to fetch campaign territories" }, 
+      { error: 'Failed to fetch campaign territories' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ campaignId: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
     return NextResponse.json(
-      { error: "Campaign ID is required" },
+      { error: 'Campaign ID is required' },
       { status: 400 }
     );
   }
@@ -87,7 +95,7 @@ export async function POST(request: Request, props: { params: Promise<{ campaign
           territories?.map((territory) => ({
             campaign_id: campaignId,
             territory_id: territory.id,
-            territory_name: territory.territory_name
+            territory_name: territory.territory_name,
           }))
         );
 
@@ -98,8 +106,8 @@ export async function POST(request: Request, props: { params: Promise<{ campaign
   } catch (error) {
     console.error('Error saving territories:', error);
     return NextResponse.json(
-      { error: "Failed to save campaign territories" }, 
+      { error: 'Failed to save campaign territories' },
       { status: 500 }
     );
   }
-} 
+}

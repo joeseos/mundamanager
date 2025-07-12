@@ -1,8 +1,12 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
+import {
+  invalidateFighterData,
+  invalidateVehicleData,
+  invalidateGangFinancials,
+} from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -23,24 +27,29 @@ interface MoveToStashResult {
   error?: string;
 }
 
-export async function moveEquipmentToStash(params: MoveToStashParams): Promise<MoveToStashResult> {
+export async function moveEquipmentToStash(
+  params: MoveToStashParams
+): Promise<MoveToStashResult> {
   const supabase = await createClient();
-  
+
   try {
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase);
-    
+
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase
       .from('fighter_equipment')
-      .select(`
+      .select(
+        `
         id,
         fighter_id,
         vehicle_id,
@@ -49,19 +58,22 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         purchase_cost,
         original_cost,
         is_master_crafted
-      `)
+      `
+      )
       .eq('id', params.fighter_equipment_id)
       .single();
 
     if (equipmentError || !equipmentData) {
       console.error('Equipment lookup error:', equipmentError);
       console.error('Looking for equipment ID:', params.fighter_equipment_id);
-      throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found. Error: ${equipmentError?.message || 'No data returned'}`);
+      throw new Error(
+        `Fighter equipment with ID ${params.fighter_equipment_id} not found. Error: ${equipmentError?.message || 'No data returned'}`
+      );
     }
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
-    
+
     if (equipmentData.fighter_id) {
       // Get gang_id from fighter
       const { data: fighter, error: fighterError } = await supabase
@@ -69,7 +81,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         .select('gang_id')
         .eq('id', equipmentData.fighter_id)
         .single();
-        
+
       if (fighterError || !fighter) {
         throw new Error('Fighter not found for this equipment');
       }
@@ -81,7 +93,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         .select('gang_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
-        
+
       if (vehicleError || !vehicle) {
         throw new Error('Vehicle not found for this equipment');
       }
@@ -115,13 +127,15 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         equipment_id: equipmentData.equipment_id,
         custom_equipment_id: equipmentData.custom_equipment_id,
         cost: equipmentData.purchase_cost,
-        is_master_crafted: equipmentData.is_master_crafted || false
+        is_master_crafted: equipmentData.is_master_crafted || false,
       })
       .select('id')
       .single();
 
     if (stashInsertError || !stashData) {
-      throw new Error(`Failed to insert equipment into gang stash: ${stashInsertError?.message || 'No data returned'}`);
+      throw new Error(
+        `Failed to insert equipment into gang stash: ${stashInsertError?.message || 'No data returned'}`
+      );
     }
 
     // Delete from fighter_equipment (this completes the move operation)
@@ -133,12 +147,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     if (deleteError) {
       // If delete fails, we should try to rollback the stash insert
       // Note: Supabase doesn't support transactions in the JS client, so we manually clean up
-      await supabase
-        .from('gang_stash')
-        .delete()
-        .eq('id', stashData.id);
-        
-      throw new Error(`Failed to delete equipment from fighter: ${deleteError.message}`);
+      await supabase.from('gang_stash').delete().eq('id', stashData.id);
+
+      throw new Error(
+        `Failed to delete equipment from fighter: ${deleteError.message}`
+      );
     }
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview
@@ -151,15 +164,15 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         .select('fighter_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
-      
+
       if (!vehicleError && vehicleData?.fighter_id) {
         invalidateFighterData(vehicleData.fighter_id, gangId);
       }
-      
+
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     }
-    
+
     // Always invalidate gang overview to refresh stash display
     invalidateGangFinancials(gangId);
 
@@ -173,15 +186,15 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           vehicle_id: equipmentData.vehicle_id || undefined,
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
-        }
-      }
+        },
+      },
     };
-
   } catch (error) {
     console.error('Error in moveEquipmentToStash server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }

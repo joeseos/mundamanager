@@ -17,30 +17,30 @@ interface ModalProps {
   width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export default function Modal({ 
+export default function Modal({
   title,
   helper,
   content,
   children,
-  onClose, 
+  onClose,
   onConfirm,
   confirmText = 'Confirm',
   confirmDisabled = false,
   headerContent,
   hideCancel,
-  width = 'md'
+  width = 'md',
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirm = async (e?: React.MouseEvent) => {
     if (!onConfirm) return;
-    
+
     // Prevent any form submission
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     setIsSubmitting(true);
     try {
       const result = await onConfirm();
@@ -56,29 +56,37 @@ export default function Modal({
 
   const getMaxWidth = () => {
     switch (width) {
-      case 'sm': return 'max-w-sm';
-      case 'md': return 'max-w-md';
-      case 'lg': return 'max-w-lg';
-      case 'xl': return 'max-w-xl';
-      case '2xl': return 'max-w-2xl';
-      default: return 'max-w-md';
+      case 'sm':
+        return 'max-w-sm';
+      case 'md':
+        return 'max-w-md';
+      case 'lg':
+        return 'max-w-lg';
+      case 'xl':
+        return 'max-w-xl';
+      case '2xl':
+        return 'max-w-2xl';
+      default:
+        return 'max-w-md';
     }
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={`bg-white rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}>
+      <div
+        className={`bg-white rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}
+      >
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h3>
-            {helper && (
-              <p className="text-sm text-gray-500">{helper}</p>
-            )}
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+              {title}
+            </h3>
+            {helper && <p className="text-sm text-gray-500">{helper}</p>}
           </div>
           <div className="flex items-center gap-3">
             {headerContent}
@@ -91,10 +99,8 @@ export default function Modal({
             </button>
           </div>
         </div>
-        
-        <div className="px-[10px] py-4">
-          {content || children}
-        </div>
+
+        <div className="px-[10px] py-4">{content || children}</div>
 
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2">
@@ -109,12 +115,14 @@ export default function Modal({
               >
                 Cancel
               </Button>
-              )}
+            )}
             <Button
               onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}
               className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
-                (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+                confirmDisabled || isSubmitting
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
               }`}
             >
               {isSubmitting ? 'Confirming...' : confirmText}

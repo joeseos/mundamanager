@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 import React from 'react';
 
@@ -29,8 +29,12 @@ export default function CampaignTriumphs({ triumphs }: CampaignTriumphsProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b">
-            <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Triumph</th>
-            <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Criteria</th>
+            <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">
+              Triumph
+            </th>
+            <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">
+              Criteria
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -39,13 +43,11 @@ export default function CampaignTriumphs({ triumphs }: CampaignTriumphsProps) {
               <td className="w-2/5 px-4 py-2">
                 <span className="font-medium">{triumph.triumph}</span>
               </td>
-              <td className="w-3/5 px-4 py-2">
-                {triumph.criteria}
-              </td>
+              <td className="w-3/5 px-4 py-2">{triumph.criteria}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
-} 
+}

@@ -32,4 +32,4 @@ export interface CampaignMember {
   user_id: string;
   role: CampaignRole;
   status: string | null;
-} 
+}

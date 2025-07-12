@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -6,13 +6,15 @@ export async function GET(request: Request) {
   try {
     const { data: effects, error: effectsError } = await supabase
       .from('fighter_effect_types')
-      .select(`
+      .select(
+        `
         *,
         fighter_effect_categories!inner(*),
         fighter_effect_type_modifiers (
           *
         )
-      `)
+      `
+      )
       .eq('fighter_effect_categories.category_name', 'injuries');
 
     if (effectsError) throw effectsError;

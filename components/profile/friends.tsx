@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Input } from "@/components/ui/input"
-import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
-import Modal from '@/components/modal'
-import { deleteFriend } from '@/app/actions/friends'
-import { X } from 'lucide-react'
-import { useTransition, useOptimistic } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { createClient } from '@/utils/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import Modal from '@/components/modal';
+import { deleteFriend } from '@/app/actions/friends';
+import { X } from 'lucide-react';
+import { useTransition, useOptimistic } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Friend {
   id: string;
@@ -34,26 +34,26 @@ export default function FriendsSearchBar({
   userId,
   initialFriends,
   onFriendAdd,
-  disabled = false
+  disabled = false,
 }: FriendsSearchBarProps) {
-  const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Friend[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isAdding, setIsAdding] = useState(false)
-  const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null)
-  const supabase = createClient()
-  const { toast } = useToast()
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Friend[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null);
+  const supabase = createClient();
+  const { toast } = useToast();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   // Optimistic state for accepted friends
   const [optimisticFriends, updateOptimisticFriends] = useOptimistic(
     initialFriends,
-    (state: Friend[], action: { type: 'delete' | 'add', friend: Friend }) => {
+    (state: Friend[], action: { type: 'delete' | 'add'; friend: Friend }) => {
       if (action.type === 'delete') {
-        return state.filter(f => f.id !== action.friend.id)
+        return state.filter((f) => f.id !== action.friend.id);
       } else if (action.type === 'add') {
-        if (state.some(f => f.id === action.friend.id)) return state;
-        return [...state, action.friend]
+        if (state.some((f) => f.id === action.friend.id)) return state;
+        return [...state, action.friend];
       }
       return state;
     }
@@ -63,31 +63,35 @@ export default function FriendsSearchBar({
   useEffect(() => {
     const searchUsers = async () => {
       if (query.trim() === '') {
-        setSearchResults([])
-        return
+        setSearchResults([]);
+        return;
       }
 
-      setIsLoading(true)
+      setIsLoading(true);
       try {
         // Use the improved search API that prioritizes exact matches
-        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
-        
+        const response = await fetch(
+          `/api/search-users?query=${encodeURIComponent(query)}`
+        );
+
         if (!response.ok) {
-          throw new Error('Failed to search users')
+          throw new Error('Failed to search users');
         }
 
-        const profilesData = await response.json()
+        const profilesData = await response.json();
 
         // Filter out current user and transform to Friend type
         const transformedResults: Friend[] = (profilesData || [])
-          .filter((profile: { id: string; username: string }) => profile.id !== userId)
+          .filter(
+            (profile: { id: string; username: string }) => profile.id !== userId
+          )
           .map((profile: { id: string; username: string }) => ({
             id: profile.id,
             username: profile.username,
             profile: {
               id: profile.id,
               username: profile.username,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             },
             status: 'none', // default for search results
             direction: 'none',
@@ -107,35 +111,35 @@ export default function FriendsSearchBar({
   }, [query, userId]);
 
   const handleAddFriend = async (friend: Friend) => {
-    setIsAdding(true)
+    setIsAdding(true);
     try {
       // Prevent duplicate friend requests
       const { data: existing, error: checkError } = await supabase
         .from('friends')
         .select('id, status')
-        .or(`and(requester_id.eq.${userId},addressee_id.eq.${friend.id}),and(requester_id.eq.${friend.id},addressee_id.eq.${userId})`)
+        .or(
+          `and(requester_id.eq.${userId},addressee_id.eq.${friend.id}),and(requester_id.eq.${friend.id},addressee_id.eq.${userId})`
+        )
         .limit(1);
 
       if (checkError) throw checkError;
       if (existing && existing.length > 0) {
         toast({
-          variant: "destructive",
-          description: `A friend request already exists or you are already friends with ${friend.username}`
+          variant: 'destructive',
+          description: `A friend request already exists or you are already friends with ${friend.username}`,
         });
         setIsAdding(false);
         return;
       }
 
       // Add friend relationship to the database using correct columns
-      const { error } = await supabase
-        .from('friends')
-        .insert({
-          requester_id: userId,
-          addressee_id: friend.id,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+      const { error } = await supabase.from('friends').insert({
+        requester_id: userId,
+        addressee_id: friend.id,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
@@ -143,11 +147,7 @@ export default function FriendsSearchBar({
       startTransition(() => {
         updateOptimisticFriends({
           type: 'add',
-          friend: {
-            ...friend,
-            status: 'pending',
-            direction: 'outgoing',
-          }
+          friend: { ...friend, status: 'pending', direction: 'outgoing' },
         });
       });
 
@@ -155,9 +155,7 @@ export default function FriendsSearchBar({
         onFriendAdd(friend);
       }
 
-      toast({
-        description: `Friend request sent to ${friend.username}`
-      });
+      toast({ description: `Friend request sent to ${friend.username}` });
       setQuery('');
       setSearchResults([]);
       // Optionally refetch friends
@@ -166,11 +164,11 @@ export default function FriendsSearchBar({
     } catch (error) {
       console.error('Error adding friend:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to send friend request"
+        variant: 'destructive',
+        description: 'Failed to send friend request',
       });
     } finally {
-      setIsAdding(false)
+      setIsAdding(false);
     }
   };
 
@@ -182,12 +180,17 @@ export default function FriendsSearchBar({
     });
     try {
       await deleteFriend(userId, friendToDelete.id);
-      toast({ description: `Removed ${friendToDelete.username} from your friends.` });
+      toast({
+        description: `Removed ${friendToDelete.username} from your friends.`,
+      });
       setFriendToDelete(null);
       startTransition(() => router.refresh());
       return true;
     } catch (error) {
-      toast({ variant: 'destructive', description: 'Failed to remove friend.' });
+      toast({
+        variant: 'destructive',
+        description: 'Failed to remove friend.',
+      });
       setFriendToDelete(null);
       startTransition(() => router.refresh()); // Revert optimistic update
       return false;
@@ -195,9 +198,15 @@ export default function FriendsSearchBar({
   };
 
   // Split friends into accepted and pending (incoming/outgoing)
-  const acceptedFriends = optimisticFriends.filter(f => f.status === 'accepted');
-  const pendingIncoming = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'incoming');
-  const pendingOutgoing = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'outgoing');
+  const acceptedFriends = optimisticFriends.filter(
+    (f) => f.status === 'accepted'
+  );
+  const pendingIncoming = optimisticFriends.filter(
+    (f) => f.status === 'pending' && f.direction === 'incoming'
+  );
+  const pendingOutgoing = optimisticFriends.filter(
+    (f) => f.status === 'pending' && f.direction === 'outgoing'
+  );
 
   return (
     <div className="relative mb-4">
@@ -205,8 +214,11 @@ export default function FriendsSearchBar({
       {acceptedFriends.length > 0 && (
         <div className="mb-4">
           <ul className="flex flex-wrap gap-2">
-            {acceptedFriends.map(friend => (
-              <li key={friend.id} className="bg-gray-100 rounded px-3 py-1 text-sm flex items-center gap-1">
+            {acceptedFriends.map((friend) => (
+              <li
+                key={friend.id}
+                className="bg-gray-100 rounded px-3 py-1 text-sm flex items-center gap-1"
+              >
                 {friend.username}
                 <button
                   className="ml-1 text-gray-400 hover:text-red-500"
@@ -224,9 +236,13 @@ export default function FriendsSearchBar({
       {pendingIncoming.length > 0 && (
         <div className="mb-2">
           <ul className="flex flex-wrap gap-2">
-            {pendingIncoming.map(friend => (
-              <li key={friend.id} className="bg-yellow-50 border border-yellow-200 rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username} <span className="text-xs text-yellow-600">(pending)</span>
+            {pendingIncoming.map((friend) => (
+              <li
+                key={friend.id}
+                className="bg-yellow-50 border border-yellow-200 rounded px-3 py-1 text-sm flex items-center gap-1"
+              >
+                {friend.username}{' '}
+                <span className="text-xs text-yellow-600">(pending)</span>
               </li>
             ))}
           </ul>
@@ -236,9 +252,13 @@ export default function FriendsSearchBar({
       {pendingOutgoing.length > 0 && (
         <div className="mb-2">
           <ul className="flex flex-wrap gap-2">
-            {pendingOutgoing.map(friend => (
-              <li key={friend.id} className="bg-gray-50 border border-gray-200 rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username} <span className="text-xs text-gray-500">(pending)</span>
+            {pendingOutgoing.map((friend) => (
+              <li
+                key={friend.id}
+                className="bg-gray-50 border border-gray-200 rounded px-3 py-1 text-sm flex items-center gap-1"
+              >
+                {friend.username}{' '}
+                <span className="text-xs text-gray-500">(pending)</span>
                 <button
                   className="ml-1 text-gray-400 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
@@ -267,7 +287,7 @@ export default function FriendsSearchBar({
       {searchResults.length > 0 && query && (
         <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
           <ul className="py-2">
-            {searchResults.map(friend => (
+            {searchResults.map((friend) => (
               <li key={friend.id}>
                 <button
                   onClick={() => handleAddFriend(friend)}
@@ -285,12 +305,17 @@ export default function FriendsSearchBar({
       {friendToDelete && (
         <Modal
           title="Remove Friend"
-          content={<p>Are you sure you want to remove {friendToDelete.username} from your friends?</p>}
+          content={
+            <p>
+              Are you sure you want to remove {friendToDelete.username} from
+              your friends?
+            </p>
+          }
           onClose={() => setFriendToDelete(null)}
           onConfirm={handleDeleteFriend}
           confirmText="Remove"
         />
       )}
     </div>
-  )
-} 
+  );
+}

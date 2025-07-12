@@ -1,19 +1,22 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
-import { 
-  getCampaignBasic, 
-  getCampaignMembers, 
-  getCampaignTerritories, 
-  getCampaignBattles 
-} from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
+import {
+  getCampaignBasic,
+  getCampaignMembers,
+  getCampaignTerritories,
+  getCampaignBattles,
+} from '@/app/lib/campaigns/[id]/get-campaign-data';
 
-export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ campaignId: string }> }
+) {
   const params = await props.params;
   const { campaignId } = params;
 
   if (!campaignId) {
     return NextResponse.json(
-      { error: "Campaign ID is required" },
+      { error: 'Campaign ID is required' },
       { status: 400 }
     );
   }
@@ -24,12 +27,12 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaignBasic,
       campaignMembers,
       campaignTerritories,
-      campaignBattles
+      campaignBattles,
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
-      getCampaignBattles(campaignId)
+      getCampaignBattles(campaignId),
     ]);
 
     // Combine the data in the same format as the page
@@ -37,7 +40,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       id: campaignBasic.id,
       campaign_name: campaignBasic.campaign_name,
       campaign_type_id: campaignBasic.campaign_type_id,
-      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
+      campaign_type_name:
+        (campaignBasic.campaign_types as any)?.campaign_type_name || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
       created_at: campaignBasic.created_at,
@@ -48,34 +52,37 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
       members: campaignMembers,
       territories: campaignTerritories,
-      battles: campaignBattles
+      battles: campaignBattles,
     };
 
     return NextResponse.json(campaignData);
   } catch (error) {
     console.error('Error fetching campaign:', error);
     return NextResponse.json(
-      { error: "Failed to fetch campaign" },
+      { error: 'Failed to fetch campaign' },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(request: Request, props: { params: Promise<{ campaignId: string }> }) {
+export async function PATCH(
+  request: Request,
+  props: { params: Promise<{ campaignId: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
   const { campaignId } = params;
 
   if (!campaignId) {
     return NextResponse.json(
-      { error: "Campaign ID is required" },
+      { error: 'Campaign ID is required' },
       { status: 400 }
     );
   }
 
   try {
     const updates = await request.json();
-    
+
     // Add the updated_at timestamp
     updates.updated_at = new Date().toISOString();
 
@@ -92,8 +99,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ campaig
   } catch (error) {
     console.error('Error updating campaign:', error);
     return NextResponse.json(
-      { error: "Failed to update campaign" },
+      { error: 'Failed to update campaign' },
       { status: 500 }
     );
   }
-} 
+}

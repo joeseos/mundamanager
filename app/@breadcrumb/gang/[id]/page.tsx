@@ -1,5 +1,5 @@
-import { Home } from 'lucide-react'
-import { createClient } from "@/utils/supabase/server"
+import { Home } from 'lucide-react';
+import { createClient } from '@/utils/supabase/server';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,25 +7,25 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import Link from 'next/link'
+} from '@/components/ui/breadcrumb';
+import Link from 'next/link';
 
 export default async function GangBreadcrumb({
-  params
+  params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = await params
-  const supabase = await createClient()
-  
+  const { id } = await params;
+  const supabase = await createClient();
+
   const { data: gangData } = await supabase
     .from('gangs')
     .select('name')
     .eq('id', id)
-    .single()
+    .single();
 
   return (
-    <div 
+    <div
       className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
@@ -36,8 +36,8 @@ export default async function GangBreadcrumb({
           <BreadcrumbList aria-label="Breadcrumb navigation">
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link 
-                  href="/" 
+                <Link
+                  href="/"
                   className="text-gray-600 hover:text-primary flex items-center"
                   aria-label="Home"
                 >
@@ -47,12 +47,11 @@ export default async function GangBreadcrumb({
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator 
-              className="text-gray-400"
-              aria-hidden="true"
-            >/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
+              /
+            </BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage 
+              <BreadcrumbPage
                 className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
@@ -63,5 +62,5 @@ export default async function GangBreadcrumb({
         </Breadcrumb>
       </div>
     </div>
-  )
-} 
+  );
+}

@@ -1,14 +1,14 @@
-import { Home } from 'lucide-react'
+import { Home } from 'lucide-react';
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-} from "@/components/ui/breadcrumb"
+} from '@/components/ui/breadcrumb';
 
 export default function DefaultBreadcrumb() {
   return (
-    <div 
+    <div
       className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
@@ -18,7 +18,7 @@ export default function DefaultBreadcrumb() {
         <Breadcrumb className="h-10 flex items-center px-4 leading-[0.5rem]">
           <BreadcrumbList aria-label="Breadcrumb navigation">
             <BreadcrumbItem>
-              <BreadcrumbPage 
+              <BreadcrumbPage
                 className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
@@ -31,5 +31,5 @@ export default function DefaultBreadcrumb() {
         </Breadcrumb>
       </div>
     </div>
-  )
-} 
+  );
+}

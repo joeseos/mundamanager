@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { X } from 'lucide-react';
 
 interface AdminCreateEquipmentModalProps {
   onClose: () => void;
@@ -12,7 +12,7 @@ interface AdminCreateEquipmentModalProps {
 }
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
-type EquipmentType = typeof EQUIPMENT_TYPES[number];
+type EquipmentType = (typeof EQUIPMENT_TYPES)[number];
 
 interface WeaponProfile {
   profile_name: string;
@@ -41,7 +41,10 @@ interface EquipmentAvailability {
   availability: string;
 }
 
-export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
+export function AdminCreateEquipmentModal({
+  onClose,
+  onSubmit,
+}: AdminCreateEquipmentModalProps) {
   const [equipmentName, setEquipmentName] = useState('');
   const [tradingPostCategory, setTradingPostCategory] = useState('');
   const [availability, setAvailability] = useState('');
@@ -52,33 +55,46 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
-    profile_name: '',
-    range_short: '',
-    range_long: '',
-    acc_short: '',
-    acc_long: '',
-    strength: '',
-    ap: '',
-    damage: '',
-    ammo: '',
-    traits: '',
-    weapon_group_id: null,
-    sort_order: 1
-  }]);
-  const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
-  const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([
+    {
+      profile_name: '',
+      range_short: '',
+      range_long: '',
+      acc_short: '',
+      acc_long: '',
+      strength: '',
+      ap: '',
+      damage: '',
+      ammo: '',
+      traits: '',
+      weapon_group_id: null,
+      sort_order: 1,
+    },
+  ]);
+  const [categories, setCategories] = useState<
+    Array<{ id: string; category_name: string }>
+  >([]);
+  const [weapons, setWeapons] = useState<
+    Array<{ id: string; equipment_name: string }>
+  >([]);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [selectedGangType, setSelectedGangType] = useState("");
-  const [adjustedCostValue, setAdjustedCostValue] = useState("");
-  const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
+  const [selectedGangType, setSelectedGangType] = useState('');
+  const [adjustedCostValue, setAdjustedCostValue] = useState('');
+  const [gangAdjustedCosts, setGangAdjustedCosts] = useState<
+    GangAdjustedCost[]
+  >([]);
 
-  const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
+  const [gangTypeOptions, setGangTypeOptions] = useState<
+    Array<{ gang_type_id: string; gang_type: string }>
+  >([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
-  const [availabilityValue, setAvailabilityValue] = useState("");
-  const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
-  
+  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] =
+    useState('');
+  const [availabilityValue, setAvailabilityValue] = useState('');
+  const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<
+    EquipmentAvailability[]
+  >([]);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -93,7 +109,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         console.error('Error fetching categories:', error);
         toast({
           description: 'Failed to load categories',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -110,7 +126,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       }
 
       try {
-        const response = await fetch('/api/admin/equipment?equipment_type=weapon');
+        const response = await fetch(
+          '/api/admin/equipment?equipment_type=weapon'
+        );
         if (!response.ok) throw new Error('Failed to fetch weapons');
         const data = await response.json();
         setWeapons(data);
@@ -118,7 +136,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         console.error('Error fetching weapons:', error);
         toast({
           description: 'Failed to load weapons',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -139,7 +157,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           console.error('Error fetching gang types:', error);
           toast({
             description: 'Failed to load gang types',
-            variant: "destructive"
+            variant: 'destructive',
           });
         }
       }
@@ -148,12 +166,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     fetchGangTypes();
   }, [showAdjustedCostDialog, showAvailabilityDialog, toast]);
 
-  const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
+  const handleProfileChange = (
+    index: number,
+    field: keyof WeaponProfile,
+    value: string | number | boolean
+  ) => {
     const newProfiles = [...weaponProfiles];
-    newProfiles[index] = {
-      ...newProfiles[index],
-      [field]: value
-    };
+    newProfiles[index] = { ...newProfiles[index], [field]: value };
     setWeaponProfiles(newProfiles);
   };
 
@@ -172,8 +191,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         ammo: '',
         traits: '',
         weapon_group_id: null,
-        sort_order: weaponProfiles.length + 1
-      }
+        sort_order: weaponProfiles.length + 1,
+      },
     ]);
   };
 
@@ -181,40 +200,37 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
-
-
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
       toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
       });
       return;
     }
 
     setIsLoading(true);
     try {
-      const cleanedWeaponProfiles = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
-        ...profile,
-        weapon_group_id: profile.weapon_group_id || null,
-        range_short: profile.range_short || null,
-        range_long: profile.range_long || null,
-        acc_short: profile.acc_short || null,
-        acc_long: profile.acc_long || null,
-        strength: profile.strength || null,
-        ap: profile.ap || null,
-        damage: profile.damage || null,
-        ammo: profile.ammo || null,
-        traits: profile.traits || null
-      })) : undefined;
-
-
+      const cleanedWeaponProfiles =
+        equipmentType === 'weapon'
+          ? weaponProfiles.map((profile) => ({
+              ...profile,
+              weapon_group_id: profile.weapon_group_id || null,
+              range_short: profile.range_short || null,
+              range_long: profile.range_long || null,
+              acc_short: profile.acc_short || null,
+              acc_long: profile.acc_long || null,
+              strength: profile.strength || null,
+              ap: profile.ap || null,
+              damage: profile.damage || null,
+              ammo: profile.ammo || null,
+              traits: profile.traits || null,
+            }))
+          : undefined;
 
       const response = await fetch('/api/admin/equipment', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           equipment_name: equipmentName,
           trading_post_category: tradingPostCategory || null,
@@ -226,14 +242,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
           weapon_profiles: cleanedWeaponProfiles,
-          gang_adjusted_costs: gangAdjustedCosts.map(d => ({
+          gang_adjusted_costs: gangAdjustedCosts.map((d) => ({
             gang_type_id: d.gang_type_id,
-            adjusted_cost: d.adjusted_cost
+            adjusted_cost: d.adjusted_cost,
           })),
-          equipment_availabilities: equipmentAvailabilities.map(a => ({
+          equipment_availabilities: equipmentAvailabilities.map((a) => ({
             gang_type_id: a.gang_type_id,
-            availability: a.availability
-          }))
+            availability: a.availability,
+          })),
         }),
       });
 
@@ -242,10 +258,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       }
 
       toast({
-        description: "Equipment created successfully",
-        variant: "default"
+        description: 'Equipment created successfully',
+        variant: 'default',
       });
-      
+
       if (onSubmit) {
         onSubmit();
       }
@@ -254,7 +270,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       console.error('Error creating equipment:', error);
       toast({
         description: 'Failed to create equipment',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -262,15 +278,19 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Add Equipment</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+              Add Equipment
+            </h3>
+            <p className="text-sm text-gray-500">
+              Fields marked with * are required.
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -333,8 +353,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                   <option key={type} value={type}>
                     {type === 'vehicle_upgrade'
                       ? 'Vehicle Upgrade'
-                      : type.charAt(0).toUpperCase() + type.slice(1)
-                    }
+                      : type.charAt(0).toUpperCase() + type.slice(1)}
                   </option>
                 ))}
               </select>
@@ -381,7 +400,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       Exclusive to a single Fighter
                     </span>
                     <p className="text-sm text-gray-500 mt-1">
-                      I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                      I.e. the &apos;Canine jaws&apos; of the Hacked
+                      Cyber-mastiff (Exotic Beast).
                     </p>
                   </div>
                 </label>
@@ -411,11 +431,16 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         key={index}
                         className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                       >
-                        <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
+                        <span>
+                          {adjusted_cost.gang_type} (
+                          {adjusted_cost.adjusted_cost} credits)
+                        </span>
                         <button
-                          onClick={() => setGangAdjustedCosts(prev =>
-                            prev.filter((_, i) => i !== index)
-                          )}
+                          onClick={() =>
+                            setGangAdjustedCosts((prev) =>
+                              prev.filter((_, i) => i !== index)
+                            )
+                          }
                           className="hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />
@@ -432,31 +457,42 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       // Only close if clicking the backdrop (not the dialog itself)
                       if (e.target === e.currentTarget) {
                         setShowAdjustedCostDialog(false);
-                        setSelectedGangType("");
-                        setAdjustedCostValue("");
+                        setSelectedGangType('');
+                        setAdjustedCostValue('');
                       }
                     }}
                   >
                     <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
                       <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter the adjusted cost</p>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Select a gang and enter the adjusted cost
+                      </p>
 
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <label className="block text-sm font-medium mb-1">
+                            Gang Type
+                          </label>
                           <select
                             value={selectedGangType}
                             onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              const selected = gangTypeOptions.find(
+                                (g) => g.gang_type_id === e.target.value
+                              );
                               if (selected) {
                                 setSelectedGangType(e.target.value);
                               }
                             }}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Select a Gang Type</option>
+                            <option key="default" value="">
+                              Select a Gang Type
+                            </option>
                             {gangTypeOptions.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                              <option
+                                key={gang.gang_type_id}
+                                value={gang.gang_type_id}
+                              >
                                 {gang.gang_type}
                               </option>
                             ))}
@@ -464,11 +500,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
+                          <label className="block text-sm font-medium mb-1">
+                            Adjusted Cost
+                          </label>
                           <Input
                             type="number"
                             value={adjustedCostValue}
-                            onChange={(e) => setAdjustedCostValue(e.target.value)}
+                            onChange={(e) =>
+                              setAdjustedCostValue(e.target.value)
+                            }
                             placeholder="E.g. 120"
                             min="0"
                             onKeyDown={(e) => {
@@ -484,8 +524,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             variant="outline"
                             onClick={() => {
                               setShowAdjustedCostDialog(false);
-                              setSelectedGangType("");
-                              setAdjustedCostValue("");
+                              setSelectedGangType('');
+                              setAdjustedCostValue('');
                             }}
                           >
                             Cancel
@@ -493,26 +533,33 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <Button
                             onClick={() => {
                               if (selectedGangType && adjustedCostValue) {
-                                const adjusted_cost = parseInt(adjustedCostValue);
+                                const adjusted_cost =
+                                  parseInt(adjustedCostValue);
                                 if (adjusted_cost >= 0) {
-                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                  const selectedGang = gangTypeOptions.find(
+                                    (g) => g.gang_type_id === selectedGangType
+                                  );
                                   if (selectedGang) {
-                                    setGangAdjustedCosts(prev => [
+                                    setGangAdjustedCosts((prev) => [
                                       ...prev,
                                       {
                                         gang_type: selectedGang.gang_type,
                                         gang_type_id: selectedGang.gang_type_id,
-                                        adjusted_cost
-                                      }
+                                        adjusted_cost,
+                                      },
                                     ]);
                                     setShowAdjustedCostDialog(false);
-                                    setSelectedGangType("");
-                                    setAdjustedCostValue("");
+                                    setSelectedGangType('');
+                                    setAdjustedCostValue('');
                                   }
                                 }
                               }
                             }}
-                            disabled={!selectedGangType || !adjustedCostValue || parseInt(adjustedCostValue) < 0}
+                            disabled={
+                              !selectedGangType ||
+                              !adjustedCostValue ||
+                              parseInt(adjustedCostValue) < 0
+                            }
                           >
                             Save Adjusted Cost
                           </Button>
@@ -541,15 +588,19 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 {equipmentAvailabilities.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {equipmentAvailabilities.map((avail, index) => (
-                      <div 
+                      <div
                         key={index}
                         className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                       >
-                        <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                        <span>
+                          {avail.gang_type} (Availability: {avail.availability})
+                        </span>
                         <button
-                          onClick={() => setEquipmentAvailabilities(prev => 
-                            prev.filter((_, i) => i !== index)
-                          )}
+                          onClick={() =>
+                            setEquipmentAvailabilities((prev) =>
+                              prev.filter((_, i) => i !== index)
+                            )
+                          }
                           className="hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />
@@ -560,37 +611,50 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 )}
 
                 {showAvailabilityDialog && (
-                  <div 
+                  <div
                     className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
                     onClick={(e) => {
                       // Only close if clicking the backdrop (not the dialog itself)
                       if (e.target === e.currentTarget) {
                         setShowAvailabilityDialog(false);
-                        setSelectedAvailabilityGangType("");
-                        setAvailabilityValue("");
+                        setSelectedAvailabilityGangType('');
+                        setAvailabilityValue('');
                       }
                     }}
                   >
                     <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
-                      
+                      <h3 className="text-xl font-bold mb-4">
+                        Availability per Gang
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Select a gang and enter an availability value
+                      </p>
+
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
+                          <label className="block text-sm font-medium mb-1">
+                            Gang Type
+                          </label>
                           <select
                             value={selectedAvailabilityGangType}
                             onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              const selected = gangTypeOptions.find(
+                                (g) => g.gang_type_id === e.target.value
+                              );
                               if (selected) {
                                 setSelectedAvailabilityGangType(e.target.value);
                               }
                             }}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Select a Gang Type</option>
+                            <option key="default" value="">
+                              Select a Gang Type
+                            </option>
                             {gangTypeOptions.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                              <option
+                                key={gang.gang_type_id}
+                                value={gang.gang_type_id}
+                              >
                                 {gang.gang_type}
                               </option>
                             ))}
@@ -598,11 +662,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Availability</label>
+                          <label className="block text-sm font-medium mb-1">
+                            Availability
+                          </label>
                           <Input
                             type="text"
                             value={availabilityValue}
-                            onChange={(e) => setAvailabilityValue(e.target.value)}
+                            onChange={(e) =>
+                              setAvailabilityValue(e.target.value)
+                            }
                             placeholder="Enter availability (e.g. R9, C, E)"
                           />
                         </div>
@@ -612,32 +680,42 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             variant="outline"
                             onClick={() => {
                               setShowAvailabilityDialog(false);
-                              setSelectedAvailabilityGangType("");
-                              setAvailabilityValue("");
+                              setSelectedAvailabilityGangType('');
+                              setAvailabilityValue('');
                             }}
                           >
                             Cancel
                           </Button>
                           <Button
                             onClick={() => {
-                              if (selectedAvailabilityGangType && availabilityValue) {
-                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                              if (
+                                selectedAvailabilityGangType &&
+                                availabilityValue
+                              ) {
+                                const selectedGang = gangTypeOptions.find(
+                                  (g) =>
+                                    g.gang_type_id ===
+                                    selectedAvailabilityGangType
+                                );
                                 if (selectedGang) {
-                                  setEquipmentAvailabilities(prev => [
+                                  setEquipmentAvailabilities((prev) => [
                                     ...prev,
                                     {
                                       gang_type: selectedGang.gang_type,
                                       gang_type_id: selectedGang.gang_type_id,
-                                      availability: availabilityValue
-                                    }
+                                      availability: availabilityValue,
+                                    },
                                   ]);
                                   setShowAvailabilityDialog(false);
-                                  setSelectedAvailabilityGangType("");
-                                  setAvailabilityValue("");
+                                  setSelectedAvailabilityGangType('');
+                                  setAvailabilityValue('');
                                 }
                               }
                             }}
-                            disabled={!selectedAvailabilityGangType || !availabilityValue}
+                            disabled={
+                              !selectedAvailabilityGangType ||
+                              !availabilityValue
+                            }
                           >
                             Save Availability
                           </Button>
@@ -654,18 +732,17 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               <div className="col-span-3 space-y-4">
                 <div className="flex justify-between items-center">
                   <h4 className="text-lg font-semibold">Weapon Profiles</h4>
-                  <Button
-                    onClick={addProfile}
-                    variant="outline"
-                    size="sm"
-                  >
+                  <Button onClick={addProfile} variant="outline" size="sm">
                     Add Profile
                   </Button>
                 </div>
 
                 <div className="space-y-4 max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 p-4">
                   {weaponProfiles.map((profile, index) => (
-                    <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
+                    <div
+                      key={`profile-${index}`}
+                      className="border p-4 rounded-lg space-y-4 bg-white"
+                    >
                       <div className="flex justify-between items-center">
                         <h5 className="font-medium">Profile {index + 1}</h5>
                         {index > 0 && (
@@ -686,7 +763,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.profile_name}
-                            onChange={(e) => handleProfileChange(index, 'profile_name', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'profile_name',
+                                e.target.value
+                              )
+                            }
                             placeholder="e.g. Standard, Rapid Fire"
                             required
                           />
@@ -701,8 +784,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             pattern="[0-9]*"
                             value={profile.sort_order || ''}
                             onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9]/g, '');
-                              handleProfileChange(index, 'sort_order', parseInt(value) || 0);
+                              const value = e.target.value.replace(
+                                /[^0-9]/g,
+                                ''
+                              );
+                              handleProfileChange(
+                                index,
+                                'sort_order',
+                                parseInt(value) || 0
+                              );
                             }}
                             placeholder="#"
                           />
@@ -715,11 +805,18 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           Weapon Group
                         </label>
                         <p className="text-sm text-gray-500 mt-1">
-                          Attach this profile to an existing weapon, or leave it as is to use with this weapon.
+                          Attach this profile to an existing weapon, or leave it
+                          as is to use with this weapon.
                         </p>
                         <select
                           value={profile.weapon_group_id || ''}
-                          onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
+                          onChange={(e) =>
+                            handleProfileChange(
+                              index,
+                              'weapon_group_id',
+                              e.target.value
+                            )
+                          }
                           className="w-full p-2 border rounded-md"
                         >
                           <option value="">Use This Weapon (Default)</option>
@@ -739,7 +836,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.range_short}
-                            onChange={(e) => handleProfileChange(index, 'range_short', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'range_short',
+                                e.target.value
+                              )
+                            }
                             placeholder='e.g. 4", -'
                           />
                         </div>
@@ -750,7 +853,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.range_long}
-                            onChange={(e) => handleProfileChange(index, 'range_long', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'range_long',
+                                e.target.value
+                              )
+                            }
                             placeholder='e.g. 8", E'
                           />
                         </div>
@@ -761,8 +870,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.acc_short}
-                            onChange={(e) => handleProfileChange(index, 'acc_short', e.target.value)}
-                            placeholder='e.g. +1, -'
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'acc_short',
+                                e.target.value
+                              )
+                            }
+                            placeholder="e.g. +1, -"
                           />
                         </div>
 
@@ -772,8 +887,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.acc_long}
-                            onChange={(e) => handleProfileChange(index, 'acc_long', e.target.value)}
-                            placeholder='e.g. -1, -'
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'acc_long',
+                                e.target.value
+                              )
+                            }
+                            placeholder="e.g. -1, -"
                           />
                         </div>
 
@@ -783,7 +904,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.strength}
-                            onChange={(e) => handleProfileChange(index, 'strength', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'strength',
+                                e.target.value
+                              )
+                            }
                             placeholder="e.g. 3, S+1"
                           />
                         </div>
@@ -794,8 +921,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.ap}
-                            onChange={(e) => handleProfileChange(index, 'ap', e.target.value)}
-                            placeholder='e.g. -1, -'
+                            onChange={(e) =>
+                              handleProfileChange(index, 'ap', e.target.value)
+                            }
+                            placeholder="e.g. -1, -"
                           />
                         </div>
 
@@ -806,7 +935,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <Input
                             type="text"
                             value={profile.damage}
-                            onChange={(e) => handleProfileChange(index, 'damage', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'damage',
+                                e.target.value
+                              )
+                            }
                             placeholder="e.g. 1, D3"
                           />
                         </div>
@@ -817,8 +952,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.ammo}
-                            onChange={(e) => handleProfileChange(index, 'ammo', e.target.value)}
-                            placeholder='e.g. 5+'
+                            onChange={(e) =>
+                              handleProfileChange(index, 'ammo', e.target.value)
+                            }
+                            placeholder="e.g. 5+"
                           />
                         </div>
                       </div>
@@ -829,7 +966,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </label>
                           <Input
                             value={profile.traits}
-                            onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
+                            onChange={(e) =>
+                              handleProfileChange(
+                                index,
+                                'traits',
+                                e.target.value
+                              )
+                            }
                             placeholder="Comma-separated list of traits"
                           />
                         </div>
@@ -839,22 +982,23 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 </div>
               </div>
             )}
-
-
           </div>
         </div>
 
         <div className="border-t px-[10px] py-2 flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isLoading}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
+            disabled={
+              !equipmentName ||
+              !cost ||
+              !availability ||
+              !equipmentCategory ||
+              !equipmentType ||
+              isLoading
+            }
             className="bg-black hover:bg-gray-800 text-white"
           >
             {isLoading ? 'Creating...' : 'Create Equipment'}
@@ -863,4 +1007,4 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       </div>
     </div>
   );
-} 
+}

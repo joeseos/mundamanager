@@ -6,7 +6,9 @@ export async function getAcceptedFriends(userId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('friends')
-    .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
+    .select(
+      'requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)'
+    )
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
     .eq('status', 'accepted');
 
@@ -29,7 +31,7 @@ export async function getAcceptedFriends(userId: string) {
         username: friendProfile.username,
         updated_at: friendProfile.updated_at ?? '',
         user_role: friendProfile.user_role ?? 'user',
-      }
+      },
     };
   });
 }
@@ -38,7 +40,9 @@ export async function getFriendsAndRequests(userId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('friends')
-    .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
+    .select(
+      'requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)'
+    )
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
     .in('status', ['accepted', 'pending']);
 
@@ -68,4 +72,4 @@ export async function getFriendsAndRequests(userId: string) {
       direction,
     };
   });
-} 
+}

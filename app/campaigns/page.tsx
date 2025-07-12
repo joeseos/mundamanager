@@ -1,17 +1,19 @@
-import { createClient } from "@/utils/supabase/server";
-import CreateCampaign from '@/components/create-campaign'
-import MyCampaigns from '@/components/my-campaigns'
+import { createClient } from '@/utils/supabase/server';
+import CreateCampaign from '@/components/create-campaign';
+import MyCampaigns from '@/components/my-campaigns';
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { unstable_noStore } from 'next/cache';
 
 export default async function CampaignsPage() {
   // Ensure we never use stale data
   unstable_noStore();
-  
+
   const supabase = await createClient();
-  
+
   // Get the user data once at the page level
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const userId = user?.id;
 
   const { data: campaignTypes, error } = await supabase
@@ -33,5 +35,5 @@ export default async function CampaignsPage() {
         <MyCampaigns campaigns={campaigns} />
       </div>
     </main>
-  )
-} 
+  );
+}

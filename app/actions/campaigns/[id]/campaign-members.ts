@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
+import { createClient } from '@/utils/supabase/server';
+import { revalidateTag } from 'next/cache';
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -45,18 +45,16 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
   try {
     const supabase = await createClient();
     const { campaignId, gangId, userId, campaignMemberId } = params;
-    
+
     let targetMemberId = campaignMemberId;
 
     if (campaignMemberId) {
-      const { error } = await supabase
-        .from('campaign_gangs')
-        .insert({
-          campaign_id: campaignId,
-          gang_id: gangId,
-          user_id: userId,
-          campaign_member_id: campaignMemberId
-        });
+      const { error } = await supabase.from('campaign_gangs').insert({
+        campaign_id: campaignId,
+        gang_id: gangId,
+        user_id: userId,
+        campaign_member_id: campaignMemberId,
+      });
 
       if (error) throw error;
     } else {
@@ -67,21 +65,19 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
         .eq('user_id', userId);
 
       if (fetchError) throw fetchError;
-      
+
       if (!memberEntries || memberEntries.length === 0) {
         throw new Error('Campaign member not found');
       }
 
       targetMemberId = memberEntries[0].id;
-      
-      const { error } = await supabase
-        .from('campaign_gangs')
-        .insert({
-          campaign_id: campaignId,
-          gang_id: gangId,
-          user_id: userId,
-          campaign_member_id: targetMemberId
-        });
+
+      const { error } = await supabase.from('campaign_gangs').insert({
+        campaign_id: campaignId,
+        gang_id: gangId,
+        user_id: userId,
+        campaign_member_id: targetMemberId,
+      });
 
       if (error) throw error;
     }
@@ -97,9 +93,12 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     return { success: true };
   } catch (error) {
     console.error('Error adding gang to campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to add gang to campaign' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to add gang to campaign',
     };
   }
 }
@@ -122,7 +121,7 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
         .eq('user_id', userId);
 
       if (fetchError) throw fetchError;
-      
+
       if (!memberEntries || memberEntries.length <= memberIndex) {
         throw new Error(`Cannot find member at index ${memberIndex}`);
       }
@@ -144,24 +143,24 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     if (memberGangsError) throw memberGangsError;
 
     if (memberGangs && memberGangs.length > 0) {
-      const gangIds = memberGangs.map(g => g.gang_id);
-      
+      const gangIds = memberGangs.map((g) => g.gang_id);
+
       // Clear gang_id from territories for this member's gangs
       const { error: territoryError } = await supabase
         .from('campaign_territories')
         .update({ gang_id: null })
         .eq('campaign_id', campaignId)
         .in('gang_id', gangIds);
-        
+
       if (territoryError) throw territoryError;
-      
+
       // Delete the campaign gangs for this member
       const { error: gangError } = await supabase
         .from('campaign_gangs')
         .delete()
         .eq('campaign_id', campaignId)
         .eq('campaign_member_id', targetMemberId);
-        
+
       if (gangError) throw gangError;
     }
 
@@ -184,9 +183,12 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     return { success: true };
   } catch (error) {
     console.error('Error removing member from campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to remove member from campaign' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to remove member from campaign',
     };
   }
 }
@@ -197,7 +199,8 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 export async function removeGangFromCampaign(params: RemoveGangParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, gangId, memberId, memberIndex, campaignGangId } = params;
+    const { campaignId, gangId, memberId, memberIndex, campaignGangId } =
+      params;
 
     // First, update any territories controlled by this gang
     const { error: territoryError } = await supabase
@@ -205,7 +208,7 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       .update({ gang_id: null })
       .eq('campaign_id', campaignId)
       .eq('gang_id', gangId);
-      
+
     if (territoryError) throw territoryError;
 
     // Remove the gang from the campaign
@@ -214,7 +217,7 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
         .from('campaign_gangs')
         .delete()
         .eq('id', campaignGangId);
-      
+
       if (error) throw error;
     } else if (memberId && typeof memberIndex === 'number') {
       const { data: memberEntries, error: fetchMemberError } = await supabase
@@ -222,19 +225,19 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
         .select('id')
         .eq('campaign_id', campaignId)
         .eq('user_id', memberId);
-      
+
       if (fetchMemberError) throw fetchMemberError;
-      
+
       if (memberEntries && memberEntries.length > memberIndex) {
         const targetMemberId = memberEntries[memberIndex].id;
-        
+
         const { error } = await supabase
           .from('campaign_gangs')
           .delete()
           .eq('campaign_id', campaignId)
           .eq('gang_id', gangId)
           .eq('campaign_member_id', targetMemberId);
-          
+
         if (error) throw error;
       } else {
         throw new Error(`Cannot find member at index ${memberIndex}`);
@@ -261,9 +264,12 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     return { success: true };
   } catch (error) {
     console.error('Error removing gang from campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to remove gang from campaign' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to remove gang from campaign',
     };
   }
 }
@@ -286,9 +292,10 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     if (existingError) throw existingError;
 
     // Use the existing role if found, otherwise use the provided role
-    const finalRole = existingMembers && existingMembers.length > 0
-      ? existingMembers[0].role
-      : role;
+    const finalRole =
+      existingMembers && existingMembers.length > 0
+        ? existingMembers[0].role
+        : role;
 
     const { data, error } = await supabase
       .from('campaign_members')
@@ -297,7 +304,7 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
         user_id: userId,
         role: finalRole,
         invited_at: new Date().toISOString(),
-        invited_by: invitedBy
+        invited_by: invitedBy,
       })
       .select()
       .single();
@@ -313,9 +320,12 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     return { success: true, data };
   } catch (error) {
     console.error('Error adding member to campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to add member to campaign' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to add member to campaign',
     };
   }
 }
@@ -345,9 +355,10 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     return { success: true };
   } catch (error) {
     console.error('Error updating member role:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update member role' 
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to update member role',
     };
   }
 }

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export const runtime = 'edge';
 export const preferredRegion = 'auto';
@@ -10,9 +10,11 @@ const CACHE_MAX_AGE = 3600;
 export async function GET() {
   try {
     const supabase = await createClient();
-    
+
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -32,6 +34,9 @@ export async function GET() {
     );
     return response;
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch weapons" }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch weapons' },
+      { status: 500 }
+    );
   }
 }
