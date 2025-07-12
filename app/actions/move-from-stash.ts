@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterVehicleData } from '@/utils/cache-tags';
 import { revalidatePath } from "next/cache";
 
 interface MoveFromStashParams {
@@ -196,6 +196,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
       if (!vehicleError && vehicle?.fighter_id) {
         invalidateFighterData(vehicle.fighter_id, stashData.gang_id);
+        invalidateFighterVehicleData(vehicle.fighter_id, stashData.gang_id);
       }
     }
 

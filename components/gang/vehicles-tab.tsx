@@ -9,6 +9,9 @@ import { createClient } from '@/utils/supabase/client';
 import Modal from "@/components/modal";
 import { Input } from "@/components/ui/input";
 import { Plus, Minus, X } from "lucide-react";
+import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
+import { updateVehicle } from '@/app/actions/update-vehicle';
+import { deleteVehicle } from '@/app/actions/delete-vehicle';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -168,40 +171,22 @@ export default function GangVehicles({
         description: `Vehicle assigned to fighter successfully`,
       });
 
-      // NOW make the API call
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No authenticated session found');
-      }
-      
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/assign_crew_to_vehicle`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            p_vehicle_id: vehicle.id,
-            p_fighter_id: selectedFighter,
-          }),
-        }
-      );
+      // NOW make the API call using server action
+      const result = await assignVehicleToFighter({
+        vehicleId: vehicle.id,
+        fighterId: selectedFighter,
+        gangId: gangId
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to move vehicle to fighter');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to move vehicle to fighter');
       }
 
-      const data = await response.json();
+      const data = result.data;
 
       // Handle any additional updates from the server response
       // If there was a vehicle swap, we need to add the old vehicle back to the list
-      if (data.removed_from) {
+      if (data?.removed_from) {
         const vehiclesWithSwapped = [...updatedUnassignedVehicles, {
           ...data.removed_from,
           gang_id: gangId,
@@ -310,41 +295,25 @@ export default function GangVehicles({
         description: "Vehicle updated successfully",
       });
 
-      // NOW make the API call
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      // NOW make the API call using server action
+      const assignedFighter = editingVehicle.assigned_to ? 
+        fighters.find(f => f.fighter_name === editingVehicle.assigned_to) : undefined;
       
-      if (!session) {
-        throw new Error('No authenticated session found');
-      }
-      
-      const response = await fetch(`/api/gangs/${gangId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          vehicleId: editingVehicle.id,
-          vehicle_name: editedVehicleName,
-          special_rules: vehicleSpecialRules,
-          operation: 'update_vehicle_name' // Use the existing operation name
-        })
+      const result = await updateVehicle({
+        vehicleId: editingVehicle.id,
+        vehicleName: editedVehicleName,
+        specialRules: vehicleSpecialRules,
+        gangId: gangId,
+        assignedFighterId: assignedFighter?.id
       });
 
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to update vehicle');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update vehicle');
       }
       
-      console.log('Response from server:', responseData);
-      
-      // Check if the special rules were actually updated
-      if (!responseData.updatedSpecialRules && vehicleSpecialRules.length > 0) {
-        // If we get success but no special rules update confirmation
-        console.warn('Warning: Special rules may not have been updated on the server');
-      }
+      console.log('Response from server:', result.data);
+
+      // Cache invalidation is handled in the server action
       
       return true;
     } catch (error) {
@@ -389,14 +358,6 @@ export default function GangVehicles({
     const originalFighters = [...fighters];
     
     try {
-      // Get session for auth headers
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No authenticated session found');
-      }
-      
       // Check if this is an unassigned vehicle (for logging purposes)
       const isUnassigned = !deletingVehicle.assigned_to;
       
@@ -432,22 +393,21 @@ export default function GangVehicles({
       // Close the modal immediately for better UX
       setDeletingVehicle(null);
       
-      // NOW make the API call to actually delete the vehicle
-      const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          vehicleId: deletingVehicle.id,
-        }),
+      // NOW make the API call using server action
+      const assignedFighter = deletingVehicle.assigned_to ? 
+        fighters.find(f => f.fighter_name === deletingVehicle.assigned_to) : undefined;
+      
+      const result = await deleteVehicle({
+        vehicleId: deletingVehicle.id,
+        gangId: gangId,
+        assignedFighterId: assignedFighter?.id
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete vehicle');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete vehicle');
       }
+
+      // Cache invalidation is handled in the server action
 
       return true;
     } catch (error) {

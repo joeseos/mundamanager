@@ -594,7 +594,7 @@ export const getCompleteFighterData = async (fighterId: string): Promise<Complet
     },
     [`complete-fighter-data-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'complete-fighter-data', `complete-fighter-data-${fighterId}`],
+      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), CACHE_TAGS.FIGHTER_VEHICLE_DATA(fighterId), 'complete-fighter-data', `complete-fighter-data-${fighterId}`],
       revalidate: false
     }
   )();
