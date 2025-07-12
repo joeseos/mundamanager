@@ -9,6 +9,7 @@ export const CACHE_TAGS = {
   GANG_CREDITS: (id: string) => `gang-${id}-credits`,
   GANG_RATING: (id: string) => `gang-${id}-rating`,
   VEHICLE_PAGE: (id: string) => `vehicle-page-${id}`,
+  FIGHTER_VEHICLE_DATA: (id: string) => `fighter-vehicle-${id}`,
 } as const;
 
 export function invalidateFighterData(fighterId: string, gangId: string) {
@@ -42,4 +43,12 @@ export function invalidateGangFinancials(gangId: string) {
 export function invalidateFighterDataWithFinancials(fighterId: string, gangId: string) {
   invalidateFighterData(fighterId, gangId);
   invalidateGangFinancials(gangId);
+}
+
+// New function to invalidate fighter vehicle data specifically
+export function invalidateFighterVehicleData(fighterId: string, gangId: string) {
+  revalidateTag(CACHE_TAGS.FIGHTER_VEHICLE_DATA(fighterId));
+  revalidateTag(CACHE_TAGS.FIGHTER_PAGE(fighterId));
+  revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
+  revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
 }

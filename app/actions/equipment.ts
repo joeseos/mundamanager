@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
 import { getCompleteFighterData } from '@/app/lib/fighter-details';
 
 interface BuyEquipmentParams {
@@ -73,6 +73,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       
       if (!vehicleError && vehicleData?.fighter_id) {
         invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
+        invalidateFighterVehicleData(vehicleData.fighter_id, params.gang_id);
       }
       
       // Also invalidate vehicle-specific cache tags

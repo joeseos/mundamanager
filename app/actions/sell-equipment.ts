@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -158,6 +158,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       
       if (!vehicleError && vehicleData?.fighter_id) {
         invalidateFighterDataWithFinancials(vehicleData.fighter_id, gangId);
+        invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
       }
       
       // Also invalidate vehicle-specific cache tags
