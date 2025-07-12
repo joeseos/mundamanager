@@ -45,8 +45,11 @@ export default function GangVehicles({
   const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
   const [newSpecialRule, setNewSpecialRule] = useState('');
 
-  // Filter for only Crew fighters
-  const crewFighters = fighters.filter(fighter => fighter.fighter_class === 'Crew');
+  // Filter for only Crew fighters who don't have vehicles assigned
+  const crewFighters = fighters.filter(fighter => 
+    fighter.fighter_class === 'Crew' && 
+    (!fighter.vehicles || fighter.vehicles.length === 0)
+  );
 
   // Get all vehicles, including those assigned to fighters
   const allVehicles = useMemo<CombinedVehicleProps[]>(() => {
@@ -78,7 +81,14 @@ export default function GangVehicles({
           equipment: vehicle.equipment || []
         } as CombinedVehicleProps)));
     
-    return [...unassignedVehicles, ...fighterVehicles];
+    const allVehiclesCombined = [...unassignedVehicles, ...fighterVehicles];
+    
+    // Sort vehicles by name (vehicle_name or vehicle_type as fallback)
+    return allVehiclesCombined.sort((a, b) => {
+      const nameA = (a.vehicle_name || a.vehicle_type || '').toLowerCase();
+      const nameB = (b.vehicle_name || b.vehicle_type || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
   }, [vehicles, fighters, gangId]);
 
   const handleMoveToFighter = async () => {
@@ -87,7 +97,7 @@ export default function GangVehicles({
     setIsLoading(true);
     
     // Store original state for potential rollback
-    const originalVehicles = [...allVehicles];
+    const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
     
     try {
@@ -100,10 +110,16 @@ export default function GangVehicles({
 
       // OPTIMISTIC UPDATES - Update UI immediately
       
-      // 1. Remove the vehicle from the vehicles list (it will now be assigned to fighter)
-      const updatedVehicles = allVehicles.filter((_, index) => index !== selectedVehicle);
+      // 1. Remove the vehicle from the unassigned vehicles list (it will now be assigned to fighter)
+      const updatedUnassignedVehicles = vehicles.filter(v => v.id !== vehicle.id);
       
-      // 2. Update the fighter with the new vehicle
+      // 2. Remove the vehicle from any fighter who currently has it
+      const oldFighter = fighters.find(f => (f.vehicles || []).some(v => v.id === vehicle.id));
+      if (oldFighter && onFighterUpdate) {
+        onFighterUpdate({ ...oldFighter, vehicles: [] });
+      }
+      
+      // 3. Update the selected fighter with the new vehicle
       const updatedVehicle = {
         id: vehicle.id,
         created_at: vehicle.created_at,
@@ -125,6 +141,7 @@ export default function GangVehicles({
         engine_slots_occupied: vehicle.engine_slots_occupied,
         special_rules: vehicle.special_rules || [],
         equipment: vehicle.equipment || [],
+        cost: vehicle.cost, // Include the cost property
         effects: {} // Initialize empty effects object
       };
       
@@ -135,9 +152,8 @@ export default function GangVehicles({
 
       // Apply optimistic updates
       if (onVehicleUpdate) {
-        onVehicleUpdate(updatedVehicles);
+        onVehicleUpdate(updatedUnassignedVehicles);
       }
-      
       if (onFighterUpdate) {
         onFighterUpdate(updatedFighter);
       }
@@ -186,7 +202,7 @@ export default function GangVehicles({
       // Handle any additional updates from the server response
       // If there was a vehicle swap, we need to add the old vehicle back to the list
       if (data.removed_from) {
-        const vehiclesWithSwapped = [...updatedVehicles, {
+        const vehiclesWithSwapped = [...updatedUnassignedVehicles, {
           ...data.removed_from,
           gang_id: gangId,
           equipment: []
@@ -546,7 +562,7 @@ export default function GangVehicles({
                   onChange={(e) => setSelectedFighter(e.target.value)}
                   className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
                 >
-                  <option value="">Select a fighter</option>
+                  <option value="">Select a crew</option>
                   {crewFighters.map((fighter) => (
                     <option 
                       key={fighter.id} 
@@ -562,7 +578,7 @@ export default function GangVehicles({
                   disabled={selectedVehicle === null || !selectedFighter || isLoading}
                   className="w-full"
                 >
-                  Move to Fighter
+                  Move to Crew
                 </Button>
               </div>
             </div>
