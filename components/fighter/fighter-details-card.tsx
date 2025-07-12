@@ -335,13 +335,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
   const stats = useMemo<Record<string, string | number>>(() => ({
     ...(isCrew ? {
-      'M': `${vehicleStats?.movement}"`,
-      'Front': vehicleStats?.front,
-      'Side': vehicleStats?.side,
-      'Rear': vehicleStats?.rear,
-      'HP': vehicleStats?.hull_points,
-      'Hnd': `${vehicleStats?.handling}+`,
-      'Sv': `${vehicleStats?.save}+`,
+      'M': vehicles?.[0] ? `${vehicleStats?.movement}"` : '*',
+      'Front': vehicles?.[0] ? vehicleStats?.front : '*',
+      'Side': vehicles?.[0] ? vehicleStats?.side : '*',
+      'Rear': vehicles?.[0] ? vehicleStats?.rear : '*',
+      'HP': vehicles?.[0] ? vehicleStats?.hull_points : '*',
+      'Hnd': vehicles?.[0] ? `${vehicleStats?.handling}+` : '*',
+      'Sv': vehicles?.[0] ? `${vehicleStats?.save}+` : '*',
       'BS': modifiedStats.ballistic_skill === 0 ? '-' : `${modifiedStats.ballistic_skill}+`,
       'Ld': `${modifiedStats.leadership}+`,
       'Cl': `${modifiedStats.cool}+`,
@@ -446,10 +446,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
                 ? vehicles[0].vehicle_name
                   ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
                   : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
-                : 'None'}
+                : 'Vehicle: None'}
             </p>
           )}
-          {fighter_class === 'Crew' && vehicleStats && (() => {
+          {fighter_class === 'Crew' && vehicles?.[0] && vehicleStats && (() => {
             const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
             return (
               <div className="flex items-center gap-1 mt-2">
