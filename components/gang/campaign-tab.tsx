@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
+import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 interface Territory {
   id: string;
@@ -25,23 +25,28 @@ interface GangTerritoriesProps {
   campaigns: Campaign[];
 }
 
-export default function GangTerritories({ gangId, campaigns = [] }: GangTerritoriesProps) {
+export default function GangTerritories({
+  gangId,
+  campaigns = [],
+}: GangTerritoriesProps) {
   // Process and combine territories from all campaigns
   const territories = useMemo(() => {
     const allTerritories: (Territory & { campaign_name: string })[] = [];
-    
-    campaigns.forEach(campaign => {
+
+    campaigns.forEach((campaign) => {
       if (campaign.territories && campaign.territories.length > 0) {
         // Add campaign name to each territory
-        const territoriesWithCampaign = campaign.territories.map(territory => ({
-          ...territory,
-          campaign_name: campaign.campaign_name || 'Unknown Campaign'
-        }));
-        
+        const territoriesWithCampaign = campaign.territories.map(
+          (territory) => ({
+            ...territory,
+            campaign_name: campaign.campaign_name || 'Unknown Campaign',
+          })
+        );
+
         allTerritories.push(...territoriesWithCampaign);
       }
     });
-    
+
     return allTerritories;
   }, [campaigns]);
 
@@ -57,8 +62,15 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                 <div className="text-gray-600 mb-4">
                   <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-1 text-sm">
-                      Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                        <Link href={`/campaigns/${campaign.campaign_id}`} className="flex items-center">
+                      Campaign:{' '}
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-secondary"
+                      >
+                        <Link
+                          href={`/campaigns/${campaign.campaign_id}`}
+                          className="flex items-center"
+                        >
                           {campaign.campaign_name}
                         </Link>
                       </Badge>
@@ -77,19 +89,33 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     <table className="w-full border-separate border-spacing-y-2">
                       <thead className="text-sm text-gray-700 px-0 py-2">
                         <tr>
-                          <th className="px-4 py-2 font-medium text-left">Territory</th>
-                          <th className="px-4 py-2 font-medium text-right">Status</th>
+                          <th className="px-4 py-2 font-medium text-left">
+                            Territory
+                          </th>
+                          <th className="px-4 py-2 font-medium text-right">
+                            Status
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {[...campaign.territories]
-                          .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                          .sort((a, b) =>
+                            a.territory_name.localeCompare(b.territory_name)
+                          )
                           .map((territory) => (
                             <tr key={territory.id}>
-                              <td className="px-4 py-2 text-left bg-gray-50 rounded-md">{territory.territory_name}</td>
+                              <td className="px-4 py-2 text-left bg-gray-50 rounded-md">
+                                {territory.territory_name}
+                              </td>
                               <td className="px-4 py-2 text-right bg-gray-50 rounded-md">
                                 {territory.ruined !== null && (
-                                  <span className={territory.ruined ? 'text-red-500' : 'text-green-600'}>
+                                  <span
+                                    className={
+                                      territory.ruined
+                                        ? 'text-red-500'
+                                        : 'text-green-600'
+                                    }
+                                  >
                                     {territory.ruined ? 'Ruined' : 'Intact'}
                                   </span>
                                 )}
@@ -100,7 +126,9 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     </table>
                   </div>
                 ) : (
-                  <div className="text-gray-500 italic text-center">No territories controlled.</div>
+                  <div className="text-gray-500 italic text-center">
+                    No territories controlled.
+                  </div>
                 )}
               </div>
             ))
@@ -112,4 +140,4 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
       </div>
     </div>
   );
-} 
+}

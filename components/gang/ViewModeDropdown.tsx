@@ -8,7 +8,11 @@ interface ViewModeDropdownProps {
   className?: string;
 }
 
-export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({ viewMode, setViewMode, className = '' }) => (
+export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
+  viewMode,
+  setViewMode,
+  className = '',
+}) => (
   <div className={`${className} print:hidden`}>
     <select
       value={viewMode}

@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from '@/components/ui/use-toast';
 import Modal from '../modal';
-import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
-import { List } from "../ui/list";
+import { List } from '../ui/list';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
@@ -16,7 +15,11 @@ interface VehicleEquipmentListProps {
   gangId: string;
   gangCredits: number;
   fighterCredits: number;
-  onEquipmentUpdate: (updatedEquipment: VehicleEquipment[], newFighterCredits: number, newGangCredits: number) => void;
+  onEquipmentUpdate: (
+    updatedEquipment: VehicleEquipment[],
+    newFighterCredits: number,
+    newGangCredits: number
+  ) => void;
   equipment?: VehicleEquipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
@@ -59,27 +62,40 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
   );
 }
 
-export function VehicleEquipmentList({ 
-  fighterId, 
-  gangId, 
-  gangCredits, 
-  fighterCredits, 
+export function VehicleEquipmentList({
+  fighterId,
+  gangId,
+  gangCredits,
+  fighterCredits,
   onEquipmentUpdate,
   equipment = [],
   onAddEquipment,
-  userPermissions
+  userPermissions,
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
-  const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
-  const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<{
+    id: string;
+    equipmentId: string;
+    name: string;
+  } | null>(null);
+  const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(
+    null
+  );
+  const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(
+    null
+  );
 
   // Enhanced delete function using server actions with targeted cache invalidation
-  const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
+  const handleDeleteEquipment = async (
+    fighterEquipmentId: string,
+    equipmentId: string
+  ) => {
     setIsLoading(true);
     try {
-      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
+      const equipmentToDelete = equipment.find(
+        (e) => e.fighter_equipment_id === fighterEquipmentId
+      );
       if (!equipmentToDelete) {
         throw new Error('Equipment not found');
       }
@@ -88,7 +104,7 @@ export function VehicleEquipmentList({
         fighter_equipment_id: fighterEquipmentId,
         gang_id: gangId,
         fighter_id: fighterId,
-        vehicle_id: equipmentToDelete.vehicle_id
+        vehicle_id: equipmentToDelete.vehicle_id,
       });
 
       if (!result.success) {
@@ -96,49 +112,58 @@ export function VehicleEquipmentList({
       }
 
       // Use server response data for accurate state updates
-      const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      
+      const updatedEquipment = equipment.filter(
+        (e) => e.fighter_equipment_id !== fighterEquipmentId
+      );
+
       // Use fresh data from server response if available, otherwise fall back to calculations
-      const newFighterCredits = result.data?.updatedFighter?.credits || fighterCredits;
+      const newFighterCredits =
+        result.data?.updatedFighter?.credits || fighterCredits;
       const newGangCredits = result.data?.updatedGang?.credits || gangCredits;
-      
+
       onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
-      
+
       // Enhanced success message showing effects cleanup
       const effectsCount = result.data?.deletedEffects?.length || 0;
-      const effectsMessage = effectsCount > 0 
-        ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
-        : '';
-      
+      const effectsMessage =
+        effectsCount > 0
+          ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
+          : '';
+
       toast({
-        title: "Success",
+        title: 'Success',
         description: `Successfully deleted ${result.data?.deletedEquipment?.equipment_name || equipmentToDelete.equipment_name}${effectsMessage}`,
-        variant: "default"
+        variant: 'default',
       });
       setDeleteModalData(null);
     } catch (error) {
       console.error('Error deleting equipment:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to delete equipment',
-        variant: "destructive"
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Failed to delete equipment',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+  const handleSellEquipment = async (
+    fighterEquipmentId: string,
+    equipmentId: string,
+    manualCost: number
+  ) => {
     setIsLoading(true);
     try {
       const equipmentToSell = equipment.find(
-        item => item.fighter_equipment_id === fighterEquipmentId
+        (item) => item.fighter_equipment_id === fighterEquipmentId
       );
       if (!equipmentToSell) return;
 
       const result = await sellEquipmentFromFighter({
         fighter_equipment_id: fighterEquipmentId,
-        manual_cost: manualCost
+        manual_cost: manualCost,
       });
 
       if (!result.success) {
@@ -146,23 +171,24 @@ export function VehicleEquipmentList({
       }
 
       const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
+        (item) => item.fighter_equipment_id !== fighterEquipmentId
       );
       const newGangCredits = result.data?.gang.credits || gangCredits;
       const newFighterCredits = fighterCredits - equipmentToSell.cost;
 
       onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
-      
+
       toast({
-        title: "Success",
+        title: 'Success',
         description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
       });
     } catch (error) {
       console.error('Error selling equipment:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Failed to sell equipment',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -170,16 +196,21 @@ export function VehicleEquipmentList({
     }
   };
 
-  const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
+  const handleStashEquipment = async (
+    fighterEquipmentId: string,
+    equipmentId: string
+  ) => {
     setIsLoading(true);
     try {
-      const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
+      const equipmentToStash = equipment.find(
+        (e) => e.fighter_equipment_id === fighterEquipmentId
+      );
       if (!equipmentToStash) {
         throw new Error('Equipment not found');
       }
 
       const result = await moveEquipmentToStash({
-        fighter_equipment_id: fighterEquipmentId
+        fighter_equipment_id: fighterEquipmentId,
       });
 
       if (!result.success) {
@@ -187,23 +218,26 @@ export function VehicleEquipmentList({
       }
 
       const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
+        (item) => item.fighter_equipment_id !== fighterEquipmentId
       );
-      
+
       const newFighterCredits = fighterCredits - (equipmentToStash.cost ?? 0);
 
       onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
-      
+
       toast({
-        title: "Success",
+        title: 'Success',
         description: `${equipmentToStash.equipment_name} moved to gang stash`,
       });
     } catch (error) {
       console.error('Error moving equipment to stash:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to move equipment to stash',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -225,7 +259,7 @@ export function VehicleEquipmentList({
     cost: item.cost ?? 0,
     core_equipment: item.core_equipment,
     fighter_equipment_id: item.fighter_equipment_id,
-    equipment_id: item.equipment_id
+    equipment_id: item.equipment_id,
   }));
 
   return (
@@ -234,50 +268,50 @@ export function VehicleEquipmentList({
         title="Vehicle Equipment"
         items={listItems}
         columns={[
-          {
-            key: 'equipment_name',
-            label: 'Name',
-            width: '75%'
-          },
-          {
-            key: 'cost',
-            label: 'Cost',
-            align: 'right'
-          }
+          { key: 'equipment_name', label: 'Name', width: '75%' },
+          { key: 'cost', label: 'Cost', align: 'right' },
         ]}
         actions={[
           {
             label: 'Stash',
             variant: 'outline',
             onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              const equipment = sortedEquipment.find(
+                (e) => e.fighter_equipment_id === item.fighter_equipment_id
+              );
               if (equipment) {
                 setStashModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+            disabled: (item) =>
+              item.core_equipment || isLoading || !userPermissions.canEdit,
           },
           {
             label: 'Sell',
             variant: 'outline',
             onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              const equipment = sortedEquipment.find(
+                (e) => e.fighter_equipment_id === item.fighter_equipment_id
+              );
               if (equipment) {
                 setSellModalData(equipment);
               }
             },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+            disabled: (item) =>
+              item.core_equipment || isLoading || !userPermissions.canEdit,
           },
           {
             label: 'Delete',
             variant: 'destructive',
-            onClick: (item) => setDeleteModalData({
-              id: item.fighter_equipment_id,
-              equipmentId: item.equipment_id,
-              name: item.equipment_name
-            }),
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          }
+            onClick: (item) =>
+              setDeleteModalData({
+                id: item.fighter_equipment_id,
+                equipmentId: item.equipment_id,
+                name: item.equipment_name,
+              }),
+            disabled: (item) =>
+              item.core_equipment || isLoading || !userPermissions.canEdit,
+          },
         ]}
         onAdd={onAddEquipment}
         addButtonDisabled={!userPermissions.canEdit}
@@ -290,13 +324,24 @@ export function VehicleEquipmentList({
           title="Delete Vehicle Equipment"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>
+                Are you sure you want to delete &quot;{deleteModalData.name}
+                &quot;?
+              </p>
               <br />
-              <p>This action cannot be undone and will remove any associated stat effects.</p>
+              <p>
+                This action cannot be undone and will remove any associated stat
+                effects.
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteEquipment(deleteModalData.id, deleteModalData.equipmentId)}
+          onConfirm={() =>
+            handleDeleteEquipment(
+              deleteModalData.id,
+              deleteModalData.equipmentId
+            )
+          }
         />
       )}
 
@@ -304,11 +349,13 @@ export function VehicleEquipmentList({
         <SellModal
           item={sellModalData}
           onClose={() => setSellModalData(null)}
-          onConfirm={(manualCost) => handleSellEquipment(
-            sellModalData.fighter_equipment_id,
-            sellModalData.equipment_id,
-            manualCost
-          )}
+          onConfirm={(manualCost) =>
+            handleSellEquipment(
+              sellModalData.fighter_equipment_id,
+              sellModalData.equipment_id,
+              manualCost
+            )
+          }
         />
       )}
 
@@ -317,12 +364,14 @@ export function VehicleEquipmentList({
           title="Move to Gang Stash"
           content={`Are you sure you want to move ${stashModalData.equipment_name} to the gang stash?`}
           onClose={() => setStashModalData(null)}
-          onConfirm={() => handleStashEquipment(
-            stashModalData.fighter_equipment_id,
-            stashModalData.equipment_id
-          )}
+          onConfirm={() =>
+            handleStashEquipment(
+              stashModalData.fighter_equipment_id,
+              stashModalData.equipment_id
+            )
+          }
         />
       )}
     </>
   );
-} 
+}

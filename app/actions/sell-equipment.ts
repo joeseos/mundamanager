@@ -1,9 +1,13 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
-import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
+import { checkAdmin } from '@/utils/auth';
+import {
+  invalidateFighterDataWithFinancials,
+  invalidateVehicleData,
+  invalidateGangFinancials,
+} from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -29,41 +33,49 @@ interface SellEquipmentResult {
   error?: string;
 }
 
-export async function sellEquipmentFromFighter(params: SellEquipmentParams): Promise<SellEquipmentResult> {
+export async function sellEquipmentFromFighter(
+  params: SellEquipmentParams
+): Promise<SellEquipmentResult> {
   try {
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase);
-    
+
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase
       .from('fighter_equipment')
-      .select(`
+      .select(
+        `
         id,
         fighter_id,
         vehicle_id,
         equipment_id,
         custom_equipment_id,
         purchase_cost
-      `)
+      `
+      )
       .eq('id', params.fighter_equipment_id)
       .single();
 
     if (equipmentError || !equipmentData) {
-      throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found`);
+      throw new Error(
+        `Fighter equipment with ID ${params.fighter_equipment_id} not found`
+      );
     }
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
-    
+
     if (equipmentData.fighter_id) {
       // Get gang_id from fighter
       const { data: fighter, error: fighterError } = await supabase
@@ -71,7 +83,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .select('gang_id')
         .eq('id', equipmentData.fighter_id)
         .single();
-        
+
       if (fighterError || !fighter) {
         throw new Error('Fighter not found for this equipment');
       }
@@ -83,7 +95,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .select('gang_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
-        
+
       if (vehicleError || !vehicle) {
         throw new Error('Vehicle not found for this equipment');
       }
@@ -128,18 +140,18 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       .select('credits')
       .eq('id', gangId)
       .single();
-      
+
     if (getCurrentError || !currentGang) {
       throw new Error('Failed to get current gang credits');
     }
-    
+
     const { data: updatedGang, error: updateError } = await supabase
       .from('gangs')
       .update({ credits: currentGang.credits + sellValue })
       .eq('id', gangId)
       .select('id, credits')
       .single();
-      
+
     if (updateError || !updatedGang) {
       throw new Error(`Failed to update gang credits: ${updateError?.message}`);
     }
@@ -155,11 +167,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .select('fighter_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
-      
+
       if (!vehicleError && vehicleData?.fighter_id) {
         invalidateFighterDataWithFinancials(vehicleData.fighter_id, gangId);
       }
-      
+
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     } else {
@@ -172,7 +184,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       data: {
         gang: {
           id: updatedGang.id,
-          credits: updatedGang.credits
+          credits: updatedGang.credits,
         },
         equipment_sold: {
           id: equipmentData.id,
@@ -180,16 +192,16 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           vehicle_id: equipmentData.vehicle_id || undefined,
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
-          sell_value: sellValue
-        }
-      }
+          sell_value: sellValue,
+        },
+      },
     };
-
   } catch (error) {
     console.error('Error in sellEquipmentFromFighter server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
-} 
+}

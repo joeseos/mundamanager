@@ -1,71 +1,43 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import DeleteGangButton from "./delete-gang-button";
+import DeleteGangButton from './delete-gang-button';
 import { FighterProps } from '@/types/fighter';
 import Modal from '@/components/modal';
-import { useToast } from "@/components/ui/use-toast";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { useToast } from '@/components/ui/use-toast';
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
-import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { allianceRank } from "@/utils/allianceRank";
-import { fighterClassRank } from "@/utils/fighterClassRank";
-import { GiAncientRuins } from "react-icons/gi";
-import { gangVariantRank } from "@/utils/gangVariantRank";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
+import { FighterType } from '@/types/fighter-type';
+import { allianceRank } from '@/utils/allianceRank';
+import { fighterClassRank } from '@/utils/fighterClassRank';
+import { GiAncientRuins } from 'react-icons/gi';
+import { gangVariantRank } from '@/utils/gangVariantRank';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
-import PrintModal from "@/components/print-modal";
+import PrintModal from '@/components/print-modal';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
-import { LuLogs } from "react-icons/lu";
+import { LuLogs } from 'react-icons/lu';
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
-import { HexColorPicker } from "react-colorful";
+import { HexColorPicker } from 'react-colorful';
 import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
-
-interface VehicleType {
-  id: string;
-  vehicle_type: string;
-  cost: number;
-  movement: number;
-  front: number;
-  side: number;
-  rear: number;
-  hull_points: number;
-  handling: number;
-  save: number;
-  body_slots: number;
-  drive_slots: number;
-  engine_slots: number;
-  special_rules: string[];
-}
-
-interface DefaultEquipmentItem {
-  id: string;
-  quantity: number;
-  equipment_name?: string;
-  equipment_category?: string;
-}
-
-interface WeaponsSelection {
-  options: EquipmentOption[];
-  default?: DefaultEquipmentItem[];
-  select_type: 'single' | 'multiple' | 'optional';
-}
-
-interface EquipmentSelection {
-  weapons?: WeaponsSelection;
-}
 
 interface GangProps {
   id: string;
@@ -103,7 +75,7 @@ interface GangProps {
       territory_id: string;
       territory_name: string;
       ruined: boolean | null;
-      }[];
+    }[];
   }[];
   note?: string;
   stash: StashItem[];
@@ -112,18 +84,18 @@ interface GangProps {
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   positioning: Record<number, string>;
-  gang_variants: Array<{id: string, variant: string}> | null;
+  gang_variants: Array<{ id: string; variant: string }> | null;
   vehicles?: VehicleProps[];
 }
 
-export default function Gang({ 
-  id, 
-  name: initialName, 
+export default function Gang({
+  id,
+  name: initialName,
   gang_type_id,
   gang_type,
   gang_type_image_url,
   gang_colour: initialGangColour,
-  credits: initialCredits, 
+  credits: initialCredits,
   reputation: initialReputation,
   meat: initialMeat,
   scavenging_rolls: initialScavengingRolls,
@@ -153,53 +125,82 @@ export default function Gang({
   const { toast } = useToast();
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
-  const [name, setName] = useState(initialName)
-  const [credits, setCredits] = useState(initialCredits ?? 0)
-  const [reputation, setReputation] = useState(initialReputation ?? 0)
-  const [meat, setMeat] = useState(initialMeat ?? 0)
-  const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
-  const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
-  const [rating, setRating] = useState<number>(initialRating ?? 0)
-  const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState(initialName)
-  const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
+  const [name, setName] = useState(initialName);
+  const [credits, setCredits] = useState(initialCredits ?? 0);
+  const [reputation, setReputation] = useState(initialReputation ?? 0);
+  const [meat, setMeat] = useState(initialMeat ?? 0);
+  const [scavengingRolls, setScavengingRolls] = useState(
+    initialScavengingRolls ?? 0
+  );
+  const [explorationPoints, setExplorationPoints] = useState(
+    initialExplorationPoints ?? 0
+  );
+  const [rating, setRating] = useState<number>(initialRating ?? 0);
+  const [lastUpdated, setLastUpdated] = useState(initialLastUpdated);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(initialName);
+  const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '');
   const [editedCredits, setEditedCredits] = useState('');
   const [editedReputation, setEditedReputation] = useState('');
-  const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
-  const [editedScavengingRolls, setEditedScavengingRolls] = useState((initialScavengingRolls ?? 0).toString())
-  const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
+  const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString());
+  const [editedScavengingRolls, setEditedScavengingRolls] = useState(
+    (initialScavengingRolls ?? 0).toString()
+  );
+  const [editedExplorationPoints, setEditedExplorationPoints] = useState(
+    (initialExplorationPoints ?? 0).toString()
+  );
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [alignment, setAlignment] = useState(initialAlignment);
   const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
   const [editedAllianceId, setEditedAllianceId] = useState(initialAllianceId);
-  const [editedAllianceName, setEditedAllianceName] = useState(initialAllianceName);
-  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
+  const [editedAllianceName, setEditedAllianceName] =
+    useState(initialAllianceName);
+  const [allianceList, setAllianceList] = useState<
+    Array<{ id: string; alliance_name: string; strong_alliance: string }>
+  >([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
-  const [allianceId, setAllianceId] = useState<string | null>(initialAllianceId);
+  const [allianceId, setAllianceId] = useState<string | null>(
+    initialAllianceId
+  );
   const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-  const [positions, setPositions] = useState<Record<number, string>>(positioning);
+  const [positions, setPositions] =
+    useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
-  const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
-  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
+  const [fighterTypes, setFighterTypes] =
+    useState<FighterType[]>(initialFighterTypes);
+  const [gangIsVariant, setGangIsVariant] = useState(
+    safeGangVariant.length > 0
+  );
+  const [gangVariants, setGangVariants] =
+    useState<Array<{ id: string; variant: string }>>(safeGangVariant);
+  const [editedGangIsVariant, setEditedGangIsVariant] = useState(
+    safeGangVariant.length > 0
+  );
+  const [editedGangVariants, setEditedGangVariants] =
+    useState<Array<{ id: string; variant: string }>>(safeGangVariant);
+  const [availableVariants, setAvailableVariants] = useState<
+    Array<{ id: string; variant: string }>
+  >([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
   const [showLogsModal, setShowLogsModal] = useState(false);
   // Page view mode
-  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
+  const [viewMode, setViewMode] = useState<
+    'normal' | 'small' | 'medium' | 'large'
+  >('normal');
 
   // Initialize view mode from localStorage after component mounts
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedViewMode = localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large';
+      const savedViewMode = localStorage.getItem('gang_view_mode') as
+        | 'normal'
+        | 'small'
+        | 'medium'
+        | 'large';
       if (savedViewMode) {
         setViewMode(savedViewMode);
       }
@@ -228,8 +229,10 @@ export default function Gang({
   }, [vehicles]);
 
   // Calculate the total value of the Stash
-  const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
-
+  const totalStashValue = stash.reduce(
+    (total, item) => total + (item.cost || 0),
+    0
+  );
 
   // view mode
   useEffect(() => {
@@ -249,9 +252,12 @@ export default function Gang({
     localStorage.setItem('gang_view_mode', viewMode);
   }, [viewMode]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement, Event>
+  ) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src =
+      'https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg';
   };
 
   const formatDate = useCallback((date: string | Date | null) => {
@@ -286,7 +292,7 @@ export default function Gang({
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
-    
+
     try {
       const response = await fetch('/api/alliances');
       if (!response.ok) throw new Error('Failed to fetch alliances');
@@ -297,26 +303,28 @@ export default function Gang({
       console.error('Error fetching alliances:', error);
       toast({
         description: 'Failed to load alliances',
-        variant: "destructive"
+        variant: 'destructive',
       });
     }
   };
 
-const syncGangVariantsWithAlignment = (newAlignment: string) => {
-  const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
-  const hasOutlaw = editedGangVariants.some(v => v.variant === 'Outlaw');
+  const syncGangVariantsWithAlignment = (newAlignment: string) => {
+    const outlaw = availableVariants.find((v) => v.variant === 'Outlaw');
+    const hasOutlaw = editedGangVariants.some((v) => v.variant === 'Outlaw');
 
-  if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
-    setEditedGangVariants(prev => [...prev, outlaw]);
-  } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
-    setEditedGangVariants(prev => prev.filter(v => v.variant !== 'Outlaw'));
-  }
-};
+    if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
+      setEditedGangVariants((prev) => [...prev, outlaw]);
+    } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
+      setEditedGangVariants((prev) =>
+        prev.filter((v) => v.variant !== 'Outlaw')
+      );
+    }
+  };
 
-const handleAlignmentChange = (value: string) => {
-  setEditedAlignment(value);
-  syncGangVariantsWithAlignment(value);
-};
+  const handleAlignmentChange = (value: string) => {
+    setEditedAlignment(value);
+    syncGangVariantsWithAlignment(value);
+  };
 
   const handleSave = async () => {
     try {
@@ -342,7 +350,9 @@ const handleAlignmentChange = (value: string) => {
       setCredits(prevCredits + creditsDifference);
       setAlignment(editedAlignment);
       setAllianceId(editedAllianceId === '' ? null : editedAllianceId);
-      setAllianceName(allianceList.find(a => a.id === editedAllianceId)?.alliance_name || "");
+      setAllianceName(
+        allianceList.find((a) => a.id === editedAllianceId)?.alliance_name || ''
+      );
       setReputation(prevReputation + reputationDifference);
       setMeat(parseInt(editedMeat));
       setScavengingRolls(parseInt(editedScavengingRolls));
@@ -354,9 +364,7 @@ const handleAlignmentChange = (value: string) => {
 
       const response = await fetch(`/api/gangs/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editedName,
           credits: Math.abs(creditsDifference),
@@ -368,7 +376,7 @@ const handleAlignmentChange = (value: string) => {
           meat: parseInt(editedMeat),
           scavenging_rolls: parseInt(editedScavengingRolls),
           exploration_points: parseInt(editedExplorationPoints),
-          gang_variants: editedGangVariants.map(v => v.id),
+          gang_variants: editedGangVariants.map((v) => v.id),
           gang_colour: editedGangColour,
         }),
       });
@@ -387,31 +395,28 @@ const handleAlignmentChange = (value: string) => {
         setGangIsVariant(prevGangIsVariant);
         setGangVariants(prevGangVariants);
         setGangColour(prevGangColour);
-        
+
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const updatedGang = await response.json();
-      
+
       // Since we've already updated the state optimistically,
       // just need to update last_updated from the response
       setLastUpdated(updatedGang.last_updated);
 
-      toast({
-        description: "Gang updated successfully",
-        variant: "default"
-      });
+      toast({ description: 'Gang updated successfully', variant: 'default' });
 
       setShowEditModal(false);
       setEditedCredits('');
       return false;
     } catch (error) {
       console.error('Error updating gang:', error);
-      
+
       toast({
-        title: "Error",
-        description: "Failed to update gang. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update gang. Please try again.',
+        variant: 'destructive',
       });
 
       return false;
@@ -425,10 +430,14 @@ const handleAlignmentChange = (value: string) => {
     setShowAddFighterModal(true);
   };
 
-  const fetchFighterTypes = async (variantList: Array<{ id: string, variant: string }> = gang_variants ?? []) => {
+  const fetchFighterTypes = async (
+    variantList: Array<{ id: string; variant: string }> = gang_variants ?? []
+  ) => {
     try {
-      const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
-      
+      const { getFighterTypesUncachedClient } = await import(
+        '@/app/lib/get-fighter-types'
+      );
+
       // Fetch base Gang fighter types
       let baseData = await getFighterTypesUncachedClient(gang_type_id);
 
@@ -438,10 +447,14 @@ const handleAlignmentChange = (value: string) => {
         if (!variantModifier) continue;
 
         if (variantModifier.removeLeaders) {
-          baseData = baseData.filter((type: any) => type.fighter_class !== 'Leader');
+          baseData = baseData.filter(
+            (type: any) => type.fighter_class !== 'Leader'
+          );
         }
 
-        const variantData = await getFighterTypesUncachedClient(variantModifier.variantGangTypeId);
+        const variantData = await getFighterTypesUncachedClient(
+          variantModifier.variantGangTypeId
+        );
         baseData = [...baseData, ...variantData];
       }
 
@@ -476,25 +489,26 @@ const handleAlignmentChange = (value: string) => {
           special_rules: type.special_rules || [],
           is_gang_addition: type.is_gang_addition || false,
           alliance_id: type.alliance_id || '',
-          alliance_crew_name: type.alliance_crew_name || ''
+          alliance_crew_name: type.alliance_crew_name || '',
         }))
         .sort((a: FighterType, b: FighterType) => {
-          const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-          const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
+          const rankA =
+            fighterClassRank[a.fighter_class?.toLowerCase() || ''] ?? Infinity;
+          const rankB =
+            fighterClassRank[b.fighter_class?.toLowerCase() || ''] ?? Infinity;
           if (rankA !== rankB) return rankA - rankB;
-          return (a.fighter_type || "").localeCompare(b.fighter_type || "");
+          return (a.fighter_type || '').localeCompare(b.fighter_type || '');
         });
 
       setFighterTypes(processedTypes);
     } catch (error) {
       console.error('Error fetching fighter types:', error);
       toast({
-        description: "Failed to load fighter types",
-        variant: "destructive"
+        description: 'Failed to load fighter types',
+        variant: 'destructive',
       });
     }
   };
-
 
   const handleGangAdditionsModalOpen = () => {
     setShowGangAdditionsModal(true);
@@ -507,44 +521,44 @@ const handleAlignmentChange = (value: string) => {
       onFighterAdd(newFighter, cost);
     } else {
       // Fallback to local state management if no callback provided
-      setFighters(prev => [...prev, newFighter]);
-      setCredits(prev => prev - cost); // Deduct what was actually paid
-      setRating(prev => prev + newFighter.credits); // Add the fighter's rating cost
+      setFighters((prev) => [...prev, newFighter]);
+      setCredits((prev) => prev - cost); // Deduct what was actually paid
+      setRating((prev) => prev + newFighter.credits); // Add the fighter's rating cost
     }
   };
 
   const handleDeleteFighter = async (fighterId: string) => {
-    const fighter = fighters.find(f => f.id === fighterId);
+    const fighter = fighters.find((f) => f.id === fighterId);
     if (!fighter) return;
 
     try {
       // Optimistically update UI
       const fighterCost = fighter.credits;
-      setFighters(prev => prev.filter(f => f.id !== fighterId));
-      setRating(prev => prev - fighterCost);
+      setFighters((prev) => prev.filter((f) => f.id !== fighterId));
+      setRating((prev) => prev - fighterCost);
       onFighterDeleted?.(fighterId, fighterCost);
-      
+
       const response = await fetch(`/api/fighters/${fighterId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
         // Revert optimistic update if the request fails
-        setFighters(prev => [...prev, fighter]);
-        setRating(prev => prev + fighterCost);
+        setFighters((prev) => [...prev, fighter]);
+        setRating((prev) => prev + fighterCost);
         throw new Error('Failed to delete fighter');
       }
 
       toast({
-        description: "Fighter deleted successfully",
-        variant: "default"
+        description: 'Fighter deleted successfully',
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error deleting fighter:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete fighter. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to delete fighter. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -559,7 +573,7 @@ const handleAlignmentChange = (value: string) => {
     setEditedExplorationPoints(explorationPoints?.toString() || '0');
     setEditedGangIsVariant(gangIsVariant);
     setEditedGangVariants([...gangVariants]);
-    
+
     try {
       // Fetch all available variants
       const response = await fetch('/api/gang_variant_types');
@@ -568,12 +582,9 @@ const handleAlignmentChange = (value: string) => {
       setAvailableVariants(data);
     } catch (error) {
       console.error('Error fetching variants:', error);
-      toast({
-        description: 'Failed to load variants',
-        variant: "destructive"
-      });
+      toast({ description: 'Failed to load variants', variant: 'destructive' });
     }
-    
+
     setShowEditModal(true);
   };
 
@@ -633,9 +644,7 @@ const handleAlignmentChange = (value: string) => {
           className="flex-1"
           placeholder="Add or remove credits (e.g. 25 or -50)"
         />
-        <p className="text-sm text-gray-500">
-          Current credits: {credits}
-        </p>
+        <p className="text-sm text-gray-500">Current credits: {credits}</p>
       </div>
 
       <div className="space-y-2">
@@ -700,7 +709,7 @@ const handleAlignmentChange = (value: string) => {
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-          value={editedAllianceId || ""}
+          value={editedAllianceId || ''}
           onChange={(e) => setEditedAllianceId(e.target.value)}
           onFocus={fetchAlliances}
           className="w-full p-2 border rounded-md"
@@ -713,22 +722,29 @@ const handleAlignmentChange = (value: string) => {
             Object.entries(
               allianceList
                 .sort((a, b) => {
-                  const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-                  const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
+                  const rankA =
+                    allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
+                  const rankB =
+                    allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
                   return rankA - rankB;
                 })
-                .reduce((groups, type) => {
-                  const rank = allianceRank[type.alliance_name.toLowerCase()] ?? Infinity;
-                  let groupLabel = "Other Alliances"; // Default category for unlisted alliances
+                .reduce(
+                  (groups, type) => {
+                    const rank =
+                      allianceRank[type.alliance_name.toLowerCase()] ??
+                      Infinity;
+                    let groupLabel = 'Other Alliances'; // Default category for unlisted alliances
 
-                  if (rank <= 9) groupLabel = "Criminal Organisations";
-                  else if (rank <= 19) groupLabel = "Merchant Guilds";
-                  else if (rank <= 29) groupLabel = "Noble Houses";
+                    if (rank <= 9) groupLabel = 'Criminal Organisations';
+                    else if (rank <= 19) groupLabel = 'Merchant Guilds';
+                    else if (rank <= 29) groupLabel = 'Noble Houses';
 
-                  if (!groups[groupLabel]) groups[groupLabel] = [];
-                  groups[groupLabel].push(type);
-                  return groups;
-                }, {} as Record<string, typeof allianceList>)
+                    if (!groups[groupLabel]) groups[groupLabel] = [];
+                    groups[groupLabel].push(type);
+                    return groups;
+                  },
+                  {} as Record<string, typeof allianceList>
+                )
             ).map(([groupLabel, allianceList]) => (
               <optgroup key={groupLabel} label={groupLabel}>
                 {allianceList.map((type) => (
@@ -740,8 +756,12 @@ const handleAlignmentChange = (value: string) => {
             ))
           ) : (
             <>
-              {initialAllianceId && <option value={initialAllianceId}>{initialAllianceName}</option>}
-              <option value="" disabled>Loading Alliances...</option>
+              {initialAllianceId && (
+                <option value={initialAllianceId}>{initialAllianceName}</option>
+              )}
+              <option value="" disabled>
+                Loading Alliances...
+              </option>
             </>
           )}
         </select>
@@ -763,33 +783,50 @@ const handleAlignmentChange = (value: string) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
             {/* Unaffiliated variants */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Unaffiliated
+              </h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                  .filter(
+                    (v) =>
+                      (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <=
+                      9
+                  )
+                  .sort(
+                    (a, b) =>
+                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
                   )
                   .map((variant, index, arr) => (
                     <React.Fragment key={variant.id}>
                       {/* Insert separator before 'skirmish' */}
-                      {variant.variant.toLowerCase() === "skirmish" && (
+                      {variant.variant.toLowerCase() === 'skirmish' && (
                         <div className="border-t border-gray-300" />
                       )}
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`variant-${variant.id}`}
-                          checked={editedGangVariants.some(v => v.id === variant.id)}
+                          checked={editedGangVariants.some(
+                            (v) => v.id === variant.id
+                          )}
                           onCheckedChange={(checked) => {
                             if (checked) {
-                              setEditedGangVariants(prev => [...prev, variant]);
+                              setEditedGangVariants((prev) => [
+                                ...prev,
+                                variant,
+                              ]);
                             } else {
-                              setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
+                              setEditedGangVariants((prev) =>
+                                prev.filter((v) => v.id !== variant.id)
+                              );
                             }
                           }}
                         />
-                        <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                        <label
+                          htmlFor={`variant-${variant.id}`}
+                          className="text-sm cursor-pointer"
+                        >
                           {variant.variant}
                         </label>
                       </div>
@@ -800,28 +837,44 @@ const handleAlignmentChange = (value: string) => {
 
             {/* Outlaw/Corrupted variants*/}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Outlaw / Corrupted
+              </h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                  .filter(
+                    (v) =>
+                      (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10
                   )
-                  .map(variant => (
-                    <div key={variant.id} className="flex items-center space-x-2">
+                  .sort(
+                    (a, b) =>
+                      (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                      (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                  )
+                  .map((variant) => (
+                    <div
+                      key={variant.id}
+                      className="flex items-center space-x-2"
+                    >
                       <Checkbox
                         id={`variant-${variant.id}`}
-                        checked={editedGangVariants.some(v => v.id === variant.id)}
+                        checked={editedGangVariants.some(
+                          (v) => v.id === variant.id
+                        )}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setEditedGangVariants(prev => [...prev, variant]);
+                            setEditedGangVariants((prev) => [...prev, variant]);
                           } else {
-                            setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
+                            setEditedGangVariants((prev) =>
+                              prev.filter((v) => v.id !== variant.id)
+                            );
                           }
                         }}
                       />
-                      <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                      <label
+                        htmlFor={`variant-${variant.id}`}
+                        className="text-sm cursor-pointer"
+                      >
                         {variant.variant}
                       </label>
                     </div>
@@ -831,7 +884,7 @@ const handleAlignmentChange = (value: string) => {
           </div>
         )}
       </div>
-      
+
       <DeleteGangButton gangId={id} />
     </div>
   );
@@ -842,28 +895,31 @@ const handleAlignmentChange = (value: string) => {
 
   const handleVehicleAdded = (newVehicle: VehicleProps) => {
     // Update credits using payment_cost (what the user actually paid)
-    const paymentCost = newVehicle.payment_cost !== undefined ? newVehicle.payment_cost : newVehicle.cost;
-    setCredits(prev => prev - paymentCost);
-    
+    const paymentCost =
+      newVehicle.payment_cost !== undefined
+        ? newVehicle.payment_cost
+        : newVehicle.cost;
+    setCredits((prev) => prev - paymentCost);
+
     // Note: Unassigned vehicles don't contribute to gang rating yet
     // They'll contribute to the rating when assigned to a fighter
     // No need to update the rating here
-    
+
     // Pass the new vehicle up to the parent
     if (onVehicleAdd) {
       onVehicleAdd(newVehicle);
     }
   };
 
-  const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
+  const handlePositionsUpdate = async (
+    newPositions: Record<number, string>
+  ) => {
     try {
       console.log('Sending updated positions to API:', newPositions);
-      
+
       const response = await fetch(`/api/gangs/${id}/positioning`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ positions: newPositions }),
       });
 
@@ -873,29 +929,29 @@ const handleAlignmentChange = (value: string) => {
 
       const updatedData = await response.json();
       console.log('API response:', updatedData);
-      
+
       // Update the positions state
       setPositions(newPositions);
-      
+
       // Also ensure our fighters array is ordered according to the positions
       if (fighters.length > 0) {
-        const orderedFighters = Object.values(newPositions).map(
-          fighterId => fighters.find(f => f.id === fighterId)
-        ).filter(Boolean) as FighterProps[];
-        
+        const orderedFighters = Object.values(newPositions)
+          .map((fighterId) => fighters.find((f) => f.id === fighterId))
+          .filter(Boolean) as FighterProps[];
+
         // Update any fighters not included in positions
         const unpositionedFighters = fighters.filter(
-          f => !Object.values(newPositions).includes(f.id)
+          (f) => !Object.values(newPositions).includes(f.id)
         );
-        
+
         setFighters([...orderedFighters, ...unpositionedFighters]);
       }
     } catch (error) {
       console.error('Error updating positions:', error);
       toast({
-        title: "Error",
-        description: "Failed to update fighter positions",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update fighter positions',
+        variant: 'destructive',
       });
     }
   };
@@ -911,7 +967,10 @@ const handleAlignmentChange = (value: string) => {
       className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
     >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
-        <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
+        <div
+          id="gang_card"
+          className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black"
+        >
           {/* Left Section: Illustration */}
           <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
             {gang_type_image_url ? (
@@ -946,7 +1005,6 @@ const handleAlignmentChange = (value: string) => {
             <div className="flex justify-between items-start mb-1">
               <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
               <div className="flex gap-2 print:hidden">
-
                 {/* View Mode Dropdown - only show on desktop */}
                 <ViewModeDropdown
                   viewMode={viewMode}
@@ -1044,8 +1102,15 @@ const handleAlignmentChange = (value: string) => {
               <div className="flex flex-wrap gap-4">
                 {campaigns?.[0] && (
                   <div className="flex items-center gap-1 text-sm">
-                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
-                      <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
+                    Campaign:{' '}
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer hover:bg-secondary"
+                    >
+                      <Link
+                        href={`/campaigns/${campaigns[0].campaign_id}`}
+                        className="flex items-center"
+                      >
                         {campaigns[0].campaign_name}
                       </Link>
                     </Badge>
@@ -1082,14 +1147,20 @@ const handleAlignmentChange = (value: string) => {
                 label="Rating"
                 value={rating}
                 isEditing={false}
-                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                editedValue={
+                  typeof rating === 'number' ? rating.toString() : '0'
+                }
                 onChange={() => {}}
               />
               <StatItem
                 label="Wealth"
-                value={rating + credits + unassignedVehiclesValue + totalStashValue}
+                value={
+                  rating + credits + unassignedVehiclesValue + totalStashValue
+                }
                 isEditing={false}
-                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                editedValue={
+                  typeof rating === 'number' ? rating.toString() : '0'
+                }
                 onChange={() => {}}
               />
               {allianceName && (
@@ -1182,7 +1253,10 @@ const handleAlignmentChange = (value: string) => {
               content={
                 <div className="space-y-4">
                   <div className="flex justify-center">
-                    <HexColorPicker color={editedGangColour} onChange={setEditedGangColour} />
+                    <HexColorPicker
+                      color={editedGangColour}
+                      onChange={setEditedGangColour}
+                    />
                   </div>
                   <div className="flex justify-center">
                     <input
@@ -1252,7 +1326,10 @@ const handleAlignmentChange = (value: string) => {
           />
         </div>
 
-        <div id="gang_card_additional_details" className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
+        <div
+          id="gang_card_additional_details"
+          className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate"
+        >
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-1">
               <h2 className="text-xl font-bold">Additional Details</h2>
@@ -1263,8 +1340,10 @@ const handleAlignmentChange = (value: string) => {
                 {campaigns && campaigns[0]?.territories.length > 0 && (
                   <div className="flex gap-1 items-center text-sm flex-wrap">
                     Territories:
-                    {[...campaigns[0]?.territories]
-                      .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                    {[...(campaigns[0]?.territories ?? [])]
+                      .sort((a, b) =>
+                        a.territory_name.localeCompare(b.territory_name)
+                      )
                       .map((territory) => (
                         <Badge
                           key={territory.id}
@@ -1272,7 +1351,9 @@ const handleAlignmentChange = (value: string) => {
                           className="cursor-pointer hover:bg-secondary flex items-center gap-1"
                         >
                           {territory.territory_name}
-                          {territory.ruined && <GiAncientRuins className="text-red-500" />}
+                          {territory.ruined && (
+                            <GiAncientRuins className="text-red-500" />
+                          )}
                         </Badge>
                       ))}
                   </div>
@@ -1283,19 +1364,29 @@ const handleAlignmentChange = (value: string) => {
                   <span>Stash:</span>
                   {stash
                     .slice() // Create a shallow copy to avoid mutating the original array
-                    .sort((a, b) => (a.equipment_name ?? "").localeCompare(b.equipment_name ?? "")) // Ensure values are always strings
+                    .sort((a, b) =>
+                      (a.equipment_name ?? '').localeCompare(
+                        b.equipment_name ?? ''
+                      )
+                    ) // Ensure values are always strings
                     .map((item) => (
-                      <Badge key={item.id} variant="outline" className="cursor-pointer hover:bg-secondary">
+                      <Badge
+                        key={item.id}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-secondary"
+                      >
                         {item.equipment_name} ({item.cost} credits)
                       </Badge>
-                  ))}
+                    ))}
                 </div>
               )}
               {note && (
                 <div className="gap-1 text-sm mt-2">
                   Notes:
                   <div className="gap-1 text-sm">
-                    <span className="text-black whitespace-pre-wrap">{note}</span>
+                    <span className="text-black whitespace-pre-wrap">
+                      {note}
+                    </span>
                   </div>
                 </div>
               )}
@@ -1303,7 +1394,9 @@ const handleAlignmentChange = (value: string) => {
           </div>
         </div>
       </div>
-      <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
+      <div
+        className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}
+      >
         {fighters.length > 0 ? (
           <DraggableFighters
             fighters={fighters}
@@ -1313,7 +1406,9 @@ const handleAlignmentChange = (value: string) => {
             viewMode={viewMode}
           />
         ) : (
-          <div className="text-white italic text-center">No fighters available.</div>
+          <div className="text-white italic text-center">
+            No fighters available.
+          </div>
         )}
       </div>
     </div>
@@ -1337,7 +1432,7 @@ function StatItem({
   editedValue,
   onChange,
   type = 'number',
-  options = []
+  options = [],
 }: StatItemProps) {
   return (
     <div>
@@ -1364,9 +1459,7 @@ function StatItem({
           />
         )
       ) : (
-        <p className="font-semibold">
-          {value != null ? value : 0}
-        </p>
+        <p className="font-semibold">{value != null ? value : 0}</p>
       )}
     </div>
   );

@@ -2,27 +2,27 @@ name: Deploy Updated SQL Functions to Supabase
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
       - 'supabase/functions/*.sql'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Install PostgreSQL client
         run: sudo apt-get install -y postgresql-client
-      
+
       - name: Deploy only changed SQL files via psql
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_FUNCTIONS_PATH: "supabase/functions/*.sql"
+          SUPABASE_FUNCTIONS_PATH: 'supabase/functions/*.sql'
         run: |
           echo "Looking for changes in: $SUPABASE_FUNCTIONS_PATH"
 

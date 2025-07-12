@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from '@/utils/supabase/server';
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -98,7 +98,8 @@ interface CampaignGang {
 async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
   const { data: campaign, error: campaignError } = await supabase
     .from('campaigns')
-    .select(`
+    .select(
+      `
       id,
       campaign_name,
       campaign_type_id,
@@ -110,7 +111,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_exploration_points,
       has_scavenging_rolls,
       note
-    `)
+    `
+    )
     .eq('id', campaignId)
     .single();
 
@@ -131,14 +133,20 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
 
   return {
     ...campaign,
-    campaign_types: campaignTypeName ? { campaign_type_name: campaignTypeName } : null
+    campaign_types: campaignTypeName
+      ? { campaign_type_name: campaignTypeName }
+      : null,
   };
 }
 
-async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient) {
+async function _getCampaignMembers(
+  campaignId: string,
+  supabase: SupabaseClient
+) {
   const { data: members, error: membersError } = await supabase
     .from('campaign_members')
-    .select(`
+    .select(
+      `
       id,
       user_id,
       role,
@@ -146,23 +154,26 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       invited_at,
       joined_at,
       invited_by
-    `)
+    `
+    )
     .eq('campaign_id', campaignId);
 
   if (membersError) throw membersError;
 
-  const userIds = members?.map(m => m.user_id).filter(Boolean) || [];
+  const userIds = members?.map((m) => m.user_id).filter(Boolean) || [];
   let profilesData: any[] = [];
-  
+
   if (userIds.length > 0) {
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select(`
+      .select(
+        `
         id,
         username,
         updated_at,
         user_role
-      `)
+      `
+      )
       .in('id', userIds);
 
     if (!profilesError && profiles) {
@@ -172,30 +183,34 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
   const { data: campaignGangs, error: gangsError } = await supabase
     .from('campaign_gangs')
-    .select(`
+    .select(
+      `
       id,
       gang_id,
       user_id,
       campaign_member_id,
       status
-    `)
+    `
+    )
     .eq('campaign_id', campaignId);
 
   if (gangsError) throw gangsError;
 
-  const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+  const gangIds = campaignGangs?.map((cg) => cg.gang_id) || [];
   let gangsData: any[] = [];
-  
+
   if (gangIds.length > 0) {
     const { data: gangs, error: gangsDetailError } = await supabase
       .from('gangs')
-      .select(`
+      .select(
+        `
         id,
         name,
         gang_type,
         gang_colour,
         reputation
-      `)
+      `
+      )
       .in('id', gangIds);
 
     if (gangsDetailError) throw gangsDetailError;
@@ -204,11 +219,12 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
   let fightersData: any[] = [];
   let gangVehiclesData: any[] = [];
-  
+
   if (gangIds.length > 0) {
     const { data: fighters, error: fightersError } = await supabase
       .from('fighters')
-      .select(`
+      .select(
+        `
         id,
         gang_id,
         credits,
@@ -217,7 +233,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         fighter_skills(credits_increase),
         fighter_effects(type_specific_data),
         vehicles(id, cost, fighter_equipment(purchase_cost), fighter_effects(type_specific_data))
-      `)
+      `
+      )
       .in('gang_id', gangIds)
       .eq('killed', false)
       .eq('retired', false)
@@ -229,13 +246,15 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     // Fetch gang-owned vehicles (where fighter_id is NULL)
     const { data: gangVehicles, error: gangVehiclesError } = await supabase
       .from('vehicles')
-      .select(`
+      .select(
+        `
         id,
         gang_id,
         cost,
         fighter_equipment(purchase_cost),
         fighter_effects(type_specific_data)
-      `)
+      `
+      )
       .in('gang_id', gangIds)
       .is('fighter_id', null);
 
@@ -244,76 +263,119 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
   }
 
   const gangRatings = new Map<string, number>();
-  gangIds.forEach(gangId => {
-    const gangFighters = fightersData.filter(f => f.gang_id === gangId);
-    const gangOwnedVehicles = gangVehiclesData.filter(v => v.gang_id === gangId);
-    
+  gangIds.forEach((gangId) => {
+    const gangFighters = fightersData.filter((f) => f.gang_id === gangId);
+    const gangOwnedVehicles = gangVehiclesData.filter(
+      (v) => v.gang_id === gangId
+    );
+
     // Calculate fighter ratings
     const fighterRating = gangFighters.reduce((sum, fighter) => {
-      let individualFighterRating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
-      
+      let individualFighterRating =
+        (fighter.credits || 0) + (fighter.cost_adjustment || 0);
+
       // Fighter equipment
       if (fighter.fighter_equipment) {
-        individualFighterRating += fighter.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
-          equipSum + (eq.purchase_cost || 0), 0);
+        individualFighterRating += fighter.fighter_equipment.reduce(
+          (equipSum: number, eq: { purchase_cost: number }) =>
+            equipSum + (eq.purchase_cost || 0),
+          0
+        );
       }
-      
-      // Fighter skills  
+
+      // Fighter skills
       if (fighter.fighter_skills) {
-        individualFighterRating += fighter.fighter_skills.reduce((skillSum: number, skill: { credits_increase: number }) => 
-          skillSum + (skill.credits_increase || 0), 0);
+        individualFighterRating += fighter.fighter_skills.reduce(
+          (skillSum: number, skill: { credits_increase: number }) =>
+            skillSum + (skill.credits_increase || 0),
+          0
+        );
       }
-      
+
       // Fighter effects
       if (fighter.fighter_effects) {
-        individualFighterRating += fighter.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-          const creditsIncrease = effect.type_specific_data?.credits_increase;
-          return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-        }, 0);
+        individualFighterRating += fighter.fighter_effects.reduce(
+          (
+            effectSum: number,
+            effect: { type_specific_data: { credits_increase?: number } }
+          ) => {
+            const creditsIncrease = effect.type_specific_data?.credits_increase;
+            return (
+              effectSum +
+              (typeof creditsIncrease === 'number' ? creditsIncrease : 0)
+            );
+          },
+          0
+        );
       }
-      
+
       // Fighter-owned vehicles
       if (fighter.vehicles) {
         fighter.vehicles.forEach((vehicle: any) => {
-          individualFighterRating += (vehicle.cost || 0);
-          
+          individualFighterRating += vehicle.cost || 0;
+
           // Vehicle equipment
           if (vehicle.fighter_equipment) {
-            individualFighterRating += vehicle.fighter_equipment.reduce((vehEqSum: number, eq: { purchase_cost: number }) => 
-              vehEqSum + (eq.purchase_cost || 0), 0);
+            individualFighterRating += vehicle.fighter_equipment.reduce(
+              (vehEqSum: number, eq: { purchase_cost: number }) =>
+                vehEqSum + (eq.purchase_cost || 0),
+              0
+            );
           }
-          
+
           // Vehicle effects - MISSING in original implementation
           if (vehicle.fighter_effects) {
-            individualFighterRating += vehicle.fighter_effects.reduce((vehEffectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-              const creditsIncrease = effect.type_specific_data?.credits_increase;
-              return vehEffectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-            }, 0);
+            individualFighterRating += vehicle.fighter_effects.reduce(
+              (
+                vehEffectSum: number,
+                effect: { type_specific_data: { credits_increase?: number } }
+              ) => {
+                const creditsIncrease =
+                  effect.type_specific_data?.credits_increase;
+                return (
+                  vehEffectSum +
+                  (typeof creditsIncrease === 'number' ? creditsIncrease : 0)
+                );
+              },
+              0
+            );
           }
         });
       }
-      
+
       return sum + individualFighterRating;
     }, 0);
 
     // Calculate gang-owned vehicles rating - MISSING in original implementation
     const gangVehicleRating = gangOwnedVehicles.reduce((sum, vehicle) => {
-      let vehicleRating = (vehicle.cost || 0);
-      
+      let vehicleRating = vehicle.cost || 0;
+
       // Gang vehicle equipment
       if (vehicle.fighter_equipment) {
-        vehicleRating += vehicle.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
-          equipSum + (eq.purchase_cost || 0), 0);
+        vehicleRating += vehicle.fighter_equipment.reduce(
+          (equipSum: number, eq: { purchase_cost: number }) =>
+            equipSum + (eq.purchase_cost || 0),
+          0
+        );
       }
-      
+
       // Gang vehicle effects
       if (vehicle.fighter_effects) {
-        vehicleRating += vehicle.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-          const creditsIncrease = effect.type_specific_data?.credits_increase;
-          return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-        }, 0);
+        vehicleRating += vehicle.fighter_effects.reduce(
+          (
+            effectSum: number,
+            effect: { type_specific_data: { credits_increase?: number } }
+          ) => {
+            const creditsIncrease = effect.type_specific_data?.credits_increase;
+            return (
+              effectSum +
+              (typeof creditsIncrease === 'number' ? creditsIncrease : 0)
+            );
+          },
+          0
+        );
       }
-      
+
       return sum + vehicleRating;
     }, 0);
 
@@ -322,53 +384,58 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     gangRatings.set(gangId, totalRating);
   });
 
-  const membersWithGangs = members?.map(member => {
-    const memberProfile = profilesData.find(p => p.id === member.user_id);
-    const memberGangs = campaignGangs?.filter(cg => 
-      cg.campaign_member_id === member.id
-    ) || [];
+  const membersWithGangs =
+    members?.map((member) => {
+      const memberProfile = profilesData.find((p) => p.id === member.user_id);
+      const memberGangs =
+        campaignGangs?.filter((cg) => cg.campaign_member_id === member.id) ||
+        [];
 
-    const gangs = memberGangs.map(cg => {
-      const gangDetails = gangsData.find(g => g.id === cg.gang_id);
+      const gangs = memberGangs.map((cg) => {
+        const gangDetails = gangsData.find((g) => g.id === cg.gang_id);
+        return {
+          id: cg.id,
+          gang_id: cg.gang_id,
+          gang_name: gangDetails?.name || '',
+          gang_type: gangDetails?.gang_type || '',
+          gang_colour: gangDetails?.gang_colour || '#000000',
+          status: cg.status,
+          rating: gangRatings.get(cg.gang_id) || 0,
+          reputation: gangDetails?.reputation || 0,
+          campaign_member_id: cg.campaign_member_id,
+        };
+      });
+
       return {
-        id: cg.id,
-        gang_id: cg.gang_id,
-        gang_name: gangDetails?.name || '',
-        gang_type: gangDetails?.gang_type || '',
-        gang_colour: gangDetails?.gang_colour || '#000000',
-        status: cg.status,
-        rating: gangRatings.get(cg.gang_id) || 0,
-        reputation: gangDetails?.reputation || 0,
-        campaign_member_id: cg.campaign_member_id
-      };
-    });
-
-    return {
-      id: member.id,
-      user_id: member.user_id,
-      username: memberProfile?.username || '',
-      role: member.role,
-      status: member.status,
-      invited_at: member.invited_at,
-      joined_at: member.joined_at,
-      invited_by: member.invited_by,
-      profile: {
-        id: memberProfile?.id || '',
+        id: member.id,
+        user_id: member.user_id,
         username: memberProfile?.username || '',
-        updated_at: memberProfile?.updated_at || '',
-        user_role: memberProfile?.user_role || ''
-      },
-      gangs
-    };
-  }) || [];
+        role: member.role,
+        status: member.status,
+        invited_at: member.invited_at,
+        joined_at: member.joined_at,
+        invited_by: member.invited_by,
+        profile: {
+          id: memberProfile?.id || '',
+          username: memberProfile?.username || '',
+          updated_at: memberProfile?.updated_at || '',
+          user_role: memberProfile?.user_role || '',
+        },
+        gangs,
+      };
+    }) || [];
 
   return membersWithGangs;
 }
 
-async function _getCampaignTerritories(campaignId: string, supabase: SupabaseClient) {
+async function _getCampaignTerritories(
+  campaignId: string,
+  supabase: SupabaseClient
+) {
   const { data: territories, error } = await supabase
     .from('campaign_territories')
-    .select(`
+    .select(
+      `
       id,
       territory_id,
       territory_name,
@@ -376,23 +443,27 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       created_at,
       ruined,
       default_gang_territory
-    `)
+    `
+    )
     .eq('campaign_id', campaignId);
 
   if (error) throw error;
 
-  const territoryGangIds = territories?.map(t => t.gang_id).filter(Boolean) || [];
+  const territoryGangIds =
+    territories?.map((t) => t.gang_id).filter(Boolean) || [];
   let territoryGangsData: any[] = [];
-  
+
   if (territoryGangIds.length > 0) {
     const { data: gangs, error: gangsError } = await supabase
       .from('gangs')
-      .select(`
+      .select(
+        `
         id,
         name,
         gang_type,
         gang_colour
-      `)
+      `
+      )
       .in('id', territoryGangIds);
 
     if (!gangsError && gangs) {
@@ -400,30 +471,43 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     }
   }
 
-  return territories?.map(territory => {
-    const gangDetails = territoryGangsData.find(g => g.id === territory.gang_id);
-    return {
-      id: territory.id,
-      territory_id: territory.territory_id,
-      territory_name: territory.territory_name,
-      gang_id: territory.gang_id,
-      created_at: territory.created_at,
-      ruined: territory.ruined || false,
-      default_gang_territory: territory.default_gang_territory || false,
-      owning_gangs: gangDetails ? [{
-        id: gangDetails.id,
-        name: gangDetails.name,
-        gang_type: gangDetails.gang_type || '',
-        gang_colour: gangDetails.gang_colour || '#000000'
-      }] : []
-    };
-  }) || [];
+  return (
+    territories?.map((territory) => {
+      const gangDetails = territoryGangsData.find(
+        (g) => g.id === territory.gang_id
+      );
+      return {
+        id: territory.id,
+        territory_id: territory.territory_id,
+        territory_name: territory.territory_name,
+        gang_id: territory.gang_id,
+        created_at: territory.created_at,
+        ruined: territory.ruined || false,
+        default_gang_territory: territory.default_gang_territory || false,
+        owning_gangs: gangDetails
+          ? [
+              {
+                id: gangDetails.id,
+                name: gangDetails.name,
+                gang_type: gangDetails.gang_type || '',
+                gang_colour: gangDetails.gang_colour || '#000000',
+              },
+            ]
+          : [],
+      };
+    }) || []
+  );
 }
 
-async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient, limit = 50) {
+async function _getCampaignBattles(
+  campaignId: string,
+  supabase: SupabaseClient,
+  limit = 50
+) {
   const { data, error } = await supabase
     .from('campaign_battles')
-    .select(`
+    .select(
+      `
       id,
       created_at,
       updated_at,
@@ -434,16 +518,17 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       note,
       participants,
       scenario_id
-    `)
+    `
+    )
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
 
-  const scenarioIds = data?.map(b => b.scenario_id).filter(Boolean) || [];
+  const scenarioIds = data?.map((b) => b.scenario_id).filter(Boolean) || [];
   let scenariosData: any[] = [];
-  
+
   if (scenarioIds.length > 0) {
     const { data: scenarios, error: scenariosError } = await supabase
       .from('scenarios')
@@ -455,11 +540,13 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     }
   }
 
-  const gangIds = Array.from(new Set([
-    ...data?.map(b => b.attacker_id).filter(Boolean) || [],
-    ...data?.map(b => b.defender_id).filter(Boolean) || [],
-    ...data?.map(b => b.winner_id).filter(Boolean) || []
-  ]));
+  const gangIds = Array.from(
+    new Set([
+      ...(data?.map((b) => b.attacker_id).filter(Boolean) || []),
+      ...(data?.map((b) => b.defender_id).filter(Boolean) || []),
+      ...(data?.map((b) => b.winner_id).filter(Boolean) || []),
+    ])
+  );
 
   let gangsData: { id: string; name: string; gang_colour: string }[] = [];
   if (gangIds.length > 0) {
@@ -472,50 +559,65 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     gangsData = gangs || [];
   }
 
-  const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
-  const scenarioMap = new Map(scenariosData.map(scenario => [scenario.id, scenario]));
+  const gangMap = new Map(gangsData.map((gang) => [gang.id, gang]));
+  const scenarioMap = new Map(
+    scenariosData.map((scenario) => [scenario.id, scenario])
+  );
 
-  return data?.map(battle => {
-    const scenarioDetails = scenarioMap.get(battle.scenario_id);
-    return {
-      id: battle.id,
-      created_at: battle.created_at,
-      updated_at: battle.updated_at,
-      scenario: battle.scenario || scenarioDetails?.scenario_name || '',
-      scenario_name: scenarioDetails?.scenario_name || '',
-      scenario_number: scenarioDetails?.scenario_number || null,
-      attacker_id: battle.attacker_id,
-      defender_id: battle.defender_id,
-      winner_id: battle.winner_id,
-      note: battle.note,
-      participants: battle.participants,
-      attacker: battle.attacker_id ? {
-        gang_id: battle.attacker_id,
-        gang_name: gangMap.get(battle.attacker_id)?.name || 'Unknown'
-      } : undefined,
-      defender: battle.defender_id ? {
-        gang_id: battle.defender_id,
-        gang_name: gangMap.get(battle.defender_id)?.name || 'Unknown'
-      } : undefined,
-      winner: battle.winner_id ? {
-        gang_id: battle.winner_id,
-        gang_name: gangMap.get(battle.winner_id)?.name || 'Unknown'
-      } : undefined
-    };
-  }) || [];
+  return (
+    data?.map((battle) => {
+      const scenarioDetails = scenarioMap.get(battle.scenario_id);
+      return {
+        id: battle.id,
+        created_at: battle.created_at,
+        updated_at: battle.updated_at,
+        scenario: battle.scenario || scenarioDetails?.scenario_name || '',
+        scenario_name: scenarioDetails?.scenario_name || '',
+        scenario_number: scenarioDetails?.scenario_number || null,
+        attacker_id: battle.attacker_id,
+        defender_id: battle.defender_id,
+        winner_id: battle.winner_id,
+        note: battle.note,
+        participants: battle.participants,
+        attacker: battle.attacker_id
+          ? {
+              gang_id: battle.attacker_id,
+              gang_name: gangMap.get(battle.attacker_id)?.name || 'Unknown',
+            }
+          : undefined,
+        defender: battle.defender_id
+          ? {
+              gang_id: battle.defender_id,
+              gang_name: gangMap.get(battle.defender_id)?.name || 'Unknown',
+            }
+          : undefined,
+        winner: battle.winner_id
+          ? {
+              gang_id: battle.winner_id,
+              gang_name: gangMap.get(battle.winner_id)?.name || 'Unknown',
+            }
+          : undefined,
+      };
+    }) || []
+  );
 }
 
-async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseClient) {
+async function _getCampaignTriumphs(
+  campaignTypeId: string,
+  supabase: SupabaseClient
+) {
   const { data: triumphs, error } = await supabase
     .from('campaign_triumphs')
-    .select(`
+    .select(
+      `
       id,
       triumph,
       criteria,
       campaign_type_id,
       created_at,
       updated_at
-    `)
+    `
+    )
     .eq('campaign_type_id', campaignTypeId)
     .order('triumph', { ascending: true });
 
@@ -539,8 +641,12 @@ export const getCampaignBasic = async (campaignId: string) => {
     },
     [`campaign-basic-${campaignId}`],
     {
-      tags: ['campaign-basic', `campaign-basic-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
+      tags: [
+        'campaign-basic',
+        `campaign-basic-${campaignId}`,
+        `campaign-${campaignId}`,
+      ],
+      revalidate: false,
     }
   )();
 };
@@ -558,8 +664,12 @@ export const getCampaignMembers = async (campaignId: string) => {
     },
     [`campaign-members-${campaignId}`],
     {
-      tags: ['campaign-members', `campaign-members-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
+      tags: [
+        'campaign-members',
+        `campaign-members-${campaignId}`,
+        `campaign-${campaignId}`,
+      ],
+      revalidate: false,
     }
   )();
 };
@@ -577,8 +687,12 @@ export const getCampaignTerritories = async (campaignId: string) => {
     },
     [`campaign-territories-${campaignId}`],
     {
-      tags: ['campaign-territories', `campaign-territories-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
+      tags: [
+        'campaign-territories',
+        `campaign-territories-${campaignId}`,
+        `campaign-${campaignId}`,
+      ],
+      revalidate: false,
     }
   )();
 };
@@ -596,8 +710,12 @@ export const getCampaignBattles = async (campaignId: string, limit = 50) => {
     },
     [`campaign-battles-${campaignId}-${limit}`],
     {
-      tags: ['campaign-battles', `campaign-battles-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
+      tags: [
+        'campaign-battles',
+        `campaign-battles-${campaignId}`,
+        `campaign-${campaignId}`,
+      ],
+      revalidate: false,
     }
   )();
 };
@@ -616,7 +734,7 @@ export const getCampaignTriumphs = async (campaignTypeId: string) => {
     [`campaign-triumphs-${campaignTypeId}`],
     {
       tags: ['campaign-triumphs', `campaign-triumphs-${campaignTypeId}`],
-      revalidate: false
+      revalidate: false,
     }
   )();
 };
@@ -627,7 +745,10 @@ export const getCampaignTriumphs = async (campaignTypeId: string) => {
  * Create campaign-specific cache tag
  * Usage: createCampaignTag('123', 'members') -> 'campaign-members-123'
  */
-export function createCampaignTag(campaignId: string, type: 'basic' | 'members' | 'territories' | 'battles'): string {
+export function createCampaignTag(
+  campaignId: string,
+  type: 'basic' | 'members' | 'territories' | 'battles'
+): string {
   return `campaign-${type}-${campaignId}`;
 }
 
@@ -661,14 +782,14 @@ export const getCampaignTypes = async () => {
         .from('campaign_types')
         .select('id, campaign_type_name')
         .order('campaign_type_name');
-      
+
       if (error) throw error;
       return data || [];
     },
     ['campaign-types'],
     {
       tags: ['campaign-types'],
-      revalidate: false
+      revalidate: false,
     }
   )();
 };
@@ -685,14 +806,14 @@ export const getAllTerritories = async () => {
         .from('territories')
         .select('id, territory_name, campaign_type_id')
         .order('territory_name');
-      
+
       if (error) throw error;
       return data || [];
     },
     ['territories-list'],
     {
       tags: ['territories-list'],
-      revalidate: false
+      revalidate: false,
     }
   )();
 };
@@ -708,28 +829,32 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
       // Get campaign gangs
       const { data: campaignGangs, error: campaignGangsError } = await supabase
         .from('campaign_gangs')
-        .select(`
+        .select(
+          `
           id,
           gang_id,
           user_id,
           campaign_member_id
-        `)
+        `
+        )
         .eq('campaign_id', campaignId);
 
       if (campaignGangsError) throw campaignGangsError;
 
-      const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+      const gangIds = campaignGangs?.map((cg) => cg.gang_id) || [];
       let gangsData: any[] = [];
 
       if (gangIds.length > 0) {
         const { data: gangs, error: gangsError } = await supabase
           .from('gangs')
-          .select(`
+          .select(
+            `
             id,
             name,
             gang_type,
             gang_colour
-          `)
+          `
+          )
           .in('id', gangIds);
 
         if (gangsError) throw gangsError;
@@ -737,25 +862,30 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
       }
 
       // Combine campaign gangs with gang details
-      const availableGangs = campaignGangs?.map(cg => {
-        const gangDetails = gangsData.find(g => g.id === cg.gang_id);
-        return {
-          id: cg.id,
-          gang_id: cg.gang_id,
-          gang_name: gangDetails?.name || 'Unknown',
-          gang_type: gangDetails?.gang_type || '',
-          gang_colour: gangDetails?.gang_colour || '#000000',
-          user_id: cg.user_id,
-          campaign_member_id: cg.campaign_member_id
-        };
-      }) || [];
+      const availableGangs =
+        campaignGangs?.map((cg) => {
+          const gangDetails = gangsData.find((g) => g.id === cg.gang_id);
+          return {
+            id: cg.id,
+            gang_id: cg.gang_id,
+            gang_name: gangDetails?.name || 'Unknown',
+            gang_type: gangDetails?.gang_type || '',
+            gang_colour: gangDetails?.gang_colour || '#000000',
+            user_id: cg.user_id,
+            campaign_member_id: cg.campaign_member_id,
+          };
+        }) || [];
 
       return availableGangs;
     },
     [`campaign-gangs-modal-${campaignId}`],
     {
-      tags: ['campaign-gangs', `campaign-gangs-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
+      tags: [
+        'campaign-gangs',
+        `campaign-gangs-${campaignId}`,
+        `campaign-${campaignId}`,
+      ],
+      revalidate: false,
     }
   )();
 };

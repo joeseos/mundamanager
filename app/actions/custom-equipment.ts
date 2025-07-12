@@ -1,8 +1,8 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
-import { getUserCustomEquipmentByCategory } from "@/app/lib/custom-equipment";
+import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
+import { getUserCustomEquipmentByCategory } from '@/app/lib/custom-equipment';
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -15,10 +15,13 @@ export async function updateCustomEquipment(
   }
 ) {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
@@ -26,9 +29,9 @@ export async function updateCustomEquipment(
   // Prepare the update data
   const updateData: any = {
     ...updates,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
-  
+
   // If equipment_category is being updated, we need to get the category_id
   if (updates.equipment_category) {
     const { data: categoryData, error: categoryError } = await supabase
@@ -39,7 +42,9 @@ export async function updateCustomEquipment(
 
     if (categoryError) {
       console.error('Error fetching equipment category:', categoryError);
-      throw new Error(`Failed to find equipment category: ${categoryError.message}`);
+      throw new Error(
+        `Failed to find equipment category: ${categoryError.message}`
+      );
     }
 
     updateData.equipment_category_id = categoryData.id;
@@ -61,16 +66,19 @@ export async function updateCustomEquipment(
 
   // Revalidate the customize page to show updated data
   revalidatePath('/customise');
-  
+
   return data;
 }
 
 export async function deleteCustomEquipment(equipmentId: string) {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
@@ -89,7 +97,7 @@ export async function deleteCustomEquipment(equipmentId: string) {
 
   // Revalidate the customize page to show updated data
   revalidatePath('/customise');
-  
+
   return { success: true };
 }
 
@@ -99,9 +107,12 @@ export async function fetchUserCustomEquipment(category?: string) {
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error in fetchUserCustomEquipment:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to fetch custom equipment' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch custom equipment',
     };
   }
 }
@@ -114,10 +125,13 @@ export async function createCustomEquipment(data: {
   equipment_type: 'wargear' | 'weapon';
 }) {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
@@ -131,7 +145,9 @@ export async function createCustomEquipment(data: {
 
   if (categoryError) {
     console.error('Error fetching equipment category:', categoryError);
-    throw new Error(`Failed to find equipment category: ${categoryError.message}`);
+    throw new Error(
+      `Failed to find equipment category: ${categoryError.message}`
+    );
   }
 
   // Create the custom equipment
@@ -146,7 +162,7 @@ export async function createCustomEquipment(data: {
       equipment_category: categoryData.category_name,
       equipment_category_id: categoryData.id,
       equipment_type: data.equipment_type,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     })
     .select()
     .single();
@@ -158,6 +174,6 @@ export async function createCustomEquipment(data: {
 
   // Revalidate the customize page to show new data
   revalidatePath('/customise');
-  
+
   return newEquipment;
-} 
+}

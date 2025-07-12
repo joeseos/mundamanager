@@ -1,9 +1,7 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { createClient } from "@/utils/supabase/client";
+import Link from 'next/link';
+import Image from 'next/image';
 
 interface Gang {
   id: string;
@@ -25,9 +23,12 @@ interface MyGangsProps {
 }
 
 export default function MyGangs({ gangs }: MyGangsProps) {
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement, Event>
+  ) => {
     console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
+    e.currentTarget.src =
+      'https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg';
   };
 
   // Sort gangs by the most recent of last_updated or created_at
@@ -46,7 +47,10 @@ export default function MyGangs({ gangs }: MyGangsProps) {
         <ul className="space-y-3">
           {sortedGangs.map((gang) => (
             <li key={gang.id}>
-              <Link href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
+              <Link
+                href={`/gang/${gang.id}`}
+                className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200"
+              >
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                   {gang.image_url ? (
                     <Image
@@ -74,7 +78,9 @@ export default function MyGangs({ gangs }: MyGangsProps) {
                   />
                 </div>
                 <div className="flex-grow min-w-0">
-                  <h3 className="text-lg md:text-xl font-medium text-black truncate">{gang.name}</h3>
+                  <h3 className="text-lg md:text-xl font-medium text-black truncate">
+                    {gang.name}
+                  </h3>
                   <div className="text-sm md:text-base text-gray-600">
                     <span className="truncate block">{gang.gang_type}</span>
                     <span>Rating: {gang.rating ?? 0}</span>

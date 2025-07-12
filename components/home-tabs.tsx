@@ -1,10 +1,10 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
-import MyGangs from '@/components/my-gangs'
-import MyCampaigns from '@/components/my-campaigns'
-import type { Campaign } from '@/app/lib/get-user-campaigns'
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import MyGangs from '@/components/my-gangs';
+import MyCampaigns from '@/components/my-campaigns';
+import type { Campaign } from '@/app/lib/get-user-campaigns';
 
 interface CampaignType {
   id: string;
@@ -33,7 +33,12 @@ interface HomeTabsProps {
   userId: string;
 }
 
-export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: HomeTabsProps) {
+export default function HomeTabs({
+  gangs,
+  campaigns,
+  campaignTypes,
+  userId,
+}: HomeTabsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
 
@@ -70,14 +75,10 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
 
       {/* Tab Content */}
       <div className="space-y-4">
-        {activeTab === 0 && (
-          <MyGangs gangs={gangs} />
-        )}
-        
-        {activeTab === 1 && (
-          <MyCampaigns campaigns={campaigns} />
-        )}
+        {activeTab === 0 && <MyGangs gangs={gangs} />}
+
+        {activeTab === 1 && <MyCampaigns campaigns={campaigns} />}
       </div>
     </div>
   );
-} 
+}

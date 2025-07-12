@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 import { Skill } from '@/types/fighter';
 
 interface Equipment {
@@ -80,21 +80,27 @@ interface FighterWithDetails {
   [key: string]: any;
 }
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
 
   try {
     // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Parse request body
     const { gangAddition, selectedEquipment } = await request.json();
     console.log('Received request data:', { gangAddition, selectedEquipment });
-    
+
     // Verify gang ownership
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
@@ -104,11 +110,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     if (gangError) {
       console.error('Error fetching gang:', gangError);
-      return NextResponse.json({ error: "Gang not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Gang not found' }, { status: 404 });
     }
 
     if (gang.user_id !== user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // Create the fighter
@@ -132,7 +138,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         cool: gangAddition.cool,
         willpower: gangAddition.willpower,
         intelligence: gangAddition.intelligence,
-        special_rules: gangAddition.special_rules
+        special_rules: gangAddition.special_rules,
       })
       .select()
       .single();
@@ -147,11 +153,13 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     // Get fighter defaults
     const { data: fighterDefaults, error: defaultsError } = await supabase
       .from('fighter_defaults')
-      .select(`
+      .select(
+        `
         id,
         equipment_id,
         skill_id
-      `)
+      `
+      )
       .eq('gang_addition_id', gangAddition.id);
 
     if (defaultsError) {
@@ -164,14 +172,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     // After getting fighter defaults
     if (fighterDefaults) {
       const defaultEquipmentIds = fighterDefaults
-        .filter(def => def.equipment_id)
-        .map(def => def.equipment_id);
+        .filter((def) => def.equipment_id)
+        .map((def) => def.equipment_id);
 
       // Fetch details for default equipment
       if (defaultEquipmentIds.length > 0) {
-        const { data: defaultEquipmentDetails, error: detailsError } = await supabase
-          .from('equipment')
-          .select(`
+        const { data: defaultEquipmentDetails, error: detailsError } =
+          await supabase
+            .from('equipment')
+            .select(
+              `
             id,
             equipment_name,
             equipment_type,
@@ -190,11 +200,15 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               weapon_group_id,
               sort_order
             )
-          `)
-          .in('id', defaultEquipmentIds);
+          `
+            )
+            .in('id', defaultEquipmentIds);
 
         if (detailsError) {
-          console.error('Error fetching default equipment details:', detailsError);
+          console.error(
+            'Error fetching default equipment details:',
+            detailsError
+          );
           throw detailsError;
         }
 
@@ -208,30 +222,31 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               weapon_id: equip.id,
               cost: 0,
               fighter_weapon_id: `${fighter.id}_${equip.id}`,
-              weapon_profiles: equip.weapon_profiles?.map(profile => ({
-                id: profile.id,
-                profile_name: profile.profile_name,
-                range_short: profile.range_short,
-                range_long: profile.range_long,
-                acc_short: profile.acc_short,
-                acc_long: profile.acc_long,
-                strength: profile.strength,
-                damage: profile.damage,
-                ap: profile.ap,
-                ammo: profile.ammo,
-                traits: profile.traits,
-                weapon_group_id: profile.weapon_group_id
-              })) || []
+              weapon_profiles:
+                equip.weapon_profiles?.map((profile) => ({
+                  id: profile.id,
+                  profile_name: profile.profile_name,
+                  range_short: profile.range_short,
+                  range_long: profile.range_long,
+                  acc_short: profile.acc_short,
+                  acc_long: profile.acc_long,
+                  strength: profile.strength,
+                  damage: profile.damage,
+                  ap: profile.ap,
+                  ammo: profile.ammo,
+                  traits: profile.traits,
+                  weapon_group_id: profile.weapon_group_id,
+                })) || [],
             });
           }
         });
 
         // Insert default equipment
-        const defaultEquipment = defaultEquipmentDetails.map(equip => ({
+        const defaultEquipment = defaultEquipmentDetails.map((equip) => ({
           fighter_id: fighter.id,
           equipment_id: equip.id,
           purchase_cost: 0,
-          original_cost: 0
+          original_cost: 0,
         }));
 
         const { error: defaultEquipError } = await supabase
@@ -239,21 +254,24 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           .insert(defaultEquipment);
 
         if (defaultEquipError) {
-          console.error('Error inserting default equipment:', defaultEquipError);
+          console.error(
+            'Error inserting default equipment:',
+            defaultEquipError
+          );
           throw defaultEquipError;
         }
       }
 
       // Add default skills to fighter_skills
       const defaultSkills = fighterDefaults
-        .filter(def => def.skill_id)
-        .map(def => ({
+        .filter((def) => def.skill_id)
+        .map((def) => ({
           fighter_id: fighter.id,
           skill_id: def.skill_id,
           is_advance: false,
           credits_increase: 0,
           xp_cost: '0',
-          fighter_injury_id: null
+          fighter_injury_id: null,
         }));
 
       if (defaultSkills.length > 0) {
@@ -278,7 +296,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       // Fetch equipment details
       const { data: equipmentDetails, error: detailsError } = await supabase
         .from('equipment')
-        .select(`
+        .select(
+          `
           id,
           equipment_name,
           equipment_type,
@@ -297,8 +316,12 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             weapon_group_id,
             sort_order
           )
-        `)
-        .in('id', selectedEquipment.map((e: Equipment) => e.id));
+        `
+        )
+        .in(
+          'id',
+          selectedEquipment.map((e: Equipment) => e.id)
+        );
 
       if (detailsError) {
         console.error('Error fetching equipment details:', detailsError);
@@ -309,7 +332,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
       // Process only the selected equipment
       equipmentDetails?.forEach((equip: EquipmentDetails) => {
-        const selectedEquip = selectedEquipment.find((e: Equipment) => e.id === equip.id);
+        const selectedEquip = selectedEquipment.find(
+          (e: Equipment) => e.id === equip.id
+        );
         if (!selectedEquip) return;
 
         if (equip.equipment_type === 'weapon') {
@@ -317,7 +342,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             fighter_id: fighter.id,
             weapon_id: equip.id,
             fighter_weapon_id: `${fighter.id}_${equip.id}`,
-            cost: selectedEquip.cost
+            cost: selectedEquip.cost,
           };
           console.log('Adding weapon:', weaponData);
 
@@ -326,20 +351,21 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             weapon_id: equip.id,
             cost: selectedEquip.cost,
             fighter_weapon_id: weaponData.fighter_weapon_id,
-            weapon_profiles: equip.weapon_profiles?.map(profile => ({
-              id: profile.id,
-              profile_name: profile.profile_name,
-              range_short: profile.range_short,
-              range_long: profile.range_long,
-              acc_short: profile.acc_short,
-              acc_long: profile.acc_long,
-              strength: profile.strength,
-              damage: profile.damage,
-              ap: profile.ap,
-              ammo: profile.ammo,
-              traits: profile.traits,
-              weapon_group_id: profile.weapon_group_id
-            })) || []
+            weapon_profiles:
+              equip.weapon_profiles?.map((profile) => ({
+                id: profile.id,
+                profile_name: profile.profile_name,
+                range_short: profile.range_short,
+                range_long: profile.range_long,
+                acc_short: profile.acc_short,
+                acc_long: profile.acc_long,
+                strength: profile.strength,
+                damage: profile.damage,
+                ap: profile.ap,
+                ammo: profile.ammo,
+                traits: profile.traits,
+                weapon_group_id: profile.weapon_group_id,
+              })) || [],
           });
         }
       });
@@ -349,11 +375,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         const { error: equipmentError } = await supabase
           .from('fighter_equipment')
           .insert(
-            weapons.map(weapon => ({
+            weapons.map((weapon) => ({
               fighter_id: fighter.id,
               equipment_id: weapon.weapon_id,
               purchase_cost: weapon.cost,
-              original_cost: weapon.cost
+              original_cost: weapon.cost,
             }))
           );
 
@@ -369,7 +395,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       .from('gangs')
       .update({
         credits: gang.credits - parseInt(gangAddition.cost),
-        rating: gang.rating + parseInt(gangAddition.cost)
+        rating: gang.rating + parseInt(gangAddition.cost),
       })
       .eq('id', params.id);
 
@@ -381,7 +407,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     // Before returning the response, let's fetch the complete fighter data
     const { data: fighterWithDetails, error: detailsError } = await supabase
       .from('fighters')
-      .select(`
+      .select(
+        `
         *,
         fighter_equipment (
           equipment_id,
@@ -401,7 +428,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             skill_type_id
           )
         )
-      `)
+      `
+      )
       .eq('id', fighter.id)
       .single();
 
@@ -411,23 +439,31 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     // Process the equipment into weapons and wargear arrays with proper typing
-    const processedWeapons = (fighterWithDetails as FighterWithDetails).fighter_equipment
-      .filter((item: FighterEquipment) => item.equipment.equipment_type === 'weapon')
+    const processedWeapons = (
+      fighterWithDetails as FighterWithDetails
+    ).fighter_equipment
+      .filter(
+        (item: FighterEquipment) => item.equipment.equipment_type === 'weapon'
+      )
       .map((item: FighterEquipment) => ({
         weapon_name: item.equipment.equipment_name,
         weapon_id: item.equipment.id,
         cost: item.purchase_cost,
         fighter_weapon_id: `${fighter.id}_${item.equipment.id}`,
-        weapon_profiles: item.equipment.weapon_profiles || []
+        weapon_profiles: item.equipment.weapon_profiles || [],
       }));
 
-    const processedWargear = (fighterWithDetails as FighterWithDetails).fighter_equipment
-      .filter((item: FighterEquipment) => item.equipment.equipment_type === 'wargear')
+    const processedWargear = (
+      fighterWithDetails as FighterWithDetails
+    ).fighter_equipment
+      .filter(
+        (item: FighterEquipment) => item.equipment.equipment_type === 'wargear'
+      )
       .map((item: FighterEquipment) => ({
         wargear_name: item.equipment.equipment_name,
         wargear_id: item.equipment.id,
         cost: item.purchase_cost,
-        fighter_weapon_id: `${fighter.id}_${item.equipment.id}`
+        fighter_weapon_id: `${fighter.id}_${item.equipment.id}`,
       }));
 
     return NextResponse.json({
@@ -435,16 +471,20 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         ...fighter,
         weapons: processedWeapons,
         wargear: processedWargear,
-        skills: (fighterWithDetails as FighterWithDetails).fighter_skills.map((fs: FighterSkill) => fs.skills)
+        skills: (fighterWithDetails as FighterWithDetails).fighter_skills.map(
+          (fs: FighterSkill) => fs.skills
+        ),
       },
       updatedCredits: gang.credits - parseInt(gangAddition.cost),
-      updatedRating: gang.rating + parseInt(gangAddition.cost)
+      updatedRating: gang.rating + parseInt(gangAddition.cost),
     });
-
   } catch (error) {
     console.error('Error in POST /api/gangs/[id]/fighters:', error);
     return NextResponse.json(
-      { error: "Failed to add fighter", details: error instanceof Error ? error.message : String(error) },
+      {
+        error: 'Failed to add fighter',
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

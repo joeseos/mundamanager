@@ -1,30 +1,30 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
 import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
-import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
-import { FiMap } from "react-icons/fi";
-import { MdOutlineColorLens } from "react-icons/md";
+import { FaUsers, FaDiscord, FaPatreon, FaGithub } from 'react-icons/fa6';
+import { FiMap } from 'react-icons/fi';
+import { MdOutlineColorLens } from 'react-icons/md';
 
 // Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
-  ssr: false
+  ssr: false,
 });
 
 // Export a component for use in server components
@@ -38,19 +38,20 @@ interface SettingsModalProps {
   username?: string;
 }
 
-export default function SettingsModal({ user, isAdmin, username }: SettingsModalProps) {
+export default function SettingsModal({
+  user,
+  isAdmin,
+  username,
+}: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
 
   // Notification handler for all notifications
-  const onNotifications = useCallback(
-    (newNotifications: any[]) => {
-      // No longer needed as we use onUnreadCountChange
-    },
-    []
-  );
+  const onNotifications = useCallback(() => {
+    // No longer needed as we use onUnreadCountChange
+  }, []);
 
   // Handle unread count changes
   const onUnreadCountChange = useCallback((count: number) => {
@@ -72,11 +73,6 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
     router.refresh();
   };
 
-  const handleDummyClick = () => {
-    setOpen(false);
-    console.log('Feature coming soon...');
-  };
-
   const handleLinkClick = () => {
     setOpen(false);
   };
@@ -94,7 +90,7 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
             <Menu className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
-        
+
         {/* Notification indicator that overlays the menu button */}
         {notificationCount > 0 && (
           <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[0.65rem] text-white z-10">
@@ -103,20 +99,24 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
         )}
 
         <DropdownMenuContent
-          align="end" 
+          align="end"
           className="w-56"
           sideOffset={8}
           collisionPadding={20}
         >
           <div className="px-2 py-1.5 text-sm text-gray-500">
-
-            <span className="text-xl font-medium text-gray-900">{username || user.email}</span>
+            <span className="text-xl font-medium text-gray-900">
+              {username || user.email}
+            </span>
           </div>
 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/profile" className="w-full cursor-pointer flex items-center">
+            <Link
+              href="/profile"
+              className="w-full cursor-pointer flex items-center"
+            >
               <User className="mr-2 h-4 w-4" />
               Profile
               {notificationCount > 0 && (
@@ -161,18 +161,33 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
 
           <div className="pb-1">
             <div className="flex gap-2">
-              <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+              <a
+                href="https://discord.gg/ZWXXqd5NUt"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleLinkClick}
+                className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted"
+              >
                 <FaDiscord className="h-4 w-4" />
-
               </a>
-              <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+              <a
+                href="https://www.patreon.com/c/mundamanager"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleLinkClick}
+                className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted"
+              >
                 <FaPatreon className="h-4 w-4" />
-
               </a>
 
-              <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" onClick={handleLinkClick} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted">
+              <a
+                href="https://github.com/joeseos/mundamanager"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleLinkClick}
+                className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted"
+              >
                 <FaGithub className="h-4 w-4" />
-
               </a>
             </div>
           </div>
@@ -191,7 +206,7 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={handleLogout}
             className="text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900 dark:hover:text-red-400"
           >

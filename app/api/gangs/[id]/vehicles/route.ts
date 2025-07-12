@@ -1,7 +1,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
   const gangId = params.id;
@@ -35,12 +38,17 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   }
 }
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,7 +85,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     // Check if gang has enough credits
-    const vehicleCost = cost === 0 ? 0 : (cost || vehicleType.cost);
+    const vehicleCost = cost === 0 ? 0 : cost || vehicleType.cost;
     if (gang.credits < vehicleCost) {
       return NextResponse.json(
         { error: 'Not enough credits' },
@@ -110,7 +118,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         vehicle_type_id: vehicleTypeId,
         cost: vehicleBaseCost,
         vehicle_type: vehicleType.vehicle_type,
-        gang_id: gangId
+        gang_id: gangId,
       })
       .select()
       .single();
@@ -125,9 +133,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     // Update gang credits
     const { error: gangUpdateError } = await supabase
       .from('gangs')
-      .update({ 
+      .update({
         credits: gang.credits - vehicleCost,
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       })
       .eq('id', gangId);
 
@@ -144,31 +152,36 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       ...vehicle,
       gang_credits: gang.credits - vehicleCost,
       payment_cost: vehicleCost,
-      base_cost: vehicleBaseCost
+      base_cost: vehicleBaseCost,
     });
   } catch (error) {
     console.error('Detailed error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown server error' },
+      {
+        error: error instanceof Error ? error.message : 'Unknown server error',
+      },
       { status: 500 }
     );
   }
 }
 
-export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   try {
     const { vehicleId, fighterId } = await request.json();
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify user has access to this gang
@@ -217,13 +230,13 @@ export async function DELETE(
     const supabase = await createClient();
 
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get the vehicle ID from the request
@@ -250,4 +263,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

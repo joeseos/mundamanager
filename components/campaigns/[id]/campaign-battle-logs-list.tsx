@@ -1,14 +1,20 @@
-"use client"
+'use client';
 
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
-import { useToast } from "@/components/ui/use-toast";
-import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
-import { ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
-import { BiSolidNotepad } from "react-icons/bi";
-import { deleteBattleLog } from "@/app/lib/campaigns/[id]/battle-logs";
-import Modal from "@/components/modal";
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import {
+  useState,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+} from 'react';
+import { useToast } from '@/components/ui/use-toast';
+import CampaignBattleLogModal from '@/components/campaigns/[id]/campaign-battle-log-modal';
+import { ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { deleteBattleLog } from '@/app/lib/campaigns/[id]/battle-logs';
+import Modal from '@/components/modal';
 
 interface Member {
   id?: string;
@@ -107,35 +113,42 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
-  const { 
-    campaignId, 
-    battles, 
-    isAdmin, 
+const CampaignBattleLogsList = forwardRef<
+  CampaignBattleLogsListRef,
+  CampaignBattleLogsListProps
+>((props, ref) => {
+  const {
+    campaignId,
+    battles,
+    isAdmin,
     onBattleAdd,
     members,
     territories = [],
     noContainer = false,
-    hideAddButton = false
+    hideAddButton = false,
   } = props;
-  
+
   const [showBattleModal, setShowBattleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const { toast } = useToast();
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
+
   // Calculate total pages
   const totalPages = Math.ceil(battles.length / itemsPerPage);
 
   // Map of gang IDs to gang names for lookup
-  const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
-  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(new Map());
+  const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(
+    new Map()
+  );
 
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
@@ -145,24 +158,26 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Sort battles by date (newest first)
   const sortedBattles = useMemo(() => {
     return [...battles].sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     });
   }, [battles]);
-  
+
   // Get current battles for pagination
   const currentBattles = useMemo(() => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     return sortedBattles.slice(indexOfFirstItem, indexOfLastItem);
   }, [sortedBattles, currentPage, itemsPerPage]);
-  
+
   // Pagination navigation
   const goToNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
-  
+
   const goToPreviousPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
@@ -176,7 +191,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       setSelectedBattle(null);
       setShowBattleModal(true);
       console.log('showBattleModal set to true');
-    }
+    },
   }));
 
   // Extract gangs from members
@@ -186,20 +201,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       const gangsMap = new Map<string, CampaignGang>();
       const gangNamesMap = new Map<string, string>();
       const gangColourMap = new Map<string, string>();
-      
-      members.forEach(member => {
+
+      members.forEach((member) => {
         if (member.gangs && member.gangs.length > 0) {
-          member.gangs.forEach(gang => {
+          member.gangs.forEach((gang) => {
             // Create a unique key for each gang instance that includes member instance info
             const gangKey = gang.gang_id;
-            
+
             if (!gangsMap.has(gangKey)) {
               gangsMap.set(gangKey, {
                 id: gang.gang_id,
                 name: gang.gang_name,
                 // Store additional data for reference if needed
                 campaign_member_id: member.id || gang.campaign_member_id,
-                user_id: member.user_id
+                user_id: member.user_id,
               });
               gangNamesMap.set(gang.gang_id, gang.gang_name);
               gangColourMap.set(gang.gang_id, gang.gang_colour || '#000000');
@@ -207,7 +222,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           });
         }
       });
-      
+
       setAvailableGangs(Array.from(gangsMap.values()));
       setGangNameMap(gangNamesMap);
       setGangColourMap(gangColourMap);
@@ -215,14 +230,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   }, [members]);
 
   // Get gang name by ID - prioritize battle data, fallback to member data
-  const getGangName = (gangId: string | undefined, battleGangName?: string): string => {
-    if (!gangId) return "Unknown";
+  const getGangName = (
+    gangId: string | undefined,
+    battleGangName?: string
+  ): string => {
+    if (!gangId) return 'Unknown';
     // First try to use the gang name from the battle data itself
-    if (battleGangName && battleGangName !== "Unknown") {
+    if (battleGangName && battleGangName !== 'Unknown') {
       return battleGangName;
     }
     // Fallback to the member-based gang map
-    return gangNameMap.get(gangId) || "Unknown";
+    return gangNameMap.get(gangId) || 'Unknown';
   };
 
   const getGangColour = (gangId: string | undefined): string => {
@@ -244,9 +262,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     // If using the new data structure with participants
-    if (participants && Array.isArray(participants) && participants.length > 0) {
+    if (
+      participants &&
+      Array.isArray(participants) &&
+      participants.length > 0
+    ) {
       // If no gangs with roles, return None
-      if (participants.every(p => !p.gang_id)) {
+      if (participants.every((p) => !p.gang_id)) {
         return <span className="text-gray-500">None</span>;
       }
 
@@ -266,8 +288,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
         if (roleA !== roleB) return roleA - roleB;
 
-        const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
-        const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
+        const nameA = getGangName(
+          a.gang_id,
+          battleGangNames.get(a.gang_id)
+        ).toLowerCase();
+        const nameB = getGangName(
+          b.gang_id,
+          battleGangNames.get(b.gang_id)
+        ).toLowerCase();
         return nameA.localeCompare(nameB);
       });
 
@@ -275,27 +303,33 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         <div className="space-y-1">
           {participants.map((participant, index) => {
             if (!participant.gang_id) return null;
-            
+
             // Role indicator
-            let roleColor = "";
-            let roleLetter = "";
+            let roleColor = '';
+            let roleLetter = '';
             if (participant.role === 'attacker') {
-              roleColor = "bg-red-500";
-              roleLetter = "A";
+              roleColor = 'bg-red-500';
+              roleLetter = 'A';
             } else if (participant.role === 'defender') {
-              roleColor = "bg-blue-500";
-              roleLetter = "D";
+              roleColor = 'bg-blue-500';
+              roleLetter = 'D';
             }
-            
-            const gangName = getGangName(participant.gang_id, battleGangNames.get(participant.gang_id));
-            
+
+            const gangName = getGangName(
+              participant.gang_id,
+              battleGangNames.get(participant.gang_id)
+            );
+
             return (
               <div key={index}>
                 <div className="flex items-center space-x-1">
-                  <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                  <span
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}
+                  >
                     {roleLetter}
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                  <span
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
                     style={{ color: getGangColour(participant.gang_id) }}
                   >
                     <Link
@@ -312,36 +346,36 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       );
     }
-    
+
     // Fallback to old data structure
     const gangs = [];
-    
+
     if (battle.attacker_id || battle.attacker?.gang_id) {
       const gangId = battle.attacker?.gang_id || battle.attacker_id;
-      const gangName = battle.attacker?.gang_name || getGangName(gangId || "");
-      
+      const gangName = battle.attacker?.gang_name || getGangName(gangId || '');
+
       if (gangId) {
         gangs.push({
           id: gangId,
           name: gangName,
-          role: 'attacker'
+          role: 'attacker',
         });
       }
     }
-    
+
     if (battle.defender_id || battle.defender?.gang_id) {
       const gangId = battle.defender?.gang_id || battle.defender_id;
-      const gangName = battle.defender?.gang_name || getGangName(gangId || "");
-      
+      const gangName = battle.defender?.gang_name || getGangName(gangId || '');
+
       if (gangId) {
         gangs.push({
           id: gangId,
           name: gangName,
-          role: 'defender'
+          role: 'defender',
         });
       }
     }
-    
+
     if (gangs.length === 0) {
       return <span className="text-gray-500">None</span>;
     }
@@ -355,17 +389,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
-    
+
     return (
       <div className="space-y-1">
         {gangs.map((gang, index) => {
-          const roleColor = gang.role === 'attacker' ? 'bg-red-500' : 'bg-blue-500';
+          const roleColor =
+            gang.role === 'attacker' ? 'bg-red-500' : 'bg-blue-500';
           const roleLetter = gang.role === 'attacker' ? 'A' : 'D';
-          
+
           return (
             <div key={index}>
               <div className="flex items-center space-x-1">
-                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                <span
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}
+                >
                   {roleLetter}
                 </span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -389,12 +426,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     // Only allow admins to edit battle logs
     if (!isAdmin) {
       toast({
-        variant: "destructive",
-        description: "You don't have permission to edit battle logs."
+        variant: 'destructive',
+        description: "You don't have permission to edit battle logs.",
       });
       return;
     }
-    
+
     setSelectedBattle(battle);
     setShowBattleModal(true);
   };
@@ -407,7 +444,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       e.stopPropagation();
       console.log('Delete button clicked, prevented default', battle.id);
     }
-    
+
     setBattleToDelete(battle);
     setShowDeleteModal(true);
     return false; // Ensure no further action is taken
@@ -416,37 +453,37 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Confirm delete battle
   const confirmDeleteBattle = async () => {
     if (!battleToDelete) return false;
-    
+
     console.log('Confirming delete for battle', battleToDelete.id);
     setIsDeleting(true);
-    
+
     try {
       console.log('Calling deleteBattleLog server action');
       await deleteBattleLog(campaignId, battleToDelete.id);
       console.log('Delete successful');
-      
+
       // Close modal
       setShowDeleteModal(false);
       setBattleToDelete(null);
-      
+
       // Delayed toast and refresh to avoid navigation conflicts
       setTimeout(() => {
         toast({
-          description: "Battle report deleted successfully"
+          description: 'Battle report deleted successfully',
         });
-        
+
         // Add a small delay before refreshing to ensure the delete has been processed
         setTimeout(() => {
           onBattleAdd(); // Refresh the battle list
         }, 100);
       }, 0);
-      
+
       return true; // Return true for modal to close
     } catch (error) {
       console.error('Error deleting battle report:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to delete battle report"
+        variant: 'destructive',
+        description: 'Failed to delete battle report',
       });
       return false; // Return false to keep modal open
     } finally {
@@ -505,18 +542,27 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         <table className="w-full text-xs md:text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
-              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
+              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">
+                Date
+              </th>
+              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">
+                Scenario
+              </th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner</th>
               <th className="px-2 py-2 text-left font-medium">Report</th>
-              {isAdmin && <th className="px-2 py-2 text-right font-medium">Actions</th>}
+              {isAdmin && (
+                <th className="px-2 py-2 text-right font-medium">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 5 : 4} className="text-gray-500 italic text-center">
+                <td
+                  colSpan={isAdmin ? 5 : 4}
+                  className="text-gray-500 italic text-center"
+                >
                   No battles recorded yet.
                 </td>
               </tr>
@@ -551,7 +597,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     ) : battle.winner_id === null ? (
                       <span className="ml-2 text-xs">Draw</span>
                     ) : (
-                      <span className="ml-2 text-xs">{battle.winner?.gang_name || 'Unknown'}</span>
+                      <span className="ml-2 text-xs">
+                        {battle.winner?.gang_name || 'Unknown'}
+                      </span>
                     )}
                   </td>
 
@@ -633,10 +681,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       <CampaignBattleLogModal
         campaignId={campaignId}
         availableGangs={availableGangs}
-        territories={territories.map(t => ({
+        territories={territories.map((t) => ({
           id: t.id,
           name: t.territory_name,
-          controlled_by: t.gang_id || undefined
+          controlled_by: t.gang_id || undefined,
         }))}
         isOpen={showBattleModal}
         onClose={handleModalClose}
@@ -651,18 +699,29 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           title="Delete Battle Report"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle report? This action cannot be undone.</p>
+              <p className="mb-4">
+                Are you sure you want to delete this battle report? This action
+                cannot be undone.
+              </p>
               {battleToDelete && (
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
-                  <div><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</div>
-                  <div><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</div>
+                  <div>
+                    <span className="font-medium">Date:</span>{' '}
+                    {formatDate(battleToDelete.created_at)}
+                  </div>
+                  <div>
+                    <span className="font-medium">Scenario:</span>{' '}
+                    {battleToDelete.scenario ||
+                      battleToDelete.scenario_name ||
+                      'N/A'}
+                  </div>
                 </div>
               )}
             </div>
           }
           onClose={handleDeleteModalClose}
           onConfirm={confirmDeleteBattle}
-          confirmText={isDeleting ? "Deleting..." : "Delete"}
+          confirmText={isDeleting ? 'Deleting...' : 'Delete'}
           confirmDisabled={isDeleting}
         />
       )}
@@ -690,13 +749,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   );
 
   // Return with or without a container based on prop
-  return noContainer ? content : (
-    <div className="bg-white shadow-md rounded-lg p-4">
-      {content}
-    </div>
+  return noContainer ? (
+    content
+  ) : (
+    <div className="bg-white shadow-md rounded-lg p-4">{content}</div>
   );
 });
 
-CampaignBattleLogsList.displayName = "CampaignBattleLogsList";
+CampaignBattleLogsList.displayName = 'CampaignBattleLogsList';
 
-export default CampaignBattleLogsList; 
+export default CampaignBattleLogsList;

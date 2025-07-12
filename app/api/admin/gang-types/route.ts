@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -47,7 +47,7 @@ interface FighterTypeData {
   attacks: number;
   special_rules?: string;
   free_skill: boolean;
-  default_equipment?: string[];  // Array of equipment IDs
+  default_equipment?: string[]; // Array of equipment IDs
 }
 
 export async function POST(request: Request) {
@@ -95,27 +95,29 @@ export async function POST(request: Request) {
     // Create fighter type
     const { data: newFighterType, error: insertError } = await supabase
       .from('fighter_types')
-      .insert([{
-        fighter_type: data.fighterType,
-        cost: data.baseCost,
-        gang_type_id: data.gangTypeId,
-        gang_type: gangType.gang_type,
-        fighter_class: data.fighterClass,
-        movement: data.movement,
-        weapon_skill: data.weapon_skill,
-        ballistic_skill: data.ballistic_skill,
-        strength: data.strength,
-        toughness: data.toughness,
-        wounds: data.wounds,
-        initiative: data.initiative,
-        leadership: data.leadership,
-        cool: data.cool,
-        willpower: data.willpower,
-        intelligence: data.intelligence,
-        attacks: data.attacks,
-        special_rules: data.special_rules,
-        free_skill: data.free_skill
-      }])
+      .insert([
+        {
+          fighter_type: data.fighterType,
+          cost: data.baseCost,
+          gang_type_id: data.gangTypeId,
+          gang_type: gangType.gang_type,
+          fighter_class: data.fighterClass,
+          movement: data.movement,
+          weapon_skill: data.weapon_skill,
+          ballistic_skill: data.ballistic_skill,
+          strength: data.strength,
+          toughness: data.toughness,
+          wounds: data.wounds,
+          initiative: data.initiative,
+          leadership: data.leadership,
+          cool: data.cool,
+          willpower: data.willpower,
+          intelligence: data.intelligence,
+          attacks: data.attacks,
+          special_rules: data.special_rules,
+          free_skill: data.free_skill,
+        },
+      ])
       .select('id')
       .single();
 
@@ -128,10 +130,12 @@ export async function POST(request: Request) {
 
     // Create equipment defaults with proper typing
     if (data.default_equipment && data.default_equipment.length > 0) {
-      const equipmentDefaults = data.default_equipment.map((equipmentId: string) => ({
-        fighter_type_id: newFighterType.id,
-        equipment_id: equipmentId
-      }));
+      const equipmentDefaults = data.default_equipment.map(
+        (equipmentId: string) => ({
+          fighter_type_id: newFighterType.id,
+          equipment_id: equipmentId,
+        })
+      );
 
       console.log('Creating equipment defaults:', equipmentDefaults);
 
@@ -148,11 +152,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Detailed error in POST:', error);
-    
-    return NextResponse.json({ 
-      error: 'Error creating fighter type',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      name: error instanceof Error ? error.name : 'Unknown'
-    }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        error: 'Error creating fighter type',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        name: error instanceof Error ? error.name : 'Unknown',
+      },
+      { status: 500 }
+    );
   }
-} 
+}

@@ -1,36 +1,33 @@
 'use client';
 
-
-import { Skill, FighterSkills, FighterEffect } from "@/types/fighter";
-import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
-import { WeaponList } from "@/components/fighter/fighter-equipment-list";
-import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button } from "@/components/ui/button";
+import { FighterSkills, FighterEffect } from '@/types/fighter';
+import { FighterDetailsCard } from '@/components/fighter/fighter-details-card';
+import { WeaponList } from '@/components/fighter/fighter-equipment-list';
+import { VehicleEquipmentList } from '@/components/fighter/vehicle-equipment-list';
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import Modal from "@/components/modal";
-import { useToast } from "@/components/ui/use-toast";
-import ItemModal from "@/components/equipment";
-import { Equipment, WeaponProfile } from '@/types/equipment';
-import { AdvancementsList, AdvancementModal } from "@/components/fighter/fighter-advancement-list";
-import { SkillsList } from "@/components/fighter/fighter-skills-list";
-import { InjuriesList } from "@/components/fighter/fighter-injury-list";
-import { NotesList } from "@/components/fighter/fighter-notes-list";
-import { Input } from "@/components/ui/input";
-import { FighterEffects, VehicleEquipment } from '@/types/fighter';
-import { vehicleExclusiveCategories, vehicleCompatibleCategories, VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
-import { useSession } from '@/hooks/use-session';
-import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
-import { FighterProps } from '@/types/fighter';
-import { Plus, Minus, X } from "lucide-react";
+import Modal from '@/components/modal';
+import { useToast } from '@/components/ui/use-toast';
+import ItemModal from '@/components/equipment';
+import { Equipment } from '@/types/equipment';
+import { AdvancementsList } from '@/components/fighter/fighter-advancement-list';
+import { SkillsList } from '@/components/fighter/fighter-skills-list';
+import { InjuriesList } from '@/components/fighter/fighter-injury-list';
+import { NotesList } from '@/components/fighter/fighter-notes-list';
+import { VehicleEquipment } from '@/types/fighter';
+import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
+import { EditFighterModal } from '@/components/fighter/fighter-edit-modal';
 import { Vehicle } from '@/types/fighter';
-import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
+import { VehicleDamagesList } from '@/components/fighter/vehicle-lasting-damages';
+import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { UserPermissions } from '@/types/user-permissions';
-import { SellFighterModal } from "@/components/fighter/sell-fighter";
-import { editFighterStatus, updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
-
-
+import { SellFighterModal } from '@/components/fighter/sell-fighter';
+import {
+  editFighterStatus,
+  updateFighterXp,
+  updateFighterDetails,
+} from '@/app/actions/edit-fighter';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -44,42 +41,11 @@ interface FighterPageProps {
   fighterId: string;
 }
 
-interface Weapon {
-  cost: number;
-  weapon_id: string;
-  weapon_name: string;
-  fighter_weapon_id: string;
-  weapon_profiles?: WeaponProfile[];
-}
-
-interface Wargear {
-  cost: number | null;
-  wargear_id: string;
-  wargear_name: string;
-  fighter_weapon_id: string;
-}
-
-interface Campaign {
-  campaign_id: string;
-  campaign_name: string;
-  role: string | null;
-  status: string | null;
-  has_meat: boolean;
-  has_exploration_points: boolean;
-  has_scavenging_rolls: boolean;
-}
-
 interface Fighter {
   id: string;
   fighter_name: string;
-  fighter_type: {
-    fighter_type: string;
-    fighter_type_id: string;
-  };
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
-  };
+  fighter_type: { fighter_type: string; fighter_type_id: string };
+  fighter_sub_type?: { fighter_sub_type: string; fighter_sub_type_id: string };
   fighter_class?: string;
   alliance_crew_name?: string;
   label?: string;
@@ -181,20 +147,11 @@ interface EditState {
   xpError: string;
 }
 
-interface FighterEffectTypeSpecificData {
-  times_increased: number;
-  xp_cost: number;
-  credits_increase: number;
-}
-
-
-
-
-export default function FighterPage({ 
-  initialFighterData, 
-  initialGangFighters, 
-  userPermissions, 
-  fighterId 
+export default function FighterPage({
+  initialFighterData,
+  initialGangFighters,
+  userPermissions,
+  fighterId,
 }: FighterPageProps) {
   // Transform initial data and set up state
   const [fighterData, setFighterData] = useState<FighterPageState>(() => {
@@ -209,42 +166,51 @@ export default function FighterPage({
             xp_cost: skill.xp_cost,
             is_advance: skill.is_advance,
             acquired_at: skill.acquired_at,
-            fighter_injury_id: skill.fighter_injury_id
+            fighter_injury_id: skill.fighter_injury_id,
           };
         }
       });
-    } else if (typeof initialFighterData.fighter.skills === 'object' && initialFighterData.fighter.skills !== null) {
+    } else if (
+      typeof initialFighterData.fighter.skills === 'object' &&
+      initialFighterData.fighter.skills !== null
+    ) {
       Object.assign(transformedSkills, initialFighterData.fighter.skills);
     }
 
     // Transform equipment
-    const transformedEquipment = (initialFighterData.equipment || []).map((item: any) => ({
-      fighter_equipment_id: item.fighter_equipment_id,
-      equipment_id: item.equipment_id,
-      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-        ? `${item.equipment_name} (Master-crafted)`
-        : item.equipment_name,
-      equipment_type: item.equipment_type,
-      cost: item.purchase_cost,
-      base_cost: item.original_cost,
-      weapon_profiles: item.weapon_profiles,
-      core_equipment: item.core_equipment,
-      is_master_crafted: item.is_master_crafted
-    }));
+    const transformedEquipment = (initialFighterData.equipment || []).map(
+      (item: any) => ({
+        fighter_equipment_id: item.fighter_equipment_id,
+        equipment_id: item.equipment_id,
+        equipment_name:
+          item.is_master_crafted && item.equipment_type === 'weapon'
+            ? `${item.equipment_name} (Master-crafted)`
+            : item.equipment_name,
+        equipment_type: item.equipment_type,
+        cost: item.purchase_cost,
+        base_cost: item.original_cost,
+        weapon_profiles: item.weapon_profiles,
+        core_equipment: item.core_equipment,
+        is_master_crafted: item.is_master_crafted,
+      })
+    );
 
     // Transform vehicle equipment
-    const transformedVehicleEquipment = (initialFighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+    const transformedVehicleEquipment = (
+      initialFighterData.fighter?.vehicles?.[0]?.equipment || []
+    ).map((item: any) => ({
       fighter_equipment_id: item.fighter_equipment_id,
       equipment_id: item.equipment_id,
-      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-        ? `${item.equipment_name} (Master-crafted)`
-        : item.equipment_name,
+      equipment_name:
+        item.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-crafted)`
+          : item.equipment_name,
       equipment_type: item.equipment_type,
       cost: item.purchase_cost,
       base_cost: item.original_cost,
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
-      vehicle_equipment_id: item.id
+      vehicle_equipment_id: item.id,
     }));
 
     return {
@@ -253,13 +219,19 @@ export default function FighterPage({
         fighter_class: initialFighterData.fighter.fighter_class,
         fighter_type: {
           fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
-          fighter_type_id: initialFighterData.fighter.fighter_type.id
+          fighter_type_id: initialFighterData.fighter.fighter_type.id,
         },
-        fighter_sub_type: initialFighterData.fighter.fighter_sub_type ? {
-          fighter_sub_type: initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
-          fighter_sub_type_id: initialFighterData.fighter.fighter_sub_type.id
-        } : undefined,
-        base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
+        fighter_sub_type: initialFighterData.fighter.fighter_sub_type
+          ? {
+              fighter_sub_type:
+                initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
+              fighter_sub_type_id:
+                initialFighterData.fighter.fighter_sub_type.id,
+            }
+          : undefined,
+        base_credits:
+          initialFighterData.fighter.credits -
+          (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
         skills: transformedSkills,
@@ -268,12 +240,15 @@ export default function FighterPage({
           advancements: initialFighterData.fighter.effects?.advancements || [],
           bionics: initialFighterData.fighter.effects?.bionics || [],
           cyberteknika: initialFighterData.fighter.effects?.cyberteknika || [],
-          'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
-          'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
-          augmentations: initialFighterData.fighter.effects?.augmentations || [],
+          'gene-smithing':
+            initialFighterData.fighter.effects?.['gene-smithing'] || [],
+          'rig-glitches':
+            initialFighterData.fighter.effects?.['rig-glitches'] || [],
+          augmentations:
+            initialFighterData.fighter.effects?.augmentations || [],
           equipment: initialFighterData.fighter.effects?.equipment || [],
-          user: initialFighterData.fighter.effects?.user || []
-        }
+          user: initialFighterData.fighter.effects?.user || [],
+        },
       },
       equipment: transformedEquipment,
       vehicleEquipment: transformedVehicleEquipment,
@@ -281,9 +256,9 @@ export default function FighterPage({
         id: initialFighterData.gang.id,
         credits: initialFighterData.gang.credits,
         gang_type_id: initialFighterData.gang.gang_type_id,
-        positioning: initialFighterData.gang.positioning
+        positioning: initialFighterData.gang.positioning,
       },
-      gangFighters: initialGangFighters
+      gangFighters: initialGangFighters,
     };
   });
 
@@ -301,8 +276,8 @@ export default function FighterPage({
       editFighter: false,
       addWeapon: false,
       addVehicleEquipment: false,
-      recovery: false
-    }
+      recovery: false,
+    },
   });
 
   const [editState, setEditState] = useState<EditState>({
@@ -311,7 +286,7 @@ export default function FighterPage({
     kills: 0,
     costAdjustment: '0',
     xpAmount: '',
-    xpError: ''
+    xpError: '',
   });
 
   const router = useRouter();
@@ -330,42 +305,51 @@ export default function FighterPage({
             xp_cost: skill.xp_cost,
             is_advance: skill.is_advance,
             acquired_at: skill.acquired_at,
-            fighter_injury_id: skill.fighter_injury_id
+            fighter_injury_id: skill.fighter_injury_id,
           };
         }
       });
-    } else if (typeof initialFighterData.fighter.skills === 'object' && initialFighterData.fighter.skills !== null) {
+    } else if (
+      typeof initialFighterData.fighter.skills === 'object' &&
+      initialFighterData.fighter.skills !== null
+    ) {
       Object.assign(transformedSkills, initialFighterData.fighter.skills);
     }
 
     // Transform equipment
-    const transformedEquipment = (initialFighterData.equipment || []).map((item: any) => ({
-      fighter_equipment_id: item.fighter_equipment_id,
-      equipment_id: item.equipment_id,
-      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-        ? `${item.equipment_name} (Master-crafted)`
-        : item.equipment_name,
-      equipment_type: item.equipment_type,
-      cost: item.purchase_cost,
-      base_cost: item.original_cost,
-      weapon_profiles: item.weapon_profiles,
-      core_equipment: item.core_equipment,
-      is_master_crafted: item.is_master_crafted
-    }));
+    const transformedEquipment = (initialFighterData.equipment || []).map(
+      (item: any) => ({
+        fighter_equipment_id: item.fighter_equipment_id,
+        equipment_id: item.equipment_id,
+        equipment_name:
+          item.is_master_crafted && item.equipment_type === 'weapon'
+            ? `${item.equipment_name} (Master-crafted)`
+            : item.equipment_name,
+        equipment_type: item.equipment_type,
+        cost: item.purchase_cost,
+        base_cost: item.original_cost,
+        weapon_profiles: item.weapon_profiles,
+        core_equipment: item.core_equipment,
+        is_master_crafted: item.is_master_crafted,
+      })
+    );
 
     // Transform vehicle equipment
-    const transformedVehicleEquipment = (initialFighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
+    const transformedVehicleEquipment = (
+      initialFighterData.fighter?.vehicles?.[0]?.equipment || []
+    ).map((item: any) => ({
       fighter_equipment_id: item.fighter_equipment_id,
       equipment_id: item.equipment_id,
-      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-        ? `${item.equipment_name} (Master-crafted)`
-        : item.equipment_name,
+      equipment_name:
+        item.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-crafted)`
+          : item.equipment_name,
       equipment_type: item.equipment_type,
       cost: item.purchase_cost,
       base_cost: item.original_cost,
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
-      vehicle_equipment_id: item.id
+      vehicle_equipment_id: item.id,
     }));
 
     // Update state with fresh data from server
@@ -375,13 +359,19 @@ export default function FighterPage({
         fighter_class: initialFighterData.fighter.fighter_class,
         fighter_type: {
           fighter_type: initialFighterData.fighter.fighter_type.fighter_type,
-          fighter_type_id: initialFighterData.fighter.fighter_type.id
+          fighter_type_id: initialFighterData.fighter.fighter_type.id,
         },
-        fighter_sub_type: initialFighterData.fighter.fighter_sub_type ? {
-          fighter_sub_type: initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
-          fighter_sub_type_id: initialFighterData.fighter.fighter_sub_type.id
-        } : undefined,
-        base_credits: initialFighterData.fighter.credits - (initialFighterData.fighter.cost_adjustment || 0),
+        fighter_sub_type: initialFighterData.fighter.fighter_sub_type
+          ? {
+              fighter_sub_type:
+                initialFighterData.fighter.fighter_sub_type.fighter_sub_type,
+              fighter_sub_type_id:
+                initialFighterData.fighter.fighter_sub_type.id,
+            }
+          : undefined,
+        base_credits:
+          initialFighterData.fighter.credits -
+          (initialFighterData.fighter.cost_adjustment || 0),
         gang_id: initialFighterData.gang.id,
         gang_type_id: initialFighterData.gang.gang_type_id,
         skills: transformedSkills,
@@ -390,12 +380,15 @@ export default function FighterPage({
           advancements: initialFighterData.fighter.effects?.advancements || [],
           bionics: initialFighterData.fighter.effects?.bionics || [],
           cyberteknika: initialFighterData.fighter.effects?.cyberteknika || [],
-          'gene-smithing': initialFighterData.fighter.effects?.['gene-smithing'] || [],
-          'rig-glitches': initialFighterData.fighter.effects?.['rig-glitches'] || [],
-          augmentations: initialFighterData.fighter.effects?.augmentations || [],
+          'gene-smithing':
+            initialFighterData.fighter.effects?.['gene-smithing'] || [],
+          'rig-glitches':
+            initialFighterData.fighter.effects?.['rig-glitches'] || [],
+          augmentations:
+            initialFighterData.fighter.effects?.augmentations || [],
           equipment: initialFighterData.fighter.effects?.equipment || [],
-          user: initialFighterData.fighter.effects?.user || []
-        }
+          user: initialFighterData.fighter.effects?.user || [],
+        },
       },
       equipment: transformedEquipment,
       vehicleEquipment: transformedVehicleEquipment,
@@ -403,21 +396,20 @@ export default function FighterPage({
         id: initialFighterData.gang.id,
         credits: initialFighterData.gang.credits,
         gang_type_id: initialFighterData.gang.gang_type_id,
-        positioning: initialFighterData.gang.positioning
+        positioning: initialFighterData.gang.positioning,
       },
-      gangFighters: initialGangFighters
+      gangFighters: initialGangFighters,
     });
 
     // Update edit state
-    setEditState(prev => ({
+    setEditState((prev) => ({
       ...prev,
-      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0)
+      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0),
     }));
   }, [initialFighterData, initialGangFighters]);
 
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
-  const canShowDeleteButtons = userPermissions.canDelete;
 
   // Helper function to convert Fighter to FighterProps for EditFighterModal
   const convertToFighterProps = (fighter: Fighter): any => {
@@ -454,10 +446,7 @@ export default function FighterPage({
       total_xp: fighter.total_xp,
       weapons: [],
       wargear: [],
-      advancements: {
-        characteristics: {},
-        skills: {}
-      }
+      advancements: { characteristics: {}, skills: {} },
     };
   };
 
@@ -467,7 +456,7 @@ export default function FighterPage({
     try {
       const result = await editFighterStatus({
         fighter_id: fighterData.fighter.id,
-        action: 'delete'
+        action: 'delete',
       });
 
       if (!result.success) {
@@ -476,7 +465,7 @@ export default function FighterPage({
 
       toast({
         description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
+        variant: 'default',
       });
 
       // Navigate to the gang page as returned by the server action
@@ -489,152 +478,181 @@ export default function FighterPage({
       console.error('Error deleting fighter:', {
         error,
         fighterId: fighterData.fighter.id,
-        fighterName: fighterData.fighter.fighter_name
+        fighterName: fighterData.fighter.fighter_name,
       });
 
-      const message = error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred. Please try again.';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred. Please try again.';
 
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive"
-      });
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
-      setUiState(prev => ({
+      setUiState((prev) => ({
         ...prev,
-        modals: {
-          ...prev.modals,
-          delete: false
-        }
+        modals: { ...prev.modals, delete: false },
       }));
     }
   }, [fighterData.fighter, fighterData.gang, toast, router]);
 
-
-
-  const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
-    setFighterData(prev => {
-      const removed = prev.equipment.find(
-        e => !updatedEquipment.some(ue => ue.fighter_equipment_id === e.fighter_equipment_id)
-      );
-      let updatedEffects = prev.fighter?.effects;
-      if (removed?.equipment_effect && updatedEffects) {
-        updatedEffects = {
-          ...updatedEffects,
-          user: updatedEffects.user.filter(
-            effect => effect.id !== removed.equipment_effect?.id
-          )
+  const handleEquipmentUpdate = useCallback(
+    (
+      updatedEquipment: Equipment[],
+      newFighterCredits: number,
+      newGangCredits: number
+    ) => {
+      setFighterData((prev) => {
+        const removed = prev.equipment.find(
+          (e) =>
+            !updatedEquipment.some(
+              (ue) => ue.fighter_equipment_id === e.fighter_equipment_id
+            )
+        );
+        let updatedEffects = prev.fighter?.effects;
+        if (removed?.equipment_effect && updatedEffects) {
+          updatedEffects = {
+            ...updatedEffects,
+            user: updatedEffects.user.filter(
+              (effect) => effect.id !== removed.equipment_effect?.id
+            ),
+          };
+        }
+        return {
+          ...prev,
+          equipment: updatedEquipment,
+          fighter: prev.fighter
+            ? {
+                ...prev.fighter,
+                credits: newFighterCredits,
+                effects: updatedEffects || prev.fighter.effects,
+              }
+            : null,
+          gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
         };
-      }
-      return {
-        ...prev,
-        equipment: updatedEquipment,
-        fighter: prev.fighter ? {
-          ...prev.fighter,
-          credits: newFighterCredits,
-          effects: updatedEffects || prev.fighter.effects
-        } : null,
-        gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-      };
-    });
-  }, []);
+      });
+    },
+    []
+  );
 
-  const handleEquipmentBought = useCallback((
-    newFighterCredits: number,
-    newGangCredits: number,
-    boughtEquipment: Equipment,
-    isVehicleEquipment = false
-  ) => {
-    setFighterData(prev => {
-      if (!prev.fighter) return prev;
+  const handleEquipmentBought = useCallback(
+    (
+      newFighterCredits: number,
+      newGangCredits: number,
+      boughtEquipment: Equipment,
+      isVehicleEquipment = false
+    ) => {
+      setFighterData((prev) => {
+        if (!prev.fighter) return prev;
 
-      let updatedVehicles = prev.fighter.vehicles;
-      if (isVehicleEquipment && updatedVehicles?.[0]) {
-        const vehicle = updatedVehicles[0];
+        let updatedVehicles = prev.fighter.vehicles;
+        if (isVehicleEquipment && updatedVehicles?.[0]) {
+          const vehicle = updatedVehicles[0];
 
-        // Handle vehicle effects if equipment has effects
-        let updatedVehicleEffects = vehicle.effects || {};
-        if (boughtEquipment.equipment_effect) {
-          const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase() || 'vehicle upgrades';
-          updatedVehicleEffects = {
-            ...updatedVehicleEffects,
-            [categoryName]: [...(updatedVehicleEffects[categoryName] || []), boughtEquipment.equipment_effect]
+          // Handle vehicle effects if equipment has effects
+          let updatedVehicleEffects = vehicle.effects || {};
+          if (boughtEquipment.equipment_effect) {
+            const categoryName =
+              boughtEquipment.equipment_effect.category_name?.toLowerCase() ||
+              'vehicle upgrades';
+            updatedVehicleEffects = {
+              ...updatedVehicleEffects,
+              [categoryName]: [
+                ...(updatedVehicleEffects[categoryName] || []),
+                boughtEquipment.equipment_effect,
+              ],
+            };
+          }
+
+          updatedVehicles = [
+            {
+              ...vehicle,
+              effects: updatedVehicleEffects,
+              equipment: [
+                ...(vehicle.equipment || []),
+                {
+                  fighter_equipment_id: boughtEquipment.equipment_id,
+                  equipment_id: boughtEquipment.equipment_id,
+                  equipment_name: boughtEquipment.equipment_name,
+                  equipment_type: boughtEquipment.equipment_type,
+                  cost: boughtEquipment.cost,
+                  base_cost: boughtEquipment.cost,
+                  weapon_profiles: boughtEquipment.weapon_profiles || undefined,
+                },
+              ],
+            },
+          ];
+        }
+
+        let updatedEffects = prev.fighter.effects;
+        if (boughtEquipment.equipment_effect && !isVehicleEquipment) {
+          // Determine the correct category based on the equipment effect's category_name
+          const categoryName =
+            boughtEquipment.equipment_effect.category_name?.toLowerCase();
+          let targetCategory: keyof typeof updatedEffects = 'user'; // default fallback
+
+          // Map category names to effect categories
+          if (categoryName === 'bionics') {
+            targetCategory = 'bionics';
+          } else if (
+            categoryName === 'cyberteknika' ||
+            categoryName === 'archaeo-cyberteknika'
+          ) {
+            targetCategory = 'cyberteknika';
+          } else if (categoryName === 'gene-smithing') {
+            targetCategory = 'gene-smithing';
+          } else if (categoryName === 'rig-glitches') {
+            targetCategory = 'rig-glitches';
+          } else if (categoryName === 'augmentations') {
+            targetCategory = 'augmentations';
+          } else if (categoryName === 'equipment') {
+            targetCategory = 'equipment';
+          } else if (categoryName === 'injuries') {
+            targetCategory = 'injuries';
+          } else if (categoryName === 'advancements') {
+            targetCategory = 'advancements';
+          }
+          // If no match, it will default to 'user'
+
+          updatedEffects = {
+            ...updatedEffects,
+            [targetCategory]: [
+              ...(updatedEffects[targetCategory] || []),
+              boughtEquipment.equipment_effect,
+            ],
           };
         }
 
-        updatedVehicles = [{
-          ...vehicle,
-          effects: updatedVehicleEffects,
-          equipment: [...(vehicle.equipment || []), {
-            fighter_equipment_id: boughtEquipment.equipment_id,
-            equipment_id: boughtEquipment.equipment_id,
-            equipment_name: boughtEquipment.equipment_name,
-            equipment_type: boughtEquipment.equipment_type,
-            cost: boughtEquipment.cost,
-            base_cost: boughtEquipment.cost,
-            weapon_profiles: boughtEquipment.weapon_profiles || undefined
-          }]
-        }];
-      }
-
-      let updatedEffects = prev.fighter.effects;
-      if (boughtEquipment.equipment_effect && !isVehicleEquipment) {
-        // Determine the correct category based on the equipment effect's category_name
-        const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase();
-        let targetCategory: keyof typeof updatedEffects = 'user'; // default fallback
-        
-        // Map category names to effect categories
-        if (categoryName === 'bionics') {
-          targetCategory = 'bionics';
-        } else if (categoryName === 'cyberteknika' || categoryName === 'archaeo-cyberteknika') {
-          targetCategory = 'cyberteknika';
-        } else if (categoryName === 'gene-smithing') {
-          targetCategory = 'gene-smithing';
-        } else if (categoryName === 'rig-glitches') {
-          targetCategory = 'rig-glitches';
-        } else if (categoryName === 'augmentations') {
-          targetCategory = 'augmentations';
-        } else if (categoryName === 'equipment') {
-          targetCategory = 'equipment';
-        } else if (categoryName === 'injuries') {
-          targetCategory = 'injuries';
-        } else if (categoryName === 'advancements') {
-          targetCategory = 'advancements';
-        }
-        // If no match, it will default to 'user'
-        
-        updatedEffects = {
-          ...updatedEffects,
-          [targetCategory]: [...(updatedEffects[targetCategory] || []), boughtEquipment.equipment_effect]
+        return {
+          ...prev,
+          fighter: {
+            ...prev.fighter,
+            credits: newFighterCredits,
+            vehicles: updatedVehicles,
+            effects: updatedEffects,
+          },
+          gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
+          vehicleEquipment: isVehicleEquipment
+            ? [
+                ...prev.vehicleEquipment,
+                {
+                  ...boughtEquipment,
+                  vehicle_id: prev.fighter.vehicles?.[0]?.id || '',
+                  vehicle_equipment_id:
+                    boughtEquipment.fighter_equipment_id || '',
+                } as VehicleEquipment,
+              ]
+            : prev.vehicleEquipment,
+          equipment: !isVehicleEquipment
+            ? [...prev.equipment, boughtEquipment]
+            : prev.equipment,
         };
-      }
+      });
 
-      return {
-        ...prev,
-        fighter: {
-          ...prev.fighter,
-          credits: newFighterCredits,
-          vehicles: updatedVehicles,
-          effects: updatedEffects
-        },
-        gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
-        vehicleEquipment: isVehicleEquipment ? [
-          ...prev.vehicleEquipment,
-          {
-            ...boughtEquipment,
-            vehicle_id: prev.fighter.vehicles?.[0]?.id || '',
-            vehicle_equipment_id: boughtEquipment.fighter_equipment_id || ''
-          } as VehicleEquipment
-        ] : prev.vehicleEquipment,
-        equipment: !isVehicleEquipment ? [...prev.equipment, boughtEquipment] : prev.equipment
-      };
-    });
-    
-    // Refresh the page to get updated data from server
-    router.refresh();
-  }, [router]);
+      // Refresh the page to get updated data from server
+      router.refresh();
+    },
+    [router]
+  );
 
   // Gang fighters are already provided in initialGangFighters, no need to fetch them again
 
@@ -643,17 +661,17 @@ export default function FighterPage({
   };
 
   const handleNameUpdate = useCallback((newName: string) => {
-    setFighterData(prev => ({
+    setFighterData((prev) => ({
       ...prev,
-      fighter: prev.fighter ? { ...prev.fighter, fighter_name: newName } : null
+      fighter: prev.fighter ? { ...prev.fighter, fighter_name: newName } : null,
     }));
   }, []);
 
   const handleAddXp = async () => {
     if (!/^-?\d+$/.test(editState.xpAmount)) {
-      setEditState(prev => ({
+      setEditState((prev) => ({
         ...prev,
-        xpError: 'Please enter a valid integer'
+        xpError: 'Please enter a valid integer',
       }));
       return false;
     }
@@ -661,22 +679,19 @@ export default function FighterPage({
     const amount = parseInt(editState.xpAmount || '0');
 
     if (isNaN(amount) || !Number.isInteger(Number(amount))) {
-      setEditState(prev => ({
+      setEditState((prev) => ({
         ...prev,
-        xpError: 'Please enter a valid integer'
+        xpError: 'Please enter a valid integer',
       }));
       return false;
     }
 
-    setEditState(prev => ({
-      ...prev,
-      xpError: ''
-    }));
+    setEditState((prev) => ({ ...prev, xpError: '' }));
 
     try {
       const result = await updateFighterXp({
         fighter_id: fighterId,
-        xp_to_add: amount
+        xp_to_add: amount,
       });
 
       if (!result.success) {
@@ -688,64 +703,68 @@ export default function FighterPage({
 
       toast({
         description: `Successfully added ${amount} XP`,
-        variant: "default"
+        variant: 'default',
       });
 
       return true;
     } catch (error) {
       console.error('Error adding XP:', error);
-      setEditState(prev => ({
+      setEditState((prev) => ({
         ...prev,
-        xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
+        xpError:
+          error instanceof Error
+            ? error.message
+            : 'Failed to add XP. Please try again.',
       }));
       toast({
-        description: error instanceof Error ? error.message : 'Failed to add XP',
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : 'Failed to add XP',
+        variant: 'destructive',
       });
       return false;
     }
   };
 
-
-
   // Update modal handlers
-  const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
-    setUiState(prev => ({
+  const handleModalToggle = (
+    modalName: keyof UIState['modals'],
+    value: boolean
+  ) => {
+    setUiState((prev) => ({
       ...prev,
-      modals: {
-        ...prev.modals,
-        [modalName]: value
-      }
+      modals: { ...prev.modals, [modalName]: value },
     }));
   };
 
   // Add the useSession hook
-  const session = useSession();
 
   // Keep meat-checking functionality
   const isMeatEnabled = useCallback(() => {
-    return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
+    return (
+      fighterData.fighter?.campaigns?.some((campaign) => campaign.has_meat) ??
+      false
+    );
   }, [fighterData.fighter?.campaigns]);
 
-  if (uiState.isLoading) return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          Loading...
+  if (uiState.isLoading)
+    return (
+      <main className="flex min-h-screen flex-col items-center">
+        <div className="container mx-auto max-w-4xl w-full space-y-4">
+          <div className="bg-white shadow-md rounded-lg p-6">Loading...</div>
         </div>
-      </div>
-    </main>
-  );
+      </main>
+    );
 
-  if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          Error: {uiState.error || 'Data not found'}
+  if (uiState.error || !fighterData.fighter || !fighterData.gang)
+    return (
+      <main className="flex min-h-screen flex-col items-center">
+        <div className="container mx-auto max-w-4xl w-full space-y-4">
+          <div className="bg-white shadow-md rounded-lg p-6">
+            Error: {uiState.error || 'Data not found'}
+          </div>
         </div>
-      </div>
-    </main>
-  );
+      </main>
+    );
 
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
@@ -759,20 +778,27 @@ export default function FighterPage({
               onChange={handleFighterChange}
               className="w-full p-2 border rounded"
             >
-            {[...fighterData.gangFighters]
-              .sort((a, b) => {
-                const positioning = fighterData.gang?.positioning || {};
-                const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-                const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-                const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-                const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-                return posA - posB;
-              })
-              .map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.fighter_name} - {f.fighter_type} {f.xp !== undefined ? `(${f.xp} XP)` : ''}
-                </option>
-              ))}
+              {[...fighterData.gangFighters]
+                .sort((a, b) => {
+                  const positioning = fighterData.gang?.positioning || {};
+                  const indexA = Object.entries(positioning).find(
+                    ([, id]) => id === a.id
+                  )?.[0];
+                  const indexB = Object.entries(positioning).find(
+                    ([, id]) => id === b.id
+                  )?.[0];
+                  const posA =
+                    indexA !== undefined ? parseInt(indexA) : Infinity;
+                  const posB =
+                    indexB !== undefined ? parseInt(indexB) : Infinity;
+                  return posA - posB;
+                })
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.fighter_name} - {f.fighter_type}{' '}
+                    {f.xp !== undefined ? `(${f.xp} XP)` : ''}
+                  </option>
+                ))}
             </select>
           </div>
           <FighterDetailsCard
@@ -796,10 +822,19 @@ export default function FighterPage({
             intelligence={fighterData.fighter?.intelligence || 0}
             xp={fighterData.fighter?.xp || 0}
             total_xp={fighterData.fighter?.total_xp || 0}
-            advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
+            advancements={
+              fighterData.fighter?.advancements || {
+                characteristics: {},
+                skills: {},
+              }
+            }
             onNameUpdate={handleNameUpdate}
             onAddXp={() => handleModalToggle('addXp', true)}
-            onEdit={canShowEditButtons ? () => handleModalToggle('editFighter', true) : undefined}
+            onEdit={
+              canShowEditButtons
+                ? () => handleModalToggle('editFighter', true)
+                : undefined
+            }
             killed={fighterData.fighter?.killed}
             retired={fighterData.fighter?.retired}
             enslaved={fighterData.fighter?.enslaved}
@@ -807,17 +842,19 @@ export default function FighterPage({
             recovery={fighterData.fighter?.recovery}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter.effects || { 
-              injuries: [], 
-              advancements: [], 
-              bionics: [], 
-              cyberteknika: [], 
-              'gene-smithing': [], 
-              'rig-glitches': [], 
-              augmentations: [], 
-              equipment: [], 
-              user: [] 
-            }}
+            effects={
+              fighterData.fighter.effects || {
+                injuries: [],
+                advancements: [],
+                bionics: [],
+                cyberteknika: [],
+                'gene-smithing': [],
+                'rig-glitches': [],
+                augmentations: [],
+                equipment: [],
+                user: [],
+              }
+            }
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}
             vehicleEquipment={fighterData.vehicleEquipment}
@@ -831,16 +868,26 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
               fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits) => {
-                setFighterData(prev => ({
+              onEquipmentUpdate={(
+                updatedEquipment,
+                newFighterCredits,
+                newGangCredits
+              ) => {
+                setFighterData((prev) => ({
                   ...prev,
                   vehicleEquipment: updatedEquipment,
-                  fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
-                  gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+                  fighter: prev.fighter
+                    ? { ...prev.fighter, credits: newFighterCredits }
+                    : null,
+                  gang: prev.gang
+                    ? { ...prev.gang, credits: newGangCredits }
+                    : null,
                 }));
               }}
               equipment={fighterData.vehicleEquipment}
-              onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
+              onAddEquipment={() =>
+                handleModalToggle('addVehicleEquipment', true)
+              }
               userPermissions={userPermissions}
             />
           )}
@@ -873,7 +920,7 @@ export default function FighterPage({
             fighterId={fighterData.fighter?.id || ''}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
-            onDeleteAdvancement={async (advancementId: string) => {
+            onDeleteAdvancement={async () => {
               // Trigger server component re-execution to get fresh data
               router.refresh();
             }}
@@ -891,24 +938,28 @@ export default function FighterPage({
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleDamagesList
-              damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
+              damages={
+                vehicle.effects ? vehicle.effects['lasting damages'] || [] : []
+              }
               onDamageUpdate={(updatedDamages) => {
-                setFighterData(prev => ({
+                setFighterData((prev) => ({
                   ...prev,
-                  fighter: prev.fighter ? {
-                    ...prev.fighter,
-                    vehicles: prev.fighter.vehicles?.map(v => 
-                      v.id === vehicle.id 
-                        ? { 
-                            ...v, 
-                            effects: { 
-                              ...v.effects, 
-                              "lasting damages": updatedDamages 
-                            } 
-                          }
-                        : v
-                    )
-                  } : null
+                  fighter: prev.fighter
+                    ? {
+                        ...prev.fighter,
+                        vehicles: prev.fighter.vehicles?.map((v) =>
+                          v.id === vehicle.id
+                            ? {
+                                ...v,
+                                effects: {
+                                  ...v.effects,
+                                  'lasting damages': updatedDamages,
+                                },
+                              }
+                            : v
+                        ),
+                      }
+                    : null,
                 }));
               }}
               fighterId={fighterData.fighter?.id || ''}
@@ -916,9 +967,11 @@ export default function FighterPage({
               vehicle={vehicle}
               gangCredits={fighterData.gang?.credits || 0}
               onGangCreditsUpdate={(newCredits) => {
-                setFighterData(prev => ({
+                setFighterData((prev) => ({
                   ...prev,
-                  gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
+                  gang: prev.gang
+                    ? { ...prev.gang, credits: newCredits }
+                    : null,
                 }));
               }}
               userPermissions={userPermissions}
@@ -944,7 +997,9 @@ export default function FighterPage({
                 onClick={() => handleModalToggle('kill', true)}
                 disabled={!userPermissions.canEdit}
               >
-                {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
+                {fighterData.fighter?.killed
+                  ? 'Resurrect Fighter'
+                  : 'Kill Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.retired ? 'success' : 'default'}
@@ -952,7 +1007,9 @@ export default function FighterPage({
                 onClick={() => handleModalToggle('retire', true)}
                 disabled={!userPermissions.canEdit}
               >
-                {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
+                {fighterData.fighter?.retired
+                  ? 'Unretire Fighter'
+                  : 'Retire Fighter'}
               </Button>
               <Button
                 variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
@@ -960,7 +1017,9 @@ export default function FighterPage({
                 onClick={() => handleModalToggle('enslave', true)}
                 disabled={!userPermissions.canEdit}
               >
-                {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
+                {fighterData.fighter?.enslaved
+                  ? 'Rescue from Guilders'
+                  : 'Sell to Guilders'}
               </Button>
               {isMeatEnabled() && (
                 <Button
@@ -969,7 +1028,9 @@ export default function FighterPage({
                   onClick={() => handleModalToggle('starve', true)}
                   disabled={!userPermissions.canEdit}
                 >
-                  {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
+                  {fighterData.fighter?.starved
+                    ? 'Feed Fighter'
+                    : 'Starve Fighter'}
                 </Button>
               )}
               <Button
@@ -978,9 +1039,11 @@ export default function FighterPage({
                 onClick={() => handleModalToggle('recovery', true)}
                 disabled={!userPermissions.canEdit}
               >
-                {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
+                {fighterData.fighter?.recovery
+                  ? 'Recover Fighter'
+                  : 'Send to Recovery'}
               </Button>
-              
+
               <Button
                 variant="destructive"
                 className="flex-1"
@@ -998,7 +1061,10 @@ export default function FighterPage({
               title="Delete Fighter"
               content={
                 <div>
-                  <p>Are you sure you want to delete "{fighterData.fighter?.fighter_name}"?</p>
+                  <p>
+                    Are you sure you want to delete &quot;
+                    {fighterData.fighter?.fighter_name}&quot;?
+                  </p>
                   <br />
                   <p>This action cannot be undone.</p>
                 </div>
@@ -1010,14 +1076,17 @@ export default function FighterPage({
 
           {uiState.modals.kill && (
             <Modal
-              title={fighterData.fighter?.killed ? "Resurrect Fighter" : "Kill Fighter"}
+              title={
+                fighterData.fighter?.killed
+                  ? 'Resurrect Fighter'
+                  : 'Kill Fighter'
+              }
               content={
                 <div>
                   <p>
-                    {fighterData.fighter?.killed 
+                    {fighterData.fighter?.killed
                       ? `Are you sure you want to resurrect "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to kill "${fighterData.fighter?.fighter_name}"?`
-                    }
+                      : `Are you sure you want to kill "${fighterData.fighter?.fighter_name}"?`}
                   </p>
                 </div>
               }
@@ -1026,27 +1095,32 @@ export default function FighterPage({
                 try {
                   const result = await editFighterStatus({
                     fighter_id: fighterId,
-                    action: 'kill'
+                    action: 'kill',
                   });
 
                   if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
+                    throw new Error(
+                      result.error || 'Failed to update fighter status'
+                    );
                   }
 
                   router.refresh();
                   handleModalToggle('kill', false);
-                  
+
                   toast({
-                    description: fighterData.fighter?.killed 
-                      ? 'Fighter has been resurrected' 
+                    description: fighterData.fighter?.killed
+                      ? 'Fighter has been resurrected'
                       : 'Fighter has been killed',
-                    variant: "default"
+                    variant: 'default',
                   });
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to update fighter status',
+                    variant: 'destructive',
                   });
                 }
               }}
@@ -1055,14 +1129,17 @@ export default function FighterPage({
 
           {uiState.modals.retire && (
             <Modal
-              title={fighterData.fighter?.retired ? "Unretire Fighter" : "Retire Fighter"}
+              title={
+                fighterData.fighter?.retired
+                  ? 'Unretire Fighter'
+                  : 'Retire Fighter'
+              }
               content={
                 <div>
                   <p>
-                    {fighterData.fighter?.retired 
+                    {fighterData.fighter?.retired
                       ? `Are you sure you want to unretire "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to retire "${fighterData.fighter?.fighter_name}"?`
-                    }
+                      : `Are you sure you want to retire "${fighterData.fighter?.fighter_name}"?`}
                   </p>
                 </div>
               }
@@ -1071,27 +1148,32 @@ export default function FighterPage({
                 try {
                   const result = await editFighterStatus({
                     fighter_id: fighterId,
-                    action: 'retire'
+                    action: 'retire',
                   });
 
                   if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
+                    throw new Error(
+                      result.error || 'Failed to update fighter status'
+                    );
                   }
 
                   router.refresh();
                   handleModalToggle('retire', false);
-                  
+
                   toast({
-                    description: fighterData.fighter?.retired 
-                      ? 'Fighter has been unretired' 
+                    description: fighterData.fighter?.retired
+                      ? 'Fighter has been unretired'
                       : 'Fighter has been retired',
-                    variant: "default"
+                    variant: 'default',
                   });
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to update fighter status',
+                    variant: 'destructive',
                   });
                 }
               }}
@@ -1107,42 +1189,51 @@ export default function FighterPage({
               isEnslaved={fighterData.fighter?.enslaved || false}
               onConfirm={async (sellValue) => {
                 try {
-                  const action = fighterData.fighter?.enslaved ? 'rescue' : 'sell';
-                  
+                  const action = fighterData.fighter?.enslaved
+                    ? 'rescue'
+                    : 'sell';
+
                   const result = await editFighterStatus({
                     fighter_id: fighterId,
                     action,
-                    sell_value: action === 'sell' ? sellValue : undefined
+                    sell_value: action === 'sell' ? sellValue : undefined,
                   });
 
                   if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
+                    throw new Error(
+                      result.error || 'Failed to update fighter status'
+                    );
                   }
 
                   // Update local state with new gang credits if selling
                   if (result.data?.gang) {
-                    setFighterData(prev => ({
+                    setFighterData((prev) => ({
                       ...prev,
-                      gang: prev.gang ? { ...prev.gang, credits: result.data!.gang!.credits } : null
+                      gang: prev.gang
+                        ? { ...prev.gang, credits: result.data!.gang!.credits }
+                        : null,
                     }));
                   }
 
                   router.refresh();
                   handleModalToggle('enslave', false);
-                  
+
                   toast({
-                    description: fighterData.fighter?.enslaved 
-                      ? 'Fighter has been rescued from the Guilders' 
+                    description: fighterData.fighter?.enslaved
+                      ? 'Fighter has been rescued from the Guilders'
                       : `Fighter has been sold for ${sellValue} credits`,
-                    variant: "default"
+                    variant: 'default',
                   });
-                  
+
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to update fighter status',
+                    variant: 'destructive',
                   });
                   return false;
                 }
@@ -1152,14 +1243,15 @@ export default function FighterPage({
 
           {uiState.modals.starve && (
             <Modal
-              title={fighterData.fighter?.starved ? "Feed Fighter" : "Starve Fighter"}
+              title={
+                fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'
+              }
               content={
                 <div>
                   <p>
-                    {fighterData.fighter?.starved 
+                    {fighterData.fighter?.starved
                       ? `Are you sure you want to feed "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to starve "${fighterData.fighter?.fighter_name}"?`
-                    }
+                      : `Are you sure you want to starve "${fighterData.fighter?.fighter_name}"?`}
                   </p>
                 </div>
               }
@@ -1168,27 +1260,32 @@ export default function FighterPage({
                 try {
                   const result = await editFighterStatus({
                     fighter_id: fighterId,
-                    action: 'starve'
+                    action: 'starve',
                   });
 
                   if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
+                    throw new Error(
+                      result.error || 'Failed to update fighter status'
+                    );
                   }
 
                   router.refresh();
                   handleModalToggle('starve', false);
-                  
+
                   toast({
-                    description: fighterData.fighter?.starved 
-                      ? 'Fighter has been fed' 
+                    description: fighterData.fighter?.starved
+                      ? 'Fighter has been fed'
                       : 'Fighter has been starved',
-                    variant: "default"
+                    variant: 'default',
                   });
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to update fighter status',
+                    variant: 'destructive',
                   });
                 }
               }}
@@ -1197,14 +1294,17 @@ export default function FighterPage({
 
           {uiState.modals.recovery && (
             <Modal
-              title={fighterData.fighter?.recovery ? "Recover Fighter" : "Send to Recovery"}
+              title={
+                fighterData.fighter?.recovery
+                  ? 'Recover Fighter'
+                  : 'Send to Recovery'
+              }
               content={
                 <div>
                   <p>
-                    {fighterData.fighter?.recovery 
+                    {fighterData.fighter?.recovery
                       ? `Are you sure you want to recover "${fighterData.fighter?.fighter_name}" from the recovery bay?`
-                      : `Are you sure you want to send "${fighterData.fighter?.fighter_name}" to the recovery bay?`
-                    }
+                      : `Are you sure you want to send "${fighterData.fighter?.fighter_name}" to the recovery bay?`}
                   </p>
                 </div>
               }
@@ -1213,27 +1313,32 @@ export default function FighterPage({
                 try {
                   const result = await editFighterStatus({
                     fighter_id: fighterId,
-                    action: 'recover'
+                    action: 'recover',
                   });
 
                   if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
+                    throw new Error(
+                      result.error || 'Failed to update fighter status'
+                    );
                   }
 
                   router.refresh();
                   handleModalToggle('recovery', false);
-                  
+
                   toast({
-                    description: fighterData.fighter?.recovery 
-                      ? 'Fighter has been recovered from the recovery bay' 
+                    description: fighterData.fighter?.recovery
+                      ? 'Fighter has been recovered from the recovery bay'
                       : 'Fighter has been sent to the recovery bay',
-                    variant: "default"
+                    variant: 'default',
                   });
                 } catch (error) {
                   console.error('Error updating fighter status:', error);
                   toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to update fighter status',
+                    variant: 'destructive',
                   });
                 }
               }}
@@ -1246,23 +1351,23 @@ export default function FighterPage({
               fighterId={fighterId}
               currentXp={fighterData.fighter.xp ?? 0}
               onClose={() => {
-                setEditState(prev => ({
+                setEditState((prev) => ({
                   ...prev,
                   xpAmount: '',
-                  xpError: ''
+                  xpError: '',
                 }));
                 handleModalToggle('addXp', false);
               }}
               onConfirm={handleAddXp}
               xpAmountState={{
                 xpAmount: editState.xpAmount,
-                xpError: editState.xpError
+                xpError: editState.xpError,
               }}
               onXpAmountChange={(value) => {
-                setEditState(prev => ({
+                setEditState((prev) => ({
                   ...prev,
                   xpAmount: value,
-                  xpError: ''
+                  xpError: '',
                 }));
               }}
             />
@@ -1276,7 +1381,9 @@ export default function FighterPage({
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
                 kills: fighterData.fighter.kills || 0,
-                costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
+                costAdjustment: String(
+                  fighterData.fighter.cost_adjustment || 0
+                ),
               }}
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
@@ -1311,44 +1418,67 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
-            <ItemModal
-              title="Add Equipment"
-              onClose={() => handleModalToggle('addWeapon', false)}
-              gangCredits={fighterData.gang.credits}
-              gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              fighterCredits={fighterData.fighter.credits}
-              onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
-              }
-            />
-          )}
+          {uiState.modals.addWeapon &&
+            fighterData.fighter &&
+            fighterData.gang && (
+              <ItemModal
+                title="Add Equipment"
+                onClose={() => handleModalToggle('addWeapon', false)}
+                gangCredits={fighterData.gang.credits}
+                gangId={fighterData.gang.id}
+                gangTypeId={fighterData.gang.gang_type_id}
+                fighterId={fighterData.fighter.id}
+                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterCredits={fighterData.fighter.credits}
+                onEquipmentBought={(
+                  newFighterCredits,
+                  newGangCredits,
+                  boughtEquipment
+                ) =>
+                  handleEquipmentBought(
+                    newFighterCredits,
+                    newGangCredits,
+                    boughtEquipment,
+                    false
+                  )
+                }
+              />
+            )}
 
-          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
-            <ItemModal
-              title="Add Vehicle Equipment"
-              onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              gangCredits={fighterData.gang.credits}
-              gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              fighterCredits={fighterData.fighter.credits}
-              vehicleId={vehicle.id}
-              vehicleType={vehicle.vehicle_type}
-              vehicleTypeId={vehicle.vehicle_type_id}
-              isVehicleEquipment={true}
-              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-              onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
-              }
-            />
-          )}
+          {uiState.modals.addVehicleEquipment &&
+            fighterData.fighter &&
+            fighterData.gang &&
+            vehicle && (
+              <ItemModal
+                title="Add Vehicle Equipment"
+                onClose={() => handleModalToggle('addVehicleEquipment', false)}
+                gangCredits={fighterData.gang.credits}
+                gangId={fighterData.gang.id}
+                gangTypeId={fighterData.gang.gang_type_id}
+                fighterId={fighterData.fighter.id}
+                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterCredits={fighterData.fighter.credits}
+                vehicleId={vehicle.id}
+                vehicleType={vehicle.vehicle_type}
+                vehicleTypeId={vehicle.vehicle_type_id}
+                isVehicleEquipment={true}
+                allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+                onEquipmentBought={(
+                  newFighterCredits,
+                  newGangCredits,
+                  boughtEquipment
+                ) =>
+                  handleEquipmentBought(
+                    newFighterCredits,
+                    newGangCredits,
+                    boughtEquipment,
+                    true
+                  )
+                }
+              />
+            )}
         </div>
       </div>
     </main>
   );
-} 
+}

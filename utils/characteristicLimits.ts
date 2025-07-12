@@ -1,4 +1,7 @@
-export const fighterCharacteristicLimits: Record<string, [string | number, string | number]> = {
+export const fighterCharacteristicLimits: Record<
+  string,
+  [string | number, string | number]
+> = {
   M: ['1"', '8"'],
   WS: ['2+', '6+'],
   BS: ['2+', '6+'],
@@ -13,7 +16,10 @@ export const fighterCharacteristicLimits: Record<string, [string | number, strin
   Int: ['3+', '10+'],
 };
 
-export const crewCharacteristicLimits: Record<string, [string | number, string | number]> = {
+export const crewCharacteristicLimits: Record<
+  string,
+  [string | number, string | number]
+> = {
   M: ['1"', '12"'],
   Front: [3, 10],
   Side: [3, 10],

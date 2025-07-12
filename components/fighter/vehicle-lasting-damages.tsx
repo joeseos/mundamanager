@@ -4,8 +4,7 @@ import { FighterEffect } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
-import { Checkbox } from "@/components/ui/checkbox";
-import { List } from "../ui/list";
+import { Checkbox } from '@/components/ui/checkbox';
 import { UserPermissions } from '@/types/user-permissions';
 
 interface VehicleDamagesListProps {
@@ -19,7 +18,7 @@ interface VehicleDamagesListProps {
   userPermissions: UserPermissions;
 }
 
-export function VehicleDamagesList({ 
+export function VehicleDamagesList({
   damages = [],
   onDamageUpdate,
   fighterId,
@@ -27,10 +26,13 @@ export function VehicleDamagesList({
   vehicle,
   gangCredits,
   onGangCreditsUpdate,
-  userPermissions
+  userPermissions,
 }: VehicleDamagesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
   const [repairPercent, setRepairPercent] = useState<0 | 10 | 25>(0);
   const [isRepairing, setIsRepairing] = useState<string | null>(null);
@@ -45,7 +47,9 @@ export function VehicleDamagesList({
 
   // Helper to check for valid UUID
   function isValidUUID(id: string) {
-    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      id
+    );
   }
 
   const fetchAvailableDamages = useCallback(async () => {
@@ -63,7 +67,7 @@ export function VehicleDamagesList({
     } catch (error) {
       toast({
         description: 'Failed to load lasting damage types',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoadingDamages(false);
@@ -85,32 +89,33 @@ export function VehicleDamagesList({
   const handleAddDamage = async () => {
     if (!selectedDamageId) {
       toast({
-        description: "Please select a lasting damage",
-        variant: "destructive"
+        description: 'Please select a lasting damage',
+        variant: 'destructive',
       });
       return false;
     }
 
     try {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.user?.id) {
         throw new Error('No authenticated user');
       }
-      
-      const { data, error } = await supabase
-        .rpc('add_vehicle_effect', {
-          in_vehicle_id: vehicleId,
-          in_fighter_effect_type_id: selectedDamageId,
-          in_user_id: session.user.id,
-          in_fighter_effect_category_id: VEHICLE_DAMAGE_CATEGORY_ID
-        });
-      
+
+      const { data, error } = await supabase.rpc('add_vehicle_effect', {
+        in_vehicle_id: vehicleId,
+        in_fighter_effect_type_id: selectedDamageId,
+        in_user_id: session.user.id,
+        in_fighter_effect_category_id: VEHICLE_DAMAGE_CATEGORY_ID,
+      });
+
       if (error) throw error;
 
       // The database function returns JSON data with the complete damage information
       const damageData = data;
-      
+
       // Create the new damage object using the data returned from the database
       const newDamage: FighterEffect = {
         id: damageData.id,
@@ -118,18 +123,18 @@ export function VehicleDamagesList({
         fighter_effect_type_id: damageData.effect_type?.id,
         fighter_effect_modifiers: damageData.fighter_effect_modifiers || [],
         type_specific_data: damageData.type_specific_data,
-        created_at: damageData.created_at || new Date().toISOString()
+        created_at: damageData.created_at || new Date().toISOString(),
       };
 
       // Optimistic update: Add the new damage to the list
       const updatedDamages = [...damages, newDamage];
       onDamageUpdate(updatedDamages);
-      
+
       toast({
         description: 'Lasting damage added successfully',
-        variant: "default"
+        variant: 'default',
       });
-      
+
       setSelectedDamageId('');
       setIsAddModalOpen(false);
       return true;
@@ -137,7 +142,7 @@ export function VehicleDamagesList({
       console.error('Error adding lasting damage:', error);
       toast({
         description: 'Failed to add lasting damage',
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     }
@@ -146,12 +151,13 @@ export function VehicleDamagesList({
   const handleDeleteDamage = async (damageId: string, damageName: string) => {
     if (!isValidUUID(damageId)) {
       toast({
-        description: 'Cannot delete a damage that has not been saved to the server.',
-        variant: "destructive"
+        description:
+          'Cannot delete a damage that has not been saved to the server.',
+        variant: 'destructive',
       });
       return false;
     }
-    
+
     try {
       setIsDeleting(damageId);
       const supabase = createClient();
@@ -159,23 +165,23 @@ export function VehicleDamagesList({
         .from('fighter_effects')
         .delete()
         .eq('id', damageId);
-        
+
       if (error) throw error;
-      
+
       // Optimistic update: Remove the damage from the list
-      const updatedDamages = damages.filter(d => d.id !== damageId);
+      const updatedDamages = damages.filter((d) => d.id !== damageId);
       onDamageUpdate(updatedDamages);
-      
+
       toast({
         description: `${damageName} removed successfully`,
-        variant: "default"
+        variant: 'default',
       });
       return true;
     } catch (error) {
       console.error('Error deleting lasting damage:', error);
       toast({
         description: 'Failed to delete lasting damage',
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     } finally {
@@ -186,53 +192,57 @@ export function VehicleDamagesList({
 
   const handleRepairDamage = async () => {
     if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
-    const damageIdsToRepair = uniqueDamages.map(d => d.id).filter(isValidUUID);
+    const damageIdsToRepair = uniqueDamages
+      .map((d) => d.id)
+      .filter(isValidUUID);
     if (damageIdsToRepair.length === 0) {
       toast({
         description: 'No valid damages to repair.',
-        variant: 'destructive'
+        variant: 'destructive',
       });
       return false;
     }
-    
+
     try {
       setIsRepairing('batch');
       const supabase = createClient();
       if (gangCredits < repairCost) {
         toast({
           description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
-          variant: 'destructive'
+          variant: 'destructive',
         });
         return false;
       }
-      
+
       const { data, error } = await supabase.rpc('repair_vehicle_damage', {
         damage_ids: damageIdsToRepair,
         repair_cost: repairCost,
-        in_user_id: (await supabase.auth.getSession()).data.session?.user?.id
+        in_user_id: (await supabase.auth.getSession()).data.session?.user?.id,
       });
-      
+
       if (error) throw error;
-      
+
       // Optimistic update: Remove repaired damages from the list
-      const updatedDamages = damages.filter(d => !damageIdsToRepair.includes(d.id));
+      const updatedDamages = damages.filter(
+        (d) => !damageIdsToRepair.includes(d.id)
+      );
       onDamageUpdate(updatedDamages);
-      
+
       // Update gang credits
       if (onGangCreditsUpdate) {
         onGangCreditsUpdate(gangCredits - repairCost);
       }
-      
+
       toast({
         description: `Repaired ${damageIdsToRepair.length} damage(s) for ${repairCost} credits`,
-        variant: 'default'
+        variant: 'default',
       });
       return true;
     } catch (error) {
       console.error('Error repairing lasting damage:', error);
       toast({
         description: 'Failed to repair lasting damage(s)',
-        variant: 'destructive'
+        variant: 'destructive',
       });
       return false;
     } finally {
@@ -243,7 +253,9 @@ export function VehicleDamagesList({
 
   // Deduplicate damages by id before rendering to avoid React key warnings
   const uniqueDamages = Array.isArray(damages)
-    ? damages.filter((d, idx, arr) => arr.findIndex(x => x.id === d.id) === idx)
+    ? damages.filter(
+        (d, idx, arr) => arr.findIndex((x) => x.id === d.id) === idx
+      )
     : damages;
 
   // Calculate vehicle cost + upgrades (excluding weapons)
@@ -254,12 +266,17 @@ export function VehicleDamagesList({
       return;
     }
     const vehicleBaseCost = vehicle.cost || 0;
-    const upgrades = (vehicle.equipment || []).filter((eq: any) => eq.equipment_type !== 'weapon');
-    const upgradesCost = upgrades.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+    const upgrades = (vehicle.equipment || []).filter(
+      (eq: any) => eq.equipment_type !== 'weapon'
+    );
+    const upgradesCost = upgrades.reduce(
+      (sum: number, eq: any) => sum + (eq.purchase_cost || 0),
+      0
+    );
     const total = vehicleBaseCost + upgradesCost;
     let cost = 0;
     if (repairPercent === 10) {
-      cost = Math.ceil((total * 0.10) / 5) * 5;
+      cost = Math.ceil((total * 0.1) / 5) * 5;
     } else if (repairPercent === 25) {
       cost = Math.ceil((total * 0.25) / 5) * 5;
     }
@@ -273,14 +290,14 @@ export function VehicleDamagesList({
         <div className="flex flex-wrap justify-between items-center mb-2">
           <h2 className="text-xl md:text-2xl font-bold">Lasting Damage</h2>
           <div className="flex gap-2">
-            <Button 
+            <Button
               onClick={() => setIsRepairModalOpen(true)}
               className="bg-white hover:bg-gray-100 text-black border border-gray-300"
               disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
             >
               Repair
             </Button>
-            <Button 
+            <Button
               onClick={handleOpenModal}
               className="bg-black hover:bg-gray-800 text-white"
               disabled={!userPermissions.canEdit}
@@ -294,10 +311,15 @@ export function VehicleDamagesList({
         <div>
           <div className="overflow-x-auto">
             <table className="w-full table-auto">
-              {(uniqueDamages.length > 0) && (
+              {uniqueDamages.length > 0 && (
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
+                    <th
+                      className="px-1 py-1 text-left"
+                      style={{ width: '75%' }}
+                    >
+                      Name
+                    </th>
                     <th className="px-1 py-1 text-right">Action</th>
                   </tr>
                 </thead>
@@ -305,15 +327,22 @@ export function VehicleDamagesList({
               <tbody>
                 {uniqueDamages.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="text-gray-500 italic text-center py-4">
+                    <td
+                      colSpan={2}
+                      className="text-gray-500 italic text-center py-4"
+                    >
                       No lasting damage yet.
                     </td>
                   </tr>
                 ) : (
                   uniqueDamages
                     .sort((a, b) => {
-                      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      const dateA = a.created_at
+                        ? new Date(a.created_at).getTime()
+                        : 0;
+                      const dateB = b.created_at
+                        ? new Date(b.created_at).getTime()
+                        : 0;
                       return dateA - dateB;
                     })
                     .map((damage) => (
@@ -324,11 +353,16 @@ export function VehicleDamagesList({
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => setDeleteModalData({
-                                id: damage.id,
-                                name: damage.effect_name
-                              })}
-                              disabled={isDeleting === damage.id || !userPermissions.canEdit}
+                              onClick={() =>
+                                setDeleteModalData({
+                                  id: damage.id,
+                                  name: damage.effect_name,
+                                })
+                              }
+                              disabled={
+                                isDeleting === damage.id ||
+                                !userPermissions.canEdit
+                              }
                               className="text-xs px-1.5 h-6"
                             >
                               Delete
@@ -361,10 +395,9 @@ export function VehicleDamagesList({
                   disabled={isLoadingDamages && availableDamages.length === 0}
                 >
                   <option value="">
-                    {isLoadingDamages && availableDamages.length === 0 
-                      ? "Loading damages..." 
-                      : "Select a Lasting Damage"
-                    }
+                    {isLoadingDamages && availableDamages.length === 0
+                      ? 'Loading damages...'
+                      : 'Select a Lasting Damage'}
                   </option>
                   {availableDamages.map((damage) => (
                     <option key={damage.id} value={damage.id}>
@@ -387,13 +420,18 @@ export function VehicleDamagesList({
           title="Delete Lasting Damage"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>
+                Are you sure you want to delete &quot;{deleteModalData.name}
+                &quot;?
+              </p>
               <br />
               <p>This action cannot be undone.</p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteDamage(deleteModalData.id, deleteModalData.name)}
+          onConfirm={() =>
+            handleDeleteDamage(deleteModalData.id, deleteModalData.name)
+          }
         />
       )}
 
@@ -413,10 +451,15 @@ export function VehicleDamagesList({
           content={
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">The following damages will be repaired:</label>
+                <label className="block text-sm font-medium mb-2">
+                  The following damages will be repaired:
+                </label>
                 <ul className="divide-y divide-gray-200 mb-4">
-                  {uniqueDamages.map(damage => (
-                    <li key={damage.id} className="flex items-center justify-between py-2">
+                  {uniqueDamages.map((damage) => (
+                    <li
+                      key={damage.id}
+                      className="flex items-center justify-between py-2"
+                    >
                       <div>
                         <span className="text-base">{damage.effect_name}</span>
                       </div>
@@ -456,7 +499,10 @@ export function VehicleDamagesList({
                 </div>
                 {/* Calculate vehicle cost + upgrades (excluding weapons) */}
                 <div className="mt-4 flex items-center gap-2">
-                  <label htmlFor="repairTotalCost" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="repairTotalCost"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Total Cost
                   </label>
                   <input
@@ -464,7 +510,7 @@ export function VehicleDamagesList({
                     type="number"
                     min="0"
                     value={repairCost}
-                    onChange={e => setRepairCost(Number(e.target.value))}
+                    onChange={(e) => setRepairCost(Number(e.target.value))}
                     className="w-24 p-2 border rounded focus:ring-2 focus:ring-black focus:border-black text-base"
                   />
                 </div>
@@ -481,4 +527,4 @@ export function VehicleDamagesList({
       )}
     </>
   );
-} 
+}

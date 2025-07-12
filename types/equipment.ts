@@ -1,5 +1,3 @@
-
-
 export interface WeaponProfile {
   id: string;
   profile_name: string;
@@ -46,11 +44,13 @@ export interface Equipment {
       stat_name: string;
       numeric_value: number;
     }>;
-    type_specific_data?: {
-      xp_cost?: number;
-      credits_increase?: number;
-      [key: string]: any;
-    } | string;
+    type_specific_data?:
+      | {
+          xp_cost?: number;
+          credits_increase?: number;
+          [key: string]: any;
+        }
+      | string;
     created_at?: string;
   };
-} 
+}

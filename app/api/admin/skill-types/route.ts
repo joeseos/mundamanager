@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 
 export async function GET() {
   const supabase = await createClient();
@@ -18,9 +18,9 @@ export async function GET() {
 
     if (error) throw error;
 
-    const transformedData = data.map(type => ({
+    const transformedData = data.map((type) => ({
       id: type.id,
-      skill_type: type.name
+      skill_type: type.name,
     }));
 
     return NextResponse.json(transformedData);
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const skillTypeData = await request.json();
 
     const formattedData = {
-      name: skillTypeData.name
+      name: skillTypeData.name,
     };
 
     const { data, error } = await supabase
@@ -114,23 +114,29 @@ export async function DELETE(request: Request) {
     const body = await request.json();
 
     if (!body.id) {
-      return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Skill ID is required' },
+        { status: 400 }
+      );
     }
 
     const { error } = await supabase
       .from('skill_types')
       .delete()
-      .eq('id', body.id)
+      .eq('id', body.id);
 
     if (error) {
       throw error;
     }
-    return NextResponse.json({ success: true, message: 'Skill Set deleted successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Skill Set deleted successfully',
+    });
   } catch (error) {
     console.error('Error deleting skill:', error);
     return NextResponse.json(
-        {error: 'Failed to delete skill'},
-        {status: 500}
+      { error: 'Failed to delete skill' },
+      { status: 500 }
     );
   }
 }

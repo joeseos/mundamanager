@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -8,7 +8,10 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
 
   if (!id) {
-    return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Equipment ID is required' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -19,7 +22,8 @@ export async function GET(request: Request) {
 
     const { data: profiles, error } = await supabase
       .from('weapon_profiles')
-      .select(`
+      .select(
+        `
         profile_name,
         range_short,
         range_long,
@@ -32,7 +36,8 @@ export async function GET(request: Request) {
         traits,
         weapon_group_id,
         sort_order
-      `)
+      `
+      )
       .eq('weapon_id', id)
       .order('sort_order', { ascending: true });
 
@@ -44,11 +49,11 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error in GET weapon profiles:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error fetching weapon profiles',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
-} 
+}

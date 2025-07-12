@@ -1,7 +1,7 @@
 export const vehicleExclusiveCategories: string[] = [
   'Cargo Loads',
   'Vehicle Upgrades',
-  'Vehicle Wargear'
+  'Vehicle Wargear',
 ];
 
 export const vehicleCompatibleCategories: string[] = [
@@ -15,13 +15,13 @@ export const vehicleCompatibleCategories: string[] = [
 ];
 
 export const VEHICLE_EQUIPMENT_CATEGORIES = [
-  "Ammunition",
-  "Special Ammunition",
-  "Basic Weapons",
-  "Special Weapons",
-  "Heavy Weapons",
-  "Cargo Loads",
-  "Vehicle Upgrades",
-  "Vehicle Wargear",
-  "Status Items: Exotic Beasts",
+  'Ammunition',
+  'Special Ammunition',
+  'Basic Weapons',
+  'Special Weapons',
+  'Heavy Weapons',
+  'Cargo Loads',
+  'Vehicle Upgrades',
+  'Vehicle Wargear',
+  'Status Items: Exotic Beasts',
 ];

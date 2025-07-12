@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -49,27 +49,40 @@ type Fighter = {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { 
-    gang_id, 
+  const {
+    gang_id,
     fighter_type_id,
     fighter_name,
     fighter_type,
     fighter_sub_type,
     fighter_sub_type_id,
     fighter_class,
-    fighter_class_id
+    fighter_class_id,
   } = await request.json();
 
-  console.log('Received data:', { gang_id, fighter_type_id, fighter_name, fighter_type, fighter_sub_type, fighter_sub_type_id, fighter_class });
+  console.log('Received data:', {
+    gang_id,
+    fighter_type_id,
+    fighter_name,
+    fighter_type,
+    fighter_sub_type,
+    fighter_sub_type_id,
+    fighter_class,
+  });
 
   if (!gang_id || !fighter_type_id || !fighter_name) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Missing required fields' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -86,7 +99,7 @@ export async function POST(request: Request) {
 
     // Get the current gang data
     const { data: currentGang, error: gangFetchError } = await supabase
-      .from("gangs")
+      .from('gangs')
       .select('rating, credits')
       .eq('id', gang_id)
       .single();
@@ -95,22 +108,26 @@ export async function POST(request: Request) {
 
     // Check if the gang has enough credits
     if ((currentGang.credits || 0) < fighterCost) {
-      return NextResponse.json({ error: "Not enough credits to add this fighter" }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Not enough credits to add this fighter' },
+        { status: 400 }
+      );
     }
 
     // Now, insert the new fighter with all the statistics
     const { data: newFighter, error: fighterError } = await supabase
-      .from("fighters")
+      .from('fighters')
       .insert([
-        { 
+        {
           gang_id,
-          fighter_type_id: fighter_type_id === "" ? null : fighter_type_id,
+          fighter_type_id: fighter_type_id === '' ? null : fighter_type_id,
           fighter_name,
           fighter_type,
           fighter_sub_type,
-          fighter_sub_type_id: fighter_sub_type_id === "" ? null : fighter_sub_type_id,
+          fighter_sub_type_id:
+            fighter_sub_type_id === '' ? null : fighter_sub_type_id,
           fighter_class,
-          fighter_class_id: fighter_class_id === "" ? null : fighter_class_id,
+          fighter_class_id: fighter_class_id === '' ? null : fighter_class_id,
           credits: fighterCost,
           movement: fighterTypeData.movement,
           weapon_skill: fighterTypeData.weapon_skill,
@@ -124,7 +141,7 @@ export async function POST(request: Request) {
           cool: fighterTypeData.cool,
           willpower: fighterTypeData.willpower,
           intelligence: fighterTypeData.intelligence,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         },
       ])
       .select()
@@ -134,11 +151,11 @@ export async function POST(request: Request) {
 
     // Update the gang's rating, credits, and last_updated
     const { data: updatedGang, error: gangUpdateError } = await supabase
-      .from("gangs")
-      .update({ 
+      .from('gangs')
+      .update({
         rating: (currentGang.rating || 0) + fighterCost,
         credits: (currentGang.credits || 0) - fighterCost,
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       })
       .eq('id', gang_id)
       .select()
@@ -146,17 +163,20 @@ export async function POST(request: Request) {
 
     if (gangUpdateError) throw gangUpdateError;
 
-    return NextResponse.json({ 
-      fighter: { 
-        ...newFighter, 
+    return NextResponse.json({
+      fighter: {
+        ...newFighter,
         fighter_id: newFighter.id,
-        fighter_type: fighterTypeData.fighter_type
-      }, 
-      gang: updatedGang 
+        fighter_type: fighterTypeData.fighter_type,
+      },
+      gang: updatedGang,
     });
   } catch (error) {
     console.error('Error adding fighter and updating gang:', error);
-    return NextResponse.json({ error: "Failed to add fighter and update gang" }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to add fighter and update gang' },
+      { status: 500 }
+    );
   }
 }
 
@@ -174,7 +194,8 @@ export async function GET(request: Request) {
     // Fetch fighters
     const { data: fighters, error: fightersError } = await supabase
       .from('fighters')
-      .select(`
+      .select(
+        `
         id, 
         fighter_name, 
         fighter_type_id,
@@ -197,7 +218,8 @@ export async function GET(request: Request) {
         intelligence, 
         attacks,
         updated_at
-      `)
+      `
+      )
       .eq('gang_id', gangId);
 
     if (fightersError) throw fightersError;
@@ -211,7 +233,7 @@ export async function GET(request: Request) {
 
     // Create a map of fighter type ids to fighter types
     const fighterTypeMap = Object.fromEntries(
-      fighterTypes.map(type => [type.fighter_type_id, type.fighter_type])
+      fighterTypes.map((type) => [type.fighter_type_id, type.fighter_type])
     );
 
     // Fetch all fighter_weapons for the fetched fighters
@@ -223,17 +245,19 @@ export async function GET(request: Request) {
     if (weaponsError) throw weaponsError;
 
     // Fetch all weapons in one query
-    const weaponIds = fighterWeapons.map(fw => fw.weapon_id);
+    const weaponIds = fighterWeapons.map((fw) => fw.weapon_id);
     const { data: weapons, error: weaponsDataError } = await supabase
       .from('weapons')
-      .select('id, weapon_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, traits')
+      .select(
+        'id, weapon_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, traits'
+      )
       .in('id', weaponIds);
 
     if (weaponsDataError) throw weaponsDataError;
 
     // Create a map of weapon_id to weapon details
     const weaponMap: Record<string, Weapon> = {};
-    weapons.forEach(weapon => {
+    weapons.forEach((weapon) => {
       weaponMap[weapon.id] = {
         weapon_id: weapon.id,
         weapon_name: weapon.weapon_name,
@@ -245,13 +269,13 @@ export async function GET(request: Request) {
         ap: weapon.ap,
         damage: weapon.damage,
         ammo: weapon.ammo,
-        traits: weapon.traits
+        traits: weapon.traits,
       };
     });
 
     // Create a map of fighter_id to weapons
     const fighterWeaponsMap: Record<string, Weapon[]> = {};
-    fighterWeapons.forEach(fw => {
+    fighterWeapons.forEach((fw) => {
       if (!fighterWeaponsMap[fw.fighter_id]) {
         fighterWeaponsMap[fw.fighter_id] = [];
       }
@@ -261,7 +285,7 @@ export async function GET(request: Request) {
     });
 
     // Map fighters to include fighter_type and weapons
-    const fightersWithTypes = fighters.map(fighter => ({
+    const fightersWithTypes = fighters.map((fighter) => ({
       id: fighter.id,
       fighter_name: fighter.fighter_name,
       fighter_type_id: fighter.fighter_type_id,
@@ -284,15 +308,21 @@ export async function GET(request: Request) {
       intelligence: fighter.intelligence,
       attacks: fighter.attacks,
       updated_at: fighter.updated_at,
-      weapons: fighterWeaponsMap[fighter.id] || []
+      weapons: fighterWeaponsMap[fighter.id] || [],
     }));
 
     // Log the final mapped data for debugging
-    console.log('Fighters with types and weapons:', JSON.stringify(fightersWithTypes, null, 2));
+    console.log(
+      'Fighters with types and weapons:',
+      JSON.stringify(fightersWithTypes, null, 2)
+    );
 
     return NextResponse.json(fightersWithTypes);
   } catch (error) {
     console.error('Error fetching fighters:', error);
-    return NextResponse.json({ error: 'Error fetching fighters' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Error fetching fighters' },
+      { status: 500 }
+    );
   }
 }

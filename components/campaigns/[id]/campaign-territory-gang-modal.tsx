@@ -1,9 +1,9 @@
-'use client'
+'use client';
 
-import Modal from "@/components/modal"
-import { useState, useEffect } from "react"
-import { createClient } from "@/utils/supabase/client"
-import Link from 'next/link'
+import Modal from '@/components/modal';
+import { useState, useEffect } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import Link from 'next/link';
 
 interface Gang {
   id: string;
@@ -13,7 +13,6 @@ interface Gang {
   user_id?: string;
   campaign_member_id?: string;
 }
-
 
 interface TerritoryGangModalProps {
   isOpen: boolean;
@@ -30,7 +29,7 @@ export default function TerritoryGangModal({
   onConfirm,
   campaignId,
   territoryName,
-  existingGangId = null
+  existingGangId = null,
 }: TerritoryGangModalProps) {
   const [availableGangs, setAvailableGangs] = useState<Gang[]>([]);
   const [selectedGang, setSelectedGang] = useState<string>('');
@@ -40,19 +39,22 @@ export default function TerritoryGangModal({
   useEffect(() => {
     const loadGangs = async () => {
       if (!isOpen) return;
-      
+
       setIsLoading(true);
       try {
         // Get campaign gangs
-        const { data: campaignGangs, error: campaignGangsError } = await supabase
-          .from('campaign_gangs')
-          .select(`
+        const { data: campaignGangs, error: campaignGangsError } =
+          await supabase
+            .from('campaign_gangs')
+            .select(
+              `
             id,
             gang_id,
             user_id,
             campaign_member_id
-          `)
-          .eq('campaign_id', campaignId);
+          `
+            )
+            .eq('campaign_id', campaignId);
 
         if (campaignGangsError) throw campaignGangsError;
 
@@ -66,23 +68,29 @@ export default function TerritoryGangModal({
         const { data: gangs, error: gangsError } = await supabase
           .from('gangs')
           .select('id, name, gang_type, gang_colour')
-          .in('id', campaignGangs.map(cg => cg.gang_id));
+          .in(
+            'id',
+            campaignGangs.map((cg) => cg.gang_id)
+          );
 
         if (gangsError) throw gangsError;
 
         // Combine the data with user information
-        const enhancedGangs = gangs?.map(gang => {
-          // Find the campaign_gang entry for this gang
-          const campaignGang = campaignGangs.find(cg => cg.gang_id === gang.id);
-          return {
-            id: gang.id,
-            name: gang.name,
-            gang_type: gang.gang_type,
-            campaign_gang_id: campaignGang?.id,
-            user_id: campaignGang?.user_id,
-            campaign_member_id: campaignGang?.campaign_member_id
-          };
-        }) || [];
+        const enhancedGangs =
+          gangs?.map((gang) => {
+            // Find the campaign_gang entry for this gang
+            const campaignGang = campaignGangs.find(
+              (cg) => cg.gang_id === gang.id
+            );
+            return {
+              id: gang.id,
+              name: gang.name,
+              gang_type: gang.gang_type,
+              campaign_gang_id: campaignGang?.id,
+              user_id: campaignGang?.user_id,
+              campaign_member_id: campaignGang?.campaign_member_id,
+            };
+          }) || [];
 
         setAvailableGangs(enhancedGangs);
       } catch (error) {
@@ -104,7 +112,9 @@ export default function TerritoryGangModal({
       {isLoading ? (
         <p>Loading gangs...</p>
       ) : availableGangs.length === 0 ? (
-        <p className="text-gray-500 italic text-sm text-gray-500">No gangs have been added to this campaign.</p>
+        <p className="text-gray-500 italic text-sm text-gray-500">
+          No gangs have been added to this campaign.
+        </p>
       ) : (
         <>
           <select
@@ -113,19 +123,20 @@ export default function TerritoryGangModal({
             className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
           >
             <option value="">Select a gang</option>
-{availableGangs
-  .slice()
-  .sort((a, b) => a.name.localeCompare(b.name))
-  .map((gang) => (
-    <option
-      key={gang.id}
-      value={gang.id}
-      disabled={existingGangId === gang.id}
-      className={existingGangId === gang.id ? "text-gray-400" : ""}
-    >
-      {gang.name} ({gang.gang_type}) {existingGangId === gang.id ? '(Already assigned)' : ''}
-    </option>
-))}
+            {availableGangs
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((gang) => (
+                <option
+                  key={gang.id}
+                  value={gang.id}
+                  disabled={existingGangId === gang.id}
+                  className={existingGangId === gang.id ? 'text-gray-400' : ''}
+                >
+                  {gang.name} ({gang.gang_type}){' '}
+                  {existingGangId === gang.id ? '(Already assigned)' : ''}
+                </option>
+              ))}
           </select>
         </>
       )}
@@ -142,4 +153,4 @@ export default function TerritoryGangModal({
       confirmDisabled={!selectedGang}
     />
   );
-} 
+}

@@ -1,22 +1,22 @@
-"use client"
+'use client';
 
 import React, { useState, useRef, useTransition } from 'react';
-import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
-import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
-import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import { FiMap } from "react-icons/fi";
-import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
-import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list";
-import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
-import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
-import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import MemberSearchBar from '@/components/campaigns/[id]/campaign-member-search-bar';
+import MembersTable from '@/components/campaigns/[id]/campaign-members-table';
+import CampaignBattleLogsList from '@/components/campaigns/[id]/campaign-battle-logs-list';
+import { FiMap } from 'react-icons/fi';
+import { MdFactory } from 'react-icons/md';
+import { LuSwords, LuClipboard, LuTrophy } from 'react-icons/lu';
+import TerritoryList from '@/components/campaigns/[id]/campaign-add-territory-list';
+import CampaignTerritoryList from '@/components/campaigns/[id]/campaign-territory-list';
+import { CampaignBattleLogsListRef } from '@/components/campaigns/[id]/campaign-battle-logs-list';
+import CampaignEditModal from '@/components/campaigns/[id]/campaign-edit-modal';
+import CampaignTriumphs from '@/components/campaigns/[id]/campaign-triumphs';
 import type { CampaignPermissions } from '@/types/user-permissions';
-import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
-import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
+import { updateCampaignSettings } from '@/app/actions/campaigns/[id]/campaign-settings';
+import { CampaignNotes } from '@/components/campaigns/[id]/campaign-notes';
 
 interface Gang {
   id: string;
@@ -67,7 +67,6 @@ interface Territory {
   } | null;
 }
 
-
 interface CampaignType {
   id: string;
   campaign_type_name: string;
@@ -78,7 +77,6 @@ interface AllTerritory {
   territory_name: string;
   campaign_type_id: string;
 }
-
 
 interface CampaignPageContentProps {
   campaignData: {
@@ -109,20 +107,20 @@ interface CampaignPageContentProps {
         gang_id?: string;
         gang_name: string;
       };
-              winner?: {
-          gang_id?: string;
-          gang_name: string;
-        };
-      }[];
-      triumphs: {
-        id: string;
-        triumph: string;
-        criteria: string;
-        campaign_type_id: string;
-        created_at: string;
-        updated_at: string | null;
-      }[];
-    };
+      winner?: {
+        gang_id?: string;
+        gang_name: string;
+      };
+    }[];
+    triumphs: {
+      id: string;
+      triumph: string;
+      criteria: string;
+      campaign_type_id: string;
+      created_at: string;
+      updated_at: string | null;
+    }[];
+  };
   userId?: string;
   permissions: CampaignPermissions | null;
   campaignTypes: CampaignType[];
@@ -135,12 +133,12 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-export default function CampaignPageContent({ 
-  campaignData: initialCampaignData, 
-  userId, 
-  permissions, 
-  campaignTypes, 
-  allTerritories
+export default function CampaignPageContent({
+  campaignData: initialCampaignData,
+  userId,
+  permissions,
+  campaignTypes,
+  allTerritories,
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -168,11 +166,14 @@ export default function CampaignPageContent({
     canManageTerritories: false,
     canAddBattleLogs: false,
     canEditBattleLogs: false,
-    campaignRole: null
+    campaignRole: null,
   };
 
   // Fix: Include app-level admin status in isAdmin check
-  const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
+  const isAdmin =
+    safePermissions.isOwner ||
+    safePermissions.isArbitrator ||
+    safePermissions.isAdmin;
 
   const refreshData = async () => {
     try {
@@ -183,21 +184,20 @@ export default function CampaignPageContent({
           'Cache-Control': 'no-cache',
         },
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch updated campaign data');
       }
-      
+
       const updatedCampaignData = await response.json();
-      
+
       // Update only the campaign data state
       setCampaignData(updatedCampaignData);
-      
     } catch (error) {
       console.error('Error refreshing campaign data:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to refresh campaign data"
+        variant: 'destructive',
+        description: 'Failed to refresh campaign data',
       });
     }
   };
@@ -216,7 +216,7 @@ export default function CampaignPageContent({
         description: formValues.description,
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
-        has_scavenging_rolls: formValues.has_scavenging_rolls
+        has_scavenging_rolls: formValues.has_scavenging_rolls,
       });
 
       if (!result.success) {
@@ -224,9 +224,9 @@ export default function CampaignPageContent({
       }
 
       const now = new Date().toISOString();
-      
+
       // Update local state
-      setCampaignData(prev => ({
+      setCampaignData((prev) => ({
         ...prev,
         campaign_name: formValues.campaign_name,
         description: formValues.description,
@@ -235,18 +235,18 @@ export default function CampaignPageContent({
         has_scavenging_rolls: formValues.has_scavenging_rolls,
         updated_at: now,
       }));
-      
+
       toast({
-        description: "Campaign settings updated successfully",
+        description: 'Campaign settings updated successfully',
       });
-      
+
       setShowEditModal(false);
       return true;
     } catch (error) {
       console.error('Error updating campaign:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to update campaign settings",
+        variant: 'destructive',
+        description: 'Failed to update campaign settings',
       });
       return false;
     }
@@ -258,7 +258,7 @@ export default function CampaignPageContent({
     console.log('User role:', safePermissions.campaignRole);
     console.log('Is admin:', isAdmin);
     console.log('battleLogsRef exists:', !!battleLogsRef.current);
-    
+
     if (battleLogsRef.current) {
       console.log('Opening battle log modal via ref');
       battleLogsRef.current.openAddModal();
@@ -328,11 +328,11 @@ export default function CampaignPageContent({
             <span className="ml-2 hidden sm:inline">Triumphs</span>
           </button>
         </div>
-        
+
         {/* Single white box container for all content */}
         <div className="bg-white shadow-md rounded-lg p-4">
           {/* Tab-specific content */}
-          
+
           {/* Campaign tab content */}
           {activeTab === 0 && (
             <>
@@ -393,7 +393,9 @@ export default function CampaignPageContent({
 
               {/* Campaign Members Section */}
               <div className="mb-8">
-                <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs & Players</h2>
+                <h2 className="text-xl md:text-2xl font-bold mb-4">
+                  Gangs & Players
+                </h2>
                 {safePermissions.canManageMembers && (
                   <MemberSearchBar
                     campaignId={campaignData.id}
@@ -415,18 +417,23 @@ export default function CampaignPageContent({
                       // For specific updates, we can do optimistic updates
                       if (removedMemberId) {
                         // Optimistically remove the member from the local state
-                        setCampaignData(prev => ({
+                        setCampaignData((prev) => ({
                           ...prev,
-                          members: prev.members.filter(m => m.id !== removedMemberId)
+                          members: prev.members.filter(
+                            (m) => m.id !== removedMemberId
+                          ),
                         }));
                       } else if (removedGangIds && removedGangIds.length > 0) {
                         // Optimistically remove gangs from the local state
-                        setCampaignData(prev => ({
+                        setCampaignData((prev) => ({
                           ...prev,
-                          members: prev.members.map(member => ({
+                          members: prev.members.map((member) => ({
                             ...member,
-                            gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
-                          }))
+                            gangs: member.gangs.filter(
+                              (gang: Member['gangs'][0]) =>
+                                !removedGangIds.includes(gang.gang_id)
+                            ),
+                          })),
                         }));
                       } else {
                         // For other updates (like adding gangs), fetch fresh data
@@ -434,26 +441,30 @@ export default function CampaignPageContent({
                       }
                     });
                   }}
-                  isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
-                  isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+                  isCampaignAdmin={
+                    !!safePermissions.isArbitrator || !!safePermissions.isAdmin
+                  }
+                  isCampaignOwner={
+                    !!safePermissions.isOwner || !!safePermissions.isAdmin
+                  }
                 />
               </div>
 
               {/* Campaign Territories Section */}
               <div className="mb-8">
-                <h2 className="text-xl md:text-2xl font-bold mb-4">Territories</h2>
+                <h2 className="text-xl md:text-2xl font-bold mb-4">
+                  Territories
+                </h2>
                 <CampaignTerritoryList
                   territories={campaignData.territories}
                   campaignId={campaignData.id}
                   members={campaignData.members}
                   permissions={{
-                    canManageTerritories: safePermissions.canManageTerritories
+                    canManageTerritories: safePermissions.canManageTerritories,
                   }}
                   onTerritoryUpdate={refreshData}
                 />
               </div>
-
-
             </>
           )}
 
@@ -463,7 +474,7 @@ export default function CampaignPageContent({
               <div className="flex justify-between items-start mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Territories</h2>
               </div>
-              
+
               {/* Admin can add territories */}
               {safePermissions.canManageTerritories && (
                 <div className="mb-6">
@@ -474,24 +485,26 @@ export default function CampaignPageContent({
                     campaignTypeId={campaignData.campaign_type_id}
                     campaignTypes={campaignTypes}
                     allTerritories={allTerritories}
-                    existingCampaignTerritories={campaignData.territories.map(territory => ({
-                      territory_id: territory.territory_id,
-                      territory_name: territory.territory_name
-                    }))}
+                    existingCampaignTerritories={campaignData.territories.map(
+                      (territory) => ({
+                        territory_id: territory.territory_id,
+                        territory_name: territory.territory_name,
+                      })
+                    )}
                     onTerritoryAdd={() => {
                       refreshData();
                     }}
                   />
                 </div>
               )}
-              
+
               {/* Display existing territories */}
               <CampaignTerritoryList
                 territories={campaignData.territories}
                 campaignId={campaignData.id}
                 members={campaignData.members}
                 permissions={{
-                  canManageTerritories: safePermissions.canManageTerritories
+                  canManageTerritories: safePermissions.canManageTerritories,
                 }}
                 onTerritoryUpdate={refreshData}
               />
@@ -531,11 +544,11 @@ export default function CampaignPageContent({
           {/* Notes tab content */}
           {activeTab === 3 && (
             <div>
-            <CampaignNotes
-              campaignId={campaignData.id}
-              initialNote={campaignData.note || ''}
-              onNoteUpdate={refreshData}
-            />
+              <CampaignNotes
+                campaignId={campaignData.id}
+                initialNote={campaignData.note || ''}
+                onNoteUpdate={refreshData}
+              />
             </div>
           )}
 
@@ -550,9 +563,8 @@ export default function CampaignPageContent({
           )}
         </div>
 
-
         {/* Replace the inline modal with our new component */}
-        <CampaignEditModal 
+        <CampaignEditModal
           isOpen={showEditModal}
           campaignData={{
             id: campaignData.id,
@@ -560,14 +572,13 @@ export default function CampaignPageContent({
             description: campaignData.description,
             has_meat: campaignData.has_meat,
             has_exploration_points: campaignData.has_exploration_points,
-            has_scavenging_rolls: campaignData.has_scavenging_rolls
+            has_scavenging_rolls: campaignData.has_scavenging_rolls,
           }}
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
         />
-
       </div>
     </main>
   );
-} 
+}

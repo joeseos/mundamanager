@@ -1,10 +1,10 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Input } from "@/components/ui/input"
-import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
-import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
+import { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { createClient } from '@/utils/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { addMemberToCampaign } from '@/app/actions/campaigns/[id]/campaign-members';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -43,35 +43,37 @@ export default function MemberSearchBar({
   campaignId,
   campaignMembers,
   onMemberAdd,
-  disabled = false
+  disabled = false,
 }: MemberSearchBarProps) {
-  const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Member[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isAdding, setIsAdding] = useState(false)
-  const supabase = createClient()
-  const { toast } = useToast()
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Member[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const supabase = createClient();
+  const { toast } = useToast();
 
   // Search functionality using an API route
   useEffect(() => {
     const searchUsers = async () => {
       if (query.trim() === '') {
-        setSearchResults([])
-        return
+        setSearchResults([]);
+        return;
       }
-      setIsLoading(true)
+      setIsLoading(true);
       try {
-        const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`)
-        
+        const response = await fetch(
+          `/api/search-users?query=${encodeURIComponent(query)}`
+        );
+
         if (!response.ok) {
-          throw new Error('Failed to search users')
+          throw new Error('Failed to search users');
         }
 
-        const profilesData = await response.json()
+        const profilesData = await response.json();
 
         // Transform to Member type (allow existing members to be added again)
-        const transformedResults: Member[] = (profilesData || [])
-          .map((profile: { id: string; username: string }) => ({
+        const transformedResults: Member[] = (profilesData || []).map(
+          (profile: { id: string; username: string }) => ({
             user_id: profile.id,
             username: profile.username,
             role: 'MEMBER' as MemberRole,
@@ -83,18 +85,19 @@ export default function MemberSearchBar({
               id: profile.id,
               username: profile.username,
               updated_at: new Date().toISOString(),
-              user_role: 'user'
+              user_role: 'user',
             },
-            gangs: []
-          }));
-        
+            gangs: [],
+          })
+        );
+
         setSearchResults(transformedResults);
       } catch (error) {
         console.error('Error searching users:', error);
         setSearchResults([]);
         toast({
-          variant: "destructive",
-          description: "Failed to search users"
+          variant: 'destructive',
+          description: 'Failed to search users',
         });
       } finally {
         setIsLoading(false);
@@ -105,10 +108,12 @@ export default function MemberSearchBar({
   }, [query, toast]);
 
   const handleAddMember = async (member: Member) => {
-    setIsAdding(true)
+    setIsAdding(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!user) {
         throw new Error('Not authenticated');
       }
@@ -118,37 +123,37 @@ export default function MemberSearchBar({
         campaignId,
         userId: member.user_id,
         role: 'MEMBER',
-        invitedBy: user.id
+        invitedBy: user.id,
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
 
-      console.log("Member added successfully:", result.data);
-      
+      console.log('Member added successfully:', result.data);
+
       // Create member object for local state update
       const newMember = {
         ...member,
         id: result.data?.id,
         role: 'MEMBER' as MemberRole,
-        gangs: []  // Start with an empty gangs array for the new instance
+        gangs: [], // Start with an empty gangs array for the new instance
       };
 
       onMemberAdd(newMember);
       toast({
-        description: `Added ${member.username} to the campaign`
+        description: `Added ${member.username} to the campaign`,
       });
       setQuery('');
       setSearchResults([]);
     } catch (error) {
       console.error('Error adding member to campaign:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to add member to campaign"
+        variant: 'destructive',
+        description: 'Failed to add member to campaign',
       });
     } finally {
-      setIsAdding(false)
+      setIsAdding(false);
     }
   };
 
@@ -170,7 +175,7 @@ export default function MemberSearchBar({
       {searchResults.length > 0 && query && (
         <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
           <ul className="py-2">
-            {searchResults.map(profile => (
+            {searchResults.map((profile) => (
               <li key={profile.user_id}>
                 <button
                   onClick={() => handleAddMember(profile)}
@@ -185,5 +190,5 @@ export default function MemberSearchBar({
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

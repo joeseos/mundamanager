@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { createClient } from "@/utils/supabase/client";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { createClient } from '@/utils/supabase/client';
 import { AuthApiError } from '@supabase/supabase-js';
-import Modal from "@/components/modal";
+import Modal from '@/components/modal';
 
 export default function PasswordChange() {
   const [isEditing, setIsEditing] = useState(false);
@@ -36,7 +36,7 @@ export default function PasswordChange() {
 
   const handleSave = async () => {
     if (!newPassword) return;
-    
+
     setError(null);
 
     const validationError = validatePassword(newPassword);
@@ -48,13 +48,15 @@ export default function PasswordChange() {
     setIsLoading(true);
     try {
       const { error: supabaseError } = await supabase.auth.updateUser({
-        password: newPassword
+        password: newPassword,
       });
 
       if (supabaseError) {
         if (supabaseError instanceof AuthApiError) {
           if (supabaseError.status === 422) {
-            setError('New password must be different from your current password');
+            setError(
+              'New password must be different from your current password'
+            );
           } else {
             setError(supabaseError.message);
           }
@@ -63,7 +65,7 @@ export default function PasswordChange() {
         }
         return;
       }
-      
+
       setShowSuccessModal(true);
       setIsEditing(false);
       setNewPassword('');
@@ -95,7 +97,7 @@ export default function PasswordChange() {
               className="flex-grow"
               autoFocus
             />
-            <Button 
+            <Button
               onClick={handleSave}
               className="bg-black hover:bg-gray-800 text-white"
               size="sm"
@@ -103,7 +105,7 @@ export default function PasswordChange() {
             >
               {isLoading ? 'Saving...' : 'Save'}
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 setIsEditing(false);
                 setNewPassword('');
@@ -116,9 +118,7 @@ export default function PasswordChange() {
               Cancel
             </Button>
           </div>
-          {error && (
-            <p className="text-sm text-red-500">{error}</p>
-          )}
+          {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="text-sm text-gray-500">
             Password must:
             <ul className="list-disc ml-5 mt-1">
@@ -135,7 +135,7 @@ export default function PasswordChange() {
           <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2 flex-grow">
             ••••••••
           </div>
-          <Button 
+          <Button
             onClick={() => setIsEditing(true)}
             className="bg-black hover:bg-gray-800 text-white"
             size="sm"
@@ -161,4 +161,4 @@ export default function PasswordChange() {
       )}
     </>
   );
-} 
+}

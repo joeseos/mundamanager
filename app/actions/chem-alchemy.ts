@@ -1,7 +1,7 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
+import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
 
 interface ChemEffect {
   name: string;
@@ -25,15 +25,17 @@ export async function createChemAlchemy({
   totalCost,
   gangId,
   useBaseCostForRating,
-  baseCost
+  baseCost,
 }: CreateChemAlchemyParams) {
   try {
     console.log('Server action: Creating chem-alchemy:', name);
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -55,21 +57,24 @@ export async function createChemAlchemy({
     }
 
     // Create the custom equipment entry
-    const { data: customEquipment, error: customEquipmentError } = await supabase
-      .from('custom_equipment')
-      .insert([{
-        equipment_name: name,
-        trading_post_category: 'Chem-Alchemy',
-        availability: 'E',
-        cost: useBaseCostForRating ? baseCost : totalCost,
-        equipment_category: 'Chem-Alchemy',
-        equipment_category_id: '258bcb60-5f87-4c55-b1b6-bbdddc7d1fc3',
-        equipment_type: 'wargear',
-        user_id: user.id,
-        variant: `${type} - ${effects.map(e => e.name).join(', ')}`
-      }])
-      .select()
-      .single();
+    const { data: customEquipment, error: customEquipmentError } =
+      await supabase
+        .from('custom_equipment')
+        .insert([
+          {
+            equipment_name: name,
+            trading_post_category: 'Chem-Alchemy',
+            availability: 'E',
+            cost: useBaseCostForRating ? baseCost : totalCost,
+            equipment_category: 'Chem-Alchemy',
+            equipment_category_id: '258bcb60-5f87-4c55-b1b6-bbdddc7d1fc3',
+            equipment_type: 'wargear',
+            user_id: user.id,
+            variant: `${type} - ${effects.map((e) => e.name).join(', ')}`,
+          },
+        ])
+        .select()
+        .single();
 
     if (customEquipmentError) {
       console.error('Error creating custom equipment:', customEquipmentError);
@@ -79,12 +84,14 @@ export async function createChemAlchemy({
     // Add the custom equipment to the gang's stash
     const { data: stashItem, error: stashError } = await supabase
       .from('gang_stash')
-      .insert([{
-        gang_id: gangId,
-        custom_equipment_id: customEquipment.id,
-        cost: useBaseCostForRating ? baseCost : totalCost,
-        is_master_crafted: false
-      }])
+      .insert([
+        {
+          gang_id: gangId,
+          custom_equipment_id: customEquipment.id,
+          cost: useBaseCostForRating ? baseCost : totalCost,
+          is_master_crafted: false,
+        },
+      ])
       .select()
       .single();
 
@@ -105,22 +112,23 @@ export async function createChemAlchemy({
     }
 
     console.log('Chem-alchemy created successfully, revalidating path');
-    
+
     // Revalidate the gang page to show the new stash item
     revalidatePath(`/gang/${gangId}`);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       data: {
         customEquipment,
-        stashItem
-      }
+        stashItem,
+      },
     };
   } catch (error) {
     console.error('Error in createChemAlchemy server action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
-} 
+}

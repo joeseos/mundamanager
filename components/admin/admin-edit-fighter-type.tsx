@@ -1,18 +1,24 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { X, Plus, Minus } from "lucide-react";
-import { FighterType } from "@/types/fighter";
-import { GangType } from "@/types/gang";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { X, Plus, Minus } from 'lucide-react';
+import { FighterType } from '@/types/fighter';
+import { GangType } from '@/types/gang';
 import { Equipment } from '@/types/equipment';
-import { skillSetRank } from "@/utils/skillSetRank";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
-import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
+import { skillSetRank } from '@/utils/skillSetRank';
+import { equipmentCategoryRank } from '@/utils/equipmentCategoryRank';
+import {
+  AdminFighterEquipmentSelection,
+  EquipmentSelection,
+  EquipmentOption,
+  guiToDataModel,
+  dataModelToGui,
+} from '@/components/admin/admin-fighter-equipment-selection';
 import Modal from '@/components/modal';
-import { AdminFighterTradingPost } from "@/components/admin/admin-fighter-trading-post";
+import { AdminFighterTradingPost } from '@/components/admin/admin-fighter-trading-post';
 
 interface FighterSubType {
   id: string;
@@ -72,11 +78,17 @@ interface FighterTypeGangCost {
   adjusted_cost: number;
 }
 
-export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
+export function AdminEditFighterTypeModal({
+  onClose,
+  onSubmit,
+}: AdminEditFighterTypeModalProps) {
   // Update state to track fighter type+class combinations
-  const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
-  const [fighterTypeCombos, setFighterTypeCombos] = useState<FighterTypeCombo[]>([]);
-  
+  const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] =
+    useState<string>('');
+  const [fighterTypeCombos, setFighterTypeCombos] = useState<
+    FighterTypeCombo[]
+  >([]);
+
   // Keep existing state variables
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
@@ -87,8 +99,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [isLoading, setIsLoading] = useState(false);
   const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
-  const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
-  
+  const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>(
+    []
+  );
+
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
   const [ballisticSkill, setBallisticSkill] = useState('');
@@ -113,16 +127,21 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
-  const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
-  const [equipmentDiscounts, setEquipmentDiscounts] = useState<{
-    equipment_id: string;
-    adjusted_cost: number;
-  }[]>([]);
-  const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
+  const [equipmentListSelections, setEquipmentListSelections] = useState<
+    string[]
+  >([]);
+  const [equipmentDiscounts, setEquipmentDiscounts] = useState<
+    { equipment_id: string; adjusted_cost: number }[]
+  >([]);
+  const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] =
+    useState('');
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
-  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
+  const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>(
+    []
+  );
+  const [equipmentSelection, setEquipmentSelection] =
+    useState<EquipmentSelection>({});
   const [isEquipmentLoaded, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the sub-type name
@@ -133,7 +152,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedGangTypeForCost, setSelectedGangTypeForCost] = useState('');
   const [gangAdjustedCost, setGangAdjustedCost] = useState('');
   const [gangTypeCosts, setGangTypeCosts] = useState<FighterTypeGangCost[]>([]);
-  
+
   // IMPORTANT: We use uncontrolled inputs with refs for text fields to completely bypass React's
   // rendering cycle during typing, which dramatically improves performance. This prevents the
   // severe lag (1000ms+ per keystroke) that was happening with controlled inputs.
@@ -143,18 +162,20 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
   const subTypeNameInputRef = useRef<HTMLInputElement>(null);
   const specialSkillsInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Add a ref to track if equipment categories have been loaded
   const hasLoadedEquipmentCategoriesRef = useRef(false);
-  
+
   // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterClassesRef = useRef(false);
-  
+
   // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterTypeDetailsRef = useRef(false);
 
   // Only fetch skill sets when needed
-  const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
+  const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({
+    current: false,
+  });
 
   // Add a ref to track if a category was manually removed
   const userRemovedCategoryRef = useRef(false);
@@ -194,7 +215,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.error('Error preloading equipment:', error);
       }
     };
-    
+
     preloadEquipment();
   }, []);
 
@@ -210,7 +231,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.error('Error fetching gang types:', error);
         toast({
           description: 'Failed to load gang types',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -232,7 +253,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.error('Error fetching fighter classes:', error);
         toast({
           description: 'Failed to load fighter classes',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -243,60 +264,65 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Modify fighter types fetch to extract unique combinations
   useEffect(() => {
     if (!gangTypeFilter) return; // Only fetch if gang type is selected
-    
+
     const fetchFighterTypes = async () => {
       try {
         console.log('Fetching fighter types for gang type:', gangTypeFilter);
         // Add explicit filter parameter in the URL
-        const response = await fetch(`/api/admin/fighter-types?gang_type_id=${gangTypeFilter}&filter_by_gang=true`);
+        const response = await fetch(
+          `/api/admin/fighter-types?gang_type_id=${gangTypeFilter}&filter_by_gang=true`
+        );
         if (!response.ok) throw new Error('Failed to fetch fighter types');
         const data = await response.json();
-        
+
         // Log the count of retrieved fighter types
-        console.log(`Retrieved ${Array.isArray(data) ? data.length : 0} fighter types for this gang`);
-        
+        console.log(
+          `Retrieved ${Array.isArray(data) ? data.length : 0} fighter types for this gang`
+        );
+
         // Store the full fighter type data
         setFighterTypes(Array.isArray(data) ? data : []);
-        
+
         // Extract unique fighter type + class combinations
         const uniqueCombinations: FighterTypeCombo[] = [];
-        
+
         if (Array.isArray(data)) {
-          data.forEach(fighter => {
+          data.forEach((fighter) => {
             // Check if this combination already exists in our array
             const existingCombo = uniqueCombinations.find(
-              combo => combo.type === fighter.fighter_type && 
-                      combo.class === fighter.fighter_class &&
-                      combo.gang_type_id === fighter.gang_type_id
+              (combo) =>
+                combo.type === fighter.fighter_type &&
+                combo.class === fighter.fighter_class &&
+                combo.gang_type_id === fighter.gang_type_id
             );
-            
+
             // If not, add it
             if (!existingCombo) {
               uniqueCombinations.push({
                 type: fighter.fighter_type,
                 class: fighter.fighter_class,
-                gang_type_id: fighter.gang_type_id
+                gang_type_id: fighter.gang_type_id,
               });
             }
           });
         }
-        
+
         // Sort combinations by type and then class
         uniqueCombinations.sort((a, b) => {
           // First sort by type
           const typeCompare = a.type.localeCompare(b.type);
           if (typeCompare !== 0) return typeCompare;
-          
+
           // If types are the same, sort by class
           return a.class.localeCompare(b.class);
         });
-        
+
         setFighterTypeCombos(uniqueCombinations);
       } catch (error) {
         console.error('Error fetching fighter types:', error);
         toast({
           description: 'Failed to load fighter types',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -304,38 +330,40 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchFighterTypes();
   }, [toast, gangTypeFilter]);
 
-  // NOTE: We've removed the automatic equipment fetching, it will be loaded on-demand 
+  // NOTE: We've removed the automatic equipment fetching, it will be loaded on-demand
   // when needed (e.g., when opening dialogs that need equipment data)
 
   const fetchSkillTypes = async () => {
     // Only fetch if we haven't already loaded the data
     if (hasLoadedSkillTypesRef.current) {
       console.log('Using cached skill sets');
-        return;
-      }
-      
+      return;
+    }
+
     console.log('Fetching skill sets...');
     try {
-        const response = await fetch('/api/admin/skill-types');
+      const response = await fetch('/api/admin/skill-types');
       if (!response.ok) {
-        throw new Error(`Failed to fetch skill sets: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch skill sets: ${response.status} ${response.statusText}`
+        );
       }
-      
-        const data = await response.json();
+
+      const data = await response.json();
       console.log(`Loaded ${data.length} skill sets`);
-        setSkillTypes(data);
+      setSkillTypes(data);
       hasLoadedSkillTypesRef.current = true;
       return data;
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast({
+    } catch (error) {
+      console.error('Error fetching skill sets:', error);
+      toast({
         description: 'Failed to load skill sets. Some features may be limited.',
-          variant: "destructive"
-        });
+        variant: 'destructive',
+      });
       // Don't throw, just report the error and continue
       return null;
-      }
-    };
+    }
+  };
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -345,16 +373,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       }
 
       try {
-        const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
+        const response = await fetch(
+          `/api/admin/skills?skill_type_id=${selectedSkillType}`
+        );
         if (!response.ok) throw new Error('Failed to fetch skills');
         const data = await response.json();
         setSkills(data);
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: "destructive"
-        });
+        toast({ description: 'Failed to load skills', variant: 'destructive' });
       }
     };
 
@@ -369,17 +396,21 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         const response = await fetch('/api/admin/skills');
         if (!response.ok) throw new Error('Failed to fetch skills');
         const allSkills = await response.json();
-        
-        const relevantSkills = allSkills.filter((skill: Skill) => selectedSkills.includes(skill.id));
-        setSkills(prevSkills => {
-          const existingSkills = prevSkills.filter(skill => !selectedSkills.includes(skill.id));
+
+        const relevantSkills = allSkills.filter((skill: Skill) =>
+          selectedSkills.includes(skill.id)
+        );
+        setSkills((prevSkills) => {
+          const existingSkills = prevSkills.filter(
+            (skill) => !selectedSkills.includes(skill.id)
+          );
           return [...existingSkills, ...relevantSkills];
         });
       } catch (error) {
         console.error('Error fetching skill names:', error);
         toast({
           description: 'Failed to load skill names',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -390,7 +421,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Only fetch fighter sub-types when needed
   useEffect(() => {
     if (!selectedFighterTypeId) return; // Only fetch if fighter type is selected
-    
+
     const fetchFighterSubTypes = async () => {
       try {
         const response = await fetch('/api/admin/fighter-sub-types');
@@ -401,7 +432,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.error('Error fetching fighter sub-types:', error);
         toast({
           description: 'Failed to load fighter sub-types',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -411,20 +442,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
-    
+
     // Prevent duplicate fetches
     if (isFetchingFighterTypeDetailsRef.current) {
       return;
     }
-    
+
     isFetchingFighterTypeDetailsRef.current = true;
 
     try {
       console.log('Fetching fighter type details for ID:', fighterId);
       const response = await fetch(`/api/admin/fighter-types?id=${fighterId}`);
-      
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch fighter type details: ${response.status}`);
+        throw new Error(
+          `Failed to fetch fighter type details: ${response.status}`
+        );
       }
 
       let data = await response.json();
@@ -435,8 +468,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       }
 
       // Force override fighter_sub_type_id to null if we're in "default" mode
-      if (selectedSubTypeId === "default") {
-        console.log('Forcing fighter_sub_type_id to null since Default is selected');
+      if (selectedSubTypeId === 'default') {
+        console.log(
+          'Forcing fighter_sub_type_id to null since Default is selected'
+        );
         data = { ...data, fighter_sub_type_id: null };
       }
 
@@ -464,7 +499,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setEquipmentListSelections(data.equipment_list || []);
       setEquipmentDiscounts(data.equipment_discounts || []);
       setTradingPostEquipment(data.trading_post_equipment || []);
-      
+
       // Set gang-specific costs if they exist
       if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
         setGangTypeCosts(data.gang_type_costs);
@@ -474,20 +509,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Only set subTypeName if NOT explicitly handling a "default" selection
       // and there's a fighter_sub_type_id in the response
-      if (selectedSubTypeId !== "default" && data.fighter_sub_type_id) {
+      if (selectedSubTypeId !== 'default' && data.fighter_sub_type_id) {
         // First look in our available sub-types
-        let subType = availableSubTypes.find(st => st.id === data.fighter_sub_type_id);
-        
+        let subType = availableSubTypes.find(
+          (st) => st.id === data.fighter_sub_type_id
+        );
+
         // If we couldn't find it there, look in the full fighterSubTypes array
         if (!subType && fighterSubTypes.length > 0) {
-          subType = fighterSubTypes.find(st => st.id === data.fighter_sub_type_id);
+          subType = fighterSubTypes.find(
+            (st) => st.id === data.fighter_sub_type_id
+          );
         }
-        
+
         // If we found the sub-type, set its name
         if (subType) {
-          console.log(`Found sub-type name: ${subType.sub_type_name} for ID: ${data.fighter_sub_type_id}`);
+          console.log(
+            `Found sub-type name: ${subType.sub_type_name} for ID: ${data.fighter_sub_type_id}`
+          );
           setSubTypeName(subType.sub_type_name);
-          
+
           // Update the input field directly as well for immediate feedback
           if (subTypeNameInputRef.current) {
             subTypeNameInputRef.current.value = subType.sub_type_name;
@@ -495,13 +536,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         } else {
           // If we couldn't find the sub-type info, fetch it directly
           try {
-            const subTypeResponse = await fetch(`/api/admin/fighter-sub-types?id=${data.fighter_sub_type_id}`);
+            const subTypeResponse = await fetch(
+              `/api/admin/fighter-sub-types?id=${data.fighter_sub_type_id}`
+            );
             if (subTypeResponse.ok) {
               const subTypeData = await subTypeResponse.json();
               console.log(`Fetched sub-type data:`, subTypeData);
               if (subTypeData && subTypeData.sub_type_name) {
                 setSubTypeName(subTypeData.sub_type_name);
-                
+
                 // Update the input field directly as well
                 if (subTypeNameInputRef.current) {
                   subTypeNameInputRef.current.value = subTypeData.sub_type_name;
@@ -512,9 +555,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             console.error('Error fetching sub-type details:', error);
           }
         }
-      } 
+      }
       // Remove the problematic code block starting here
-      else if (selectedSubTypeId === "default") {
+      else if (selectedSubTypeId === 'default') {
         // Just clear the subtype name field when "Default" is selected
         setSubTypeName('');
         if (subTypeNameInputRef.current) {
@@ -526,11 +569,19 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Set equipment selection
       if (data.equipment_selection) {
         // Add logging to debug equipment selection loading
-        console.log('Loaded equipment_selection from API:', data.equipment_selection);
-        
+        console.log(
+          'Loaded equipment_selection from API:',
+          data.equipment_selection
+        );
+
         // Use the dataModelToGui function to properly convert the new format
-        const convertedEquipmentSelection = dataModelToGui(data.equipment_selection);
-        console.log('Converted equipment selection:', convertedEquipmentSelection);
+        const convertedEquipmentSelection = dataModelToGui(
+          data.equipment_selection
+        );
+        console.log(
+          'Converted equipment selection:',
+          convertedEquipmentSelection
+        );
         setEquipmentSelection(convertedEquipmentSelection);
       } else {
         // Reset to empty object if no equipment selection
@@ -541,9 +592,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     } catch (error) {
       console.error('Detailed error in fetchFighterTypeDetails:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch fighter type details',
+        variant: 'destructive',
       });
       return null;
     } finally {
@@ -553,115 +607,120 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const handleFighterTypeComboChange = (comboString: string) => {
     console.log('handleFighterTypeComboChange called with:', comboString);
-    
+
     setSelectedFighterTypeCombo(comboString);
     setSelectedFighterTypeId('');
     setSelectedSubTypeId('');
     setAvailableSubTypes([]);
     setSubTypeName('');
-    
+
     // Clear the sub-type input field directly
     if (subTypeNameInputRef.current) {
       subTypeNameInputRef.current.value = '';
     }
-    
+
     if (!comboString) return;
-    
+
     try {
       // Parse the combo string to get type, class, and gang_type_id
       const [fighterType, fighterClass, gangTypeId] = comboString.split('|');
-      
+
       if (!fighterType || !fighterClass || !gangTypeId) {
         console.error('Invalid fighter type combo string:', comboString);
         return;
       }
-      
+
       // Find all fighters that match this type+class+gang_type
-      const matchingFighters = fighterTypes.filter(f => 
-        f.fighter_type === fighterType && 
-        f.fighter_class === fighterClass && 
-        f.gang_type_id === gangTypeId
+      const matchingFighters = fighterTypes.filter(
+        (f) =>
+          f.fighter_type === fighterType &&
+          f.fighter_class === fighterClass &&
+          f.gang_type_id === gangTypeId
       );
-      
-      console.log(`Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterClass})`);
-      
+
+      console.log(
+        `Found ${matchingFighters.length} fighters matching ${fighterType} (${fighterClass})`
+      );
+
       // Prepare sub-type options, including a "Default" option
       const subTypeOptions: FighterSubType[] = [];
-      
+
       // First add default option (fighters without sub-type)
-      const defaultFighters = matchingFighters.filter(f => 
-        !f.fighter_sub_type_id || 
-        f.fighter_sub_type_id === null || 
-        f.fighter_sub_type_id === "" || 
-        f.fighter_sub_type_id === "null"
+      const defaultFighters = matchingFighters.filter(
+        (f) =>
+          !f.fighter_sub_type_id ||
+          f.fighter_sub_type_id === null ||
+          f.fighter_sub_type_id === '' ||
+          f.fighter_sub_type_id === 'null'
       );
-      
+
       if (defaultFighters.length > 0) {
         // Use the first default fighter's ID
         const defaultFighter = defaultFighters[0];
         subTypeOptions.push({
-          id: "default",
-          sub_type_name: "Default",
-          fighterId: defaultFighter.id
+          id: 'default',
+          sub_type_name: 'Default',
+          fighterId: defaultFighter.id,
         });
       }
-      
+
       // Get all fighters with sub-types
-      const subtypedFighters = matchingFighters.filter(f => 
-        f.fighter_sub_type_id && 
-        f.fighter_sub_type_id !== null && 
-        f.fighter_sub_type_id !== "" && 
-        f.fighter_sub_type_id !== "null"
+      const subtypedFighters = matchingFighters.filter(
+        (f) =>
+          f.fighter_sub_type_id &&
+          f.fighter_sub_type_id !== null &&
+          f.fighter_sub_type_id !== '' &&
+          f.fighter_sub_type_id !== 'null'
       );
-      
+
       // We need to fetch sub-type names for these fighters
       if (subtypedFighters.length > 0) {
         // Collect unique sub-type IDs - using Array.from for broader compatibility
         const subTypeIds = Array.from(
           new Set(
             subtypedFighters
-              .map(f => f.fighter_sub_type_id)
-              .filter(id => id !== null && id !== undefined)
+              .map((f) => f.fighter_sub_type_id)
+              .filter((id) => id !== null && id !== undefined)
           )
         ) as string[];
-        
+
         if (subTypeIds.length > 0) {
           // For each fighter with a sub-type, create an option
-          subtypedFighters.forEach(fighter => {
+          subtypedFighters.forEach((fighter) => {
             if (!fighter.fighter_sub_type_id) return;
-            
+
             // Just use a placeholder name for now, it will be updated later
-            const placeholderName = "Loading...";
-            
+            const placeholderName = 'Loading...';
+
             subTypeOptions.push({
               id: fighter.fighter_sub_type_id,
               sub_type_name: placeholderName,
-              fighterId: fighter.id
+              fighterId: fighter.id,
             });
           });
-          
+
           // Fetch the actual sub-type names
           fetchSubTypeNames(subTypeOptions);
         }
       }
-      
+
       // Sort sub-types by name (keeping Default first)
       subTypeOptions.sort((a, b) => {
-        if (a.id === "default") return -1;
-        if (b.id === "default") return 1;
+        if (a.id === 'default') return -1;
+        if (b.id === 'default') return 1;
         return a.sub_type_name.localeCompare(b.sub_type_name);
       });
-      
+
       // Update available sub-types
       setAvailableSubTypes(subTypeOptions);
-      
+
       // Setup basic fighter type info
       if (matchingFighters.length > 0) {
         // Use any fighter from the matching set to get basic type info
         const fighter = matchingFighters[0];
         setFighterType(fighter.fighter_type);
         setSelectedFighterClass(fighter.fighter_class);
-        
+
         // Don't overwrite the full list of fighter classes, just ensure the current one is selected
         // Comment out this code that's overwriting all fighter classes
         /*
@@ -677,35 +736,32 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.error('Error processing fighter type combo:', error);
     }
   };
-  
+
   // Add a new function to fetch sub-type names
   const fetchSubTypeNames = async (subTypeOptions: FighterSubType[]) => {
     try {
       const response = await fetch('/api/admin/fighter-sub-types');
       if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
       const subTypesData = await response.json();
-      
+
       // Update the sub-type names in our options
-      const updatedOptions = subTypeOptions.map(option => {
-        if (option.id === "default") return option;
-        
+      const updatedOptions = subTypeOptions.map((option) => {
+        if (option.id === 'default') return option;
+
         const subType = subTypesData.find((st: SubType) => st.id === option.id);
         if (subType) {
-          return {
-            ...option,
-            sub_type_name: subType.sub_type_name
-          };
+          return { ...option, sub_type_name: subType.sub_type_name };
         }
         return option;
       });
-      
+
       // Sort again with the updated names (keeping Default first)
       updatedOptions.sort((a, b) => {
-        if (a.id === "default") return -1;
-        if (b.id === "default") return 1;
+        if (a.id === 'default') return -1;
+        if (b.id === 'default') return 1;
         return a.sub_type_name.localeCompare(b.sub_type_name);
       });
-      
+
       setAvailableSubTypes(updatedOptions);
     } catch (error) {
       console.error('Error fetching sub-type names:', error);
@@ -714,10 +770,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const handleSubTypeChange = async (subTypeId: string) => {
     console.log('handleSubTypeChange called with subTypeId:', subTypeId);
-    
+
     // Update selected sub-type ID
     setSelectedSubTypeId(subTypeId);
-    
+
     if (!subTypeId) {
       // Clear sub-type name when no selection
       setSubTypeName('');
@@ -726,7 +782,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       }
       return;
     }
-    
+
     // If we're already loading, don't start another request
     if (isLoading || isFetchingFighterTypeDetailsRef.current) {
       console.log('Already loading or fetching data, skipping request');
@@ -734,28 +790,30 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
 
     setIsLoading(true);
-    
+
     try {
       // Equipment data should already be loaded by now, but check just in case
       if (!hasLoadedEquipmentCategoriesRef.current) {
         console.log('Equipment data not yet loaded, loading now...');
         await fetchEquipmentByCategory();
       }
-      
+
       // If we need to load skill sets, do it now
       if (!hasLoadedSkillTypesRef.current) {
         console.log('Skill types not yet loaded, loading now...');
         await fetchSkillTypes();
       }
-      
+
       // Find the option in available sub-types
-      const selectedOption = availableSubTypes.find(st => st.id === subTypeId);
-      
+      const selectedOption = availableSubTypes.find(
+        (st) => st.id === subTypeId
+      );
+
       // If we have an option and it has a fighterId, fetch details
       if (selectedOption && selectedOption.fighterId) {
         setSelectedFighterTypeId(selectedOption.fighterId);
         // Set sub-type name if it's not the default option, otherwise clear it
-        if (subTypeId !== "default") {
+        if (subTypeId !== 'default') {
           setSubTypeName(selectedOption.sub_type_name);
           if (subTypeNameInputRef.current) {
             subTypeNameInputRef.current.value = selectedOption.sub_type_name;
@@ -767,21 +825,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             subTypeNameInputRef.current.value = '';
           }
         }
-        
+
         // Fetch the fighter details
-        console.log(`Fetching details for fighter ID: ${selectedOption.fighterId}`);
+        console.log(
+          `Fetching details for fighter ID: ${selectedOption.fighterId}`
+        );
         await fetchFighterTypeDetails(selectedOption.fighterId);
       } else {
         toast({
           description: 'Could not find fighter data for the selected sub-type',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Error in handleSubTypeChange:', error);
       toast({
         description: 'Failed to load fighter sub-type details',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -796,23 +856,17 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       Object.entries(equipmentSelection).forEach(([key, category]) => {
         if (!category.select_type) {
           console.warn(`Category ${key} missing select_type, fixing...`);
-          setEquipmentSelection(prev => ({
+          setEquipmentSelection((prev) => ({
             ...prev,
-            [key]: {
-              ...prev[key],
-              select_type: 'optional'
-            }
+            [key]: { ...prev[key], select_type: 'optional' },
           }));
         }
-        
+
         if (!category.options) {
           console.warn(`Category ${key} missing options array, fixing...`);
-          setEquipmentSelection(prev => ({
+          setEquipmentSelection((prev) => ({
             ...prev,
-            [key]: {
-              ...prev[key],
-              options: []
-            }
+            [key]: { ...prev[key], options: [] },
           }));
         }
       });
@@ -826,36 +880,44 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (!selectedSubTypeId) {
         throw new Error('Please select a fighter sub-type to edit');
       }
-      
+
       // Get the fighter ID associated with the selected sub-type
-      const selectedSubType = availableSubTypes.find(st => st.id === selectedSubTypeId);
+      const selectedSubType = availableSubTypes.find(
+        (st) => st.id === selectedSubTypeId
+      );
       if (!selectedSubType || !selectedSubType.fighterId) {
-        throw new Error('Could not find the fighter ID for the selected sub-type');
+        throw new Error(
+          'Could not find the fighter ID for the selected sub-type'
+        );
       }
-      
+
       // The actual fighter ID we need to update comes from the sub-type selection
       const fighterIdToUpdate = selectedSubType.fighterId;
       console.log(`Updating fighter ID: ${fighterIdToUpdate}`);
-      
+
       // Get the base fighter to determine gang type
-      const fighterToUpdate = fighterTypes.find(f => f.id === fighterIdToUpdate);
+      const fighterToUpdate = fighterTypes.find(
+        (f) => f.id === fighterIdToUpdate
+      );
       if (!fighterToUpdate) {
         throw new Error('Selected fighter not found');
       }
-      
+
       console.log('Current selection state:', {
         selectedFighterTypeCombo,
         selectedSubTypeId,
         subTypeName,
-        fighterIdToUpdate
+        fighterIdToUpdate,
       });
-      
+
       const specialRulesArray = specialSkills
         .split(',')
-        .map(rule => rule.trim())
-        .filter(rule => rule.length > 0);
+        .map((rule) => rule.trim())
+        .filter((rule) => rule.length > 0);
 
-      const fighterClass = fighterClasses.find(fc => fc.class_name === selectedFighterClass);
+      const fighterClass = fighterClasses.find(
+        (fc) => fc.class_name === selectedFighterClass
+      );
 
       // Validate required fields
       if (!fighterType || !fighterToUpdate?.gang_type_id) {
@@ -864,55 +926,74 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Special handling for subTypeId and subTypeName
       let finalSubTypeId: string | null = null;
-      
+
       // Case 1: Empty sub-type name - Always make it a default fighter
       if (!subTypeName.trim()) {
         finalSubTypeId = null;
-        console.log(`No sub-type name provided, setting fighter ${fighterIdToUpdate} as default (null sub-type)`);
-      } 
+        console.log(
+          `No sub-type name provided, setting fighter ${fighterIdToUpdate} as default (null sub-type)`
+        );
+      }
       // Case 2: Editing default fighter and adding a name - Create new sub-type
-      else if (selectedSubTypeId === "default") {
+      else if (selectedSubTypeId === 'default') {
         try {
-          const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
-          console.log(`Creating new sub-type: "${formattedName}" from default fighter`);
-            
+          const formattedName =
+            subTypeName.trim().charAt(0).toUpperCase() +
+            subTypeName.trim().slice(1);
+          console.log(
+            `Creating new sub-type: "${formattedName}" from default fighter`
+          );
+
           const createResponse = await fetch('/api/admin/fighter-sub-types', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sub_type_name: formattedName }),
           });
-            
+
           if (createResponse.ok) {
             const newSubType = await createResponse.json();
             finalSubTypeId = newSubType.id;
             console.log(`Created new sub-type with ID: ${finalSubTypeId}`);
           } else {
-            console.error('Failed to create sub-type:', await createResponse.text());
+            console.error(
+              'Failed to create sub-type:',
+              await createResponse.text()
+            );
             throw new Error('Failed to create new sub-type');
           }
         } catch (error) {
           console.error('Error creating sub-type:', error);
           throw new Error('Failed to create new sub-type');
         }
-      } 
+      }
       // Case 3: Editing existing sub-type - Use existing ID but update name if changed
       else {
         finalSubTypeId = selectedSubTypeId;
         console.log(`Using existing sub-type with ID: ${finalSubTypeId}`);
-        
+
         // If we're using an existing sub-type but changed the name, update it
-        const existingSubType = fighterSubTypes.find(st => st.id === finalSubTypeId);
+        const existingSubType = fighterSubTypes.find(
+          (st) => st.id === finalSubTypeId
+        );
         if (existingSubType && existingSubType.sub_type_name !== subTypeName) {
           try {
-            console.log(`Updating sub-type name from "${existingSubType.sub_type_name}" to "${subTypeName}"`);
-            const updateResponse = await fetch(`/api/admin/fighter-sub-types?id=${finalSubTypeId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sub_type_name: subTypeName }),
-            });
-            
+            console.log(
+              `Updating sub-type name from "${existingSubType.sub_type_name}" to "${subTypeName}"`
+            );
+            const updateResponse = await fetch(
+              `/api/admin/fighter-sub-types?id=${finalSubTypeId}`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sub_type_name: subTypeName }),
+              }
+            );
+
             if (!updateResponse.ok) {
-              console.error('Failed to update sub-type name:', await updateResponse.text());
+              console.error(
+                'Failed to update sub-type name:',
+                await updateResponse.text()
+              );
             }
           } catch (error) {
             console.error('Error updating sub-type name:', error);
@@ -923,40 +1004,53 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Log equipment selection state before preparing update data
       console.log('Equipment selection before update:', equipmentSelection);
       console.log('Equipment selection keys:', Object.keys(equipmentSelection));
-      console.log('Equipment selection values sample:', 
-        Object.keys(equipmentSelection).length > 0 ? 
-          Object.entries(equipmentSelection)[0] : 
-          'No equipment selection data'
+      console.log(
+        'Equipment selection values sample:',
+        Object.keys(equipmentSelection).length > 0
+          ? Object.entries(equipmentSelection)[0]
+          : 'No equipment selection data'
       );
 
       // Prepare the equipment selection data for the update
-      const formattedEquipmentSelection = Object.keys(equipmentSelection).length > 0 ? 
-        Object.entries(equipmentSelection).reduce<Record<string, any>>((acc, [key, category]) => {
-          console.log(`Processing category ${key} with type ${category.select_type}`);
-          return {
-            ...acc,
-            [key]: {
-              select_type: category.select_type,
-              name: category.name,
-              default: category.default,
-              options: category.options?.map(option => ({
-                id: option.id,
-                cost: option.cost,
-                max_quantity: option.max_quantity,
-                replaces: option.replaces,
-                max_replace: option.max_replace
-              }))
-            }
-          };
-        }, {}) : 
-        null;
+      const formattedEquipmentSelection =
+        Object.keys(equipmentSelection).length > 0
+          ? Object.entries(equipmentSelection).reduce<Record<string, any>>(
+              (acc, [key, category]) => {
+                console.log(
+                  `Processing category ${key} with type ${category.select_type}`
+                );
+                return {
+                  ...acc,
+                  [key]: {
+                    select_type: category.select_type,
+                    name: category.name,
+                    default: category.default,
+                    options: category.options?.map((option) => ({
+                      id: option.id,
+                      cost: option.cost,
+                      max_quantity: option.max_quantity,
+                      replaces: option.replaces,
+                      max_replace: option.max_replace,
+                    })),
+                  },
+                };
+              },
+              {}
+            )
+          : null;
 
-      console.log('Formatted equipment selection:', formattedEquipmentSelection);
-      
+      console.log(
+        'Formatted equipment selection:',
+        formattedEquipmentSelection
+      );
+
       // Ensure equipment selection format is compatible with the server's expectations
       // by adding a weapons key if it doesn't exist
       let finalEquipmentSelection = formattedEquipmentSelection;
-      if (finalEquipmentSelection && Object.keys(finalEquipmentSelection).length > 0) {
+      if (
+        finalEquipmentSelection &&
+        Object.keys(finalEquipmentSelection).length > 0
+      ) {
         if (!('weapons' in finalEquipmentSelection)) {
           console.log('Adding weapons key to ensure compatibility with server');
           // Use the first category as the "weapons" category
@@ -968,8 +1062,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               select_type: firstCategory?.select_type || 'optional',
               name: 'Weapons',
               default: firstCategory?.default || [],
-              options: []
-            }
+              options: [],
+            },
           };
         }
       }
@@ -1005,48 +1099,56 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         trading_post_equipment: tradingPostEquipment,
         equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       console.log('Sending update data:', updateData);
-      console.log('Equipment selection in update data:', updateData.equipment_selection);
+      console.log(
+        'Equipment selection in update data:',
+        updateData.equipment_selection
+      );
       console.log('Selected sub-type and final fighter_sub_type_id:', {
         selectedSubTypeId,
         submittingSubTypeId: updateData.fighter_sub_type_id,
-        originalSubTypeId: finalSubTypeId
+        originalSubTypeId: finalSubTypeId,
       });
 
       // Check if equipment selection is being properly included
       const jsonData = JSON.stringify(updateData);
-      console.log('JSON data includes equipment_selection:', 
-        jsonData.includes('equipment_selection') && 
-        jsonData.includes(Object.keys(equipmentSelection)[0] || '')
+      console.log(
+        'JSON data includes equipment_selection:',
+        jsonData.includes('equipment_selection') &&
+          jsonData.includes(Object.keys(equipmentSelection)[0] || '')
       );
 
-      const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonData,
-      });
+      const response = await fetch(
+        `/api/admin/fighter-types?id=${fighterIdToUpdate}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonData,
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server response:', {
           status: response.status,
           statusText: response.statusText,
-          body: errorText
+          body: errorText,
         });
-        
+
         let errorMessage;
         try {
           const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorData.error || 'Failed to update fighter type';
+          errorMessage =
+            errorData.message ||
+            errorData.error ||
+            'Failed to update fighter type';
         } catch (e) {
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -1054,10 +1156,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.log('Update successful:', data);
 
       toast({
-        description: "Fighter type updated successfully",
-        variant: "default"
+        description: 'Fighter type updated successfully',
+        variant: 'default',
       });
-      
+
       if (onSubmit) {
         onSubmit();
       }
@@ -1066,8 +1168,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     } catch (error) {
       console.error('Error updating fighter type:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to update fighter type',
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to update fighter type',
+        variant: 'destructive',
       });
       return false;
     } finally {
@@ -1077,10 +1182,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const handleAddAdjustedCost = () => {
     if (!selectedAdjustedCostEquipment || !adjustedCostAmount) return;
-    
+
     const newAdjustedCost = {
       equipment_id: selectedAdjustedCostEquipment,
-      adjusted_cost: parseInt(adjustedCostAmount)
+      adjusted_cost: parseInt(adjustedCostAmount),
     };
 
     setEquipmentDiscounts([...equipmentDiscounts, newAdjustedCost]);
@@ -1089,9 +1194,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   };
 
   const handleRemoveAdjustedCost = (equipmentId: string) => {
-    setEquipmentDiscounts(equipmentDiscounts.filter(
-      adjusted_cost => adjusted_cost.equipment_id !== equipmentId
-    ));
+    setEquipmentDiscounts(
+      equipmentDiscounts.filter(
+        (adjusted_cost) => adjusted_cost.equipment_id !== equipmentId
+      )
+    );
   };
 
   const fetchEquipmentByCategory = async () => {
@@ -1110,40 +1217,42 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
     try {
       console.log('Fetching equipment data from API...');
-      
+
       // Fetch all equipment from the API
       const response = await fetch('/api/admin/equipment');
       if (!response.ok) {
-        throw new Error(`Failed to fetch equipment: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch equipment: ${response.status} ${response.statusText}`
+        );
       }
-      
+
       const equipmentData = await response.json();
       console.log(`Fetched ${equipmentData.length} equipment items`);
-      
+
       // Cast the data for the main equipment state
       const equipmentWithIds = equipmentData.map((item: any) => ({
         ...item,
         id: item.id,
-        equipment_id: item.id  // Make sure both properties exist
+        equipment_id: item.id, // Make sure both properties exist
       })) as EquipmentWithId[];
-      
+
       // Update main equipment state
       setEquipment(equipmentWithIds);
       hasLoadedEquipmentCategoriesRef.current = true;
       console.log('Equipment data successfully loaded');
-      
+
       // Also pre-load skill types
       if (!hasLoadedSkillTypesRef.current) {
         console.log('Loading skill types alongside equipment');
         await fetchSkillTypes();
       }
-      
+
       return equipmentWithIds;
     } catch (error) {
       console.error('Error fetching equipment data:', error);
       toast({
         description: 'Failed to load equipment data. Please try again.',
-        variant: "destructive"
+        variant: 'destructive',
       });
       // Re-throw to allow caller to handle the error
       throw error;
@@ -1165,26 +1274,25 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Add this useEffect after the existing useEffects to handle backward compatibility
 
-
   const handleAddGangCost = () => {
     if (!selectedGangTypeForCost || !gangAdjustedCost) return;
-    
+
     // Convert cost to number
     const cost = parseInt(gangAdjustedCost);
     if (isNaN(cost)) return;
-    
+
     // Create new gang cost
     const newGangCost: FighterTypeGangCost = {
       fighter_type_id: selectedFighterTypeId,
       gang_type_id: selectedGangTypeForCost,
-      adjusted_cost: cost
+      adjusted_cost: cost,
     };
-    
+
     // Check if this gang type already has a cost set
     const existingIndex = gangTypeCosts.findIndex(
-      item => item.gang_type_id === selectedGangTypeForCost
+      (item) => item.gang_type_id === selectedGangTypeForCost
     );
-    
+
     if (existingIndex >= 0) {
       // Update existing cost
       const updatedCosts = [...gangTypeCosts];
@@ -1194,24 +1302,29 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Add new cost
       setGangTypeCosts([...gangTypeCosts, newGangCost]);
     }
-    
+
     // Reset form
     setSelectedGangTypeForCost('');
     setGangAdjustedCost('');
     setShowGangCostDialog(false);
-    
+
     return true; // Return true to close the modal
   };
-  
+
   const handleRemoveGangCost = (gangTypeId: string) => {
-    setGangTypeCosts(gangTypeCosts.filter(cost => cost.gang_type_id !== gangTypeId));
+    setGangTypeCosts(
+      gangTypeCosts.filter((cost) => cost.gang_type_id !== gangTypeId)
+    );
   };
 
   // Create gang cost modal content
   const gangCostModalContent = (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Select a gang type and enter an adjusted cost for this fighter when used by that gang</p>
-      
+      <p className="text-sm text-gray-500">
+        Select a gang type and enter an adjusted cost for this fighter when used
+        by that gang
+      </p>
+
       <div>
         <label className="block text-sm font-medium mb-1">Gang Type</label>
         <select
@@ -1221,9 +1334,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         >
           <option value="">Select a gang type</option>
           {gangTypes
-            .filter(gangType => !gangTypeCosts.some(
-              cost => cost.gang_type_id === gangType.gang_type_id
-            ))
+            .filter(
+              (gangType) =>
+                !gangTypeCosts.some(
+                  (cost) => cost.gang_type_id === gangType.gang_type_id
+                )
+            )
             .map((gangType) => (
               <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
                 {gangType.gang_type}
@@ -1233,7 +1349,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
+        <label className="block text-sm font-medium mb-1">
+          Adjusted Cost (credits)
+        </label>
         <Input
           type="number"
           value={gangAdjustedCost}
@@ -1251,15 +1369,19 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   );
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Edit Fighter Type</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+              Edit Fighter Type
+            </h3>
+            <p className="text-sm text-gray-500">
+              Fields marked with * are required.
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -1307,14 +1429,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   disabled={!gangTypeFilter}
                 >
                   <option value="">
-                    {!gangTypeFilter 
-                      ? "Select a gang type first" 
-                      : "Select a fighter type"
-                    }
+                    {!gangTypeFilter
+                      ? 'Select a gang type first'
+                      : 'Select a fighter type'}
                   </option>
                   {fighterTypeCombos.map((combo) => (
-                    <option key={`${combo.type}-${combo.class}-${combo.gang_type_id}`} value={`${combo.type}|${combo.class}|${combo.gang_type_id}`}>
-                      {`${combo.type} (${combo.class || "Unknown Class"})`}
+                    <option
+                      key={`${combo.type}-${combo.class}-${combo.gang_type_id}`}
+                      value={`${combo.type}|${combo.class}|${combo.gang_type_id}`}
+                    >
+                      {`${combo.type} (${combo.class || 'Unknown Class'})`}
                     </option>
                   ))}
                 </select>
@@ -1328,15 +1452,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   value={selectedSubTypeId}
                   onChange={(e) => handleSubTypeChange(e.target.value)}
                   className="w-full p-2 border rounded-md"
-                  disabled={!selectedFighterTypeCombo || availableSubTypes.length === 0}
+                  disabled={
+                    !selectedFighterTypeCombo || availableSubTypes.length === 0
+                  }
                 >
                   <option value="">
-                    {!selectedFighterTypeCombo 
-                      ? "Select a fighter type first" 
-                      : availableSubTypes.length === 0 
-                        ? "Loading sub-types..." 
-                        : "Select a sub-type"
-                    }
+                    {!selectedFighterTypeCombo
+                      ? 'Select a fighter type first'
+                      : availableSubTypes.length === 0
+                        ? 'Loading sub-types...'
+                        : 'Select a sub-type'}
                   </option>
                   {availableSubTypes.map((subType) => (
                     <option key={subType.id} value={subType.id}>
@@ -1350,375 +1475,466 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             {/* Second row: Fighter Type name and Fighter Sub-type input */}
             {selectedSubTypeId && !isLoading && (
               <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter Type *
-                </label>
-                <Input
-                  ref={fighterTypeInputRef}
-                  type="text"
-                  defaultValue={fighterType}
-                  onChange={handleInputTyping}
-                  onBlur={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Stimmer"
-                  className="w-full"
-                  disabled={!selectedFighterTypeId}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fighter Type *
+                    </label>
+                    <Input
+                      ref={fighterTypeInputRef}
+                      type="text"
+                      defaultValue={fighterType}
+                      onChange={handleInputTyping}
+                      onBlur={(e) => setFighterType(e.target.value)}
+                      placeholder="e.g. Stimmer"
+                      className="w-full"
+                      disabled={!selectedFighterTypeId}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fighter Sub-type
+                    </label>
+                    <Input
+                      ref={subTypeNameInputRef}
+                      type="text"
+                      defaultValue={subTypeName}
+                      onChange={handleInputTyping}
+                      onBlur={(e) => {
+                        const newName = e.target.value;
+                        setSubTypeName(newName);
+
+                        // Also update the name in our availableSubTypes array
+                        if (
+                          selectedSubTypeId &&
+                          selectedSubTypeId !== 'default'
+                        ) {
+                          setAvailableSubTypes((prev) =>
+                            prev.map((st) =>
+                              st.id === selectedSubTypeId
+                                ? { ...st, sub_type_name: newName }
+                                : st
+                            )
+                          );
+                        }
+                      }}
+                      placeholder="e.g. Subjugator"
+                      className="w-full"
+                      disabled={!selectedSubTypeId}
+                    />
+                    {selectedSubTypeId === 'default' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        You can add a sub-type name to create a new variant of
+                        this fighter.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fighter Sub-type
-                  </label>
-                  <Input
-                    ref={subTypeNameInputRef}
-                    type="text"
-                    defaultValue={subTypeName}
-                    onChange={handleInputTyping}
-                    onBlur={(e) => {
-                      const newName = e.target.value;
-                      setSubTypeName(newName);
-                      
-                      // Also update the name in our availableSubTypes array
-                      if (selectedSubTypeId && selectedSubTypeId !== "default") {
-                        setAvailableSubTypes(prev => 
-                          prev.map(st => 
-                            st.id === selectedSubTypeId 
-                              ? { ...st, sub_type_name: newName } 
-                              : st
-                          )
+                {/* Third row: Fighter Class and Base Cost */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fighter Class *
+                    </label>
+                    <select
+                      value={selectedFighterClass}
+                      onChange={(e) => {
+                        console.log('Selected fighter class:', e.target.value);
+                        setSelectedFighterClass(e.target.value);
+                      }}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Select fighter class</option>
+                      {(() => {
+                        console.log(
+                          'Rendering fighter classes dropdown with options:',
+                          fighterClasses
                         );
-                      }
-                    }}
-                    placeholder="e.g. Subjugator"
-                    className="w-full"
-                    disabled={!selectedSubTypeId}
-                  />
-                  {selectedSubTypeId === "default" && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      You can add a sub-type name to create a new variant of this fighter.
-                    </p>
-                  )}
-                </div>
-              </div>
+                        return null;
+                      })()}
+                      {fighterClasses.map((fighterClass) => (
+                        <option
+                          key={fighterClass.id}
+                          value={fighterClass.class_name}
+                        >
+                          {fighterClass.class_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Third row: Fighter Class and Base Cost */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Base Cost *
+                    </label>
+                    <Input
+                      type="number"
+                      value={baseCost}
+                      onChange={(e) => setBaseCost(e.target.value)}
+                      placeholder="e.g. 125"
+                      className="w-full"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      M *
+                    </label>
+                    <Input
+                      type="text"
+                      value={movement}
+                      onChange={(e) => setMovement(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      WS *
+                    </label>
+                    <Input
+                      type="text"
+                      value={weaponSkill}
+                      onChange={(e) => setWeaponSkill(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      BS *
+                    </label>
+                    <Input
+                      type="text"
+                      value={ballisticSkill}
+                      onChange={(e) => setBallisticSkill(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      S *
+                    </label>
+                    <Input
+                      type="text"
+                      value={strength}
+                      onChange={(e) => setStrength(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      T *
+                    </label>
+                    <Input
+                      type="text"
+                      value={toughness}
+                      onChange={(e) => setToughness(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      W *
+                    </label>
+                    <Input
+                      type="text"
+                      value={wounds}
+                      onChange={(e) => setWounds(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      I *
+                    </label>
+                    <Input
+                      type="text"
+                      value={initiative}
+                      onChange={(e) => setInitiative(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      A *
+                    </label>
+                    <Input
+                      type="text"
+                      value={attacks}
+                      onChange={(e) => setAttacks(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Ld *
+                    </label>
+                    <Input
+                      type="text"
+                      value={leadership}
+                      onChange={(e) => setLeadership(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Cl *
+                    </label>
+                    <Input
+                      type="text"
+                      value={cool}
+                      onChange={(e) => setCool(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Wil *
+                    </label>
+                    <Input
+                      type="text"
+                      value={willpower}
+                      onChange={(e) => setWillpower(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Int *
+                    </label>
+                    <Input
+                      type="text"
+                      value={intelligence}
+                      onChange={(e) => setIntelligence(e.target.value)}
+                      className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fighter Class *
+                    Special Rules
                   </label>
-                  <select
-                    value={selectedFighterClass}
-                    onChange={(e) => {
-                      console.log('Selected fighter class:', e.target.value);
-                      setSelectedFighterClass(e.target.value);
-                    }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select fighter class</option>
-                    {(() => { console.log('Rendering fighter classes dropdown with options:', fighterClasses); return null; })()}
-                    {fighterClasses.map((fighterClass) => (
-                      <option key={fighterClass.id} value={fighterClass.class_name}>
-                        {fighterClass.class_name}
-                      </option>
-                    ))}
-                  </select>
+                  <Input
+                    ref={specialSkillsInputRef}
+                    type="text"
+                    defaultValue={specialSkills}
+                    onChange={handleInputTyping}
+                    onBlur={(e) => setSpecialSkills(e.target.value)}
+                    placeholder="Enter special rules (comma-separated)"
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={freeSkill}
+                      onChange={(e) => setFreeSkill(e.target.checked)}
+                      className="h-4 w-4 text-primary border-gray-300 rounded"
+                    />
+                    <label className="ml-2 block text-sm text-gray-900">
+                      Free Skill
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={isGangAddition}
+                      onChange={(e) => setIsGangAddition(e.target.checked)}
+                      className="h-4 w-4 text-primary border-gray-300 rounded"
+                    />
+                    <label className="ml-2 block text-sm text-gray-900">
+                      Gang Addition
+                    </label>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Base Cost *
+                    Default Skills
                   </label>
-                  <Input
-                    type="number"
-                    value={baseCost}
-                    onChange={(e) => setBaseCost(e.target.value)}
-                    placeholder="e.g. 125"
-                    className="w-full"
-                    min="0"
-                  />
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <select
+                      value={selectedSkillType}
+                      onChange={(e) => setSelectedSkillType(e.target.value)}
+                      onFocus={() => {
+                        // Load skill sets when the dropdown gets focus
+                        if (!hasLoadedSkillTypesRef.current) {
+                          fetchSkillTypes();
+                        }
+                      }}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Select a skill set</option>
 
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    M *
-                  </label>
-                  <Input
-                    type="text"
-                    value={movement}
-                    onChange={(e) => setMovement(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+                      {Object.entries(
+                        skillTypes
+                          .sort((a, b) => {
+                            const rankA =
+                              skillSetRank[a.skill_type.toLowerCase()] ??
+                              Infinity;
+                            const rankB =
+                              skillSetRank[b.skill_type.toLowerCase()] ??
+                              Infinity;
+                            return rankA - rankB;
+                          })
+                          .reduce(
+                            (groups, type) => {
+                              const rank =
+                                skillSetRank[type.skill_type.toLowerCase()] ??
+                                Infinity;
+                              let groupLabel = 'Misc.'; // Default category for unlisted skills
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    WS *
-                  </label>
-                  <Input
-                    type="text"
-                    value={weaponSkill}
-                    onChange={(e) => setWeaponSkill(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+                              if (rank <= 19) groupLabel = 'Universal Skills';
+                              else if (rank <= 39)
+                                groupLabel = 'Gang-specific Skills';
+                              else if (rank <= 59) groupLabel = 'Wyrd Powers';
+                              else if (rank <= 69)
+                                groupLabel = 'Cult Wyrd Powers';
+                              else if (rank <= 79)
+                                groupLabel = 'Psychoteric Whispers';
+                              else if (rank <= 89)
+                                groupLabel = 'Legendary Names';
+                              else if (rank <= 99)
+                                groupLabel = 'Ironhead Squat Mining Clans';
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    BS *
-                  </label>
-                  <Input
-                    type="text"
-                    value={ballisticSkill}
-                    onChange={(e) => setBallisticSkill(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+                              if (!groups[groupLabel]) groups[groupLabel] = [];
+                              groups[groupLabel].push(type);
+                              return groups;
+                            },
+                            {} as Record<string, typeof skillTypes>
+                          )
+                      ).map(([groupLabel, skillList]) => (
+                        <optgroup key={groupLabel} label={groupLabel}>
+                          {skillList.map((type) => (
+                            <option key={type.id} value={type.id}>
+                              {type.skill_type}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    S *
-                  </label>
-                  <Input
-                    type="text"
-                    value={strength}
-                    onChange={(e) => setStrength(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    T *
-                  </label>
-                  <Input
-                    type="text"
-                    value={toughness}
-                    onChange={(e) => setToughness(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    W *
-                  </label>
-                  <Input
-                    type="text"
-                    value={wounds}
-                    onChange={(e) => setWounds(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    I *
-                  </label>
-                  <Input
-                    type="text"
-                    value={initiative}
-                    onChange={(e) => setInitiative(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    A *
-                  </label>
-                  <Input
-                    type="text"
-                    value={attacks}
-                    onChange={(e) => setAttacks(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Ld *
-                  </label>
-                  <Input
-                    type="text"
-                    value={leadership}
-                    onChange={(e) => setLeadership(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Cl *
-                  </label>
-                  <Input
-                    type="text"
-                    value={cool}
-                    onChange={(e) => setCool(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Wil *
-                  </label>
-                  <Input
-                    type="text"
-                    value={willpower}
-                    onChange={(e) => setWillpower(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Int *
-                  </label>
-                  <Input
-                    type="text"
-                    value={intelligence}
-                    onChange={(e) => setIntelligence(e.target.value)}
-                    className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Special Rules
-                </label>
-                <Input
-                  ref={specialSkillsInputRef}
-                  type="text"
-                  defaultValue={specialSkills}
-                  onChange={handleInputTyping}
-                  onBlur={(e) => setSpecialSkills(e.target.value)}
-                  placeholder="Enter special rules (comma-separated)"
-                  className="w-full"
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={freeSkill}
-                    onChange={(e) => setFreeSkill(e.target.checked)}
-                    className="h-4 w-4 text-primary border-gray-300 rounded"
-                  />
-                  <label className="ml-2 block text-sm text-gray-900">
-                    Free Skill
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={isGangAddition}
-                    onChange={(e) => setIsGangAddition(e.target.checked)}
-                    className="h-4 w-4 text-primary border-gray-300 rounded"
-                  />
-                  <label className="ml-2 block text-sm text-gray-900">
-                    Gang Addition
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Default Skills
-                </label>
-                <div className="space-y-2">
-                  <select
-                    value={selectedSkillType}
-                    onChange={(e) => setSelectedSkillType(e.target.value)}
-                    onFocus={() => {
-                      // Load skill sets when the dropdown gets focus
-                      if (!hasLoadedSkillTypesRef.current) {
-                        fetchSkillTypes();
-                      }
-                    }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select a skill set</option>
-
-                    {Object.entries(
-                      skillTypes
-                        .sort((a, b) => {
-                          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-                          return rankA - rankB;
-                        })
-                        .reduce((groups, type) => {
-                          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                          let groupLabel = "Misc."; // Default category for unlisted skills
-
-                          if (rank <= 19) groupLabel = "Universal Skills";
-                          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                          else if (rank <= 59) groupLabel = "Wyrd Powers";
-                          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                          else if (rank <= 89) groupLabel = "Legendary Names";
-                          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(type);
-                          return groups;
-                        }, {} as Record<string, typeof skillTypes>)
-                    ).map(([groupLabel, skillList]) => (
-                      <optgroup key={groupLabel} label={groupLabel}>
-                        {skillList.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {type.skill_type}
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value && !selectedSkills.includes(value)) {
+                          setSelectedSkills([...selectedSkills, value]);
+                        }
+                        e.target.value = '';
+                      }}
+                      className="w-full p-2 border rounded-md"
+                      disabled={!selectedSkillType || !selectedFighterTypeId}
+                    >
+                      <option value="">Select a skill to add</option>
+                      {skills
+                        .filter((skill) => !selectedSkills.includes(skill.id))
+                        .map((skill) => (
+                          <option key={skill.id} value={skill.id}>
+                            {skill.skill_name}
                           </option>
                         ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                    </select>
 
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedSkills.map((skillId) => {
+                        const skill = skills.find((s) => s.id === skillId);
+                        if (!skill) return null;
+
+                        return (
+                          <div
+                            key={skill.id}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
+                              selectedFighterTypeId
+                                ? 'bg-gray-100'
+                                : 'bg-gray-50'
+                            }`}
+                          >
+                            <span>{skill.skill_name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedSkills(
+                                  selectedSkills.filter((id) => id !== skill.id)
+                                )
+                              }
+                              className="hover:text-red-500 focus:outline-none"
+                              disabled={!selectedFighterTypeId}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Equipment
+                  </label>
                   <select
                     value=""
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (value && !selectedSkills.includes(value)) {
-                        setSelectedSkills([...selectedSkills, value]);
+                      if (value && !selectedEquipment.includes(value)) {
+                        setSelectedEquipment([...selectedEquipment, value]);
                       }
-                      e.target.value = "";
+                      e.target.value = '';
                     }}
                     className="w-full p-2 border rounded-md"
-                    disabled={!selectedSkillType || !selectedFighterTypeId}
+                    disabled={!selectedFighterTypeId}
                   >
-                    <option value="">Select a skill to add</option>
-                    {skills
-                      .filter(skill => !selectedSkills.includes(skill.id))
-                      .map((skill) => (
-                        <option key={skill.id} value={skill.id}>
-                          {skill.skill_name}
+                    <option value="">Select equipment to add</option>
+                    {equipment
+                      .filter((item) => !selectedEquipment.includes(item.id))
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.equipment_name}
                         </option>
                       ))}
                   </select>
 
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedSkills.map((skillId) => {
-                      const skill = skills.find(s => s.id === skillId);
-                      if (!skill) return null;
+                    {selectedEquipment.map((equipId) => {
+                      const item = equipment.find((e) => e.id === equipId);
+                      if (!item) return null;
 
                       return (
                         <div
-                          key={skill.id}
+                          key={item.id}
                           className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
                             selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
                           }`}
                         >
-                          <span>{skill.skill_name}</span>
+                          <span>{item.equipment_name}</span>
                           <button
                             type="button"
-                            onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                            onClick={() =>
+                              setSelectedEquipment(
+                                selectedEquipment.filter((id) => id !== item.id)
+                              )
+                            }
                             className="hover:text-red-500 focus:outline-none"
                             disabled={!selectedFighterTypeId}
                           >
@@ -1729,377 +1945,399 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     })}
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Default Equipment
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !selectedEquipment.includes(value)) {
-                      setSelectedEquipment([...selectedEquipment, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedFighterTypeId}
-                >
-                  <option value="">Select equipment to add</option>
-                  {equipment
-                    .filter(item => !selectedEquipment.includes(item.id))
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.equipment_name}
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipId) => {
-                    const item = equipment.find(e => e.id === equipId);
-                    if (!item) return null;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                          selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
-                        }`}
-                      >
-                        <span>{item.equipment_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
-                          className="hover:text-red-500 focus:outline-none"
-                          disabled={!selectedFighterTypeId}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fighter's Equipment List
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !equipmentListSelections.includes(value)) {
-                      setEquipmentListSelections([...equipmentListSelections, value]);
-                    }
-                    e.target.value = "";
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  disabled={!selectedFighterTypeId}
-                >
-                  <option value="">Available equipment</option>
-                  {equipment
-                    .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.equipment_name} ({item.equipment_category})
-                      </option>
-                    ))}
-                </select>
-
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {Object.entries(
-                    equipmentListSelections
-                      .map(equipId => equipment.find(e => e.id === equipId))
-                      .filter(item => item !== undefined) // Remove null values
-                      .sort((a, b) => {
-                        if (!a || !b) return 0; // Handle undefined items
-
-                        const rankA = equipmentCategoryRank[(a!.equipment_category || '').toLowerCase()] ?? Infinity;
-                        const rankB = equipmentCategoryRank[(b!.equipment_category || '').toLowerCase()] ?? Infinity;
-
-                        // First, sort by equipment category rank
-                        if (rankA !== rankB) return rankA - rankB;
-
-                        // If same category, sort alphabetically by equipment name
-                        return a!.equipment_name.localeCompare(b!.equipment_name);
-                      })
-                      .reduce((groups, item) => {
-                        if (!item || !item.equipment_category) return groups; // Ensure item is defined and has a category
-
-                        const category = item.equipment_category;
-                        if (!groups[category]) groups[category] = []; // Initialize category group if not present
-                        groups[category].push(item);
-
-                        return groups;
-                      }, {} as Record<string, EquipmentWithId[]>)
-                  ).map(([category, items]) => (
-                    <div key={category} className="flex flex-col gap-1 p-1">
-                      {/* Category Title */}
-                      <div className="text-sm font-bold text-gray-700">{category}</div>
-
-                      {/* Items under this category */}
-                      {items.map(item => (
-                        <div
-                          key={item!.id}
-                          className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
-                        >
-                          <span>{item!.equipment_name}</span>
-                          <button
-                            type="button"
-                            onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
-                            className="hover:text-red-500 focus:outline-none"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Equipment Adjusted Costs
-                </label>
-                <Button
-                  onClick={() => setShowAdjustedCostDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                  disabled={!gangTypeFilter || !selectedFighterTypeId}
-                >
-                  Add Equipment Adjusted Cost
-                </Button>
-                {(!gangTypeFilter || !selectedFighterTypeId) && (
-                  <p className="text-sm text-gray-500 mb-2">
-                    Select a gang type and fighter type to add equipment adjusted costs
-                  </p>
-                )}
-
-                {equipmentDiscounts.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {equipmentDiscounts.map((adjusted_cost) => {
-                      const item = equipment.find(e => e.id === adjusted_cost.equipment_id);
-                      if (!item) return null;
-
-                      return (
-                        <div
-                          key={adjusted_cost.equipment_id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                        >
-                          <span>{item.equipment_name} ({adjusted_cost.adjusted_cost} credits)</span>
-                          <button
-                            onClick={() => setEquipmentDiscounts(prev =>
-                              prev.filter(d => d.equipment_id !== adjusted_cost.equipment_id)
-                            )}
-                            className="hover:text-red-500 focus:outline-none"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {showAdjustedCostDialog && (
-                  <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      if (e.target === e.currentTarget) {
-                        setShowAdjustedCostDialog(false);
-                        setSelectedAdjustedCostEquipment("");
-                        setAdjustedCostAmount("");
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fighter&apos;s Equipment List
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value && !equipmentListSelections.includes(value)) {
+                        setEquipmentListSelections([
+                          ...equipmentListSelections,
+                          value,
+                        ]);
                       }
+                      e.target.value = '';
                     }}
+                    className="w-full p-2 border rounded-md"
+                    disabled={!selectedFighterTypeId}
                   >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Equipment Adjusted Cost Menu</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select equipment and enter an adjusted cost</p>
+                    <option value="">Available equipment</option>
+                    {equipment
+                      .sort((a, b) =>
+                        a.equipment_name.localeCompare(b.equipment_name)
+                      )
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.equipment_name} ({item.equipment_category})
+                        </option>
+                      ))}
+                  </select>
 
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Equipment</label>
-                          <select
-                            value={selectedAdjustedCostEquipment}
-                            onChange={(e) => setSelectedAdjustedCostEquipment(e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option value="">Select equipment</option>
-                            {equipment
-                              .filter(item => !equipmentDiscounts.some(
-                                adjusted_cost => adjusted_cost.equipment_id === item.id
-                              ))
-                              .map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.equipment_name}
-                                </option>
-                              ))}
-                          </select>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {Object.entries(
+                      equipmentListSelections
+                        .map((equipId) =>
+                          equipment.find((e) => e.id === equipId)
+                        )
+                        .filter((item) => item !== undefined) // Remove null values
+                        .sort((a, b) => {
+                          if (!a || !b) return 0; // Handle undefined items
+
+                          const rankA =
+                            equipmentCategoryRank[
+                              (a!.equipment_category || '').toLowerCase()
+                            ] ?? Infinity;
+                          const rankB =
+                            equipmentCategoryRank[
+                              (b!.equipment_category || '').toLowerCase()
+                            ] ?? Infinity;
+
+                          // First, sort by equipment category rank
+                          if (rankA !== rankB) return rankA - rankB;
+
+                          // If same category, sort alphabetically by equipment name
+                          return a!.equipment_name.localeCompare(
+                            b!.equipment_name
+                          );
+                        })
+                        .reduce(
+                          (groups, item) => {
+                            if (!item || !item.equipment_category)
+                              return groups; // Ensure item is defined and has a category
+
+                            const category = item.equipment_category;
+                            if (!groups[category]) groups[category] = []; // Initialize category group if not present
+                            groups[category].push(item);
+
+                            return groups;
+                          },
+                          {} as Record<string, EquipmentWithId[]>
+                        )
+                    ).map(([category, items]) => (
+                      <div key={category} className="flex flex-col gap-1 p-1">
+                        {/* Category Title */}
+                        <div className="text-sm font-bold text-gray-700">
+                          {category}
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
-                          <Input
-                            type="number"
-                            value={adjustedCostAmount}
-                            onChange={(e) => setAdjustedCostAmount(e.target.value)}
-                            placeholder="Enter adjusted cost in credits"
-                            min="0"
-                            onKeyDown={(e) => {
-                              if (e.key === '-') {
-                                e.preventDefault();
+                        {/* Items under this category */}
+                        {items.map((item) => (
+                          <div
+                            key={item!.id}
+                            className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
+                          >
+                            <span>{item!.equipment_name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEquipmentListSelections(
+                                  equipmentListSelections.filter(
+                                    (id) => id !== item!.id
+                                  )
+                                )
                               }
-                            }}
-                          />
-                        </div>
+                              className="hover:text-red-500 focus:outline-none"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowAdjustedCostDialog(false);
-                              setSelectedAdjustedCostEquipment("");
-                              setAdjustedCostAmount("");
-                            }}
+                <div className="col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Equipment Adjusted Costs
+                  </label>
+                  <Button
+                    onClick={() => setShowAdjustedCostDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                    disabled={!gangTypeFilter || !selectedFighterTypeId}
+                  >
+                    Add Equipment Adjusted Cost
+                  </Button>
+                  {(!gangTypeFilter || !selectedFighterTypeId) && (
+                    <p className="text-sm text-gray-500 mb-2">
+                      Select a gang type and fighter type to add equipment
+                      adjusted costs
+                    </p>
+                  )}
+
+                  {equipmentDiscounts.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {equipmentDiscounts.map((adjusted_cost) => {
+                        const item = equipment.find(
+                          (e) => e.id === adjusted_cost.equipment_id
+                        );
+                        if (!item) return null;
+
+                        return (
+                          <div
+                            key={adjusted_cost.equipment_id}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                           >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (selectedAdjustedCostEquipment && adjustedCostAmount) {
-                                const adjusted_cost = parseInt(adjustedCostAmount);
-                                if (adjusted_cost >= 0) {
-                                  setEquipmentDiscounts(prev => [
-                                    ...prev,
-                                    {
-                                      equipment_id: selectedAdjustedCostEquipment,
-                                      adjusted_cost
-                                    }
-                                  ]);
-                                  setShowAdjustedCostDialog(false);
-                                  setSelectedAdjustedCostEquipment("");
-                                  setAdjustedCostAmount("");
+                            <span>
+                              {item.equipment_name} (
+                              {adjusted_cost.adjusted_cost} credits)
+                            </span>
+                            <button
+                              onClick={() =>
+                                setEquipmentDiscounts((prev) =>
+                                  prev.filter(
+                                    (d) =>
+                                      d.equipment_id !==
+                                      adjusted_cost.equipment_id
+                                  )
+                                )
+                              }
+                              className="hover:text-red-500 focus:outline-none"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {showAdjustedCostDialog && (
+                    <div
+                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                          setShowAdjustedCostDialog(false);
+                          setSelectedAdjustedCostEquipment('');
+                          setAdjustedCostAmount('');
+                        }
+                      }}
+                    >
+                      <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                        <h3 className="text-xl font-bold mb-4">
+                          Equipment Adjusted Cost Menu
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          Select equipment and enter an adjusted cost
+                        </p>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">
+                              Equipment
+                            </label>
+                            <select
+                              value={selectedAdjustedCostEquipment}
+                              onChange={(e) =>
+                                setSelectedAdjustedCostEquipment(e.target.value)
+                              }
+                              className="w-full p-2 border rounded-md"
+                            >
+                              <option value="">Select equipment</option>
+                              {equipment
+                                .filter(
+                                  (item) =>
+                                    !equipmentDiscounts.some(
+                                      (adjusted_cost) =>
+                                        adjusted_cost.equipment_id === item.id
+                                    )
+                                )
+                                .map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.equipment_name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium mb-1">
+                              Adjusted Cost (credits)
+                            </label>
+                            <Input
+                              type="number"
+                              value={adjustedCostAmount}
+                              onChange={(e) =>
+                                setAdjustedCostAmount(e.target.value)
+                              }
+                              placeholder="Enter adjusted cost in credits"
+                              min="0"
+                              onKeyDown={(e) => {
+                                if (e.key === '-') {
+                                  e.preventDefault();
                                 }
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex gap-2 justify-end mt-6">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowAdjustedCostDialog(false);
+                                setSelectedAdjustedCostEquipment('');
+                                setAdjustedCostAmount('');
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                if (
+                                  selectedAdjustedCostEquipment &&
+                                  adjustedCostAmount
+                                ) {
+                                  const adjusted_cost =
+                                    parseInt(adjustedCostAmount);
+                                  if (adjusted_cost >= 0) {
+                                    setEquipmentDiscounts((prev) => [
+                                      ...prev,
+                                      {
+                                        equipment_id:
+                                          selectedAdjustedCostEquipment,
+                                        adjusted_cost,
+                                      },
+                                    ]);
+                                    setShowAdjustedCostDialog(false);
+                                    setSelectedAdjustedCostEquipment('');
+                                    setAdjustedCostAmount('');
+                                  }
+                                }
+                              }}
+                              disabled={
+                                !selectedAdjustedCostEquipment ||
+                                !adjustedCostAmount ||
+                                parseInt(adjustedCostAmount) < 0
                               }
-                            }}
-                            disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                            className="bg-black hover:bg-gray-800 text-white"
-                          >
-                            Save Adjusted Cost
-                          </Button>
+                              className="bg-black hover:bg-gray-800 text-white"
+                            >
+                              Save Adjusted Cost
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              <div>
-                {isEquipmentLoaded && (
-                  <AdminFighterTradingPost
-                    equipment={equipment}
-                    tradingPostEquipment={tradingPostEquipment}
-                    setTradingPostEquipment={setTradingPostEquipment}
-                    disabled={!gangTypeFilter || !selectedFighterTypeId}
-                  />
-                )}
-              </div>
+                <div>
+                  {isEquipmentLoaded && (
+                    <AdminFighterTradingPost
+                      equipment={equipment}
+                      tradingPostEquipment={tradingPostEquipment}
+                      setTradingPostEquipment={setTradingPostEquipment}
+                      disabled={!gangTypeFilter || !selectedFighterTypeId}
+                    />
+                  )}
+                </div>
 
-              {/* Add Gang-Specific Costs section */}
-              <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gang-Specific Costs
-                </label>
-                <Button
-                  onClick={() => setShowGangCostDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                  disabled={!selectedFighterTypeId}
-                >
-                  Add Gang-Specific Cost
-                </Button>
-                {!selectedFighterTypeId && (
-                  <p className="text-sm text-gray-500 mb-2">
-                    Select a fighter type to add gang-specific costs
-                  </p>
-                )}
+                {/* Add Gang-Specific Costs section */}
+                <div className="col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gang-Specific Costs
+                  </label>
+                  <Button
+                    onClick={() => setShowGangCostDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
+                    disabled={!selectedFighterTypeId}
+                  >
+                    Add Gang-Specific Cost
+                  </Button>
+                  {!selectedFighterTypeId && (
+                    <p className="text-sm text-gray-500 mb-2">
+                      Select a fighter type to add gang-specific costs
+                    </p>
+                  )}
 
-                {gangTypeCosts.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {gangTypeCosts.map((gangCost) => {
-                      const gangType = gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
-                      return (
-                        <div
-                          key={gangCost.gang_type_id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                        >
-                          <span>{gangType?.gang_type || 'Unknown Gang'} ({gangCost.adjusted_cost} credits)</span>
-                          <button
-                            onClick={() => handleRemoveGangCost(gangCost.gang_type_id)}
-                            className="hover:text-red-500 focus:outline-none"
+                  {gangTypeCosts.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {gangTypeCosts.map((gangCost) => {
+                        const gangType = gangTypes.find(
+                          (g) => g.gang_type_id === gangCost.gang_type_id
+                        );
+                        return (
+                          <div
+                            key={gangCost.gang_type_id}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                           >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                            <span>
+                              {gangType?.gang_type || 'Unknown Gang'} (
+                              {gangCost.adjusted_cost} credits)
+                            </span>
+                            <button
+                              onClick={() =>
+                                handleRemoveGangCost(gangCost.gang_type_id)
+                              }
+                              className="hover:text-red-500 focus:outline-none"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                {/* Use the standard Modal component for Gang Cost dialog */}
-                {showGangCostDialog && (
-                  <Modal
-                    title="Gang-Specific Cost"
-                    content={gangCostModalContent}
-                    onClose={() => {
-                      setShowGangCostDialog(false);
-                      setSelectedGangTypeForCost("");
-                      setGangAdjustedCost("");
+                  {/* Use the standard Modal component for Gang Cost dialog */}
+                  {showGangCostDialog && (
+                    <Modal
+                      title="Gang-Specific Cost"
+                      content={gangCostModalContent}
+                      onClose={() => {
+                        setShowGangCostDialog(false);
+                        setSelectedGangTypeForCost('');
+                        setGangAdjustedCost('');
+                      }}
+                      onConfirm={handleAddGangCost}
+                      confirmText="Save Cost"
+                      confirmDisabled={
+                        !selectedGangTypeForCost ||
+                        !gangAdjustedCost ||
+                        parseInt(gangAdjustedCost) < 0
+                      }
+                    />
+                  )}
+                </div>
+
+                <div className="col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Equipment Selection
+                  </label>
+                  <AdminFighterEquipmentSelection
+                    key={`equipment-selection-${selectedFighterTypeId}`}
+                    equipment={equipment}
+                    equipmentSelection={equipmentSelection}
+                    setEquipmentSelection={(newSelection) => {
+                      // Check if this is a removal operation (fewer categories than before)
+                      if (
+                        Object.keys(newSelection).length <
+                        Object.keys(equipmentSelection).length
+                      ) {
+                        console.log(
+                          'Category removal detected, setting flag to prevent API refetch'
+                        );
+                        userRemovedCategoryRef.current = true;
+                      }
+                      setEquipmentSelection(newSelection);
                     }}
-                    onConfirm={handleAddGangCost}
-                    confirmText="Save Cost"
-                    confirmDisabled={!selectedGangTypeForCost || !gangAdjustedCost || parseInt(gangAdjustedCost) < 0}
+                    disabled={!selectedFighterTypeId}
                   />
-                )}
-              </div>
-
-              <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Equipment Selection
-                </label>
-                <AdminFighterEquipmentSelection
-                  key={`equipment-selection-${selectedFighterTypeId}`}
-                  equipment={equipment}
-                  equipmentSelection={equipmentSelection}
-                  setEquipmentSelection={(newSelection) => {
-                    // Check if this is a removal operation (fewer categories than before)
-                    if (Object.keys(newSelection).length < Object.keys(equipmentSelection).length) {
-                      console.log('Category removal detected, setting flag to prevent API refetch');
-                      userRemovedCategoryRef.current = true;
-                    }
-                    setEquipmentSelection(newSelection);
-                  }}
-                      disabled={!selectedFighterTypeId}
-                />
-              </div>
-            </>
-          )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         <div className="border-t px-[10px] py-2 flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isLoading}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
@@ -2113,4 +2351,4 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       </div>
     </div>
   );
-} 
+}

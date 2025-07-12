@@ -1,13 +1,24 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
-import { CircleAlert, Info, TriangleAlert, Trash2, UserPlus, Check, X } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import {
+  CircleAlert,
+  Info,
+  TriangleAlert,
+  Trash2,
+  UserPlus,
+  Check,
+  X,
+} from 'lucide-react';
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
 import Modal from '@/components/modal';
 import { Button } from '@/components/ui/button';
-import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
+import {
+  acceptFriendRequest,
+  declineFriendRequest,
+} from '@/app/actions/friends';
 
 type Notification = {
   id: string;
@@ -21,30 +32,35 @@ type Notification = {
 
 export default function NotificationsContent({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
-  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [notificationToDelete, setNotificationToDelete] = useState<
+    string | null
+  >(null);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(
+    null
+  );
   const router = useRouter();
   const pathname = usePathname();
   const isProfilePage = pathname === '/profile';
 
   // Callback to handle incoming notifications
-  const onNotifications = useCallback(
-    (newNotifications: Notification[]) => {
-      setNotifications(newNotifications);
-    },
-    []
-  );
+  const onNotifications = useCallback((newNotifications: Notification[]) => {
+    setNotifications(newNotifications);
+  }, []);
 
   // Fetch notifications and get dismiss/delete functions
-  const { dismissNotification, dismissAllNotifications, deleteNotification } = useFetchNotifications({
-    onNotifications,
-    userId,
-    realtime: true,
-    isProfilePage,
-  });
+  const { dismissNotification, dismissAllNotifications, deleteNotification } =
+    useFetchNotifications({
+      onNotifications,
+      userId,
+      realtime: true,
+      isProfilePage,
+    });
 
   // Handle friend request acceptance
-  const handleAcceptFriendRequest = async (notificationId: string, senderId: string) => {
+  const handleAcceptFriendRequest = async (
+    notificationId: string,
+    senderId: string
+  ) => {
     setProcessingRequest(notificationId);
     try {
       await acceptFriendRequest(senderId, userId);
@@ -58,7 +74,10 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Handle friend request decline
-  const handleDeclineFriendRequest = async (notificationId: string, senderId: string) => {
+  const handleDeclineFriendRequest = async (
+    notificationId: string,
+    senderId: string
+  ) => {
     setProcessingRequest(notificationId);
     try {
       await declineFriendRequest(senderId, userId);
@@ -74,7 +93,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Handle deleting a notification
   const handleDelete = async () => {
     if (notificationToDelete === null) return false;
-    
+
     try {
       await deleteNotification(notificationToDelete);
       return true;
@@ -106,7 +125,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request') => {
+  const getNotificationIcon = (
+    type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request'
+  ) => {
     switch (type) {
       case 'error':
         return <CircleAlert className="h-5 w-5 text-red-500" />;
@@ -128,7 +149,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
           <div className="p-6 text-center text-gray-500 border border-dashed rounded-lg">
             <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p>No notifications yet</p>
-            <p className="text-sm mt-1">When you receive notifications, they will appear here</p>
+            <p className="text-sm mt-1">
+              When you receive notifications, they will appear here
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -136,15 +159,18 @@ export default function NotificationsContent({ userId }: { userId: string }) {
               <div
                 key={notification.id}
                 className={cn(
-                  "p-4 rounded-lg border transition-colors",
-                  notification.dismissed 
-                    ? "bg-gray-50" 
-                    : "hover:bg-gray-50",
-                  notification.link && notification.type !== 'friend_request' && "cursor-pointer"
+                  'p-4 rounded-lg border transition-colors',
+                  notification.dismissed ? 'bg-gray-50' : 'hover:bg-gray-50',
+                  notification.link &&
+                    notification.type !== 'friend_request' &&
+                    'cursor-pointer'
                 )}
                 onClick={() => {
                   // Only navigate on click if it's not a friend request and has a link
-                  if (notification.link && notification.type !== 'friend_request') {
+                  if (
+                    notification.link &&
+                    notification.type !== 'friend_request'
+                  ) {
                     router.push(notification.link);
                     if (!notification.dismissed) {
                       dismissNotification(notification.id);
@@ -163,36 +189,47 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     </p>
                   </div>
                   {/* Friend Request Action Buttons (moved to the right, now using Button) */}
-                  {notification.type === 'friend_request' && notification.sender_id && (
-                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptFriendRequest(notification.id, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="default"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeclineFriendRequest(notification.id, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <X className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
-                      </Button>
-                    </div>
-                  )}
+                  {notification.type === 'friend_request' &&
+                    notification.sender_id && (
+                      <div className="flex gap-2 items-center ml-2 self-center mt-2">
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptFriendRequest(
+                              notification.id,
+                              notification.sender_id!
+                            );
+                          }}
+                          disabled={processingRequest === notification.id}
+                          variant="default"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Check className="h-3 w-3" />
+                          {processingRequest === notification.id
+                            ? 'Accepting...'
+                            : 'Accept'}
+                        </Button>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeclineFriendRequest(
+                              notification.id,
+                              notification.sender_id!
+                            );
+                          }}
+                          disabled={processingRequest === notification.id}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <X className="h-3 w-3" />
+                          {processingRequest === notification.id
+                            ? 'Declining...'
+                            : 'Decline'}
+                        </Button>
+                      </div>
+                    )}
                   {notification.type !== 'friend_request' && (
                     <button
                       onClick={(e) => {
@@ -217,9 +254,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         <Modal
           title="Delete Notification"
           helper="This action cannot be undone."
-          content={
-            <p>Are you sure you want to delete this notification?</p>
-          }
+          content={<p>Are you sure you want to delete this notification?</p>}
           onClose={() => setNotificationToDelete(null)}
           onConfirm={handleDelete}
           confirmText="Delete"

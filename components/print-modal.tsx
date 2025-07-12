@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import Modal from "@/components/modal";
+import Modal from '@/components/modal';
 
 interface PrintModalProps {
   gangId: string;
   onClose: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function PrintModal({ gangId, onClose }: PrintModalProps) {
   const [printOptions, setPrintOptions] = useState({
     includeGangCard: true,
@@ -22,17 +23,25 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
     const inactiveFighters = document.querySelectorAll('[id^="is_inactive"]');
     const recoveryFighters = document.querySelectorAll('[id^="is_recovery"]');
 
-    if (gangCard) gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
-    if (details) details.style.display = printOptions.includeAdditionalDetails ? '' : 'none';
+    if (gangCard)
+      gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
+    if (details)
+      details.style.display = printOptions.includeAdditionalDetails
+        ? ''
+        : 'none';
 
-    inactiveFighters.forEach(el => {
-      (el as HTMLElement).style.display = printOptions.includeInactiveFighters ? '' : 'none';
+    inactiveFighters.forEach((el) => {
+      (el as HTMLElement).style.display = printOptions.includeInactiveFighters
+        ? ''
+        : 'none';
     });
-    recoveryFighters.forEach(el => {
-      (el as HTMLElement).style.display = printOptions.includeRecoveryFighters ? '' : 'none';
+    recoveryFighters.forEach((el) => {
+      (el as HTMLElement).style.display = printOptions.includeRecoveryFighters
+        ? ''
+        : 'none';
     });
 
-    document.querySelectorAll('a').forEach(link => {
+    document.querySelectorAll('a').forEach((link) => {
       link.setAttribute('data-href', link.getAttribute('href') || '');
       link.removeAttribute('href');
     });
@@ -40,7 +49,7 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
     setTimeout(() => {
       window.print();
 
-      document.querySelectorAll('a').forEach(link => {
+      document.querySelectorAll('a').forEach((link) => {
         const originalHref = link.getAttribute('data-href');
         if (originalHref) {
           link.setAttribute('href', originalHref);
@@ -50,10 +59,10 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
 
       if (gangCard) gangCard.style.display = '';
       if (details) details.style.display = '';
-      inactiveFighters.forEach(el => {
+      inactiveFighters.forEach((el) => {
         (el as HTMLElement).style.display = '';
       });
-      recoveryFighters.forEach(el => {
+      recoveryFighters.forEach((el) => {
         (el as HTMLElement).style.display = '';
       });
     }, 100);
@@ -69,11 +78,16 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
       confirmText="Print"
       content={
         <div className="space-y-4">
-          <div className="block text-sm font-medium text-gray-700">Include the following:</div>
+          <div className="block text-sm font-medium text-gray-700">
+            Include the following:
+          </div>
 
           {[
             ['includeGangCard', 'Gang Card'],
-            ['includeAdditionalDetails', 'Additional Details (Territories, Stash, Notes)'],
+            [
+              'includeAdditionalDetails',
+              'Additional Details (Territories, Stash, Notes)',
+            ],
             ['includeInactiveFighters', 'Inactive Fighters'],
             ['includeRecoveryFighters', 'Fighters in Recovery'],
           ].map(([id, label]) => (
@@ -83,10 +97,15 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
                 id={id}
                 checked={printOptions[id as keyof typeof printOptions]}
                 onChange={(e) =>
-                  setPrintOptions(prev => ({ ...prev, [id]: e.target.checked }))
+                  setPrintOptions((prev) => ({
+                    ...prev,
+                    [id]: e.target.checked,
+                  }))
                 }
               />
-              <label htmlFor={id} className="text-sm">{label}</label>
+              <label htmlFor={id} className="text-sm">
+                {label}
+              </label>
             </div>
           ))}
         </div>

@@ -1,8 +1,8 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
-import { checkAdmin } from "@/utils/auth";
+import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
+import { checkAdmin } from '@/utils/auth';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -69,13 +69,17 @@ interface AddFighterResult {
   error?: string;
 }
 
-export async function addFighterToGang(params: AddFighterParams): Promise<AddFighterResult> {
+export async function addFighterToGang(
+  params: AddFighterParams
+): Promise<AddFighterResult> {
   try {
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -97,14 +101,17 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .from('gangs')
         .select('id, credits, user_id, gang_type_id')
         .eq('id', params.gang_id)
-        .single()
+        .single(),
     ]);
 
-    const { data: fighterTypeData, error: fighterTypeError } = fighterTypeResult;
+    const { data: fighterTypeData, error: fighterTypeError } =
+      fighterTypeResult;
     const { data: gangData, error: gangError } = gangResult;
 
     if (fighterTypeError || !fighterTypeData) {
-      throw new Error(`Fighter type not found: ${fighterTypeError?.message || 'No data returned'}`);
+      throw new Error(
+        `Fighter type not found: ${fighterTypeError?.message || 'No data returned'}`
+      );
     }
 
     if (gangError || !gangData) {
@@ -113,7 +120,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     // Check permissions - if not admin, must be gang owner
     if (!isAdmin && gangData.user_id !== effectiveUserId) {
-      throw new Error('User does not have permission to add fighters to this gang');
+      throw new Error(
+        'User does not have permission to add fighters to this gang'
+      );
     }
 
     // Check for adjusted cost based on gang type
@@ -125,18 +134,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       .single();
 
     // Use adjusted cost if available, otherwise use the original cost
-    const adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
+    const adjustedBaseCost =
+      adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
 
     // Calculate costs
     const fighterCost = params.cost ?? adjustedBaseCost;
     const baseCost = adjustedBaseCost;
-    
+
     // Calculate equipment cost from selected equipment
-    const totalEquipmentCost = params.selected_equipment?.reduce((sum, item) => 
-      sum + (item.cost * (item.quantity || 1)), 0) || 0;
+    const totalEquipmentCost =
+      params.selected_equipment?.reduce(
+        (sum, item) => sum + item.cost * (item.quantity || 1),
+        0
+      ) || 0;
 
     // Calculate rating cost based on use_base_cost_for_rating setting
-    const ratingCost = params.use_base_cost_for_rating ? (baseCost + totalEquipmentCost) : fighterCost;
+    const ratingCost = params.use_base_cost_for_rating
+      ? baseCost + totalEquipmentCost
+      : fighterCost;
 
     // Check if gang has enough credits
     if (gangData.credits < fighterCost) {
@@ -171,7 +186,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         xp: 0,
         kills: 0,
         special_rules: fighterTypeData.special_rules,
-        user_id: gangData.user_id
+        user_id: gangData.user_id,
       })
       .select()
       .single();
@@ -198,7 +213,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             fighter_id: fighterId,
             equipment_id: defaultItem.equipment_id,
             original_cost: defaultItem.cost || 0,
-            purchase_cost: 0 // Default equipment is free
+            purchase_cost: 0, // Default equipment is free
           });
         }
       });
@@ -212,7 +227,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             fighter_id: fighterId,
             equipment_id: selectedItem.equipment_id,
             original_cost: selectedItem.cost,
-            purchase_cost: 0 // Equipment selections are already paid for in the fighter cost
+            purchase_cost: 0, // Equipment selections are already paid for in the fighter cost
           });
         }
       });
@@ -221,13 +236,15 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Get default skills from fighter_defaults table
     const { data: fighterDefaultsData } = await supabase
       .from('fighter_defaults')
-      .select(`
+      .select(
+        `
         skill_id,
         skills!skill_id(
           id,
           name
         )
-      `)
+      `
+      )
       .eq('fighter_type_id', params.fighter_type_id)
       .not('skill_id', 'is', null);
 
@@ -238,10 +255,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (equipmentInserts.length > 0) {
       insertPromises.push(
         Promise.resolve(
-          supabase
-            .from('fighter_equipment')
-            .insert(equipmentInserts)
-            .select(`
+          supabase.from('fighter_equipment').insert(equipmentInserts).select(`
               id,
               equipment_id,
               original_cost,
@@ -253,31 +267,28 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 cost
               )
             `)
-        ).then(result => ({ type: 'equipment' as const, result }))
+        ).then((result) => ({ type: 'equipment' as const, result }))
       );
     }
 
     // Add skills insertion promise
     if (fighterDefaultsData && fighterDefaultsData.length > 0) {
-      const skillInserts = fighterDefaultsData.map(skill => ({
+      const skillInserts = fighterDefaultsData.map((skill) => ({
         fighter_id: fighterId,
         skill_id: skill.skill_id,
-        user_id: gangData.user_id
+        user_id: gangData.user_id,
       }));
 
       insertPromises.push(
         Promise.resolve(
-          supabase
-            .from('fighter_skills')
-            .insert(skillInserts)
-            .select(`
+          supabase.from('fighter_skills').insert(skillInserts).select(`
               skill_id,
               skills!skill_id(
                 id,
                 name
               )
             `)
-        ).then(result => ({ type: 'skills' as const, result }))
+        ).then((result) => ({ type: 'skills' as const, result }))
       );
     }
 
@@ -286,12 +297,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       Promise.resolve(
         supabase
           .from('gangs')
-          .update({ 
+          .update({
             credits: gangData.credits - fighterCost,
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
           })
           .eq('id', params.gang_id)
-      ).then(result => ({ type: 'gang_update' as const, result }))
+      ).then((result) => ({ type: 'gang_update' as const, result }))
     );
 
     // Execute all inserts
@@ -305,15 +316,18 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
         const { type, result: queryResult } = result.value;
-        
+
         switch (type) {
           case 'equipment':
             if (queryResult.data) {
               const insertedEquipment = queryResult.data;
-              
+
               // Get weapon profiles for weapons
               const weaponIds = insertedEquipment
-                .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
+                .filter(
+                  (item: any) =>
+                    (item.equipment as any)?.equipment_type === 'weapon'
+                )
                 .map((item: any) => item.equipment_id);
 
               let weaponProfiles: any[] = [];
@@ -331,21 +345,27 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 equipment_name: (item.equipment as any)?.equipment_name || '',
                 equipment_type: (item.equipment as any)?.equipment_type || '',
                 cost: item.purchase_cost,
-                weapon_profiles: weaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
+                weapon_profiles: weaponProfiles.filter(
+                  (wp: any) => wp.weapon_id === item.equipment_id
+                ),
               }));
             } else if (queryResult.error) {
-              console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
+              console.warn(
+                `Failed to insert equipment: ${queryResult.error.message}`
+              );
             }
             break;
-            
+
           case 'skills':
             if (queryResult.data) {
               insertedSkills = queryResult.data;
             } else if (queryResult.error) {
-              console.warn(`Failed to insert skills: ${queryResult.error.message}`);
+              console.warn(
+                `Failed to insert skills: ${queryResult.error.message}`
+              );
             }
             break;
-            
+
           case 'gang_update':
             if (queryResult.error) {
               gangUpdateError = queryResult.error;
@@ -358,7 +378,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     }
 
     if (gangUpdateError) {
-      throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
+      throw new Error(
+        `Failed to update gang credits: ${gangUpdateError.message}`
+      );
     }
 
     // Revalidate paths
@@ -392,22 +414,22 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           willpower: insertedFighter.willpower,
           intelligence: insertedFighter.intelligence,
           xp: insertedFighter.xp,
-          kills: insertedFighter.kills
+          kills: insertedFighter.kills,
         },
         equipment: equipmentWithProfiles,
-        skills: insertedSkills.map(skill => ({
+        skills: insertedSkills.map((skill) => ({
           skill_id: skill.skill_id,
-          skill_name: (skill.skills as any)?.name || ''
+          skill_name: (skill.skills as any)?.name || '',
         })),
-        special_rules: fighterTypeData.special_rules
-      }
+        special_rules: fighterTypeData.special_rules,
+      },
     };
-
   } catch (error) {
     console.error('Error in addFighterToGang server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
-} 
+}

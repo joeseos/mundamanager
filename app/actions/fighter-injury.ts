@@ -47,9 +47,12 @@ export async function addFighterInjury(
 ): Promise<InjuryResult> {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
@@ -82,24 +85,23 @@ export async function addFighterInjury(
     }
 
     // Add the injury using the RPC function
-    const { data, error } = await supabase
-      .rpc('add_fighter_injury', {
-        in_fighter_id: params.fighter_id,
-        in_injury_type_id: params.injury_type_id,
-        in_user_id: user.id
-      });
+    const { data, error } = await supabase.rpc('add_fighter_injury', {
+      in_fighter_id: params.fighter_id,
+      in_injury_type_id: params.injury_type_id,
+      in_user_id: user.id,
+    });
 
     if (error) {
       console.error('Database error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Failed to add injury'
+      return {
+        success: false,
+        error: error.message || 'Failed to add injury',
       };
     }
 
     // The database function returns the complete injury data with modifiers
     const injuryData = data[0]?.result || data;
-    
+
     // If recovery is requested, update the fighter's recovery status
     let recoveryStatus = undefined;
     if (params.send_to_recovery) {
@@ -127,16 +129,15 @@ export async function addFighterInjury(
         fighter_effect_type_id: injuryData.effect_type?.id,
         fighter_effect_modifiers: injuryData.modifiers || [],
         type_specific_data: injuryData.type_specific_data,
-        created_at: injuryData.created_at || new Date().toISOString()
+        created_at: injuryData.created_at || new Date().toISOString(),
       },
-      recovery_status: recoveryStatus
+      recovery_status: recoveryStatus,
     };
-
   } catch (error) {
     console.error('Error adding fighter injury:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
@@ -146,9 +147,12 @@ export async function deleteFighterInjury(
 ): Promise<InjuryResult> {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
@@ -188,7 +192,10 @@ export async function deleteFighterInjury(
       .single();
 
     if (injuryError || !injury || injury.fighter_id !== params.fighter_id) {
-      return { success: false, error: 'Injury not found or does not belong to this fighter' };
+      return {
+        success: false,
+        error: 'Injury not found or does not belong to this fighter',
+      };
     }
 
     // Delete the injury (this will cascade delete the modifiers)
@@ -199,9 +206,9 @@ export async function deleteFighterInjury(
 
     if (deleteError) {
       console.error('Database error:', deleteError);
-      return { 
-        success: false, 
-        error: deleteError.message || 'Failed to delete injury'
+      return {
+        success: false,
+        error: deleteError.message || 'Failed to delete injury',
       };
     }
 
@@ -209,12 +216,11 @@ export async function deleteFighterInjury(
     invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return { success: true };
-
   } catch (error) {
     console.error('Error deleting fighter injury:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
-} 
+}

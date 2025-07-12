@@ -1,18 +1,18 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import Modal from "@/components/modal";
-import { createClient } from "@/utils/supabase/client";
+import { Button } from '@/components/ui/button';
+import Modal from '@/components/modal';
+import { createClient } from '@/utils/supabase/client';
 import { Equipment, WeaponProfile } from '@/types/equipment';
-import { ChevronRight, X } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { Switch } from "@/components/ui/switch";
-import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ImInfo } from "react-icons/im";
-import { LuX } from "react-icons/lu";
-import { RangeSlider } from "@/components/ui/range-slider";
+import { ChevronRight, X } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { equipmentCategoryRank } from '@/utils/equipmentCategoryRank';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ImInfo } from 'react-icons/im';
+import { LuX } from 'react-icons/lu';
+import { RangeSlider } from '@/components/ui/range-slider';
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Tooltip } from 'react-tooltip';
 
@@ -31,7 +31,11 @@ interface ItemModalProps {
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
   isStashMode?: boolean;
-  onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
+  onEquipmentBought: (
+    newFighterCredits: number,
+    newGangCredits: number,
+    boughtEquipment: Equipment
+  ) => void;
 }
 
 interface RawEquipmentData {
@@ -58,7 +62,11 @@ interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean) => void;
+  onConfirm: (
+    cost: number,
+    isMasterCrafted: boolean,
+    useBaseCostForRating: boolean
+  ) => void;
 }
 
 interface Category {
@@ -66,8 +74,15 @@ interface Category {
   category_name: string;
 }
 
-function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
-  const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
+function PurchaseModal({
+  item,
+  gangCredits,
+  onClose,
+  onConfirm,
+}: PurchaseModalProps) {
+  const [manualCost, setManualCost] = useState<string>(
+    String(item.adjusted_cost ?? item.cost)
+  );
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
@@ -80,10 +95,11 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
 
   useEffect(() => {
     const baseCost = item.adjusted_cost ?? item.cost;
-    const newCost = isMasterCrafted && item.equipment_type === 'weapon' 
-      ? calculateMasterCraftedCost(baseCost)
-      : baseCost;
-    
+    const newCost =
+      isMasterCrafted && item.equipment_type === 'weapon'
+        ? calculateMasterCraftedCost(baseCost)
+        : baseCost;
+
     setManualCost(String(newCost));
   }, [isMasterCrafted, item]);
 
@@ -138,16 +154,18 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
                 />
               </div>
             </div>
-            
+
             {item.equipment_type === 'weapon' && (
               <div className="flex items-center space-x-2 mt-2">
-                <Checkbox 
+                <Checkbox
                   id="master-crafted"
                   checked={isMasterCrafted}
-                  onCheckedChange={(checked) => setIsMasterCrafted(checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    setIsMasterCrafted(checked as boolean)
+                  }
                 />
-                <label 
-                  htmlFor="master-crafted" 
+                <label
+                  htmlFor="master-crafted"
                   className="text-sm font-medium text-gray-700 cursor-pointer"
                 >
                   Master-crafted (+25%)
@@ -156,13 +174,15 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
             )}
 
             <div className="flex items-center space-x-2 mb-2 mt-2">
-              <Checkbox 
+              <Checkbox
                 id="use-base-cost-for-rating"
                 checked={useBaseCostForRating}
-                onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+                onCheckedChange={(checked) =>
+                  setUseBaseCostForRating(checked as boolean)
+                }
               />
-              <label 
-                htmlFor="use-base-cost-for-rating" 
+              <label
+                htmlFor="use-base-cost-for-rating"
                 className="text-sm font-medium text-gray-700 cursor-pointer"
               >
                 Use Listed Cost for Rating
@@ -170,7 +190,11 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
               <div className="relative group">
                 <ImInfo />
                 <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                When enabled, the Fighter Rating is calculated using the item's listed cost (from the fighter's Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+                  When enabled, the Fighter Rating is calculated using the
+                  item&apos;s listed cost (from the fighter&apos;s Equipment
+                  List or the Trading Post), even if you paid a different
+                  amount. Disable this if you want the rating to reflect the
+                  price actually paid.
                 </div>
               </div>
             </div>
@@ -202,35 +226,46 @@ const ItemModal: React.FC<ItemModalProps> = ({
   isVehicleEquipment,
   allowedCategories,
   isStashMode,
-  onEquipmentBought
+  onEquipmentBought,
 }) => {
-  const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
-  
+  const TRADING_POST_FIGHTER_TYPE_ID = '03d16c02-4fe2-4fb2-982f-ce0298d91ce5';
+
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
-  const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
+  const [categoryLoadingStates, setCategoryLoadingStates] = useState<
+    Record<string, boolean>
+  >({});
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set()
+  );
   const mountedRef = useRef(true);
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
-    isStashMode ? "fighters-tradingpost" : "fighters-list"
-  );
-  const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
+  const [equipmentListType, setEquipmentListType] = useState<
+    'fighters-list' | 'fighters-tradingpost' | 'unrestricted'
+  >(isStashMode ? 'fighters-tradingpost' : 'fighters-list');
+  const [localVehicleTypeId, setLocalVehicleTypeId] = useState<
+    string | undefined
+  >(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [cachedFighterCategories, setCachedFighterCategories] = useState<string[]>([]);
-  const [cachedFighterTPCategories, setCachedFighterTPCategories] = useState<string[]>([]);
+  const [cachedFighterCategories, setCachedFighterCategories] = useState<
+    string[]
+  >([]);
+  const [cachedFighterTPCategories, setCachedFighterTPCategories] = useState<
+    string[]
+  >([]);
   const [cachedAllCategories, setCachedAllCategories] = useState<string[]>([]);
-  const [cachedEquipment, setCachedEquipment] = useState<Record<string, Record<string, Equipment[]>>>({
-    fighter: {},
-    all: {}
-  });
+  const [cachedEquipment, setCachedEquipment] = useState<
+    Record<string, Record<string, Equipment[]>>
+  >({ fighter: {}, all: {} });
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
-  const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
+  const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([
+    6, 12,
+  ]);
   const [minCost, setMinCost] = useState(10);
   const [maxCost, setMaxCost] = useState(160);
   const [minAvailability, setMinAvailability] = useState(6);
@@ -246,7 +281,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   useEffect(() => {
     const getSession = async () => {
       const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
       setSession(currentSession);
     };
     getSession();
@@ -261,9 +298,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/equipment_categories?select=id,category_name&order=category_name`,
           {
             headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`
-            }
+              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              Authorization: `Bearer ${session.access_token}`,
+            },
           }
         );
 
@@ -289,9 +326,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
             {
               headers: {
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session.access_token}`
-              }
+                apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+                Authorization: `Bearer ${session.access_token}`,
+              },
             }
           );
 
@@ -312,25 +349,26 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   const fetchAllCategories = async () => {
     if (!session || isLoadingAllEquipment) return;
-    
+
     setIsLoadingAllEquipment(true);
     setError(null);
 
     console.log(`Starting fetchAllCategories for ${equipmentListType}`);
 
-    const typeIdToUse = isVehicleEquipment 
-      ? localVehicleTypeId || vehicleTypeId 
+    const typeIdToUse = isVehicleEquipment
+      ? localVehicleTypeId || vehicleTypeId
       : fighterTypeId;
 
     // For gang-level access (when fighterId is empty), we don't need fighter type validation
     const isGangLevelAccess = !fighterId || fighterId === '';
 
     if (!gangTypeId || (!typeIdToUse && !isGangLevelAccess)) {
-      const errorMessage = isVehicleEquipment && !typeIdToUse
-        ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId && !isGangLevelAccess
-        ? 'Fighter type information is missing'
-        : 'Required information is missing';
+      const errorMessage =
+        isVehicleEquipment && !typeIdToUse
+          ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
+          : !fighterTypeId && !isGangLevelAccess
+            ? 'Fighter type information is missing'
+            : 'Required information is missing';
 
       console.log('Missing type info debug:', {
         isVehicleEquipment,
@@ -338,7 +376,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         localVehicleTypeId,
         fighterTypeId,
         gangTypeId,
-        isGangLevelAccess
+        isGangLevelAccess,
       });
 
       setError(errorMessage);
@@ -364,7 +402,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         requestBody.equipment_tradingpost = true;
       }
 
-      console.log(`fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`, requestBody);
+      console.log(
+        `fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`,
+        requestBody
+      );
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -372,10 +413,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
         }
       );
 
@@ -385,7 +426,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data: RawEquipmentData[] = await response.json();
 
-      console.log(`fetchAllCategories response for ${equipmentListType}: ${data.length} items received`);
+      console.log(
+        `fetchAllCategories response for ${equipmentListType}: ${data.length} items received`
+      );
 
       if (DEBUG) {
         console.log('Fighter equipment data:', data);
@@ -403,17 +446,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
           equipment_type: item.equipment_type as 'weapon' | 'wargear',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false,
-          is_custom: item.is_custom
+          is_custom: item.is_custom,
         }))
         // Remove duplicates based on equipment_id
-        .filter((item, index, array) => 
-          array.findIndex(i => i.equipment_id === item.equipment_id) === index
+        .filter(
+          (item, index, array) =>
+            array.findIndex((i) => i.equipment_id === item.equipment_id) ===
+            index
         )
         .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
 
       // Organize equipment by category
       const equipmentByCategory: Record<string, Equipment[]> = {};
-      formattedData.forEach(item => {
+      formattedData.forEach((item) => {
         const category = item.equipment_category;
         if (!equipmentByCategory[category]) {
           equipmentByCategory[category] = [];
@@ -426,19 +471,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // Cache the data
       if (equipmentListType === 'unrestricted') {
         setCachedAllCategories(uniqueCategories);
-        setCachedEquipment(prev => ({ ...prev, all: equipmentByCategory }));
+        setCachedEquipment((prev) => ({ ...prev, all: equipmentByCategory }));
       } else if (equipmentListType === 'fighters-list') {
         setCachedFighterCategories(uniqueCategories);
-        setCachedEquipment(prev => ({ ...prev, fighter: equipmentByCategory }));
+        setCachedEquipment((prev) => ({
+          ...prev,
+          fighter: equipmentByCategory,
+        }));
       } else if (equipmentListType === 'fighters-tradingpost') {
         setCachedFighterTPCategories(uniqueCategories);
-        setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
+        setCachedEquipment((prev) => ({
+          ...prev,
+          tradingpost: equipmentByCategory,
+        }));
       }
 
       // Set the state
       setAvailableCategories(uniqueCategories);
       setEquipment(equipmentByCategory);
-
     } catch (err) {
       console.error('Error fetching all equipment categories:', err);
       setError('Failed to load equipment categories');
@@ -472,7 +522,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
     for (const category of categories) {
       const items = equipment[category.category_name] || [];
-      const match = items.some(item =>
+      const match = items.some((item) =>
         item.equipment_name.toLowerCase().includes(searchQuery)
       );
       if (match) {
@@ -481,44 +531,51 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
     }
 
-    setExpandedCategories(prev => {
+    setExpandedCategories((prev) => {
       const updated = new Set(prev);
-      matching.forEach(cat => updated.add(cat));
+      matching.forEach((cat) => updated.add(cat));
       return updated;
     });
   }, [searchQuery, categories, equipment]);
 
-  const handleOverlayClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   const canAffordEquipment = (item: Equipment) => {
     return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true) => {
+  const handleBuyEquipment = async (
+    item: Equipment,
+    manualCost: number,
+    isMasterCrafted: boolean = false,
+    useBaseCostForRating: boolean = true
+  ) => {
     if (!session) return;
     try {
       // Determine if this is a gang stash purchase
       const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
-      
+
       const params = {
-        ...(item.is_custom 
+        ...(item.is_custom
           ? { custom_equipment_id: item.equipment_id }
-          : { equipment_id: item.equipment_id }
-        ),
+          : { equipment_id: item.equipment_id }),
         gang_id: gangId,
         manual_cost: manualCost,
         master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
         use_base_cost_for_rating: useBaseCostForRating,
         buy_for_gang_stash: isGangStashPurchase,
         // Only include fighter_id or vehicle_id if not buying for gang stash
-        ...(!isGangStashPurchase && (isVehicleEquipment
-          ? { vehicle_id: vehicleId || undefined }
-          : { fighter_id: fighterId || undefined }
-        ))
+        ...(!isGangStashPurchase &&
+          (isVehicleEquipment
+            ? { vehicle_id: vehicleId || undefined }
+            : { fighter_id: fighterId || undefined })),
       };
 
       console.log('Sending equipment purchase request:', params);
@@ -531,13 +588,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data = result.data;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
-      
+
       // Handle different response structures for gang stash vs fighter equipment
       let equipmentRecord;
       if (isGangStashPurchase) {
         equipmentRecord = data.insertIntogang_stashCollection?.records[0];
       } else {
-        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
+        equipmentRecord =
+          data.insertIntofighter_equipmentCollection?.records[0];
       }
 
       if (!equipmentRecord) {
@@ -548,12 +606,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // This value will be the adjusted_cost when use_base_cost_for_rating is true
       // or the manual_cost when use_base_cost_for_rating is false
       const ratingCost = data.rating_cost;
-      
+
       // Calculate new fighter credits adding the rating cost, not the manual cost
       // This ensures the fighter's rating is correctly updated
       // For gang stash purchases, fighter credits don't change
-      const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
-      
+      const newFighterCredits = isGangStashPurchase
+        ? fighterCredits
+        : fighterCredits + ratingCost;
+
       // Log to verify the values being used
       console.log('Equipment purchase details:', {
         isGangStashPurchase,
@@ -565,7 +625,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         responseRatingCost: data.rating_cost,
         equipmentRecord,
         newFighterCredits,
-        oldFighterCredits: fighterCredits
+        oldFighterCredits: fighterCredits,
       });
 
       onEquipmentBought(newFighterCredits, newGangCredits, {
@@ -573,27 +633,31 @@ const ItemModal: React.FC<ItemModalProps> = ({
         fighter_equipment_id: equipmentRecord.id,
         cost: ratingCost, // Use the rating cost value from the server
         is_master_crafted: equipmentRecord.is_master_crafted,
-        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
-          ? `${item.equipment_name} (Master-crafted)` 
-          : item.equipment_name,
-        equipment_effect: data.equipment_effect
+        equipment_name:
+          equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
+            ? `${item.equipment_name} (Master-crafted)`
+            : item.equipment_name,
+        equipment_effect: data.equipment_effect,
       });
 
       toast({
-        title: "Equipment purchased",
-        description: `Successfully bought ${equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
-          ? `${item.equipment_name} (Master-crafted)` 
-          : item.equipment_name} for ${manualCost} credits`,
-        variant: "default",
+        title: 'Equipment purchased',
+        description: `Successfully bought ${
+          equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
+            ? `${item.equipment_name} (Master-crafted)`
+            : item.equipment_name
+        } for ${manualCost} credits`,
+        variant: 'default',
       });
 
       setBuyModalData(null);
     } catch (err) {
       console.error('Error buying equipment:', err);
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : 'Failed to buy equipment',
-        variant: "destructive",
+        title: 'Error',
+        description:
+          err instanceof Error ? err.message : 'Failed to buy equipment',
+        variant: 'destructive',
       });
     }
   };
@@ -602,20 +666,40 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session || isLoadingAllEquipment) return;
 
     // Check cache first before making any API calls
-    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
-    
+    const cacheKey =
+      equipmentListType === 'unrestricted'
+        ? 'all'
+        : equipmentListType === 'fighters-tradingpost'
+          ? 'tradingpost'
+          : 'fighter';
+
     // If we have cached data for this equipment list type, use it
-    if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
+    if (
+      equipmentListType === 'unrestricted' &&
+      cachedAllCategories.length > 0 &&
+      cachedEquipment.all &&
+      Object.keys(cachedEquipment.all).length > 0
+    ) {
       console.log('Using cached data for unrestricted');
       setAvailableCategories(cachedAllCategories);
       setEquipment(cachedEquipment.all);
       return;
-    } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
+    } else if (
+      equipmentListType === 'fighters-list' &&
+      cachedFighterCategories.length > 0 &&
+      cachedEquipment.fighter &&
+      Object.keys(cachedEquipment.fighter).length > 0
+    ) {
       console.log('Using cached data for fighters-list');
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
       return;
-    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
+    } else if (
+      equipmentListType === 'fighters-tradingpost' &&
+      cachedFighterTPCategories.length > 0 &&
+      cachedEquipment.tradingpost &&
+      Object.keys(cachedEquipment.tradingpost).length > 0
+    ) {
       console.log('Using cached data for fighters-tradingpost');
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
@@ -623,20 +707,29 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
 
     // Only fetch if we don't have cached data
-    console.log(`No cached data found for ${equipmentListType}, fetching from API`);
+    console.log(
+      `No cached data found for ${equipmentListType}, fetching from API`
+    );
     fetchAllCategories();
-  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
+  }, [
+    session,
+    equipmentListType,
+    cachedAllCategories.length,
+    cachedFighterCategories.length,
+    cachedFighterTPCategories.length,
+    isLoadingAllEquipment,
+  ]);
 
   // Calculate min/max values from equipment data
   useEffect(() => {
     const allEquipment = Object.values(equipment).flat();
     if (allEquipment.length > 0) {
-      const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
+      const costs = allEquipment.map((item) => item.adjusted_cost ?? item.cost);
       const availabilities = allEquipment
-        .map(item => {
+        .map((item) => {
           // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
           const availabilityStr = item.availability || '0';
-          
+
           if (availabilityStr === 'C' || availabilityStr === 'E') {
             return 0;
           } else if (/^[RIS]\d+$/.test(availabilityStr)) {
@@ -645,11 +738,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
             return parseInt(numStr);
           } else {
             // Invalid format - log warning and default to 0
-            console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
+            console.warn(
+              `Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`
+            );
             return 0;
           }
         })
-        .filter(val => !isNaN(val));
+        .filter((val) => !isNaN(val));
 
       if (costs.length > 0) {
         const newMinCost = Math.min(...costs);
@@ -671,12 +766,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   // Filter equipment based on cost and availability ranges
   const filterEquipment = (items: Equipment[]) => {
-    return items.filter(item => {
+    return items.filter((item) => {
       const cost = item.adjusted_cost ?? item.cost;
       // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
       const availabilityStr = item.availability || '0';
       let availability = 0;
-      
+
       if (availabilityStr === 'C' || availabilityStr === 'E') {
         availability = 0;
       } else if (/^[RIS]\d+$/.test(availabilityStr)) {
@@ -685,16 +780,22 @@ const ItemModal: React.FC<ItemModalProps> = ({
         availability = parseInt(numStr);
       } else {
         // Invalid format - log warning and default to 0
-        console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
+        console.warn(
+          `Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`
+        );
         availability = 0;
       }
-      
+
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
-      const availabilityInRange = availability >= availabilityRange[0] && 
+      const availabilityInRange =
+        availability >= availabilityRange[0] &&
         availability <= availabilityRange[1];
-      
-      return costInRange && availabilityInRange && 
-        item.equipment_name.toLowerCase().includes(searchQuery);
+
+      return (
+        costInRange &&
+        availabilityInRange &&
+        item.equipment_name.toLowerCase().includes(searchQuery)
+      );
     });
   };
 
@@ -732,14 +833,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     type="radio"
                     name="equipment-list"
                     value="fighters-list"
-                    checked={equipmentListType === "fighters-list"}
+                    checked={equipmentListType === 'fighters-list'}
                     onChange={() => {
-                      setEquipmentListType("fighters-list");
+                      setEquipmentListType('fighters-list');
                       setEquipment({});
                     }}
                     className="mr-1"
                   />
-                  Fighter's List
+                  Fighter&apos;s List
                 </label>
               )}
               <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
@@ -747,9 +848,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   type="radio"
                   name="equipment-list"
                   value="fighters-tradingpost"
-                  checked={equipmentListType === "fighters-tradingpost"}
+                  checked={equipmentListType === 'fighters-tradingpost'}
                   onChange={() => {
-                    setEquipmentListType("fighters-tradingpost");
+                    setEquipmentListType('fighters-tradingpost');
                     setEquipment({});
                   }}
                   className="mr-1"
@@ -761,9 +862,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   type="radio"
                   name="equipment-list"
                   value="unrestricted"
-                  checked={equipmentListType === "unrestricted"}
+                  checked={equipmentListType === 'unrestricted'}
                   onChange={() => {
-                    setEquipmentListType("unrestricted");
+                    setEquipmentListType('unrestricted');
                     setEquipment({});
                   }}
                   className="mr-1"
@@ -791,7 +892,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 )}
               </div>
             </div>
-            
+
             <div className="mt-4 flex flex-col md:flex-row gap-4 md:gap-6 px-4">
               <RangeSlider
                 label="Cost Range"
@@ -802,7 +903,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 step={5}
                 className="flex-1"
               />
-              
+
               <RangeSlider
                 label="Availability Range"
                 value={availabilityRange}
@@ -821,23 +922,34 @@ const ItemModal: React.FC<ItemModalProps> = ({
               {error && <p className="text-red-500 p-4">{error}</p>}
 
               {categories
-                .filter(category => {
-                  const isVehicleAllowed = isVehicleEquipment && allowedCategories
-                    ? allowedCategories.includes(category.category_name)
-                    : !isVehicleEquipment;
+                .filter((category) => {
+                  const isVehicleAllowed =
+                    isVehicleEquipment && allowedCategories
+                      ? allowedCategories.includes(category.category_name)
+                      : !isVehicleEquipment;
 
-                  const isAvailable = availableCategories.includes(category.category_name);
+                  const isAvailable = availableCategories.includes(
+                    category.category_name
+                  );
 
                   // When searching, only show categories that have matching equipment
-                  const hasMatchingEquipment = !searchQuery || 
-                    (equipment[category.category_name] && 
-                     filterEquipment(equipment[category.category_name]).length > 0);
+                  const hasMatchingEquipment =
+                    !searchQuery ||
+                    (equipment[category.category_name] &&
+                      filterEquipment(equipment[category.category_name])
+                        .length > 0);
 
-                  return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+                  return (
+                    isVehicleAllowed && isAvailable && hasMatchingEquipment
+                  );
                 })
                 .sort((a, b) => {
-                  const rankA = equipmentCategoryRank[a.category_name.toLowerCase()] ?? Infinity;
-                  const rankB = equipmentCategoryRank[b.category_name.toLowerCase()] ?? Infinity;
+                  const rankA =
+                    equipmentCategoryRank[a.category_name.toLowerCase()] ??
+                    Infinity;
+                  const rankB =
+                    equipmentCategoryRank[b.category_name.toLowerCase()] ??
+                    Infinity;
                   return rankA - rankB;
                 })
                 .map((category) => (
@@ -850,7 +962,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
                       <span>{category.category_name}</span>
                       <ChevronRight
                         className={`h-4 w-4 transition-transform duration-200 ${
-                          expandedCategories.has(category.category_name) ? "rotate-90" : ""
+                          expandedCategories.has(category.category_name)
+                            ? 'rotate-90'
+                            : ''
                         }`}
                       />
                     </Button>
@@ -862,65 +976,113 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                           </div>
                         ) : equipment[category.category_name]?.length ? (
-                          filterEquipment(equipment[category.category_name])
-                            .map((item, itemIndex) => {
-                              const affordable = canAffordEquipment(item);
-                              const tooltipProps = (item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0)
+                          filterEquipment(
+                            equipment[category.category_name]
+                          ).map((item, itemIndex) => {
+                            const affordable = canAffordEquipment(item);
+                            const tooltipProps =
+                              item.equipment_type === 'weapon' &&
+                              item.weapon_profiles &&
+                              item.weapon_profiles.length > 0
                                 ? {
                                     'data-tooltip-id': 'weapon-profile-tooltip',
                                     'data-tooltip-html': (() => {
-                                      const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
-                                        const orderA = (a as any).sort_order ?? 1;
-                                        const orderB = (b as any).sort_order ?? 1;
-                                        if (orderA !== orderB) return orderA - orderB;
-                                        return (a.profile_name || '').localeCompare(b.profile_name || '');
+                                      const sortedProfiles = [
+                                        ...(item.weapon_profiles || []),
+                                      ].sort((a, b) => {
+                                        const orderA =
+                                          (a as any).sort_order ?? 1;
+                                        const orderB =
+                                          (b as any).sort_order ?? 1;
+                                        if (orderA !== orderB)
+                                          return orderA - orderB;
+                                        return (
+                                          a.profile_name || ''
+                                        ).localeCompare(b.profile_name || '');
                                       });
                                       // Check if any profile has meaningful data beyond just the name
-                                      const hasProfileData = sortedProfiles.some(profile => 
-                                        profile.range_short || profile.range_long || 
-                                        profile.acc_short || profile.acc_long ||
-                                        profile.strength || profile.ap || 
-                                        profile.damage || profile.ammo || 
-                                        profile.traits
-                                      );
+                                      const hasProfileData =
+                                        sortedProfiles.some(
+                                          (profile) =>
+                                            profile.range_short ||
+                                            profile.range_long ||
+                                            profile.acc_short ||
+                                            profile.acc_long ||
+                                            profile.strength ||
+                                            profile.ap ||
+                                            profile.damage ||
+                                            profile.ammo ||
+                                            profile.traits
+                                        );
                                       // If no meaningful data, just show profile names
                                       if (!hasProfileData) {
-                                        return sortedProfiles.map(profile => profile.profile_name).join('\n');
+                                        return sortedProfiles
+                                          .map(
+                                            (profile) => profile.profile_name
+                                          )
+                                          .join('\n');
                                       }
-                                      let html = '<div style="font-size: 12px;">';
-                                      html += '<table style="width: 100%; border-collapse: collapse;">';
+                                      let html =
+                                        '<div style="font-size: 12px;">';
+                                      html +=
+                                        '<table style="width: 100%; border-collapse: collapse;">';
                                       html += '<thead>';
                                       html += '<tr>';
-                                      html += '<th style="text-align: left; min-width: 80px;"></th>';
-                                      html += '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
-                                      html += '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: left; solid #666;"></th>';
+                                      html +=
+                                        '<th style="text-align: left; min-width: 80px;"></th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;"></th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;"></th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;"></th>';
+                                      html +=
+                                        '<th style="text-align: center; solid #666;"></th>';
+                                      html +=
+                                        '<th style="text-align: left; solid #666;"></th>';
                                       html += '</tr>';
-                                      html += '<tr style="border-bottom: 1px solid #666;">';
-                                      html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
-                                      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
+                                      html +=
+                                        '<tr style="border-bottom: 1px solid #666;">';
+                                      html +=
+                                        '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
+                                      html +=
+                                        '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
+                                      html +=
+                                        '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
                                       html += '</tr>';
                                       html += '</thead><tbody>';
-                                      sortedProfiles.forEach(profile => {
+                                      sortedProfiles.forEach((profile) => {
                                         // Check if this profile has any meaningful data
-                                        const profileHasData = profile.range_short || profile.range_long || 
-                                                             profile.acc_short || profile.acc_long ||
-                                                             profile.strength || profile.ap || 
-                                                             profile.damage || profile.ammo || 
-                                                             profile.traits;
-                                        html += '<tr style="border-bottom: 1px solid #555;">';
+                                        const profileHasData =
+                                          profile.range_short ||
+                                          profile.range_long ||
+                                          profile.acc_short ||
+                                          profile.acc_long ||
+                                          profile.strength ||
+                                          profile.ap ||
+                                          profile.damage ||
+                                          profile.ammo ||
+                                          profile.traits;
+                                        html +=
+                                          '<tr style="border-bottom: 1px solid #555;">';
                                         html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
                                         if (profileHasData) {
                                           // Show "-" for missing values when profile has other data
@@ -949,57 +1111,79 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       });
                                       html += '</tbody></table></div>';
                                       return html;
-                                    })()
+                                    })(),
                                   }
                                 : {};
-                              return (
+                            return (
+                              <div
+                                key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
+                                className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
+                              >
                                 <div
-                                  key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
-                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
+                                  className="flex-1 pl-4 leading-none cursor-help"
+                                  {...tooltipProps}
                                 >
-                                  <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
-                                    <span className="text-sm font-medium">{item.equipment_name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
-                                      <div className="flex items-center gap-1">
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
-                                          item.adjusted_cost < (item.base_cost ?? item.cost) ? 'bg-green-500' : 'bg-red-500'
-                                        }`}>
-                                          <span className="text-[10px] font-medium">{item.adjusted_cost}</span>
-                                        </div>
-                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
-                                          <span className="text-[10px] font-medium">{item.base_cost}</span>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
-                                        <span className="text-[10px] font-medium">{item.cost}</span>
-                                      </div>
-                                    )}
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
-                                      <span className="text-[10px] font-medium">{item.availability}</span>
-                                    </div>
-                                    <Button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setBuyModalData(item);
-                                      }}
-                                      className={`text-white text-xs py-0.5 px-2 h-6 ${
-                                        affordable
-                                          ? "bg-green-500 hover:bg-green-600"
-                                          : "bg-gray-500 hover:bg-gray-600"
-                                      }`}
-                                    >
-                                      Buy
-                                    </Button>
-                                  </div>
+                                  <span className="text-sm font-medium">
+                                    {item.equipment_name}
+                                  </span>
                                 </div>
-                              );
-                            })
+                                <div className="flex items-center gap-2">
+                                  {item.adjusted_cost !== undefined &&
+                                  item.adjusted_cost !==
+                                    (item.base_cost ?? item.cost) ? (
+                                    <div className="flex items-center gap-1">
+                                      <div
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
+                                          item.adjusted_cost <
+                                          (item.base_cost ?? item.cost)
+                                            ? 'bg-green-500'
+                                            : 'bg-red-500'
+                                        }`}
+                                      >
+                                        <span className="text-[10px] font-medium">
+                                          {item.adjusted_cost}
+                                        </span>
+                                      </div>
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
+                                        <span className="text-[10px] font-medium">
+                                          {item.base_cost}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
+                                      <span className="text-[10px] font-medium">
+                                        {item.cost}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                    <span className="text-[10px] font-medium">
+                                      {item.availability}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setBuyModalData(item);
+                                    }}
+                                    className={`text-white text-xs py-0.5 px-2 h-6 ${
+                                      affordable
+                                        ? 'bg-green-500 hover:bg-green-600'
+                                        : 'bg-gray-500 hover:bg-gray-600'
+                                    }`}
+                                  >
+                                    Buy
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })
                         ) : (
                           <div className="flex justify-center py-4">
-                            <p className="text-gray-500">No equipment found in this category.</p>
+                            <p className="text-gray-500">
+                              No equipment found in this category.
+                            </p>
                           </div>
                         )}
                       </div>
@@ -1014,7 +1198,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
                 onConfirm={(cost, isMasterCrafted, useBaseCostForRating) => {
-                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating);
+                  handleBuyEquipment(
+                    buyModalData!,
+                    cost,
+                    isMasterCrafted,
+                    useBaseCostForRating
+                  );
                 }}
               />
             )}
@@ -1027,7 +1216,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
           item={buyModalData}
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating)}
+          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) =>
+            handleBuyEquipment(
+              buyModalData,
+              parsedCost,
+              isMasterCrafted,
+              useBaseCostForRating
+            )
+          }
         />
       )}
       {/* Weapon Profile Tooltip */}
@@ -1042,7 +1238,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           fontSize: '12px',
           maxWidth: '97vw',
           marginLeft: '-10px',
-          zIndex: 60
+          zIndex: 60,
         }}
       />
     </>

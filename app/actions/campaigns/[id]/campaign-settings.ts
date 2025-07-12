@@ -1,8 +1,8 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
+import { createClient } from '@/utils/supabase/server';
+import { revalidateTag } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -17,7 +17,9 @@ export interface UpdateCampaignSettingsParams {
 /**
  * Update campaign settings with targeted cache invalidation
  */
-export async function updateCampaignSettings(params: UpdateCampaignSettingsParams) {
+export async function updateCampaignSettings(
+  params: UpdateCampaignSettingsParams
+) {
   try {
     const supabase = await createClient();
     const {
@@ -27,7 +29,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       has_meat,
       has_exploration_points,
       has_scavenging_rolls,
-      note
+      note,
     } = params;
 
     // Only include provided fields in the update
@@ -35,8 +37,10 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (campaign_name !== undefined) updateData.campaign_name = campaign_name;
     if (description !== undefined) updateData.description = description;
     if (has_meat !== undefined) updateData.has_meat = has_meat;
-    if (has_exploration_points !== undefined) updateData.has_exploration_points = has_exploration_points;
-    if (has_scavenging_rolls !== undefined) updateData.has_scavenging_rolls = has_scavenging_rolls;
+    if (has_exploration_points !== undefined)
+      updateData.has_exploration_points = has_exploration_points;
+    if (has_scavenging_rolls !== undefined)
+      updateData.has_scavenging_rolls = has_scavenging_rolls;
     if (note !== undefined) updateData.note = note;
 
     const { error } = await supabase
@@ -53,9 +57,12 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     return { success: true };
   } catch (error) {
     console.error('Error updating campaign settings:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update campaign settings' 
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update campaign settings',
     };
   }
 }
@@ -66,7 +73,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 export async function deleteCampaign(campaignId: string) {
   try {
     const supabase = await createClient();
-    
+
     const { error } = await supabase
       .from('campaigns')
       .delete()
@@ -89,9 +96,10 @@ export async function deleteCampaign(campaignId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error deleting campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to delete campaign' 
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to delete campaign',
     };
   }
 }

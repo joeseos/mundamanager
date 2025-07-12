@@ -11,7 +11,11 @@ interface GangNotesProps {
   onNoteUpdate?: (updatedNote: string) => void;
 }
 
-export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesProps) {
+export function GangNotes({
+  gangId,
+  initialNote = '',
+  onNoteUpdate,
+}: GangNotesProps) {
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,19 +60,21 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
       }
 
       toast({
-        description: "Gang Notes updated successfully",
-        variant: "default"
+        description: 'Gang Notes updated successfully',
+        variant: 'default',
       });
 
       setIsEditing(false);
       onNoteUpdate?.(note);
     } catch (error) {
       console.error('Error updating gang notes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update gang notes');
+      setError(
+        error instanceof Error ? error.message : 'Failed to update gang notes'
+      );
       toast({
-        title: "Error",
-        description: "Failed to update gang notes",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update gang notes',
+        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);
@@ -83,7 +89,9 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
             <h2 className="text-xl md:text-2xl font-bold mb-6">Gang Notes</h2>
             <div className="flex items-center gap-2">
               {isEditing && (
-                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>
+                <span
+                  className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}
+                >
                   {charCount}/1500 characters
                 </span>
               )}
@@ -105,21 +113,17 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
                       onClick={handleSave}
                       disabled={charCount > 1500 || isSaving}
                     >
-                      {isSaving ? "Saving..." : "Save"}
+                      {isSaving ? 'Saving...' : 'Save'}
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => setIsEditing(true)}>
-                    Edit
-                  </Button>
+                  <Button onClick={() => setIsEditing(true)}>Edit</Button>
                 )}
               </div>
             </div>
           </div>
 
-          {error && (
-            <p className="text-red-500 text-sm">{error}</p>
-          )}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
 
           {isEditing ? (
             <Textarea
@@ -129,7 +133,9 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
               placeholder="Add notes here..."
             />
           ) : (
-            <div className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}>
+            <div
+              className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}
+            >
               {note || 'No notes added.'}
             </div>
           )}
@@ -137,4 +143,4 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
       </div>
     </div>
   );
-} 
+}

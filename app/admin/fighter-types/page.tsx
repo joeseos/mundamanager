@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from "react";
-import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
-import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
+import { useState } from 'react';
+import { AdminCreateFighterTypeModal } from '@/components/admin/admin-create-fighter-type';
+import { AdminEditFighterTypeModal } from '@/components/admin/admin-edit-fighter-type';
 
 export default function FighterTypesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,4 +43,4 @@ export default function FighterTypesPage() {
       )}
     </div>
   );
-} 
+}

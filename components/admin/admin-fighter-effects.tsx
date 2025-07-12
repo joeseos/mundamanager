@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
-import Modal from "@/components/modal";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { X } from 'lucide-react';
+import Modal from '@/components/modal';
 
 // Mapping of stat_name (database value) to display_name (UI label)
 const STAT_MAPPINGS = [
@@ -29,12 +29,12 @@ const STAT_MAPPINGS = [
   { stat_name: 'toughness', display_name: 'Toughness' },
   { stat_name: 'weapon_skill', display_name: 'Weapon Skill' },
   { stat_name: 'willpower', display_name: 'Willpower' },
-  { stat_name: 'wounds', display_name: 'Wounds' }
+  { stat_name: 'wounds', display_name: 'Wounds' },
 ];
 
 // Helper function to get display name from stat name
 const getDisplayName = (stat_name: string): string => {
-  const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
+  const mapping = STAT_MAPPINGS.find((m) => m.stat_name === stat_name);
   return mapping ? mapping.display_name : stat_name;
 };
 
@@ -68,28 +68,33 @@ interface AdminFighterEffectsProps {
   onChange?: (effects: FighterEffectType[]) => void;
 }
 
-export function AdminFighterEffects({ 
-  equipmentId, 
-  fighterEffects = [], 
+export function AdminFighterEffects({
+  equipmentId,
+  fighterEffects = [],
   fighterEffectCategories = [],
-  onUpdate, 
-  onChange 
+  onUpdate,
+  onChange,
 }: AdminFighterEffectsProps) {
-  const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
-  const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
+  const [fighterEffectTypes, setFighterEffectTypes] =
+    useState<FighterEffectType[]>(fighterEffects);
+  const [categories, setCategories] = useState<FighterEffectCategory[]>(
+    fighterEffectCategories
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [showAddEffectDialog, setShowAddEffectDialog] = useState(false);
   const [showAddModifierDialog, setShowAddModifierDialog] = useState(false);
-  const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<string | null>(null);
-  
+  const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<
+    string | null
+  >(null);
+
   // New effect form state
   const [newEffectName, setNewEffectName] = useState('');
   const [newEffectCategoryId, setNewEffectCategoryId] = useState('');
-  
+
   // New modifier form state
   const [newModifierStatName, setNewModifierStatName] = useState('');
   const [newModifierValue, setNewModifierValue] = useState<string>('');
-  
+
   const { toast } = useToast();
 
   // Update local state when props change
@@ -111,8 +116,8 @@ export function AdminFighterEffects({
   const handleAddEffect = async () => {
     if (!newEffectName) {
       toast({
-        description: "Effect name is required",
-        variant: "destructive"
+        description: 'Effect name is required',
+        variant: 'destructive',
       });
       return false;
     }
@@ -120,8 +125,8 @@ export function AdminFighterEffects({
     // Ensure we have a valid UUID for equipment_id
     if (!equipmentId || !isValidUUID(equipmentId)) {
       toast({
-        description: "Invalid equipment ID",
-        variant: "destructive"
+        description: 'Invalid equipment ID',
+        variant: 'destructive',
       });
       return false;
     }
@@ -134,27 +139,30 @@ export function AdminFighterEffects({
         effect_name: newEffectName,
         fighter_effect_category_id: newEffectCategoryId || null,
         type_specific_data: {
-          equipment_id: equipmentId
+          equipment_id: equipmentId,
         },
-        modifiers: []
+        modifiers: [],
       };
-      
+
       setFighterEffectTypes([...fighterEffectTypes, newEffect]);
-      
+
       setShowAddEffectDialog(false);
       setNewEffectName('');
       setNewEffectCategoryId('');
-      
+
       if (onUpdate) {
         onUpdate();
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error adding fighter effect:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to add fighter effect',
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to add fighter effect',
+        variant: 'destructive',
       });
       return false;
     }
@@ -162,28 +170,34 @@ export function AdminFighterEffects({
 
   // Helper function to validate UUID
   const isValidUUID = (uuid: string) => {
-    const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const regex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return regex.test(uuid);
   };
 
   const handleDeleteEffect = async (effectId: string) => {
     try {
       // Simply remove the effect from the array
-      setFighterEffectTypes(fighterEffectTypes.filter(effect => effect.id !== effectId));
-      
+      setFighterEffectTypes(
+        fighterEffectTypes.filter((effect) => effect.id !== effectId)
+      );
+
       toast({
-        description: "Fighter effect removed",
-        variant: "default"
+        description: 'Fighter effect removed',
+        variant: 'default',
       });
-      
+
       if (onUpdate) {
         onUpdate();
       }
     } catch (error) {
       console.error('Error deleting fighter effect:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to delete fighter effect',
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to delete fighter effect',
+        variant: 'destructive',
       });
     }
   };
@@ -191,59 +205,64 @@ export function AdminFighterEffects({
   const handleAddModifier = async () => {
     if (!selectedEffectTypeId) {
       toast({
-        description: "No effect type selected",
-        variant: "destructive"
+        description: 'No effect type selected',
+        variant: 'destructive',
       });
       return false;
     }
-    
+
     if (!newModifierStatName) {
       toast({
-        description: "Stat name is required",
-        variant: "destructive"
+        description: 'Stat name is required',
+        variant: 'destructive',
       });
       return false;
     }
-    
+
     try {
       // Convert modifier value to number if provided
-      const numericValue = newModifierValue ? parseFloat(newModifierValue) : null;
-      
+      const numericValue = newModifierValue
+        ? parseFloat(newModifierValue)
+        : null;
+
       // Create a new modifier
       const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const newModifier: FighterEffectTypeModifier = {
         id: tempId,
         fighter_effect_type_id: selectedEffectTypeId,
         stat_name: newModifierStatName,
-        default_numeric_value: numericValue
+        default_numeric_value: numericValue,
       };
-      
+
       // Find the effect type and add the new modifier to it
-      const updatedEffectTypes = fighterEffectTypes.map(type => {
+      const updatedEffectTypes = fighterEffectTypes.map((type) => {
         if (type.id === selectedEffectTypeId) {
           return {
             ...type,
-            modifiers: [...type.modifiers, newModifier]
+            modifiers: [...type.modifiers, newModifier],
           };
         }
         return type;
       });
-      
+
       setFighterEffectTypes(updatedEffectTypes);
       setShowAddModifierDialog(false);
       setNewModifierStatName('');
       setNewModifierValue('');
-      
+
       if (onUpdate) {
         onUpdate();
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error adding modifier:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to add effect modifier',
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to add effect modifier',
+        variant: 'destructive',
       });
       return false;
     }
@@ -252,31 +271,34 @@ export function AdminFighterEffects({
   const handleDeleteModifier = async (effectId: string, modifierId: string) => {
     try {
       // Simply remove the modifier from the effect
-      setFighterEffectTypes(prevEffects => {
-        return prevEffects.map(effect => {
+      setFighterEffectTypes((prevEffects) => {
+        return prevEffects.map((effect) => {
           if (effect.id === effectId) {
             return {
               ...effect,
-              modifiers: effect.modifiers.filter(mod => mod.id !== modifierId)
+              modifiers: effect.modifiers.filter(
+                (mod) => mod.id !== modifierId
+              ),
             };
           }
           return effect;
         });
       });
-      
+
       toast({
-        description: "Modifier removed",
-        variant: "default"
+        description: 'Modifier removed',
+        variant: 'default',
       });
-      
+
       if (onUpdate) {
         onUpdate();
       }
     } catch (error) {
       console.error('Error deleting modifier:', error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to delete modifier',
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : 'Failed to delete modifier',
+        variant: 'destructive',
       });
     }
   };
@@ -310,7 +332,9 @@ export function AdminFighterEffects({
                 <div>
                   <h4 className="font-medium">{effect.effect_name}</h4>
                   <p className="text-sm text-gray-500">
-                    {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
+                    {categories.find(
+                      (c) => c.id === effect.fighter_effect_category_id
+                    )?.category_name || 'No category'}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -342,13 +366,24 @@ export function AdminFighterEffects({
                   <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {effect.modifiers.map((modifier) => (
-                      <div key={modifier.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                      <div
+                        key={modifier.id}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
+                      >
                         <div>
-                          <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
-                          <span>{modifier.default_numeric_value !== null ? modifier.default_numeric_value : 'N/A'}</span>
+                          <span className="font-medium">
+                            {getDisplayName(modifier.stat_name)}:{' '}
+                          </span>
+                          <span>
+                            {modifier.default_numeric_value !== null
+                              ? modifier.default_numeric_value
+                              : 'N/A'}
+                          </span>
                         </div>
                         <Button
-                          onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
+                          onClick={() =>
+                            handleDeleteModifier(effect.id, modifier.id!)
+                          }
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0"
@@ -361,7 +396,9 @@ export function AdminFighterEffects({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 italic">No modifiers for this effect.</p>
+                <p className="text-sm text-gray-500 italic">
+                  No modifiers for this effect.
+                </p>
               )}
             </div>
           ))}
@@ -383,7 +420,9 @@ export function AdminFighterEffects({
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Effect Name *</label>
+              <label className="block text-sm font-medium mb-1">
+                Effect Name *
+              </label>
               <Input
                 type="text"
                 value={newEffectName}
@@ -455,4 +494,4 @@ export function AdminFighterEffects({
       )}
     </div>
   );
-} 
+}

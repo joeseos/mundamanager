@@ -22,7 +22,7 @@ const notificationStore = {
   // Update notifications and notify all listeners
   setNotifications(notifications: Notification[]) {
     this.notifications = notifications;
-    this.unreadCount = notifications.filter(n => !n.dismissed).length;
+    this.unreadCount = notifications.filter((n) => !n.dismissed).length;
     this.notifyListeners();
     this.notifyCountListeners();
   },
@@ -53,17 +53,17 @@ const notificationStore = {
 
   // Notify all listeners with current notifications
   notifyListeners() {
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       listener(this.notifications);
     });
   },
 
   // Notify all count listeners with current unread count
   notifyCountListeners() {
-    this.countListeners.forEach(listener => {
+    this.countListeners.forEach((listener) => {
       listener(this.unreadCount);
     });
-  }
+  },
 };
 
 export function useFetchNotifications({
@@ -95,32 +95,32 @@ export function useFetchNotifications({
         .order('created_at', { ascending: false })
         .limit(20);
 
-      const notifications = data as Notification[] || [];
-      
+      const notifications = (data as Notification[]) || [];
+
       // If on profile page, auto-mark new notifications as read
       if (isProfilePage) {
         // Find unread notifications
         const unreadIds = notifications
-          .filter(n => !n.dismissed)
-          .map(n => n.id);
-          
+          .filter((n) => !n.dismissed)
+          .map((n) => n.id);
+
         // Mark them as read in the database
         if (unreadIds.length > 0) {
           const { createClient } = await import('@/utils/supabase/client');
           const supabase = createClient();
-          
+
           await supabase
             .from('notifications')
             .update({ dismissed: true })
             .in('id', unreadIds);
-            
-            // Update the notifications to be marked as read for the UI
-            notifications.forEach(n => {
-              if (!n.dismissed) n.dismissed = true;
-            });
+
+          // Update the notifications to be marked as read for the UI
+          notifications.forEach((n) => {
+            if (!n.dismissed) n.dismissed = true;
+          });
         }
       }
-      
+
       notificationStore.setNotifications(notifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -141,7 +141,7 @@ export function useFetchNotifications({
   useEffect(() => {
     if (onUnreadCountChange) {
       notificationStore.addCountListener(onUnreadCountChange);
-      
+
       return () => {
         notificationStore.removeCountListener(onUnreadCountChange);
       };
@@ -209,7 +209,7 @@ export function useFetchNotifications({
     const cleanup = setupRealtimeSubscription();
     return () => {
       if (cleanup) {
-        cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+        cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
       }
     };
   }, [initialFetched, realtime, userId, fetchNotifications]);
@@ -227,7 +227,7 @@ export function useFetchNotifications({
 
       // Update the store to mark the notification as dismissed but keep it visible
       notificationStore.setNotifications(
-        notificationStore.notifications.map(n => 
+        notificationStore.notifications.map((n) =>
           n.id === id ? { ...n, dismissed: true } : n
         )
       );
@@ -238,15 +238,18 @@ export function useFetchNotifications({
 
   // Public method for dismissing all notifications
   const dismissAllNotifications = useCallback(async () => {
-    if (notificationStore.notifications.filter(n => !n.dismissed).length === 0) return;
+    if (
+      notificationStore.notifications.filter((n) => !n.dismissed).length === 0
+    )
+      return;
 
     try {
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
 
       const notificationIds = notificationStore.notifications
-        .filter(n => !n.dismissed)
-        .map(n => n.id);
+        .filter((n) => !n.dismissed)
+        .map((n) => n.id);
 
       await supabase
         .from('notifications')
@@ -255,7 +258,7 @@ export function useFetchNotifications({
 
       // Update the store to mark all notifications as dismissed but keep them visible
       notificationStore.setNotifications(
-        notificationStore.notifications.map(n => ({ ...n, dismissed: true }))
+        notificationStore.notifications.map((n) => ({ ...n, dismissed: true }))
       );
     } catch (error) {
       console.error('Error dismissing all notifications:', error);
@@ -276,24 +279,21 @@ export function useFetchNotifications({
 
       // Update the store immediately on success
       notificationStore.setNotifications(
-        notificationStore.notifications.filter(n => n.id !== id)
+        notificationStore.notifications.filter((n) => n.id !== id)
       );
     } catch (error) {
       console.error('Error deleting notification via API:', error);
-      
+
       // Fallback to direct Supabase delete if API fails
       try {
         const { createClient } = await import('@/utils/supabase/client');
         const supabase = createClient();
 
-        await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', id);
+        await supabase.from('notifications').delete().eq('id', id);
 
         // Update the store immediately
         notificationStore.setNotifications(
-          notificationStore.notifications.filter(n => n.id !== id)
+          notificationStore.notifications.filter((n) => n.id !== id)
         );
       } catch (fallbackError) {
         console.error('Fallback error deleting notification:', fallbackError);
@@ -305,6 +305,6 @@ export function useFetchNotifications({
     dismissNotification,
     dismissAllNotifications,
     deleteNotification,
-    getUnreadCount: () => notificationStore.unreadCount
+    getUnreadCount: () => notificationStore.unreadCount,
   };
 }

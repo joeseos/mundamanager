@@ -1,7 +1,10 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
 
@@ -9,14 +12,14 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     console.log('Gang Logs API called for gang ID:', params.id);
 
     // Get the current user using server-side auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       console.error('Auth error:', authError);
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     console.log('User authenticated:', user.id);
@@ -30,10 +33,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
     if (gangError) {
       console.error('Gang error:', gangError);
-      return NextResponse.json(
-        { error: 'Gang not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Gang not found' }, { status: 404 });
     }
 
     console.log('Gang found, user_id:', gangData.user_id);
@@ -53,9 +53,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       if (campaignGangsError) {
         console.error('Campaign gangs check error:', campaignGangsError);
       } else if (campaignGangs && campaignGangs.length > 0) {
-        const campaignIds = campaignGangs.map(cg => cg.campaign_id);
+        const campaignIds = campaignGangs.map((cg) => cg.campaign_id);
         console.log('Found campaigns containing this gang:', campaignIds);
-        
+
         // Then check if user is OWNER/ARBITRATOR in any of these campaigns
         const { data: membershipData, error: membershipError } = await supabase
           .from('campaign_members')
@@ -77,11 +77,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     }
 
     if (!ownsGang && !hasArbitratorAccess) {
-      console.error('User does not own gang and is not an arbitrator/owner of campaigns containing this gang');
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
+      console.error(
+        'User does not own gang and is not an arbitrator/owner of campaigns containing this gang'
       );
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     console.log('Starting to fetch gang logs...');
@@ -106,7 +105,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     console.log('Logs fetched successfully, count:', logs?.length || 0);
 
     // Transform the data - for now just use 'System' as username
-    const transformedLogs = logs.map(log => ({
+    const transformedLogs = logs.map((log) => ({
       id: log.id,
       gang_id: log.gang_id,
       user_id: log.user_id,
@@ -114,19 +113,24 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       description: log.description,
       fighter_id: log.fighter_id,
       created_at: log.created_at,
-      username: 'System' // Simplified for now
+      username: 'System', // Simplified for now
     }));
 
     console.log('Returning transformed logs:', transformedLogs.length);
 
     return NextResponse.json(transformedLogs);
-
   } catch (error) {
     console.error('Error in gang logs API:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error(
+      'Error stack:',
+      error instanceof Error ? error.stack : 'No stack'
+    );
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
-} 
+}

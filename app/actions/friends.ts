@@ -2,7 +2,10 @@
 
 import { createClient } from '@/utils/supabase/server';
 
-export async function acceptFriendRequest(requester_id: string, addressee_id: string) {
+export async function acceptFriendRequest(
+  requester_id: string,
+  addressee_id: string
+) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('friends')
@@ -16,7 +19,10 @@ export async function acceptFriendRequest(requester_id: string, addressee_id: st
   return { success: true };
 }
 
-export async function declineFriendRequest(requester_id: string, addressee_id: string) {
+export async function declineFriendRequest(
+  requester_id: string,
+  addressee_id: string
+) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('friends')
@@ -36,10 +42,12 @@ export async function deleteFriend(userId: string, friendId: string) {
   const { error } = await supabase
     .from('friends')
     .delete()
-    .or(`and(requester_id.eq.${userId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${userId})`);
+    .or(
+      `and(requester_id.eq.${userId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${userId})`
+    );
 
   if (error) {
     throw new Error(error.message);
   }
   return { success: true };
-} 
+}

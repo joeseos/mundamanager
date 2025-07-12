@@ -21,7 +21,7 @@ export function SellFighterModal({
   onConfirm,
   fighterName,
   fighterValue,
-  isEnslaved
+  isEnslaved,
 }: SellFighterModalProps) {
   const [sellValue, setSellValue] = useState<number>(0);
   const [useFullValue, setUseFullValue] = useState<boolean>(false);
@@ -69,20 +69,19 @@ export function SellFighterModal({
 
   return (
     <Modal
-      title={isEnslaved ? "Rescue from Guilders" : "Sell to Guilders"}
+      title={isEnslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
       onClose={onClose}
       onConfirm={handleConfirm}
-      confirmText={isEnslaved ? "Rescue" : "Sell"}
+      confirmText={isEnslaved ? 'Rescue' : 'Sell'}
       confirmDisabled={isSubmitting}
     >
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
-          {isEnslaved 
+          {isEnslaved
             ? `Are you sure you want to rescue "${fighterName}" from the Guilders?`
-            : `Are you sure you want to sell "${fighterName}" to the Guilders?`
-          }
+            : `Are you sure you want to sell "${fighterName}" to the Guilders?`}
         </p>
-        
+
         {!isEnslaved && (
           <>
             <div className="space-y-2">
@@ -96,7 +95,7 @@ export function SellFighterModal({
                 className="w-full"
               />
               <p className="text-xs text-gray-500">
-                Fighter's total value: {fighterValue} credits
+                Fighter&apos;s total value: {fighterValue} credits
               </p>
             </div>
 
@@ -107,7 +106,7 @@ export function SellFighterModal({
                 onCheckedChange={handleCheckboxChange}
               />
               <Label htmlFor="full-value" className="text-sm">
-                Use 100% of fighter's value ({fighterValue} credits)
+                Use 100% of fighter&apos;s value ({fighterValue} credits)
               </Label>
             </div>
           </>
@@ -115,4 +114,4 @@ export function SellFighterModal({
       </div>
     </Modal>
   );
-} 
+}

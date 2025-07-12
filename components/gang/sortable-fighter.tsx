@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FighterCard from './fighter-card';
-import { FighterProps, FighterSkills } from '@/types/fighter';
+import { FighterProps } from '@/types/fighter';
 import { useState, useEffect } from 'react';
 
 interface SortableFighterProps {
@@ -12,7 +12,12 @@ interface SortableFighterProps {
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
 }
 
-export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode = 'normal' }: SortableFighterProps) {
+export function SortableFighter({
+  fighter,
+  positions,
+  onFighterDeleted,
+  viewMode = 'normal',
+}: SortableFighterProps) {
   const [isDragging, setIsDragging] = useState(false);
   const {
     attributes,
@@ -21,10 +26,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     transform,
     transition,
     isDragging: dndKitIsDragging,
-  } = useSortable({ 
-    id: fighter.id,
-    animateLayoutChanges: () => false
-  });
+  } = useSortable({ id: fighter.id, animateLayoutChanges: () => false });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -43,15 +45,13 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
   }, [dndKitIsDragging]);
 
   // Extract the first vehicle from the vehicles array for the FighterCard
-  const vehicle = fighter.vehicles && fighter.vehicles.length > 0 ? fighter.vehicles[0] : undefined;
+  const vehicle =
+    fighter.vehicles && fighter.vehicles.length > 0
+      ? fighter.vehicles[0]
+      : undefined;
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-    >
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <FighterCard
         {...fighter}
         name={fighter.fighter_name}
@@ -63,4 +63,4 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
       />
     </div>
   );
-} 
+}

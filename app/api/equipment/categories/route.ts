@@ -1,13 +1,16 @@
-import { NextResponse } from 'next/server'
-import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export async function GET() {
   const supabase = await createClient();
 
   try {
     // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -27,4 +30,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}

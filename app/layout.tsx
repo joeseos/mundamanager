@@ -1,34 +1,34 @@
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { hasEnvVars } from "@/utils/supabase/check-env-vars";
-import { GeistSans } from "geist/font/sans";
-import "./globals.css";
+import { EnvVarWarning } from '@/components/env-var-warning';
+import { hasEnvVars } from '@/utils/supabase/check-env-vars';
+import { GeistSans } from 'geist/font/sans';
+import './globals.css';
 import BackgroundImage from '@/components/background-image';
-import { Inter } from 'next/font/google'
+import { Inter } from 'next/font/google';
 import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
-import { createClient } from "@/utils/supabase/server";
-import ClientToaster from "@/components/ui/client-toaster";
+import { createClient } from '@/utils/supabase/server';
+import ClientToaster from '@/components/ui/client-toaster';
 
 const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
   ssr: true,
-  loading: () => <div className="h-16" />
+  loading: () => <div className="h-16" />,
 });
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+  : 'http://localhost:3000';
 
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   preload: true,
   variable: '--font-inter',
-})
+});
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Munda Manager",
-  description: "A gang management tool for the boardgame Necromunda",
+  title: 'Munda Manager',
+  description: 'A gang management tool for the boardgame Necromunda',
   icons: {
     icon: [
       { url: '/images/favicon.ico', sizes: 'any' },
@@ -39,8 +39,8 @@ export const metadata = {
   },
 };
 
-export const dynamicConfig = 'force-static'
-export const revalidate = 3600 // Revalidate every hour
+export const dynamicConfig = 'force-static';
+export const revalidate = 3600; // Revalidate every hour
 
 export default async function RootLayout({
   children,
@@ -79,7 +79,9 @@ export default async function RootLayout({
         <BackgroundImage />
         <DynamicHeaderAuth />
         {breadcrumb}
-        <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
+        <main
+          className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}
+        >
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
@@ -88,7 +90,10 @@ export default async function RootLayout({
                 </div>
               </nav>
             )}
-            <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
+            <div
+              id="main-content-wrapper"
+              className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset"
+            >
               {children}
             </div>
           </div>

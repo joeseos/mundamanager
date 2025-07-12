@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/modal';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from '@/components/ui/use-toast';
 import { VehicleProps } from '@/types/vehicle';
-import { Checkbox } from "@/components/ui/checkbox";
-import { ImInfo } from "react-icons/im";
-import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
+import { Checkbox } from '@/components/ui/checkbox';
+import { ImInfo } from 'react-icons/im';
+import { vehicleTypeRank } from '@/utils/vehicleTypeRank';
 
 interface VehicleType {
   id: string;
@@ -32,12 +32,12 @@ interface AddVehicleProps {
   onVehicleAdd: (newVehicle: VehicleProps) => void;
 }
 
-export default function AddVehicle({ 
+export default function AddVehicle({
   showModal,
   setShowModal,
   gangId,
   initialCredits,
-  onVehicleAdd
+  onVehicleAdd,
 }: AddVehicleProps) {
   const { toast } = useToast();
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
@@ -46,7 +46,7 @@ export default function AddVehicle({
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
-  
+
   // Fetch vehicle types when component mounts
   useEffect(() => {
     const fetchVehicleTypes = async () => {
@@ -63,7 +63,7 @@ export default function AddVehicle({
         }
       }
     };
-    
+
     if (showModal) {
       fetchVehicleTypes();
     }
@@ -72,7 +72,7 @@ export default function AddVehicle({
   const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = e.target.value;
     setVehicleCost(newCost);
-    
+
     // If cost is 0, automatically set useBaseCost to true
     if (newCost === '0') {
       setUseBaseCost(true);
@@ -80,7 +80,9 @@ export default function AddVehicle({
   };
 
   const getBaseCost = () => {
-    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
+    const selectedVehicleType = vehicleTypes.find(
+      (v) => v.id === selectedVehicleTypeId
+    );
     return selectedVehicleType?.cost || 0;
   };
 
@@ -90,29 +92,31 @@ export default function AddVehicle({
       return false;
     }
 
-    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
+    const selectedVehicleType = vehicleTypes.find(
+      (v) => v.id === selectedVehicleTypeId
+    );
     if (!selectedVehicleType) {
       throw new Error('Vehicle type not found');
     }
 
     // Get the entered cost or use the base cost if none entered
-    const paymentCost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
+    const paymentCost = vehicleCost
+      ? parseInt(vehicleCost)
+      : selectedVehicleType.cost;
     const name = vehicleName || selectedVehicleType.vehicle_type;
-    
+
     // The cost for gang rating purposes
     const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;
 
     try {
       const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vehicleTypeId: selectedVehicleTypeId,
           cost: paymentCost, // This is what the user pays in credits
           vehicleName: name,
-          baseCost: ratingCost // The vehicle's base cost for display and when equipped
+          baseCost: ratingCost, // The vehicle's base cost for display and when equipped
         }),
       });
 
@@ -121,7 +125,7 @@ export default function AddVehicle({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to add vehicle');
       }
-      
+
       // Create the new vehicle object from the response
       const newVehicle: VehicleProps = {
         id: data.id,
@@ -148,9 +152,9 @@ export default function AddVehicle({
         special_rules: selectedVehicleType.special_rules || [],
         created_at: new Date().toISOString(),
         equipment: [],
-        payment_cost: paymentCost // Track what was actually paid
+        payment_cost: paymentCost, // Track what was actually paid
       };
-      
+
       // Call the parent component's callback
       onVehicleAdd(newVehicle);
 
@@ -159,18 +163,17 @@ export default function AddVehicle({
       if (useBaseCost && paymentCost !== ratingCost) {
         successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
       }
-      
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
+
+      toast({ description: successMessage, variant: 'default' });
 
       // Reset form and close modal
       handleClose();
       return true;
     } catch (error) {
       console.error('Error details:', error);
-      setVehicleError(error instanceof Error ? error.message : 'Failed to add vehicle');
+      setVehicleError(
+        error instanceof Error ? error.message : 'Failed to add vehicle'
+      );
       return false;
     }
   };
@@ -218,7 +221,9 @@ export default function AddVehicle({
               value={selectedVehicleTypeId}
               onChange={(e) => {
                 setSelectedVehicleTypeId(e.target.value);
-                const vehicle = vehicleTypes.find(v => v.id === e.target.value);
+                const vehicle = vehicleTypes.find(
+                  (v) => v.id === e.target.value
+                );
                 if (vehicle) {
                   setVehicleCost(vehicle.cost.toString());
                 }
@@ -230,26 +235,34 @@ export default function AddVehicle({
                 vehicleTypes
                   .slice() // Shallow copy
                   .sort((a, b) => {
-                    const rankA = vehicleTypeRank[a.vehicle_type.toLowerCase()] ?? Infinity;
-                    const rankB = vehicleTypeRank[b.vehicle_type.toLowerCase()] ?? Infinity;
+                    const rankA =
+                      vehicleTypeRank[a.vehicle_type.toLowerCase()] ?? Infinity;
+                    const rankB =
+                      vehicleTypeRank[b.vehicle_type.toLowerCase()] ?? Infinity;
                     return rankA - rankB;
                   })
-                  .reduce((groups, type) => {
-                    const rank = vehicleTypeRank[type.vehicle_type.toLowerCase()] ?? Infinity;
-                    let groupLabel = "Misc."; // Default category for unranked vehicles
+                  .reduce(
+                    (groups, type) => {
+                      const rank =
+                        vehicleTypeRank[type.vehicle_type.toLowerCase()] ??
+                        Infinity;
+                      let groupLabel = 'Misc.'; // Default category for unranked vehicles
 
-                    if (rank <= 29) groupLabel = "Gang Vehicles";
-                    else if (rank <= 49) groupLabel = "Universal Vehicles";
-                    else if (rank <= 69) groupLabel = "Base Vehicle Templates";
-                    else if (rank <= 89) groupLabel = "Sump Sea Vehicles";
+                      if (rank <= 29) groupLabel = 'Gang Vehicles';
+                      else if (rank <= 49) groupLabel = 'Universal Vehicles';
+                      else if (rank <= 69)
+                        groupLabel = 'Base Vehicle Templates';
+                      else if (rank <= 89) groupLabel = 'Sump Sea Vehicles';
 
-                    if (!groups[groupLabel]) groups[groupLabel] = [];
-                    groups[groupLabel].push(type);
-                    return groups;
-                  }, {} as Record<string, VehicleType[]>)
+                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                      groups[groupLabel].push(type);
+                      return groups;
+                    },
+                    {} as Record<string, VehicleType[]>
+                  )
               ).map(([groupLabel, types]) => (
                 <optgroup key={groupLabel} label={groupLabel}>
-                  {types.map(type => (
+                  {types.map((type) => (
                     <option key={type.id} value={type.id}>
                       {type.vehicle_type} - {type.cost} credits
                     </option>
@@ -272,19 +285,21 @@ export default function AddVehicle({
             />
             {selectedVehicleTypeId && (
               <p className="text-sm text-gray-500">
-                Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
+                Base cost:{' '}
+                {vehicleTypes.find((v) => v.id === selectedVehicleTypeId)?.cost}{' '}
+                credits
               </p>
             )}
           </div>
 
           <div className="flex items-center space-x-2 mb-4 mt-2">
-            <Checkbox 
-              id="baseCostCheckbox" 
+            <Checkbox
+              id="baseCostCheckbox"
               checked={useBaseCost}
               onCheckedChange={(checked) => setUseBaseCost(checked as boolean)}
             />
-            <label 
-              htmlFor="baseCostCheckbox" 
+            <label
+              htmlFor="baseCostCheckbox"
               className="text-sm font-medium text-gray-700 cursor-pointer"
             >
               Use Listed Cost for Rating
@@ -292,7 +307,11 @@ export default function AddVehicle({
             <div className="relative group">
               <ImInfo />
               <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                When enabled, the vehicle's rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+                When enabled, the vehicle&apos;s rating is calculated using its
+                listed cost (from the vehicle list), even if you paid a
+                different amount. This listed cost will be used when the vehicle
+                is assigned to a crew. Disable this if you want the rating to
+                reflect the price actually paid.
               </div>
             </div>
           </div>
@@ -306,4 +325,4 @@ export default function AddVehicle({
       confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
     />
   );
-} 
+}

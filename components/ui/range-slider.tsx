@@ -1,15 +1,15 @@
-"use client"
-import * as SliderPrimitive from "@radix-ui/react-slider"
+'use client';
+import * as SliderPrimitive from '@radix-ui/react-slider';
 
 interface RangeSliderProps {
-  label: string
-  value: [number, number]
-  onValueChange: (value: [number, number]) => void
-  min: number
-  max: number
-  step?: number
-  formatValue?: (value: number) => string
-  className?: string
+  label: string;
+  value: [number, number];
+  onValueChange: (value: [number, number]) => void;
+  min: number;
+  max: number;
+  step?: number;
+  formatValue?: (value: number) => string;
+  className?: string;
 }
 
 export function RangeSlider({
@@ -20,7 +20,7 @@ export function RangeSlider({
   max,
   step = 1,
   formatValue = (val) => val.toString(),
-  className = "",
+  className = '',
 }: RangeSliderProps) {
   return (
     <div className={`space-y-2 ${className}`}>
@@ -57,5 +57,5 @@ export function RangeSlider({
         />
       </SliderPrimitive.Root>
     </div>
-  )
-} 
+  );
+}

@@ -1,12 +1,19 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
 
 interface EditFighterStatusParams {
   fighter_id: string;
-  action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'delete';
+  action:
+    | 'kill'
+    | 'retire'
+    | 'sell'
+    | 'rescue'
+    | 'starve'
+    | 'recover'
+    | 'delete';
   sell_value?: number;
 }
 
@@ -53,13 +60,17 @@ interface EditFighterResult {
   };
 }
 
-export async function editFighterStatus(params: EditFighterStatusParams): Promise<EditFighterResult> {
+export async function editFighterStatus(
+  params: EditFighterStatusParams
+): Promise<EditFighterResult> {
   try {
     const supabase = await createClient();
-    
+
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -70,7 +81,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Get fighter information
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select(`
+      .select(
+        `
         id,
         fighter_name,
         gang_id,
@@ -80,7 +92,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         enslaved,
         starved,
         recovery
-      `)
+      `
+      )
       .eq('id', params.fighter_id)
       .single();
 
@@ -112,9 +125,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       case 'kill': {
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             killed: !fighter.killed,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', params.fighter_id)
           .select()
@@ -126,16 +139,16 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { fighter: updatedFighter }
+          data: { fighter: updatedFighter },
         };
       }
 
       case 'retire': {
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             retired: !fighter.retired,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', params.fighter_id)
           .select()
@@ -147,7 +160,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { fighter: updatedFighter }
+          data: { fighter: updatedFighter },
         };
       }
 
@@ -157,24 +170,25 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         // Update fighter to enslaved and add credits to gang
-        const { data: updatedFighter, error: fighterUpdateError } = await supabase
-          .from('fighters')
-          .update({ 
-            enslaved: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', params.fighter_id)
-          .select()
-          .single();
+        const { data: updatedFighter, error: fighterUpdateError } =
+          await supabase
+            .from('fighters')
+            .update({
+              enslaved: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
 
         if (fighterUpdateError) throw fighterUpdateError;
 
         // Update gang credits
         const { data: updatedGang, error: gangUpdateError } = await supabase
           .from('gangs')
-          .update({ 
+          .update({
             credits: gangCredits + params.sell_value,
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
           })
           .eq('id', gangId)
           .select('id, credits')
@@ -186,19 +200,19 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { 
+          data: {
             fighter: updatedFighter,
-            gang: updatedGang
-          }
+            gang: updatedGang,
+          },
         };
       }
 
       case 'rescue': {
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             enslaved: false,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', params.fighter_id)
           .select()
@@ -210,7 +224,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { fighter: updatedFighter }
+          data: { fighter: updatedFighter },
         };
       }
 
@@ -231,23 +245,26 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           if ((gangMeatData.meat ?? 0) < 1) {
             return {
               success: false,
-              error: 'Not enough meat to feed fighter'
+              error: 'Not enough meat to feed fighter',
             };
           }
 
           // Decrement meat and set starved = false in a transaction-like sequence
           const { error: meatUpdateError } = await supabase
             .from('gangs')
-            .update({ meat: gangMeatData.meat - 1, last_updated: new Date().toISOString() })
+            .update({
+              meat: gangMeatData.meat - 1,
+              last_updated: new Date().toISOString(),
+            })
             .eq('id', gangId);
 
           if (meatUpdateError) throw meatUpdateError;
 
           const { data: updatedFighter, error: updateError } = await supabase
             .from('fighters')
-            .update({ 
+            .update({
               starved: false,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', params.fighter_id)
             .select()
@@ -259,15 +276,15 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           return {
             success: true,
-            data: { fighter: updatedFighter }
+            data: { fighter: updatedFighter },
           };
         } else {
           // Starving the fighter (no meat logic)
           const { data: updatedFighter, error: updateError } = await supabase
             .from('fighters')
-            .update({ 
+            .update({
               starved: true,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', params.fighter_id)
             .select()
@@ -279,7 +296,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           return {
             success: true,
-            data: { fighter: updatedFighter }
+            data: { fighter: updatedFighter },
           };
         }
       }
@@ -287,9 +304,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       case 'recover': {
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             recovery: !fighter.recovery,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', params.fighter_id)
           .select()
@@ -301,7 +318,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { fighter: updatedFighter }
+          data: { fighter: updatedFighter },
         };
       }
 
@@ -317,9 +334,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         // Update gang credits with fighter's credits
         const { data: updatedGang, error: gangUpdateError } = await supabase
           .from('gangs')
-          .update({ 
+          .update({
             credits: gangCredits + fighter.credits,
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
           })
           .eq('id', gangId)
           .select('id, credits')
@@ -331,31 +348,35 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         return {
           success: true,
-          data: { 
+          data: {
             gang: updatedGang,
-            redirectTo: `/gang/${gangId}`
-          }
+            redirectTo: `/gang/${gangId}`,
+          },
         };
       }
 
       default:
         throw new Error('Invalid action specified');
     }
-
   } catch (error) {
     console.error('Error in editFighterStatus server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
 
-export async function updateFighterXp(params: UpdateFighterXpParams): Promise<EditFighterResult> {
+export async function updateFighterXp(
+  params: UpdateFighterXpParams
+): Promise<EditFighterResult> {
   try {
     const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -389,9 +410,9 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     // Update XP
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
+      .update({
         xp: fighter.xp + params.xp_to_add,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', params.fighter_id)
       .select('id, xp')
@@ -404,26 +425,31 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     return {
       success: true,
-      data: { 
+      data: {
         fighter: updatedFighter,
         xp: updatedFighter.xp,
-        total_xp: updatedFighter.xp
-      }
+        total_xp: updatedFighter.xp,
+      },
     };
   } catch (error) {
     console.error('Error updating fighter XP:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
 
-export async function updateFighterDetails(params: UpdateFighterDetailsParams): Promise<EditFighterResult> {
+export async function updateFighterDetails(
+  params: UpdateFighterDetailsParams
+): Promise<EditFighterResult> {
   try {
     const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('User not authenticated');
     }
@@ -456,18 +482,25 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // Build update object with only provided fields
     const updateData: any = {
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
-    if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name;
+    if (params.fighter_name !== undefined)
+      updateData.fighter_name = params.fighter_name;
     if (params.label !== undefined) updateData.label = params.label;
     if (params.kills !== undefined) updateData.kills = params.kills;
-    if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
-    if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
-    if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
-    if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
-    if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
-    if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
+    if (params.cost_adjustment !== undefined)
+      updateData.cost_adjustment = params.cost_adjustment;
+    if (params.special_rules !== undefined)
+      updateData.special_rules = params.special_rules;
+    if (params.fighter_class !== undefined)
+      updateData.fighter_class = params.fighter_class;
+    if (params.fighter_class_id !== undefined)
+      updateData.fighter_class_id = params.fighter_class_id;
+    if (params.fighter_type_id !== undefined)
+      updateData.fighter_type_id = params.fighter_type_id;
+    if (params.fighter_sub_type_id !== undefined)
+      updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
 
     // Update fighter
@@ -485,15 +518,16 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     return {
       success: true,
-      data: { 
-        fighter: updatedFighter
-      }
+      data: {
+        fighter: updatedFighter,
+      },
     };
   } catch (error) {
     console.error('Error updating fighter details:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
-} 
+}

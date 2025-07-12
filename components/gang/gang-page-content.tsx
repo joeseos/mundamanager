@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { FighterProps } from "@/types/fighter";
-import { FighterType } from "@/types/fighter-type";
-import Gang from "@/components/gang/gang";
-import Tabs from "@/components/tabs";
-import GangInventory from "@/components/gang/stash-tab";
-import { GangNotes } from "@/components/gang/notes-tab";
-import GangTerritories from "@/components/gang/campaign-tab";
-import GangVehicles from "@/components/gang/vehicles-tab";
+import { FighterProps } from '@/types/fighter';
+import { FighterType } from '@/types/fighter-type';
+import Gang from '@/components/gang/gang';
+import Tabs from '@/components/tabs';
+import GangInventory from '@/components/gang/stash-tab';
+import { GangNotes } from '@/components/gang/notes-tab';
+import GangTerritories from '@/components/gang/campaign-tab';
+import GangVehicles from '@/components/gang/vehicles-tab';
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
@@ -48,7 +48,7 @@ interface GangDataState {
     note?: string;
     positioning: Record<number, string>;
     campaigns: any[];
-    gang_variants: Array<{id: string, variant: string}>;
+    gang_variants: Array<{ id: string; variant: string }>;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
@@ -56,163 +56,178 @@ interface GangDataState {
   onFighterUpdate: (updatedFighter: FighterProps) => void;
 }
 
-export default function GangPageContent({ 
-  initialGangData, 
-  gangId, 
-  userId 
+export default function GangPageContent({
+  initialGangData,
+  gangId,
+  userId,
 }: GangPageContentProps) {
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || [],
     onStashUpdate: () => {},
     onVehicleUpdate: () => {},
-    onFighterUpdate: () => {}
+    onFighterUpdate: () => {},
   });
 
   // Move all the callback handlers here from the current page.tsx
   const handleStashUpdate = useCallback((newStash: StashItem[]) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
-      processedData: {
-        ...prev.processedData,
-        stash: newStash
-      },
-      stash: newStash
+      processedData: { ...prev.processedData, stash: newStash },
+      stash: newStash,
     }));
   }, []);
 
   const handleVehicleUpdate = useCallback((newVehicles: VehicleProps[]) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
-      processedData: {
-        ...prev.processedData,
-        vehicles: newVehicles
-      }
+      processedData: { ...prev.processedData, vehicles: newVehicles },
     }));
   }, []);
 
   const handleGangCreditsUpdate = useCallback((newCredits: number) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
-      processedData: {
-        ...prev.processedData,
-        credits: newCredits
-      }
+      processedData: { ...prev.processedData, credits: newCredits },
     }));
   }, []);
 
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
     setGangData((prev: GangDataState) => {
       // Find the previous version of this fighter to compare
-      const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
-      
+      const prevFighter = prev.processedData.fighters.find(
+        (f) => f.id === updatedFighter.id
+      );
+
       // Calculate rating change from vehicle updates
       let ratingChange = 0;
-      
+
       // If fighter now has a vehicle that it didn't have before
-      if (updatedFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
+      if (
+        updatedFighter.vehicles?.length &&
+        (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)
+      ) {
         // Add the vehicle's cost to the rating - we know it's a VehicleProps
-        const vehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const vehicleCost =
+          (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange += vehicleCost;
         console.log(`Adding vehicle cost ${vehicleCost} to rating`);
-      } 
+      }
       // If fighter had a vehicle but no longer does
-      else if ((!updatedFighter.vehicles || updatedFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
+      else if (
+        (!updatedFighter.vehicles || updatedFighter.vehicles.length === 0) &&
+        prevFighter?.vehicles?.length
+      ) {
         // Subtract the vehicle's cost from the rating
-        const vehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const vehicleCost =
+          (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange -= vehicleCost;
         console.log(`Removing vehicle cost ${vehicleCost} from rating`);
       }
       // If fighter had a vehicle and still has one, but it's different
-      else if (updatedFighter.vehicles?.length && prevFighter?.vehicles?.length && 
-               updatedFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
+      else if (
+        updatedFighter.vehicles?.length &&
+        prevFighter?.vehicles?.length &&
+        updatedFighter.vehicles[0].id !== prevFighter.vehicles[0].id
+      ) {
         // Remove old vehicle cost and add new vehicle cost
-        const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        const newVehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const prevVehicleCost =
+          (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const newVehicleCost =
+          (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange -= prevVehicleCost;
         ratingChange += newVehicleCost;
-        console.log(`Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`);
+        console.log(
+          `Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`
+        );
       }
 
       // Calculate rating change from credit changes (when equipment is moved from stash)
       if (prevFighter && updatedFighter.credits !== prevFighter.credits) {
         const creditChange = updatedFighter.credits - prevFighter.credits;
         ratingChange += creditChange;
-        console.log(`Fighter credits changed from ${prevFighter.credits} to ${updatedFighter.credits}, rating change: ${creditChange}`);
+        console.log(
+          `Fighter credits changed from ${prevFighter.credits} to ${updatedFighter.credits}, rating change: ${creditChange}`
+        );
       }
 
       // Calculate the new rating
       const newRating = prev.processedData.rating + ratingChange;
-      console.log(`Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`);
+      console.log(
+        `Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`
+      );
 
       return {
         ...prev,
         processedData: {
           ...prev.processedData,
-          fighters: prev.processedData.fighters.map(fighter =>
+          fighters: prev.processedData.fighters.map((fighter) =>
             fighter.id === updatedFighter.id ? updatedFighter : fighter
           ),
           // Update the rating based on vehicle and credit changes
-          rating: newRating
-        }
+          rating: newRating,
+        },
       };
     });
   }, []);
 
-  const handleFighterAdd = useCallback((newFighter: FighterProps, cost: number) => {
-    setGangData((prev: GangDataState) => {
-      // Add the new fighter to the fighters array
-      const updatedFighters = [...prev.processedData.fighters, newFighter];
-      
-      // Update gang credits by subtracting the cost
-      const updatedCredits = prev.processedData.credits - cost;
-      
-      // Update gang rating by adding the fighter's cost
-      const updatedRating = prev.processedData.rating + newFighter.credits;
-      
-      // Update positioning to include the new fighter
-      const currentPositioning = prev.processedData.positioning;
-      const maxPosition = Object.keys(currentPositioning).length > 0 
-        ? Math.max(...Object.keys(currentPositioning).map(Number)) 
-        : -1;
-      const newPosition = maxPosition + 1;
-      const updatedPositioning = {
-        ...currentPositioning,
-        [newPosition]: newFighter.id
-      };
-      
-      console.log(`Adding fighter ${newFighter.fighter_name} - Cost: ${cost}, Fighter Credits: ${newFighter.credits}, New Gang Credits: ${updatedCredits}, New Rating: ${updatedRating}, Position: ${newPosition}`);
+  const handleFighterAdd = useCallback(
+    (newFighter: FighterProps, cost: number) => {
+      setGangData((prev: GangDataState) => {
+        // Add the new fighter to the fighters array
+        const updatedFighters = [...prev.processedData.fighters, newFighter];
 
-      return {
-        ...prev,
-        processedData: {
-          ...prev.processedData,
-          fighters: updatedFighters,
-          credits: updatedCredits,
-          rating: updatedRating,
-          positioning: updatedPositioning
-        }
-      };
-    });
-  }, []);
+        // Update gang credits by subtracting the cost
+        const updatedCredits = prev.processedData.credits - cost;
+
+        // Update gang rating by adding the fighter's cost
+        const updatedRating = prev.processedData.rating + newFighter.credits;
+
+        // Update positioning to include the new fighter
+        const currentPositioning = prev.processedData.positioning;
+        const maxPosition =
+          Object.keys(currentPositioning).length > 0
+            ? Math.max(...Object.keys(currentPositioning).map(Number))
+            : -1;
+        const newPosition = maxPosition + 1;
+        const updatedPositioning = {
+          ...currentPositioning,
+          [newPosition]: newFighter.id,
+        };
+
+        console.log(
+          `Adding fighter ${newFighter.fighter_name} - Cost: ${cost}, Fighter Credits: ${newFighter.credits}, New Gang Credits: ${updatedCredits}, New Rating: ${updatedRating}, Position: ${newPosition}`
+        );
+
+        return {
+          ...prev,
+          processedData: {
+            ...prev.processedData,
+            fighters: updatedFighters,
+            credits: updatedCredits,
+            rating: updatedRating,
+            positioning: updatedPositioning,
+          },
+        };
+      });
+    },
+    []
+  );
 
   const handleVehicleAdd = useCallback((newVehicle: VehicleProps) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
       processedData: {
         ...prev.processedData,
-        vehicles: [...prev.processedData.vehicles, newVehicle]
-      }
+        vehicles: [...prev.processedData.vehicles, newVehicle],
+      },
     }));
   }, []);
 
   const handleNoteUpdate = useCallback((updatedNote: string) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
-      processedData: {
-        ...prev.processedData,
-        note: updatedNote
-      }
+      processedData: { ...prev.processedData, note: updatedNote },
     }));
   }, []);
 
@@ -223,15 +238,16 @@ export default function GangPageContent({
 
   return (
     <div>
-      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
-         tabIcons={[
-           <FaUsers key="users" />,
-           <FaBox key="box" />,
-           <FaTruckMoving key="car" />,
-           <FiMap key="map" />,
-           <LuClipboard key="note" />
-         ]}
-        >
+      <Tabs
+        tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
+        tabIcons={[
+          <FaUsers key="users" />,
+          <FaBox key="box" />,
+          <FaTruckMoving key="car" />,
+          <FiMap key="map" />,
+          <LuClipboard key="note" />,
+        ]}
+      >
         <div className="container max-w-full w-full space-y-4 print:print-fighters">
           <Gang
             {...gangData.processedData}
@@ -247,7 +263,7 @@ export default function GangPageContent({
           />
         </div>
         <GangInventory
-          stash={gangData.stash} 
+          stash={gangData.stash}
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={handleStashUpdate}
@@ -267,12 +283,12 @@ export default function GangPageContent({
         />
         <div className="bg-white shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
-          <GangTerritories 
-            gangId={gangId} 
-            campaigns={gangData.processedData.campaigns || []} 
+          <GangTerritories
+            gangId={gangId}
+            campaigns={gangData.processedData.campaigns || []}
           />
         </div>
-        <GangNotes 
+        <GangNotes
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
           onNoteUpdate={handleNoteUpdate}
@@ -280,4 +296,4 @@ export default function GangPageContent({
       </Tabs>
     </div>
   );
-} 
+}

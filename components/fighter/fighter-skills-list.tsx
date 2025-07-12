@@ -1,28 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import Modal from "@/components/modal";
-import { useToast } from "@/components/ui/use-toast";
-import { skillSetRank } from "@/utils/skillSetRank";
+import Modal from '@/components/modal';
+import { useToast } from '@/components/ui/use-toast';
+import { skillSetRank } from '@/utils/skillSetRank';
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
-import { List } from "@/components/ui/list";
+import { List } from '@/components/ui/list';
 import { UserPermissions } from '@/types/user-permissions';
-import { 
-  addSkillAdvancement, 
-  deleteAdvancement 
+import {
+  addSkillAdvancement,
+  deleteAdvancement,
 } from '@/app/actions/fighter-advancement';
-
-// Interface for individual skill when displayed in table
-interface Skill {
-  id: string;
-  name: string;
-  xp_cost: number;
-  credits_increase: number;
-  acquired_at: string;
-  is_advance: boolean;
-  fighter_injury_id: string | null;
-}
 
 // Props for the SkillsList component
 interface SkillsListProps {
@@ -62,7 +50,13 @@ interface SkillResponse {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
+export function SkillModal({
+  fighterId,
+  onClose,
+  onSkillAdded,
+  isSubmitting,
+  onSelectSkill,
+}: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -76,14 +70,16 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       try {
         // Get the session from the hook
         const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/skill_types`,
           {
             headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token || ''}`,
+              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              Authorization: `Bearer ${session?.access_token || ''}`,
               'Content-Type': 'application/json',
             },
           }
@@ -98,7 +94,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         console.error('Error fetching skill sets:', error);
         toast({
           description: 'Failed to load skill sets',
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
     };
@@ -118,21 +114,19 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
             },
-            body: JSON.stringify({
-              fighter_id: fighterId
-            })
+            body: JSON.stringify({ fighter_id: fighterId }),
           }
         );
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch skills');
         }
 
         const data = await response.json();
         console.log('Raw skills data:', data);
-        
+
         // Filter skills by the selected type
         const skillsForType = data.skills.filter(
           (skill: SkillData) => skill.skill_type_id === selectedCategory
@@ -141,10 +135,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         setSkillsData({ skills: skillsForType });
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: "destructive"
-        });
+        toast({ description: 'Failed to load skills', variant: 'destructive' });
       }
     };
 
@@ -158,32 +149,29 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       // Check for session
       if (!session) {
         toast({
-          description: "Authentication required. Please log in again.",
-          variant: "destructive"
+          description: 'Authentication required. Please log in again.',
+          variant: 'destructive',
         });
         return false;
       }
 
-      console.log("Adding skill with ID:", selectedSkill);
-      
+      console.log('Adding skill with ID:', selectedSkill);
+
       const result = await addSkillAdvancement({
         fighter_id: fighterId,
         skill_id: selectedSkill,
         xp_cost: 0,
         credits_increase: 0,
-        is_advance: false
+        is_advance: false,
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to add skill');
       }
 
-      console.log("Skill added successfully:", result);
+      console.log('Skill added successfully:', result);
 
-      toast({
-        description: "Skill successfully added",
-        variant: "default"
-      });
+      toast({ description: 'Skill successfully added', variant: 'default' });
 
       onSkillAdded();
       onClose();
@@ -192,7 +180,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       console.error('Error adding skill:', error);
       toast({
         description: `Failed to add skill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     }
@@ -207,7 +195,9 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           onChange={(e) => setSelectedCategory(e.target.value)}
           className="w-full p-2 border rounded"
         >
-          <option key="placeholder-type" value="">Select a skill set</option>
+          <option key="placeholder-type" value="">
+            Select a skill set
+          </option>
 
           {Object.entries(
             categories
@@ -216,22 +206,26 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
                 const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
                 return rankA - rankB;
               })
-              .reduce((groups, category) => {
-                const rank = skillSetRank[category.name.toLowerCase()];
-                let groupLabel = "Misc."; // Default category if no clear separator
+              .reduce(
+                (groups, category) => {
+                  const rank = skillSetRank[category.name.toLowerCase()];
+                  let groupLabel = 'Misc.'; // Default category if no clear separator
 
-                if (rank <= 19) groupLabel = "Universal Skills";
-                else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                else if (rank <= 59) groupLabel = "Wyrd Powers";
-                else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                else if (rank <= 89) groupLabel = "Legendary Names";
-                else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+                  if (rank <= 19) groupLabel = 'Universal Skills';
+                  else if (rank <= 39) groupLabel = 'Gang-specific Skills';
+                  else if (rank <= 59) groupLabel = 'Wyrd Powers';
+                  else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+                  else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+                  else if (rank <= 89) groupLabel = 'Legendary Names';
+                  else if (rank <= 99)
+                    groupLabel = 'Ironhead Squat Mining Clans';
 
-                if (!groups[groupLabel]) groups[groupLabel] = [];
-                groups[groupLabel].push(category);
-                return groups;
-              }, {} as Record<string, typeof categories>)
+                  if (!groups[groupLabel]) groups[groupLabel] = [];
+                  groups[groupLabel].push(category);
+                  return groups;
+                },
+                {} as Record<string, typeof categories>
+              )
           ).map(([groupLabel, categoryList]) => (
             <optgroup key={groupLabel} label={groupLabel}>
               {categoryList.map((category) => (
@@ -252,20 +246,23 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             onChange={(e) => setSelectedSkill(e.target.value)}
             className="w-full p-2 border rounded"
           >
-            <option key="placeholder-skill" value="">Select a skill</option>
+            <option key="placeholder-skill" value="">
+              Select a skill
+            </option>
             {skillsData.skills.map((skill) => {
               const isAvailable = skill.available;
               return (
-                <option 
-                  key={skill.skill_id} 
+                <option
+                  key={skill.skill_id}
                   value={skill.skill_id}
                   disabled={!isAvailable}
-                  style={{ 
+                  style={{
                     color: !isAvailable ? '#9CA3AF' : 'inherit',
-                    fontStyle: !isAvailable ? 'italic' : 'normal'
+                    fontStyle: !isAvailable ? 'italic' : 'normal',
                   }}
                 >
-                  {skill.skill_name}{!isAvailable ? ' (already owned)' : ''}
+                  {skill.skill_name}
+                  {!isAvailable ? ' (already owned)' : ''}
                 </option>
               );
             })}
@@ -288,16 +285,19 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 }
 
 // Main SkillsList component that wraps the table with management functionality
-export function SkillsList({ 
-  skills = {}, 
+export function SkillsList({
+  skills = {},
   onSkillDeleted,
   fighterId,
   fighterXp,
   onSkillAdded,
   free_skill,
-  userPermissions
+  userPermissions,
 }: SkillsListProps) {
-  const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [skillToDelete, setSkillToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -313,7 +313,7 @@ export function SkillsList({
       const result = await deleteAdvancement({
         fighter_id: fighterId,
         advancement_id: skillToDelete.id,
-        advancement_type: 'skill'
+        advancement_type: 'skill',
       });
 
       if (!result.success) {
@@ -322,17 +322,14 @@ export function SkillsList({
 
       // Call the callback to refresh data in parent component
       onSkillDeleted?.();
-      
+
       toast({
         description: `${skillToDelete.name} removed successfully`,
-        variant: "default"
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error deleting skill:', error);
-      toast({
-        description: 'Failed to delete skill',
-        variant: "destructive"
-      });
+      toast({ description: 'Failed to delete skill', variant: 'destructive' });
     } finally {
       setSkillToDelete(null);
     }
@@ -348,16 +345,16 @@ export function SkillsList({
       credits_increase: typedData.credits_increase,
       acquired_at: typedData.acquired_at,
       is_advance: typedData.is_advance ?? false,
-      fighter_injury_id: typedData.fighter_injury_id
+      fighter_injury_id: typedData.fighter_injury_id,
     };
   });
 
   // Custom empty message based on free_skill status
   const getEmptyMessage = () => {
     if (free_skill) {
-      return "Starting skill missing.";
+      return 'Starting skill missing.';
     }
-    return "No skills yet.";
+    return 'No skills yet.';
   };
 
   return (
@@ -366,11 +363,7 @@ export function SkillsList({
         title="Skills"
         items={skillsArray}
         columns={[
-          {
-            key: 'name',
-            label: 'Name',
-            width: '75%'
-          },
+          { key: 'name', label: 'Name', width: '75%' },
           {
             key: 'action_info',
             label: 'Action',
@@ -384,16 +377,17 @@ export function SkillsList({
                 );
               }
               return null;
-            }
-          }
+            },
+          },
         ]}
         actions={[
           {
             label: 'Delete',
             variant: 'destructive' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
-            disabled: (item: any) => !!item.fighter_injury_id || !userPermissions.canEdit
-          }
+            disabled: (item: any) =>
+              !!item.fighter_injury_id || !userPermissions.canEdit,
+          },
         ]}
         onAdd={() => setIsAddSkillModalOpen(true)}
         addButtonDisabled={!userPermissions.canEdit}
@@ -406,7 +400,10 @@ export function SkillsList({
           title="Delete Skill"
           content={
             <div>
-              <p>Are you sure you want to delete "{skillToDelete.name}"?</p>
+              <p>
+                Are you sure you want to delete &quot;{skillToDelete.name}
+                &quot;?
+              </p>
               <br />
               <p>This action cannot be undone.</p>
             </div>
@@ -425,4 +422,4 @@ export function SkillsList({
       )}
     </>
   );
-} 
+}

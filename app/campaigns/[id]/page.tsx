@@ -1,23 +1,25 @@
-import { createClient } from "@/utils/supabase/server";
-import { notFound } from "next/navigation";
-import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
-import { PermissionService } from "@/app/lib/user-permissions";
-import type { CampaignPermissions } from "@/types/user-permissions";
+import { createClient } from '@/utils/supabase/server';
+import { notFound } from 'next/navigation';
+import CampaignPageContent from '@/components/campaigns/[id]/campaign-page-content';
+import { CampaignErrorBoundary } from '@/components/campaigns/campaign-error-boundary';
+import { PermissionService } from '@/app/lib/user-permissions';
+import type { CampaignPermissions } from '@/types/user-permissions';
 
 // Import the optimized functions with unstable_cache
-import { 
-  getCampaignBasic, 
-  getCampaignMembers, 
-  getCampaignTerritories, 
+import {
+  getCampaignBasic,
+  getCampaignMembers,
+  getCampaignTerritories,
   getCampaignBattles,
   getCampaignTriumphs,
   getCampaignTypes,
   getAllTerritories,
-  getCampaignGangsForModal
-} from "@/app/lib/campaigns/[id]/get-campaign-data";
+  getCampaignGangsForModal,
+} from '@/app/lib/campaigns/[id]/get-campaign-data';
 
-export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
+export default async function CampaignPage(props: {
+  params: Promise<{ id: string }>;
+}) {
   const params = await props.params;
   const supabase = await createClient();
 
@@ -30,7 +32,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   if (userId) {
     try {
       const permissionService = new PermissionService();
-      permissions = await permissionService.getCampaignPermissions(userId, params.id);
+      permissions = await permissionService.getCampaignPermissions(
+        userId,
+        params.id
+      );
     } catch (error) {
       console.error('Error calculating permissions:', error);
       // Set default read-only permissions on error
@@ -49,7 +54,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         canManageTerritories: false,
         canAddBattleLogs: false,
         canEditBattleLogs: false,
-        campaignRole: null
+        campaignRole: null,
       };
     }
   }
@@ -60,31 +65,30 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignBasic,
       campaignMembers,
       campaignTerritories,
-      campaignBattles
+      campaignBattles,
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
       getCampaignTerritories(params.id),
-      getCampaignBattles(params.id)
+      getCampaignBattles(params.id),
     ]);
 
     // 🚀 PARALLEL DATA FETCHING - Reference data for territory components
-    const [
-      campaignTriumphs,
-      campaignTypes,
-      allTerritories
-    ] = await Promise.all([
-      getCampaignTriumphs(campaignBasic.campaign_type_id),
-      getCampaignTypes(),
-      getAllTerritories()
-    ]);
+    const [campaignTriumphs, campaignTypes, allTerritories] = await Promise.all(
+      [
+        getCampaignTriumphs(campaignBasic.campaign_type_id),
+        getCampaignTypes(),
+        getAllTerritories(),
+      ]
+    );
 
     // Combine the data
     const campaignData = {
       id: campaignBasic.id,
       campaign_name: campaignBasic.campaign_name,
       campaign_type_id: campaignBasic.campaign_type_id,
-      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
+      campaign_type_name:
+        (campaignBasic.campaign_types as any)?.campaign_type_name || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
       created_at: campaignBasic.created_at,
@@ -96,18 +100,18 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
-      triumphs: campaignTriumphs
+      triumphs: campaignTriumphs,
     };
-    
+
     if (!campaignData.id) {
       notFound();
     }
-    
+
     return (
       <CampaignErrorBoundary>
-        <CampaignPageContent 
-          campaignData={campaignData} 
-          userId={userId} 
+        <CampaignPageContent
+          campaignData={campaignData}
+          userId={userId}
           permissions={permissions}
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
@@ -124,4 +128,4 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       </main>
     );
   }
-} 
+}

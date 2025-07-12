@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
+import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
 
 export interface CustomWeaponProfileData {
   profile_name?: string;
@@ -22,10 +22,13 @@ export async function saveCustomWeaponProfiles(
   profiles: CustomWeaponProfileData[]
 ) {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
@@ -40,23 +43,32 @@ export async function saveCustomWeaponProfiles(
 
     if (deleteError) {
       console.error('Error deleting existing weapon profiles:', deleteError);
-      throw new Error(`Failed to delete existing weapon profiles: ${deleteError.message}`);
+      throw new Error(
+        `Failed to delete existing weapon profiles: ${deleteError.message}`
+      );
     }
 
     // Then, insert new profiles if any
     if (profiles.length > 0) {
       const profilesWithMetadata = profiles.map((profile, index) => {
         // Validate that all required fields are present
-        if (!profile.range_short || !profile.range_long || !profile.acc_short || 
-            !profile.acc_long || !profile.strength || !profile.ap || 
-            !profile.damage || !profile.ammo) {
+        if (
+          !profile.range_short ||
+          !profile.range_long ||
+          !profile.acc_short ||
+          !profile.acc_long ||
+          !profile.strength ||
+          !profile.ap ||
+          !profile.damage ||
+          !profile.ammo
+        ) {
           throw new Error('Missing required weapon profile fields');
         }
 
         // Remove any existing id to let the database generate a new one
         // but preserve all other fields including profile_name
         const { id, ...profileWithoutId } = profile as any;
-        
+
         return {
           profile_name: profile.profile_name || null, // Explicitly preserve profile_name
           range_short: profile.range_short,
@@ -68,28 +80,34 @@ export async function saveCustomWeaponProfiles(
           damage: profile.damage,
           ammo: profile.ammo,
           traits: profile.traits || null, // Explicitly preserve traits
-          sort_order: profile.sort_order !== undefined ? profile.sort_order : index,
+          sort_order:
+            profile.sort_order !== undefined ? profile.sort_order : index,
           custom_equipment_id: equipmentId,
           weapon_group_id: equipmentId,
           user_id: user.id,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
         };
       });
 
-      console.log('Inserting weapon profiles with metadata:', profilesWithMetadata);
+      console.log(
+        'Inserting weapon profiles with metadata:',
+        profilesWithMetadata
+      );
       const { error: insertError } = await supabase
         .from('custom_weapon_profiles')
         .insert(profilesWithMetadata);
 
       if (insertError) {
         console.error('Error inserting weapon profiles:', insertError);
-        throw new Error(`Failed to save weapon profiles: ${insertError.message}`);
+        throw new Error(
+          `Failed to save weapon profiles: ${insertError.message}`
+        );
       }
     }
 
     // Revalidate the customize page
     revalidatePath('/customise');
-    
+
     return { success: true };
   } catch (error) {
     console.error('Error saving weapon profiles:', error);
@@ -99,13 +117,13 @@ export async function saveCustomWeaponProfiles(
 
 export async function testDatabaseConnection() {
   const supabase = await createClient();
-  
+
   try {
     console.log('Testing database connection to custom_weapon_profiles...');
     const { data, error, count } = await supabase
       .from('custom_weapon_profiles')
       .select('*', { count: 'exact' });
-    
+
     console.log('Database test result:', { data, error, count });
     return { data, error, count };
   } catch (error) {
@@ -116,16 +134,20 @@ export async function testDatabaseConnection() {
 
 export async function getCustomWeaponProfiles(equipmentId: string) {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
   if (userError || !user) {
     throw new Error('Unauthorized');
   }
 
   try {
     // First try to find profiles by weapon_group_id
+    // eslint-disable-next-line prefer-const
     let { data, error } = await supabase
       .from('custom_weapon_profiles')
       .select('*')
@@ -141,7 +163,7 @@ export async function getCustomWeaponProfiles(equipmentId: string) {
         .eq('custom_equipment_id', equipmentId)
         .eq('user_id', user.id)
         .order('sort_order');
-      
+
       if (!fallbackResult.error && fallbackResult.data) {
         data = fallbackResult.data;
       }
@@ -157,4 +179,4 @@ export async function getCustomWeaponProfiles(equipmentId: string) {
     console.error('Error fetching weapon profiles:', error);
     throw error;
   }
-} 
+}

@@ -39,7 +39,10 @@ export function invalidateGangFinancials(gangId: string) {
 }
 
 // Enhanced fighter data invalidation that includes gang financials
-export function invalidateFighterDataWithFinancials(fighterId: string, gangId: string) {
+export function invalidateFighterDataWithFinancials(
+  fighterId: string,
+  gangId: string
+) {
   invalidateFighterData(fighterId, gangId);
   invalidateGangFinancials(gangId);
 }

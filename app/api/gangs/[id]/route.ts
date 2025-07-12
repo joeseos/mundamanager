@@ -1,12 +1,15 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 enum GangAlignment {
   LAW_ABIDING = 'Law Abiding',
-  OUTLAW = 'Outlaw'
+  OUTLAW = 'Outlaw',
 }
 
-export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
 
@@ -14,7 +17,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     // Get gang data with all related information, including variant names
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
-      .select(`
+      .select(
+        `
         *,
         campaigns:campaign_gangs(
           campaign_id, 
@@ -28,7 +32,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         gang_variants!inner(
           gang_variant_types(id, variant)
         )
-      `)
+      `
+      )
       .eq('id', params.id)
       .single();
 
@@ -39,25 +44,27 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       ...gangData,
       gang_variants: gangData.gang_variants.map((v: any) => ({
         id: v.gang_variant_types.id,
-        variant: v.gang_variant_types.variant
-      }))
+        variant: v.gang_variant_types.variant,
+      })),
     };
 
     return NextResponse.json({ gang: processedGangData });
-
   } catch (error) {
     console.error('Error fetching gang data:', error);
     return NextResponse.json(
-      { error: "Failed to fetch gang data" },
+      { error: 'Failed to fetch gang data' },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  request: Request,
+  props: { params: Promise<{ id: string }> }
+) {
   const params = await props.params;
   const supabase = await createClient();
-  const { 
+  const {
     name,
     operation,
     credits,
@@ -74,35 +81,35 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     vehicleId,
     vehicle_name,
     special_rules,
-    gang_variants
+    gang_variants,
   } = await request.json();
 
   try {
     // Get the current user using server-side auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // For vehicle name updates
     if (operation === 'update_vehicle_name') {
       // Define the type of updateData to include special_rules
-      const updateData: { 
-        vehicle_name: string; 
-        special_rules?: string[]; 
-      } = { 
-        vehicle_name 
+      const updateData: {
+        vehicle_name: string;
+        special_rules?: string[];
+      } = {
+        vehicle_name,
       };
-      
+
       // Only include special_rules if they were provided
       if (special_rules !== undefined) {
         updateData.special_rules = special_rules;
       }
-      
+
       const { error: updateError } = await supabase
         .from('vehicles')
         .update(updateData)
@@ -116,15 +123,15 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         );
       }
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
-        updatedSpecialRules: special_rules !== undefined
+        updatedSpecialRules: special_rules !== undefined,
       });
     }
 
     // Prepare update object
     const updates: any = {
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     };
 
     // Add name if provided
@@ -141,7 +148,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (alignment !== undefined) {
       if (!['Law Abiding', 'Outlaw'].includes(alignment)) {
         return NextResponse.json(
-          { error: "Invalid alignment value. Must be 'Law Abiding' or 'Outlaw'" }, 
+          {
+            error: "Invalid alignment value. Must be 'Law Abiding' or 'Outlaw'",
+          },
           { status: 400 }
         );
       }
@@ -179,23 +188,25 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       (reputation !== undefined && reputation_operation)
     ) {
       const { data: currentGang, error: gangFetchError } = await supabase
-        .from("gangs")
-        .select("credits, reputation")
-        .eq("id", params.id)
+        .from('gangs')
+        .select('credits, reputation')
+        .eq('id', params.id)
         .single();
 
       if (gangFetchError) throw gangFetchError;
 
       if (credits !== undefined && credits_operation) {
-        updates.credits = credits_operation === 'add'
-          ? (currentGang.credits || 0) + credits
-          : (currentGang.credits || 0) - credits;
+        updates.credits =
+          credits_operation === 'add'
+            ? (currentGang.credits || 0) + credits
+            : (currentGang.credits || 0) - credits;
       }
 
       if (reputation !== undefined && reputation_operation) {
-        updates.reputation = reputation_operation === 'add'
-          ? (currentGang.reputation || 0) + reputation
-          : (currentGang.reputation || 0) - reputation;
+        updates.reputation =
+          reputation_operation === 'add'
+            ? (currentGang.reputation || 0) + reputation
+            : (currentGang.reputation || 0) - reputation;
       }
     }
 
@@ -205,7 +216,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // Perform the update
     const { data: updatedGang, error: gangUpdateError } = await supabase
-      .from("gangs")
+      .from('gangs')
       .update(updates)
       .eq('id', params.id)
       .select()
@@ -215,7 +226,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     return NextResponse.json(updatedGang);
   } catch (error) {
-    console.error("Error updating gang:", error);
-    return NextResponse.json({ error: "Failed to update gang" }, { status: 500 });
+    console.error('Error updating gang:', error);
+    return NextResponse.json(
+      { error: 'Failed to update gang' },
+      { status: 500 }
+    );
   }
 }

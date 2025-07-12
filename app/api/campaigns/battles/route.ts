@@ -1,9 +1,7 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(
-  request: Request
-) {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const campaignId = request.headers.get('X-Campaign-Id');
 
@@ -32,17 +30,16 @@ export async function GET(
 
     // Transform the data for easier consumption
     const gangs = campaignGangs
-      .filter(cg => cg.gangs && cg.gangs.length > 0) // Ensure gangs array is not empty
-      .map(cg => ({
+      .filter((cg) => cg.gangs && cg.gangs.length > 0) // Ensure gangs array is not empty
+      .map((cg) => ({
         id: cg.gang_id,
-        name: cg.gangs[0].name // Access the first gang's name
+        name: cg.gangs[0].name, // Access the first gang's name
       }));
 
     return NextResponse.json({
       scenarios,
-      gangs
+      gangs,
     });
-
   } catch (error) {
     console.error('Error fetching battle data:', error);
     return NextResponse.json(
@@ -52,9 +49,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   const supabase = await createClient();
   const campaignId = request.headers.get('X-Campaign-Id');
 
@@ -67,14 +62,14 @@ export async function POST(
 
   try {
     const requestBody = await request.json();
-    const { 
-      scenario, 
-      attacker_id, 
-      defender_id, 
-      winner_id, 
+    const {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
       note,
       participants,
-      claimed_territories = [] 
+      claimed_territories = [],
     } = requestBody;
 
     // Validate required fields
@@ -96,9 +91,11 @@ export async function POST(
           defender_id,
           winner_id,
           note,
-          participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-          created_at: new Date().toISOString()
-        }
+          participants: Array.isArray(participants)
+            ? JSON.stringify(participants)
+            : participants,
+          created_at: new Date().toISOString(),
+        },
       ])
       .select()
       .single();
@@ -117,26 +114,24 @@ export async function POST(
     }
 
     // Then fetch the related data for display
-    const [
-      { data: attacker },
-      { data: defender },
-      { data: winner }
-    ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).single(),
-      supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null })
-    ]);
+    const [{ data: attacker }, { data: defender }, { data: winner }] =
+      await Promise.all([
+        supabase.from('gangs').select('name').eq('id', attacker_id).single(),
+        supabase.from('gangs').select('name').eq('id', defender_id).single(),
+        winner_id
+          ? supabase.from('gangs').select('name').eq('id', winner_id).single()
+          : Promise.resolve({ data: null }),
+      ]);
 
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
       attacker: { gang_name: attacker?.name },
       defender: { gang_name: defender?.name },
-      winner: winner?.name ? { gang_name: winner.name } : null
+      winner: winner?.name ? { gang_name: winner.name } : null,
     };
 
     return NextResponse.json(transformedBattle);
-
   } catch (error) {
     console.error('Error creating battle:', error);
     return NextResponse.json(

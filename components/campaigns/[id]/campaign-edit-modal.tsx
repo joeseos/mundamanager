@@ -1,13 +1,13 @@
-'use client'
+'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import Modal from "@/components/modal";
-import { createClient } from "@/utils/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import { useRouter } from "next/navigation";
-import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import Modal from '@/components/modal';
+import { createClient } from '@/utils/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
+import { deleteCampaign } from '@/app/actions/campaigns/[id]/campaign-settings';
 
 interface EditCampaignModalProps {
   isOpen: boolean;
@@ -87,7 +87,7 @@ export default function CampaignEditModal({
       }
 
       toast({
-        description: "Campaign deleted successfully"
+        description: 'Campaign deleted successfully',
       });
 
       router.push('/campaigns');
@@ -95,8 +95,8 @@ export default function CampaignEditModal({
     } catch (error) {
       console.error('Error deleting campaign:', error);
       toast({
-        variant: "destructive",
-        description: "Failed to delete campaign"
+        variant: 'destructive',
+        description: 'Failed to delete campaign',
       });
       return false;
     } finally {
@@ -114,14 +114,18 @@ export default function CampaignEditModal({
         content={
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Campaign Name</label>
+              <label className="block text-sm font-medium mb-1">
+                Campaign Name
+              </label>
               <input
                 type="text"
                 value={formValues.campaignName}
-                onChange={(e) => setFormValues(prev => ({
-                  ...prev,
-                  campaignName: e.target.value
-                }))}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    campaignName: e.target.value,
+                  }))
+                }
                 className="w-full p-2 border rounded"
               />
             </div>
@@ -129,30 +133,36 @@ export default function CampaignEditModal({
               <label className="flex items-center space-x-2">
                 <Checkbox
                   checked={formValues.meatEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    meatEnabled: checked === true
-                  }))}
+                  onCheckedChange={(checked) =>
+                    setFormValues((prev) => ({
+                      ...prev,
+                      meatEnabled: checked === true,
+                    }))
+                  }
                 />
                 <span>Meat</span>
               </label>
               <label className="flex items-center space-x-2">
                 <Checkbox
                   checked={formValues.explorationEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    explorationEnabled: checked === true
-                  }))}
+                  onCheckedChange={(checked) =>
+                    setFormValues((prev) => ({
+                      ...prev,
+                      explorationEnabled: checked === true,
+                    }))
+                  }
                 />
                 <span>Exploration Points</span>
               </label>
               <label className="flex items-center space-x-2">
                 <Checkbox
                   checked={formValues.scavengingEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    scavengingEnabled: checked === true
-                  }))}
+                  onCheckedChange={(checked) =>
+                    setFormValues((prev) => ({
+                      ...prev,
+                      scavengingEnabled: checked === true,
+                    }))
+                  }
                 />
                 <span>Scavenging Rolls</span>
               </label>
@@ -161,7 +171,9 @@ export default function CampaignEditModal({
             <div>
               <label className="flex justify-between items-center text-sm font-medium mb-1">
                 <span>Description</span>
-                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>
+                <span
+                  className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}
+                >
                   {charCount}/1500 characters
                 </span>
               </label>
@@ -169,16 +181,15 @@ export default function CampaignEditModal({
                 value={formValues.description}
                 onChange={(e) => {
                   const value = e.target.value;
-                  setFormValues(prev => ({
+                  setFormValues((prev) => ({
                     ...prev,
-                    description: value
+                    description: value,
                   }));
                   setCharCount(value.length); // ✅ update the count
                 }}
                 className="w-full p-2 border rounded min-h-[200px]"
                 placeholder="Enter campaign description..."
               />
-
             </div>
 
             {isOwner && (
@@ -206,7 +217,11 @@ export default function CampaignEditModal({
             <div>
               <p>Are you sure you want to permanently delete this campaign?</p>
               <br />
-              <p>This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.</p>
+              <p>
+                This action cannot be undone and will permanently delete all
+                campaign data, including territories, members, and gang
+                assignments.
+              </p>
             </div>
           }
           onClose={() => setShowDeleteModal(false)}
@@ -217,4 +232,4 @@ export default function CampaignEditModal({
       )}
     </div>
   );
-} 
+}

@@ -1,67 +1,70 @@
 import React, { useState, useCallback } from 'react';
-import { Button } from '../ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '../ui/use-toast';
 import Modal from '../modal';
-import { createClient } from '@/utils/supabase/client';
-import { List } from "../ui/list";
+import { List } from '../ui/list';
 import { UserPermissions } from '@/types/user-permissions';
 import { useRouter } from 'next/navigation';
-import { 
-  addFighterInjury, 
-  deleteFighterInjury 
+import {
+  addFighterInjury,
+  deleteFighterInjury,
 } from '@/app/actions/fighter-injury';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
-  onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
+  onInjuryUpdate?: (
+    updatedInjuries: FighterEffect[],
+    recoveryStatus?: boolean
+  ) => void;
   fighterId: string;
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
 }
 
-export function InjuriesList({ 
+export function InjuriesList({
   injuries = [],
   onInjuryUpdate,
   fighterId,
   fighterRecovery = false,
-  userPermissions
+  userPermissions,
 }: InjuriesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
-  const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
-  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
+  const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(
+    null
+  );
+  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<
+    FighterEffect[]
+  >([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
-    
+
     try {
       setIsLoadingInjuries(true);
-      const response = await fetch(
-        `/api/fighters/injuries`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      
+      const response = await fetch(`/api/fighters/injuries`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
       if (!response.ok) throw new Error('Failed to fetch injuries');
       const data: FighterEffect[] = await response.json();
-      
+
       setLocalAvailableInjuries(data);
     } catch (error) {
       console.error('Error fetching injuries:', error);
       toast({
         description: 'Failed to load injury types',
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setIsLoadingInjuries(false);
@@ -83,29 +86,29 @@ export function InjuriesList({
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
-      toast({
-        description: "Please select an injury",
-        variant: "destructive"
-      });
+      toast({ description: 'Please select an injury', variant: 'destructive' });
       return false;
     }
 
     // Find the selected injury object
-    const injury = localAvailableInjuries.find(injury => injury.id === selectedInjuryId);
+    const injury = localAvailableInjuries.find(
+      (injury) => injury.id === selectedInjuryId
+    );
     if (!injury) {
       toast({
-        description: "Selected injury not found",
-        variant: "destructive"
+        description: 'Selected injury not found',
+        variant: 'destructive',
       });
       return false;
     }
-    
+
     setSelectedInjury(injury);
 
     // Check if the injury requires recovery
-    const requiresRecovery = injury.type_specific_data && 
-                            typeof injury.type_specific_data === 'object' && 
-                            injury.type_specific_data.recovery === "true";
+    const requiresRecovery =
+      injury.type_specific_data &&
+      typeof injury.type_specific_data === 'object' &&
+      injury.type_specific_data.recovery === 'true';
 
     // If fighter is already in recovery, don't show the recovery modal again
     if (requiresRecovery && !fighterRecovery) {
@@ -122,10 +125,7 @@ export function InjuriesList({
 
   const proceedWithAddingInjury = async (sendToRecovery: boolean = false) => {
     if (!selectedInjuryId) {
-      toast({
-        description: "Please select an injury",
-        variant: "destructive"
-      });
+      toast({ description: 'Please select an injury', variant: 'destructive' });
       return false;
     }
 
@@ -133,7 +133,7 @@ export function InjuriesList({
       const result = await addFighterInjury({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
-        send_to_recovery: sendToRecovery
+        send_to_recovery: sendToRecovery,
       });
 
       if (!result.success) {
@@ -142,22 +142,22 @@ export function InjuriesList({
 
       toast({
         description: `Injury added successfully${sendToRecovery ? ' and fighter sent to recovery' : ''}`,
-        variant: "default"
+        variant: 'default',
       });
 
       setSelectedInjuryId('');
       setSelectedInjury(null);
       setIsRecoveryModalOpen(false);
-      
+
       // Refresh the page to get updated data
       router.refresh();
-      
+
       return true;
     } catch (error) {
       console.error('Error adding injury:', error);
       toast({
         description: `Failed to add injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     }
@@ -166,30 +166,30 @@ export function InjuriesList({
   const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
     try {
       setIsDeleting(injuryId);
-      
+
       const result = await deleteFighterInjury({
         fighter_id: fighterId,
-        injury_id: injuryId
+        injury_id: injuryId,
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete injury');
       }
-      
+
       toast({
         description: `${injuryName} removed successfully`,
-        variant: "default"
+        variant: 'default',
       });
-      
+
       // Refresh the page to get updated data
       router.refresh();
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting injury:', error);
       toast({
         description: `Failed to delete injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        variant: 'destructive',
       });
       return false;
     } finally {
@@ -201,9 +201,11 @@ export function InjuriesList({
   const handleInjuryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedInjuryId(id);
-    
+
     if (id) {
-      const selectedInjury = localAvailableInjuries.find(injury => injury.id === id);
+      const selectedInjury = localAvailableInjuries.find(
+        (injury) => injury.id === id
+      );
       setSelectedInjury(selectedInjury || null);
     } else {
       setSelectedInjury(null);
@@ -223,26 +225,18 @@ export function InjuriesList({
           .map((injury) => ({
             id: injury.id,
             name: injury.effect_name,
-            injury_id: injury.id
-          }))
-        }
-        columns={[
-          {
-            key: 'name',
-            label: 'Name',
-            width: '75%'
-          }
-        ]}
+            injury_id: injury.id,
+          }))}
+        columns={[{ key: 'name', label: 'Name', width: '75%' }]}
         actions={[
           {
             label: 'Delete',
             variant: 'destructive',
-            onClick: (item) => setDeleteModalData({
-              id: item.injury_id,
-              name: item.name
-            }),
-            disabled: (item) => isDeleting === item.injury_id || !userPermissions.canEdit
-          }
+            onClick: (item) =>
+              setDeleteModalData({ id: item.injury_id, name: item.name }),
+            disabled: (item) =>
+              isDeleting === item.injury_id || !userPermissions.canEdit,
+          },
         ]}
         onAdd={handleOpenModal}
         addButtonDisabled={!userPermissions.canEdit}
@@ -264,13 +258,14 @@ export function InjuriesList({
                   value={selectedInjuryId}
                   onChange={handleInjuryChange}
                   className="w-full p-2 border rounded-md"
-                  disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
+                  disabled={
+                    isLoadingInjuries && localAvailableInjuries.length === 0
+                  }
                 >
                   <option value="">
                     {isLoadingInjuries && localAvailableInjuries.length === 0
-                      ? "Loading injuries..."
-                      : "Select a Lasting Injury"
-                    }
+                      ? 'Loading injuries...'
+                      : 'Select a Lasting Injury'}
                   </option>
                   {localAvailableInjuries
                     .slice() // avoid mutating the original array
@@ -279,8 +274,7 @@ export function InjuriesList({
                       <option key={injury.id} value={injury.id}>
                         {injury.effect_name}
                       </option>
-                    ))
-                  }
+                    ))}
                 </select>
               </div>
             </div>
@@ -293,7 +287,7 @@ export function InjuriesList({
       )}
 
       {isRecoveryModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
@@ -306,7 +300,9 @@ export function InjuriesList({
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
             <div className="border-b px-[10px] py-2 flex justify-between items-center">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Send ganger into recovery?</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+                  Send ganger into recovery?
+                </h3>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -321,9 +317,12 @@ export function InjuriesList({
                 </button>
               </div>
             </div>
-            
+
             <div className="px-[10px] py-4">
-              <p>You will need to remove the recovery flag yourself when you update the gang next.</p>
+              <p>
+                You will need to remove the recovery flag yourself when you
+                update the gang next.
+              </p>
             </div>
 
             <div className="border-t px-[10px] py-2 flex justify-end gap-2">
@@ -359,15 +358,20 @@ export function InjuriesList({
           title="Delete Lasting Injury"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>
+                Are you sure you want to delete &quot;{deleteModalData.name}
+                &quot;?
+              </p>
               <br />
               <p>This action cannot be undone.</p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteInjury(deleteModalData.id, deleteModalData.name)}
+          onConfirm={() =>
+            handleDeleteInjury(deleteModalData.id, deleteModalData.name)
+          }
         />
       )}
     </>
   );
-} 
+}

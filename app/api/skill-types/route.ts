@@ -6,14 +6,14 @@ export async function GET() {
     const supabase = await createClient();
 
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
-      .from('skill_types')
-      .select('*');
+    const { data, error } = await supabase.from('skill_types').select('*');
 
     if (error) throw error;
 
@@ -25,4 +25,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}

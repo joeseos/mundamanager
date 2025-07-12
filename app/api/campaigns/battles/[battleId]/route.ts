@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 // PUT endpoint to update an existing battle log
 export async function PUT(
@@ -27,14 +27,14 @@ export async function PUT(
 
   try {
     const requestBody = await request.json();
-    const { 
-      scenario, 
-      attacker_id, 
-      defender_id, 
-      winner_id, 
+    const {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
       note,
       participants,
-      claimed_territories = [] 
+      claimed_territories = [],
     } = requestBody;
 
     // Validate required fields
@@ -69,8 +69,10 @@ export async function PUT(
         defender_id,
         winner_id,
         note,
-        participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-        updated_at: new Date().toISOString()
+        participants: Array.isArray(participants)
+          ? JSON.stringify(participants)
+          : participants,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', battleId)
       .select()
@@ -90,26 +92,24 @@ export async function PUT(
     }
 
     // Then fetch the related data for display
-    const [
-      { data: attacker },
-      { data: defender },
-      { data: winner }
-    ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).single(),
-      supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null })
-    ]);
+    const [{ data: attacker }, { data: defender }, { data: winner }] =
+      await Promise.all([
+        supabase.from('gangs').select('name').eq('id', attacker_id).single(),
+        supabase.from('gangs').select('name').eq('id', defender_id).single(),
+        winner_id
+          ? supabase.from('gangs').select('name').eq('id', winner_id).single()
+          : Promise.resolve({ data: null }),
+      ]);
 
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
       attacker: { gang_name: attacker?.name },
       defender: { gang_name: defender?.name },
-      winner: winner?.name ? { gang_name: winner.name } : null
+      winner: winner?.name ? { gang_name: winner.name } : null,
     };
 
     return NextResponse.json(transformedBattle);
-
   } catch (error) {
     console.error('Error updating battle:', error);
     return NextResponse.json(
@@ -168,7 +168,6 @@ export async function DELETE(
     if (deleteError) throw deleteError;
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
     console.error('Error deleting battle:', error);
     return NextResponse.json(
@@ -176,4 +175,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

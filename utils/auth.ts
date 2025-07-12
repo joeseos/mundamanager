@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export async function checkAdmin(supabase: SupabaseClient) {
   const {
@@ -16,4 +16,4 @@ export async function checkAdmin(supabase: SupabaseClient) {
     .single();
 
   return profile?.user_role === 'admin';
-} 
+}

@@ -1,9 +1,7 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
-import { Button } from "./ui/button";
-import Link from "next/link";
-import Image from "next/image";
-import SettingsModal from "./settings-modal";
+import { createClient } from '@/utils/supabase/server';
+import Link from 'next/link';
+import Image from 'next/image';
+import SettingsModal from './settings-modal';
 
 export default async function HeaderAuth() {
   const supabase = await createClient();
@@ -22,7 +20,7 @@ export default async function HeaderAuth() {
       .select('user_role, username')
       .eq('id', user.id)
       .single();
-    
+
     isAdmin = profile?.user_role === 'admin';
     username = profile?.username;
   }

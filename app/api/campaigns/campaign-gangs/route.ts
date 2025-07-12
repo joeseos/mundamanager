@@ -1,16 +1,16 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
 
   // Check if user is authenticated
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError || !user) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     if (!campaignId || !gangId || !userId) {
       return NextResponse.json(
-        { message: "Campaign ID, Gang ID, and User ID are required" },
+        { message: 'Campaign ID, Gang ID, and User ID are required' },
         { status: 400 }
       );
     }
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     if (existingGang) {
       return NextResponse.json(
-        { message: "This gang is already part of another campaign" },
+        { message: 'This gang is already part of another campaign' },
         { status: 400 }
       );
     }
@@ -48,12 +48,15 @@ export async function POST(request: Request) {
     // Allow if:
     // 1. User is OWNER/ARBITRATOR, or
     // 2. User is adding their own gang (user.id === userId)
-    if (roleError || !memberRole || 
-        (memberRole.role !== 'OWNER' && 
-         memberRole.role !== 'ARBITRATOR' && 
-         user.id !== userId)) {
+    if (
+      roleError ||
+      !memberRole ||
+      (memberRole.role !== 'OWNER' &&
+        memberRole.role !== 'ARBITRATOR' &&
+        user.id !== userId)
+    ) {
       return NextResponse.json(
-        { error: "Insufficient permissions" },
+        { error: 'Insufficient permissions' },
         { status: 403 }
       );
     }
@@ -65,7 +68,7 @@ export async function POST(request: Request) {
         campaign_id: campaignId,
         gang_id: gangId,
         user_id: userId,
-        joined_at: new Date().toISOString()
+        joined_at: new Date().toISOString(),
       });
 
     if (insertError) throw insertError;
@@ -74,7 +77,12 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error adding gang to campaign:', error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to add gang to campaign" },
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to add gang to campaign',
+      },
       { status: 500 }
     );
   }
@@ -84,10 +92,12 @@ export async function DELETE(request: Request) {
   const supabase = await createClient();
 
   // Get the authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -95,7 +105,7 @@ export async function DELETE(request: Request) {
 
     if (!campaignId || !gangId) {
       return NextResponse.json(
-        { error: "Campaign ID and Gang ID are required" }, 
+        { error: 'Campaign ID and Gang ID are required' },
         { status: 400 }
       );
     }
@@ -108,9 +118,13 @@ export async function DELETE(request: Request) {
       .eq('user_id', user.id)
       .single();
 
-    if (user.id !== userId && memberData?.role !== 'OWNER' && memberData?.role !== 'ARBITRATOR') {
+    if (
+      user.id !== userId &&
+      memberData?.role !== 'OWNER' &&
+      memberData?.role !== 'ARBITRATOR'
+    ) {
       return NextResponse.json(
-        { error: "Unauthorized to remove gang for other users" }, 
+        { error: 'Unauthorized to remove gang for other users' },
         { status: 403 }
       );
     }
@@ -128,8 +142,8 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error removing gang from campaign:', error);
     return NextResponse.json(
-      { error: "Failed to remove gang from campaign" }, 
+      { error: 'Failed to remove gang from campaign' },
       { status: 500 }
     );
   }
-} 
+}

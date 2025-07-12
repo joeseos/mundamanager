@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 import { Component, ReactNode } from 'react';
 
@@ -12,7 +12,7 @@ interface State {
 
 export class CampaignErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
   };
 
   public static getDerivedStateFromError(): State {
@@ -25,8 +25,12 @@ export class CampaignErrorBoundary extends Component<Props, State> {
         <div className="flex min-h-screen flex-col items-center">
           <div className="container mx-auto max-w-4xl w-full space-y-4">
             <div className="bg-white shadow-md rounded-lg p-4">
-              <h2 className="text-xl font-semibold text-red-500">Something went wrong.</h2>
-              <p className="text-gray-600">Unable to load campaign data. Please try again later.</p>
+              <h2 className="text-xl font-semibold text-red-500">
+                Something went wrong.
+              </h2>
+              <p className="text-gray-600">
+                Unable to load campaign data. Please try again later.
+              </p>
             </div>
           </div>
         </div>
@@ -35,4 +39,4 @@ export class CampaignErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
-} 
+}

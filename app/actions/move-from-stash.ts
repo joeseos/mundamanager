@@ -1,9 +1,9 @@
-'use server'
+'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { createClient } from '@/utils/supabase/server';
+import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from 'next/cache';
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -20,40 +20,46 @@ interface MoveFromStashResult {
   error?: string;
 }
 
-export async function moveEquipmentFromStash(params: MoveFromStashParams): Promise<MoveFromStashResult> {
+export async function moveEquipmentFromStash(
+  params: MoveFromStashParams
+): Promise<MoveFromStashResult> {
   const supabase = await createClient();
-  
+
   try {
     // Validate input parameters
     if (!params.fighter_id && !params.vehicle_id) {
       throw new Error('Either fighter_id or vehicle_id must be provided');
     }
-    
+
     if (params.fighter_id && params.vehicle_id) {
       throw new Error('Cannot provide both fighter_id and vehicle_id');
     }
 
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       throw new Error('User not authenticated');
     }
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase);
-    
+
     // Get the stash item data first to check permissions
     const { data: stashData, error: stashError } = await supabase
       .from('gang_stash')
-      .select(`
+      .select(
+        `
         id,
         gang_id,
         equipment_id,
         custom_equipment_id,
         cost,
         is_master_crafted
-      `)
+      `
+      )
       .eq('id', params.stash_id)
       .single();
 
@@ -64,7 +70,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Validate that stash item has either equipment_id or custom_equipment_id
     const isCustomEquipment = !!stashData.custom_equipment_id;
     if (!stashData.equipment_id && !stashData.custom_equipment_id) {
-      throw new Error('Stash item has neither equipment_id nor custom_equipment_id');
+      throw new Error(
+        'Stash item has neither equipment_id nor custom_equipment_id'
+      );
     }
 
     // Verify fighter/vehicle belongs to same gang as stash item
@@ -124,13 +132,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         equipment_id: stashData.equipment_id,
         custom_equipment_id: stashData.custom_equipment_id,
         purchase_cost: stashData.cost,
-        is_master_crafted: stashData.is_master_crafted || false
+        is_master_crafted: stashData.is_master_crafted || false,
       })
       .select('id')
       .single();
 
     if (insertError || !equipmentData) {
-      throw new Error(`Failed to insert equipment into fighter_equipment: ${insertError?.message || 'No data returned'}`);
+      throw new Error(
+        `Failed to insert equipment into fighter_equipment: ${insertError?.message || 'No data returned'}`
+      );
     }
 
     // Delete from gang_stash (this completes the move operation)
@@ -146,8 +156,10 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .from('fighter_equipment')
         .delete()
         .eq('id', equipmentData.id);
-        
-      throw new Error(`Failed to delete from gang_stash: ${deleteError.message}`);
+
+      throw new Error(
+        `Failed to delete from gang_stash: ${deleteError.message}`
+      );
     }
 
     // Fetch weapon profiles for regular equipment (not custom equipment)
@@ -155,7 +167,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     if (!isCustomEquipment && stashData.equipment_id) {
       const { data: profiles, error: profilesError } = await supabase
         .from('weapon_profiles')
-        .select(`
+        .select(
+          `
           id,
           profile_name,
           range_short,
@@ -170,14 +183,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           weapon_id,
           created_at,
           weapon_group_id
-        `)
+        `
+        )
         .eq('weapon_id', stashData.equipment_id);
 
       if (!profilesError && profiles) {
         // Add is_master_crafted flag to each profile
-        weaponProfiles = profiles.map(profile => ({
+        weaponProfiles = profiles.map((profile) => ({
           ...profile,
-          is_master_crafted: stashData.is_master_crafted || false
+          is_master_crafted: stashData.is_master_crafted || false,
         }));
       }
     }
@@ -206,15 +220,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       success: true,
       data: {
         equipment_id: equipmentData.id,
-        weapon_profiles: weaponProfiles
-      }
+        weapon_profiles: weaponProfiles,
+      },
     };
-
   } catch (error) {
     console.error('Error in moveEquipmentFromStash server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error:
+        error instanceof Error ? error.message : 'An unknown error occurred',
     };
   }
 }
