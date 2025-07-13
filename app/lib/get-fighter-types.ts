@@ -112,10 +112,6 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
       data = result;
     }
     
-    // Apply gang variant filtering if variants are provided
-    if (params.gangVariants && params.gangVariants.length > 0) {
-      data = applyGangVariantFiltering(data, params.gangVariants);
-    }
     
     return { success: true, data };
   } catch (error) {
@@ -127,48 +123,6 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
   }
 }
 
-// Helper function to apply gang variant logic to fighter types
-function applyGangVariantFiltering(fighterTypes: FighterType[], gangVariants: Array<{id: string, variant: string}>): FighterType[] {
-  if (!fighterTypes || !gangVariants || gangVariants.length === 0) {
-    return fighterTypes;
-  }
-  
-  const variantNames = gangVariants.map(v => v.variant.toLowerCase());
-  
-  // Apply variant-specific logic
-  return fighterTypes.filter(fighterType => {
-    // Example variant logic - adjust based on your specific requirements
-    // This is where you'd implement the business rules for which variants
-    // add/remove which fighter types
-    
-    // For now, implementing basic filtering logic
-    // You'll need to expand this based on your specific variant rules
-    
-    // Example: If gang has "Outlaw" variant, certain fighter types might be restricted
-    if (variantNames.includes('outlaw')) {
-      // Add specific outlaw filtering logic here
-      // For example, remove law-abiding fighter types
-      if (fighterType.alignment?.toLowerCase() === 'law abiding') {
-        return false;
-      }
-    }
-    
-    // Example: If gang has "Chaos Corrupted" variant, add chaos-specific types
-    if (variantNames.includes('chaos corrupted')) {
-      // Chaos corrupted gangs might have access to additional fighter types
-      // This would typically add types rather than filter them
-    }
-    
-    // Example: If gang has "Skirmish" variant, limit to core types only
-    if (variantNames.includes('skirmish')) {
-      // Skirmish mode might restrict exotic fighter types
-      // Add specific skirmish filtering logic here
-    }
-    
-    // Default: include the fighter type
-    return true;
-  });
-}
 
 // Helper function to generate cache key with variants
 function generateCacheKey(gangTypeId: string, gangVariants?: Array<{id: string, variant: string}>, prefix: string = 'fighter-types'): string {
@@ -178,7 +132,6 @@ function generateCacheKey(gangTypeId: string, gangVariants?: Array<{id: string, 
     return `${baseKey}-variants-none`;
   }
   
-  // Sort variant IDs for consistent cache keys
   const sortedVariantIds = gangVariants
     .map(v => v.id)
     .sort()
