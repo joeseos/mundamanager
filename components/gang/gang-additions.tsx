@@ -636,20 +636,12 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                 // Update equipment with costs - handle default replacement for optional_single
                                 setSelectedEquipment((prev) => {
                                   // Remove previous selections from this specific category only
-                                  // We need to track which category each equipment came from
+                                  // Use current category options directly to avoid stale state issues
                                   const currentCategoryOptions = categoryData.options || [];
-                                  const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
-                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                  );
                                   
-                                  // Remove equipment that was previously selected in this category
+                                  // Remove any equipment that could come from this category
                                   let filtered = prev.filter(item => {
-                                    // Check if this item was selected from the current category
-                                    const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
-                                      const equipmentIdFromSelected = selectedId.split('-').pop();
-                                      return equipmentIdFromSelected === item.equipment_id;
-                                    });
-                                    return !wasSelectedFromThisCategory;
+                                    return !currentCategoryOptions.some(categoryOption => categoryOption.id === item.equipment_id);
                                   });
                                   
                                   // For optional_single selections, also remove default equipment when selecting a replacement
