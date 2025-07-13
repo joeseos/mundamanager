@@ -314,25 +314,11 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (deleteError) throw deleteError;
 
-        // Update gang credits with fighter's credits
-        const { data: updatedGang, error: gangUpdateError } = await supabase
-          .from('gangs')
-          .update({ 
-            credits: gangCredits + fighter.credits,
-            last_updated: new Date().toISOString()
-          })
-          .eq('id', gangId)
-          .select('id, credits')
-          .single();
-
-        if (gangUpdateError) throw gangUpdateError;
-
         invalidateFighterData(params.fighter_id, gangId);
 
         return {
           success: true,
           data: { 
-            gang: updatedGang,
             redirectTo: `/gang/${gangId}`
           }
         };
