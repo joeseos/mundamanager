@@ -429,8 +429,8 @@ const handleAlignmentChange = (value: string) => {
     try {
       const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
       
-      // Fetch base Gang fighter types
-      let baseData = await getFighterTypesUncachedClient(gang_type_id);
+      // Fetch base Gang fighter types with variants
+      let baseData = await getFighterTypesUncachedClient(gang_type_id, variantList);
 
       // If variantList, fetch Gang Variants fighter types
       for (const variant of variantList) {

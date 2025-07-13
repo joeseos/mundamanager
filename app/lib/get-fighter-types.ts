@@ -75,6 +75,7 @@ interface GetFighterTypesParams {
   gangTypeId?: string;
   isGangAddition?: boolean;
   includeClassId?: boolean;
+  gangVariants?: Array<{id: string, variant: string}>;
 }
 
 interface GetFighterTypesResult {
@@ -111,6 +112,7 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
       data = result;
     }
     
+    
     return { success: true, data };
   } catch (error) {
     console.error('Error in _getFighterTypesUnified:', error);
@@ -119,6 +121,23 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
+}
+
+
+// Helper function to generate cache key with variants
+function generateCacheKey(gangTypeId: string, gangVariants?: Array<{id: string, variant: string}>, prefix: string = 'fighter-types'): string {
+  const baseKey = `${prefix}-${gangTypeId}`;
+  
+  if (!gangVariants || gangVariants.length === 0) {
+    return `${baseKey}-variants-none`;
+  }
+  
+  const sortedVariantIds = gangVariants
+    .map(v => v.id)
+    .sort()
+    .join('-');
+  
+  return `${baseKey}-variants-${sortedVariantIds}`;
 }
 
 /**
@@ -132,27 +151,31 @@ export async function getFighterTypesUnified(params: GetFighterTypesParams): Pro
     
     // For gang additions, use a different cache key pattern
     if (params.isGangAddition) {
+      const cacheKey = generateCacheKey(params.gangTypeId || 'all', params.gangVariants, 'gang-addition-types');
+      
       return unstable_cache(
         async () => {
           return _getFighterTypesUnified(params, supabase);
         },
-        [`gang-addition-types-${params.gangTypeId || 'all'}`],
+        [cacheKey],
         {
           tags: ['gang-addition-types', `gang-addition-types-${params.gangTypeId || 'all'}`],
           revalidate: 3600 // 1 hour for reference data
         }
       )();
     } else {
-      // For regular fighters, maintain the existing cache pattern
+      // For regular fighters, use variant-aware cache key
       if (!params.gangTypeId) {
         return { success: false, error: 'Gang type ID is required for regular fighters' };
       }
+      
+      const cacheKey = generateCacheKey(params.gangTypeId, params.gangVariants, 'fighter-types');
       
       return unstable_cache(
         async () => {
           return _getFighterTypesUnified(params, supabase);
         },
-        [`fighter-types-${params.gangTypeId}`],
+        [cacheKey],
         {
           tags: ['fighter-types', `fighter-types-${params.gangTypeId}`],
           revalidate: 3600 // 1 hour for reference data
@@ -190,11 +213,12 @@ export async function getFighterTypesUncached(params: GetFighterTypesParams): Pr
  * Maintains the same interface as the existing getFighterTypes function
  * Note: Direct call without caching since these are used from client components
  */
-export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]> {
+export async function getFighterTypes(gangTypeId: string, gangVariants?: Array<{id: string, variant: string}>): Promise<FighterType[]> {
   const result = await getFighterTypesUnified({ 
     gangTypeId, 
     isGangAddition: false, 
-    includeClassId: true 
+    includeClassId: true,
+    gangVariants
   });
   
   if (!result.success) {
@@ -208,10 +232,11 @@ export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]
  * Function for gang additions - cached version for server components
  * Provides same interface as the RPC call in gang-additions.tsx
  */
-export async function getGangAdditionTypes(gangTypeId?: string): Promise<FighterType[]> {
+export async function getGangAdditionTypes(gangTypeId?: string, gangVariants?: Array<{id: string, variant: string}>): Promise<FighterType[]> {
   const result = await getFighterTypesUnified({ 
     gangTypeId, 
-    isGangAddition: true 
+    isGangAddition: true,
+    gangVariants
   });
   
   if (!result.success) {
@@ -224,11 +249,12 @@ export async function getGangAdditionTypes(gangTypeId?: string): Promise<Fighter
 /**
  * Uncached versions for client component calls
  */
-export async function getFighterTypesUncachedClient(gangTypeId: string): Promise<FighterType[]> {
+export async function getFighterTypesUncachedClient(gangTypeId: string, gangVariants?: Array<{id: string, variant: string}>): Promise<FighterType[]> {
   const result = await getFighterTypesUncached({ 
     gangTypeId, 
     isGangAddition: false, 
-    includeClassId: true 
+    includeClassId: true,
+    gangVariants
   });
   
   if (!result.success) {
@@ -238,10 +264,11 @@ export async function getFighterTypesUncachedClient(gangTypeId: string): Promise
   return result.data || [];
 }
 
-export async function getGangAdditionTypesUncachedClient(gangTypeId?: string): Promise<FighterType[]> {
+export async function getGangAdditionTypesUncachedClient(gangTypeId?: string, gangVariants?: Array<{id: string, variant: string}>): Promise<FighterType[]> {
   const result = await getFighterTypesUncached({ 
     gangTypeId, 
-    isGangAddition: true 
+    isGangAddition: true,
+    gangVariants
   });
   
   if (!result.success) {
