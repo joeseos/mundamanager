@@ -50,6 +50,7 @@ interface GangEditModalProps {
   allianceName: string;
   gangColour: string;
   gangVariants: Array<{id: string, variant: string}>;
+  availableVariants: Array<{id: string, variant: string}>;
   
   // Campaign features
   campaigns?: Campaign[];
@@ -84,6 +85,7 @@ export default function GangEditModal({
   allianceName,
   gangColour,
   gangVariants,
+  availableVariants,
   campaigns,
   onSave
 }: GangEditModalProps) {
@@ -106,8 +108,6 @@ export default function GangEditModal({
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
   
-  // Variant management state
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
@@ -126,9 +126,6 @@ export default function GangEditModal({
       setEditedGangColour(gangColour);
       setEditedGangIsVariant(gangVariants.length > 0);
       setEditedGangVariants([...gangVariants]);
-      
-      // Fetch available variants
-      fetchAvailableVariants();
     }
   }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants]);
 
@@ -150,20 +147,6 @@ export default function GangEditModal({
     }
   };
 
-  const fetchAvailableVariants = async () => {
-    try {
-      const response = await fetch('/api/gang_variant_types');
-      if (!response.ok) throw new Error('Failed to fetch variants');
-      const data = await response.json();
-      setAvailableVariants(data);
-    } catch (error) {
-      console.error('Error fetching variants:', error);
-      toast({
-        description: 'Failed to load variants',
-        variant: "destructive"
-      });
-    }
-  };
 
   const syncGangVariantsWithAlignment = (newAlignment: string) => {
     const outlaw = availableVariants.find(v => v.variant === 'Outlaw');

@@ -168,6 +168,7 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   // Page view mode
@@ -480,8 +481,22 @@ export default function Gang({
     }
   };
 
-  const handleEditModalOpen = () => {
-    setShowEditModal(true);
+  const handleEditModalOpen = async () => {
+    // Fetch variants BEFORE opening modal (like the original)
+    try {
+      const response = await fetch('/api/gang_variant_types');
+      if (!response.ok) throw new Error('Failed to fetch variants');
+      const data = await response.json();
+      setAvailableVariants(data);
+    } catch (error) {
+      console.error('Error fetching variants:', error);
+      toast({
+        description: 'Failed to load variants',
+        variant: "destructive"
+      });
+    }
+    
+    setShowEditModal(true); // Only open AFTER variants are ready
   };
 
 
@@ -821,6 +836,7 @@ export default function Gang({
             allianceName={allianceName}
             gangColour={gangColour}
             gangVariants={gangVariants}
+            availableVariants={availableVariants}
             campaigns={campaigns}
             onSave={handleGangUpdate}
           />
