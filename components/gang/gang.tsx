@@ -3,9 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import DeleteGangButton from "./delete-gang-button";
 import { FighterProps } from '@/types/fighter';
-import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -14,24 +12,20 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { allianceRank } from "@/utils/allianceRank";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
-import { gangVariantRank } from "@/utils/gangVariantRank";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
+import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
-import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import PrintModal from "@/components/print-modal";
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
-import { HexColorPicker } from "react-colorful";
 import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
+import GangEditModal from './gang-edit-modal';
 
 interface VehicleType {
   id: string;
@@ -161,21 +155,9 @@ export default function Gang({
   const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
   const [rating, setRating] = useState<number>(initialRating ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState(initialName)
   const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
-  const [editedCredits, setEditedCredits] = useState('');
-  const [editedReputation, setEditedReputation] = useState('');
-  const [editedMeat, setEditedMeat] = useState((initialMeat ?? 0).toString())
-  const [editedScavengingRolls, setEditedScavengingRolls] = useState((initialScavengingRolls ?? 0).toString())
-  const [editedExplorationPoints, setEditedExplorationPoints] = useState((initialExplorationPoints ?? 0).toString())
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [alignment, setAlignment] = useState(initialAlignment);
-  const [editedAlignment, setEditedAlignment] = useState(initialAlignment);
-  const [editedAllianceId, setEditedAllianceId] = useState(initialAllianceId);
-  const [editedAllianceName, setEditedAllianceName] = useState(initialAllianceName);
-  const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
-  const [allianceListLoaded, setAllianceListLoaded] = useState(false);
   const [allianceId, setAllianceId] = useState<string | null>(initialAllianceId);
   const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -186,12 +168,7 @@ export default function Gang({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [editedGangIsVariant, setEditedGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showColourPickerModal, setShowColourPickerModal] = useState(false);
-  const [editedGangColour, setEditedGangColour] = useState(gangColour);
   const [showLogsModal, setShowLogsModal] = useState(false);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
@@ -284,46 +261,11 @@ export default function Gang({
     link.click();
   };
 
-  const fetchAlliances = async () => {
-    if (allianceListLoaded) return;
-    
+
+  // Handle gang updates from the edit modal
+  const handleGangUpdate = async (updates: any): Promise<boolean> => {
     try {
-      const response = await fetch('/api/alliances');
-      if (!response.ok) throw new Error('Failed to fetch alliances');
-      const data = await response.json();
-      setAllianceList(data);
-      setAllianceListLoaded(true);
-    } catch (error) {
-      console.error('Error fetching alliances:', error);
-      toast({
-        description: 'Failed to load alliances',
-        variant: "destructive"
-      });
-    }
-  };
-
-const syncGangVariantsWithAlignment = (newAlignment: string) => {
-  const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
-  const hasOutlaw = editedGangVariants.some(v => v.variant === 'Outlaw');
-
-  if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
-    setEditedGangVariants(prev => [...prev, outlaw]);
-  } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
-    setEditedGangVariants(prev => prev.filter(v => v.variant !== 'Outlaw'));
-  }
-};
-
-const handleAlignmentChange = (value: string) => {
-  setEditedAlignment(value);
-  syncGangVariantsWithAlignment(value);
-};
-
-  const handleSave = async () => {
-    try {
-      const creditsDifference = parseInt(editedCredits) || 0;
-      const reputationDifference = parseInt(editedReputation) || 0;
-
-      // Optimistically update the UI before the API request completes
+      // Store previous values for optimistic updates
       const prevName = name;
       const prevCredits = credits;
       const prevAlignment = alignment;
@@ -337,43 +279,36 @@ const handleAlignmentChange = (value: string) => {
       const prevGangIsVariant = gangIsVariant;
       const prevGangColour = gangColour;
 
-      // Update state optimistically
-      setName(editedName);
-      setCredits(prevCredits + creditsDifference);
-      setAlignment(editedAlignment);
-      setAllianceId(editedAllianceId === '' ? null : editedAllianceId);
-      setAllianceName(allianceList.find(a => a.id === editedAllianceId)?.alliance_name || "");
-      setReputation(prevReputation + reputationDifference);
-      setMeat(parseInt(editedMeat));
-      setScavengingRolls(parseInt(editedScavengingRolls));
-      setExplorationPoints(parseInt(editedExplorationPoints));
-      setGangIsVariant(editedGangIsVariant);
-      setGangVariants(editedGangVariants);
-      setGangColour(editedGangColour);
-      fetchFighterTypes(editedGangVariants);
+      // Apply optimistic updates
+      setName(updates.name);
+      setCredits(prevCredits + (updates.credits_operation === 'add' ? updates.credits : -updates.credits));
+      setAlignment(updates.alignment);
+      setAllianceId(updates.alliance_id);
+      setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
+      setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
+      setMeat(updates.meat);
+      setScavengingRolls(updates.scavenging_rolls);
+      setExplorationPoints(updates.exploration_points);
+      setGangColour(updates.gang_colour);
+      
+      // Handle gang variants
+      const newVariants = updates.gang_variants.map((variantId: string) => 
+        gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
+      );
+      setGangVariants(newVariants);
+      setGangIsVariant(newVariants.length > 0);
+      
+      // Update fighter types if variants changed
+      fetchFighterTypes(newVariants);
 
-      const response = await fetch(`/api/gangs/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: editedName,
-          credits: Math.abs(creditsDifference),
-          credits_operation: creditsDifference >= 0 ? 'add' : 'subtract',
-          alignment: editedAlignment,
-          alliance_id: editedAllianceId === '' ? null : editedAllianceId,
-          reputation: Math.abs(reputationDifference),
-          reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
-          meat: parseInt(editedMeat),
-          scavenging_rolls: parseInt(editedScavengingRolls),
-          exploration_points: parseInt(editedExplorationPoints),
-          gang_variants: editedGangVariants.map(v => v.id),
-          gang_colour: editedGangColour,
-        }),
+      // Use server action instead of fetch
+      const { updateGang } = await import('@/app/actions/update-gang');
+      const result = await updateGang({
+        gang_id: id,
+        ...updates
       });
 
-      if (!response.ok) {
+      if (!result.success) {
         // Revert optimistic updates if the request fails
         setName(prevName);
         setCredits(prevCredits);
@@ -388,33 +323,29 @@ const handleAlignmentChange = (value: string) => {
         setGangVariants(prevGangVariants);
         setGangColour(prevGangColour);
         
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(result.error || 'Failed to update gang');
       }
 
-      const updatedGang = await response.json();
-      
-      // Since we've already updated the state optimistically,
-      // just need to update last_updated from the response
-      setLastUpdated(updatedGang.last_updated);
+      // Update from server response
+      if (result.data) {
+        setLastUpdated(result.data.last_updated);
+        
+        // Update alliance name if alliance was changed
+        if (result.data.alliance_name) {
+          setAllianceName(result.data.alliance_name);
+        }
+        
+        // Update gang variants from server response
+        if (result.data.gang_variants) {
+          setGangVariants(result.data.gang_variants);
+          setGangIsVariant(result.data.gang_variants.length > 0);
+        }
+      }
 
-      toast({
-        description: "Gang updated successfully",
-        variant: "default"
-      });
-
-      setShowEditModal(false);
-      setEditedCredits('');
-      return false;
+      return true;
     } catch (error) {
       console.error('Error updating gang:', error);
-      
-      toast({
-        title: "Error",
-        description: "Failed to update gang. Please try again.",
-        variant: "destructive"
-      });
-
-      return false;
+      throw error;
     }
   };
 
@@ -549,292 +480,10 @@ const handleAlignmentChange = (value: string) => {
     }
   };
 
-  const handleEditModalOpen = async () => {
-    setEditedName(name);
-    setEditedCredits('');
-    setEditedAlignment(alignment);
-    setEditedReputation('');
-    setEditedMeat(meat?.toString() || '0');
-    setEditedScavengingRolls(scavengingRolls?.toString() || '0');
-    setEditedExplorationPoints(explorationPoints?.toString() || '0');
-    setEditedGangIsVariant(gangIsVariant);
-    setEditedGangVariants([...gangVariants]);
-    
-    try {
-      // Fetch all available variants
-      const response = await fetch('/api/gang_variant_types');
-      if (!response.ok) throw new Error('Failed to fetch variants');
-      const data = await response.json();
-      setAvailableVariants(data);
-    } catch (error) {
-      console.error('Error fetching variants:', error);
-      toast({
-        description: 'Failed to load variants',
-        variant: "destructive"
-      });
-    }
-    
+  const handleEditModalOpen = () => {
     setShowEditModal(true);
   };
 
-  const editModalContent = (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Gang Name</p>
-        <Input
-          type="text"
-          value={editedName}
-          onChange={(e) => setEditedName(e.target.value)}
-          className="w-full"
-          placeholder="Gang name"
-        />
-      </div>
-
-      <div className="flex flex-row gap-4">
-        {/* Alignment Section */}
-        <div className="flex-1 space-y-2">
-          <p className="text-sm font-medium">Alignment</p>
-          <select
-            value={editedAlignment || ''}
-            onChange={(e) => handleAlignmentChange(e.target.value)}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Select Alignment</option>
-            <option value="Law Abiding">Law Abiding</option>
-            <option value="Outlaw">Outlaw</option>
-          </select>
-        </div>
-
-        {/* Gang Colour Section */}
-        <div className="space-y-2">
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-sm font-medium">Gang Colour</p>
-            <div
-              className="w-8 h-8 rounded-full border border-black border-2 cursor-pointer"
-              style={{ backgroundColor: editedGangColour }}
-              title="Click to change colour"
-              onClick={() => setShowColourPickerModal(true)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Credits</p>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={editedCredits}
-          onChange={(e) => {
-            const value = e.target.value;
-            setEditedCredits(value);
-          }}
-          className="flex-1"
-          placeholder="Add or remove credits (e.g. 25 or -50)"
-        />
-        <p className="text-sm text-gray-500">
-          Current credits: {credits}
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Reputation</p>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={editedReputation}
-          onChange={(e) => setEditedReputation(e.target.value)}
-          className="flex-1"
-          placeholder="Add or remove reputation (e.g. 1 or -2)"
-        />
-        <p className="text-sm text-gray-500">
-          Current reputation: {reputation}
-        </p>
-      </div>
-
-      {campaigns?.[0]?.has_meat && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Meat
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedMeat}
-            onChange={(e) => setEditedMeat(e.target.value)}
-          />
-        </div>
-      )}
-      {campaigns?.[0]?.has_scavenging_rolls && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Scavenging Rolls
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedScavengingRolls}
-            onChange={(e) => setEditedScavengingRolls(e.target.value)}
-          />
-        </div>
-      )}
-      {campaigns?.[0]?.has_exploration_points && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exploration Points
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedExplorationPoints}
-            onChange={(e) => setEditedExplorationPoints(e.target.value)}
-          />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Alliance</p>
-        <select
-          value={editedAllianceId || ""}
-          onChange={(e) => setEditedAllianceId(e.target.value)}
-          onFocus={fetchAlliances}
-          className="w-full p-2 border rounded-md"
-        >
-          {/* Default "None" option */}
-          <option value="">None</option>
-
-          {/* Display alliances after they are loaded */}
-          {allianceListLoaded ? (
-            Object.entries(
-              allianceList
-                .sort((a, b) => {
-                  const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-                  const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
-                  return rankA - rankB;
-                })
-                .reduce((groups, type) => {
-                  const rank = allianceRank[type.alliance_name.toLowerCase()] ?? Infinity;
-                  let groupLabel = "Other Alliances"; // Default category for unlisted alliances
-
-                  if (rank <= 9) groupLabel = "Criminal Organisations";
-                  else if (rank <= 19) groupLabel = "Merchant Guilds";
-                  else if (rank <= 29) groupLabel = "Noble Houses";
-
-                  if (!groups[groupLabel]) groups[groupLabel] = [];
-                  groups[groupLabel].push(type);
-                  return groups;
-                }, {} as Record<string, typeof allianceList>)
-            ).map(([groupLabel, allianceList]) => (
-              <optgroup key={groupLabel} label={groupLabel}>
-                {allianceList.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.alliance_name}
-                  </option>
-                ))}
-              </optgroup>
-            ))
-          ) : (
-            <>
-              {initialAllianceId && <option value={initialAllianceId}>{initialAllianceName}</option>}
-              <option value="" disabled>Loading Alliances...</option>
-            </>
-          )}
-        </select>
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center space-x-2">
-          <label htmlFor="variant-toggle" className="text-sm font-medium">
-            Gang Variants
-          </label>
-          <Switch
-            id="variant-toggle"
-            checked={editedGangIsVariant}
-            onCheckedChange={setEditedGangIsVariant}
-          />
-        </div>
-
-        {editedGangIsVariant && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
-            {/* Unaffiliated variants */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
-              <div className="flex flex-col gap-2">
-                {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                  )
-                  .map((variant, index, arr) => (
-                    <React.Fragment key={variant.id}>
-                      {/* Insert separator before 'skirmish' */}
-                      {variant.variant.toLowerCase() === "skirmish" && (
-                        <div className="border-t border-gray-300" />
-                      )}
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`variant-${variant.id}`}
-                          checked={editedGangVariants.some(v => v.id === variant.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setEditedGangVariants(prev => [...prev, variant]);
-                            } else {
-                              setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
-                            }
-                          }}
-                        />
-                        <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                          {variant.variant}
-                        </label>
-                      </div>
-                    </React.Fragment>
-                  ))}
-              </div>
-            </div>
-
-            {/* Outlaw/Corrupted variants*/}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
-              <div className="flex flex-col gap-2">
-                {availableVariants
-                  .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
-                  .sort((a, b) =>
-                    (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
-                    (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
-                  )
-                  .map(variant => (
-                    <div key={variant.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`variant-${variant.id}`}
-                        checked={editedGangVariants.some(v => v.id === variant.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setEditedGangVariants(prev => [...prev, variant]);
-                          } else {
-                            setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
-                          }
-                        }}
-                      />
-                      <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                        {variant.variant}
-                      </label>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      <DeleteGangButton gangId={id} />
-    </div>
-  );
 
   const handleAddVehicleModalOpen = () => {
     setShowAddVehicleModal(true);
@@ -1058,74 +707,72 @@ const handleAlignmentChange = (value: string) => {
               <StatItem
                 label="Alignment"
                 value={alignment}
-                isEditing={isEditing}
-                editedValue={editedAlignment}
-                onChange={handleAlignmentChange}
-                type="select"
-                options={['Law Abiding', 'Outlaw']}
+                isEditing={false}
+                editedValue=""
+                onChange={() => {}}
               />
               <StatItem
                 label="Reputation"
                 value={reputation}
-                isEditing={isEditing}
-                editedValue={editedReputation}
-                onChange={setEditedReputation}
+                isEditing={false}
+                editedValue=""
+                onChange={() => {}}
               />
               <StatItem
                 label="Credits"
                 value={credits}
-                isEditing={isEditing}
-                editedValue={editedCredits}
-                onChange={setEditedCredits}
+                isEditing={false}
+                editedValue=""
+                onChange={() => {}}
               />
               <StatItem
                 label="Rating"
                 value={rating}
                 isEditing={false}
-                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                editedValue=""
                 onChange={() => {}}
               />
               <StatItem
                 label="Wealth"
                 value={rating + credits + unassignedVehiclesValue + totalStashValue}
                 isEditing={false}
-                editedValue={typeof rating === 'number' ? rating.toString() : '0'}
+                editedValue=""
                 onChange={() => {}}
               />
               {allianceName && (
                 <StatItem
                   label="Alliance"
                   value={allianceName}
-                  isEditing={isEditing}
-                  editedValue={editedAllianceName}
-                  onChange={setEditedAllianceName}
+                  isEditing={false}
+                  editedValue=""
+                  onChange={() => {}}
                 />
               )}
               {campaigns?.[0]?.has_meat && (
                 <StatItem
                   label="Meat"
                   value={meat}
-                  isEditing={isEditing}
-                  editedValue={editedMeat}
-                  onChange={setEditedMeat}
+                  isEditing={false}
+                  editedValue=""
+                  onChange={() => {}}
                 />
               )}
               {campaigns?.[0]?.has_scavenging_rolls && (
                 <StatItem
                   label="Scavenging Rolls"
                   value={scavengingRolls}
-                  isEditing={isEditing}
-                  editedValue={editedScavengingRolls}
-                  onChange={setEditedScavengingRolls}
+                  isEditing={false}
+                  editedValue=""
+                  onChange={() => {}}
                 />
               )}
               {campaigns?.[0]?.has_exploration_points && (
                 <StatItem
                   label="Exploration Points"
                   value={explorationPoints}
-                  isEditing={isEditing}
-                  editedValue={editedExplorationPoints}
-                  onChange={setEditedExplorationPoints}
+                  isEditing={false}
+                  editedValue=""
+                  onChange={() => {}}
                 />
               )}
             </div>
@@ -1159,59 +806,24 @@ const handleAlignmentChange = (value: string) => {
             <PrintModal gangId={id} onClose={() => setShowPrintModal(false)} />
           )}
 
-          {showEditModal && (
-            <Modal
-              title="Edit Gang"
-              content={editModalContent}
-              onClose={() => {
-                setShowEditModal(false);
-                setEditedCredits('');
-              }}
-              onConfirm={handleSave}
-              confirmText="Save Changes"
-            />
-          )}
-
-          {showColourPickerModal && (
-            <Modal
-              title="Select Gang Colour"
-              helper="This sets your gang's appearance in a campaign."
-              onClose={() => setShowColourPickerModal(false)}
-              onConfirm={() => setShowColourPickerModal(false)}
-              confirmText="Close"
-              content={
-                <div className="space-y-4">
-                  <div className="flex justify-center">
-                    <HexColorPicker color={editedGangColour} onChange={setEditedGangColour} />
-                  </div>
-                  <div className="flex justify-center">
-                    <input
-                      type="text"
-                      value={editedGangColour}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        // Allow only valid 7-character hex strings starting with "#"
-                        if (/^#([0-9A-Fa-f]{0,6})$/.test(val)) {
-                          setEditedGangColour(val);
-                        }
-                      }}
-                      className="w-32 text-center font-mono border rounded p-1 text-sm"
-                      maxLength={7}
-                      placeholder="#ffffff"
-                    />
-                  </div>
-                  <div className="flex justify-center">
-                    <span
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
-                      style={{ color: editedGangColour }}
-                    >
-                      {name}
-                    </span>
-                  </div>
-                </div>
-              }
-            />
-          )}
+          <GangEditModal
+            isOpen={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            gangId={id}
+            gangName={name}
+            credits={credits}
+            reputation={reputation}
+            meat={meat}
+            scavengingRolls={scavengingRolls}
+            explorationPoints={explorationPoints}
+            alignment={alignment}
+            allianceId={allianceId}
+            allianceName={allianceName}
+            gangColour={gangColour}
+            gangVariants={gangVariants}
+            campaigns={campaigns}
+            onSave={handleGangUpdate}
+          />
 
           {showAddFighterModal && (
             <AddFighter
