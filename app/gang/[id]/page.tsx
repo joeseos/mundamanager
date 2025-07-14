@@ -143,7 +143,7 @@ async function processGangData(gangData: any) {
   let processedFighterTypes: FighterType[] = [];
   try {
     const { getFighterTypes } = await import('@/app/lib/get-fighter-types');
-    const fighterTypes = await getFighterTypes(gangData.gang_type_id, gangData.gang_variants);
+    const fighterTypes = await getFighterTypes(gangData.gang_type_id);
     
     // Transform server response to match UI expectations
     processedFighterTypes = fighterTypes.map((type: any) => ({
