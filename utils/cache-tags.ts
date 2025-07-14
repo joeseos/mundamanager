@@ -16,6 +16,7 @@ export function invalidateFighterData(fighterId: string, gangId: string) {
   revalidateTag(CACHE_TAGS.FIGHTER_PAGE(fighterId));
   revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
   revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
+  // This automatically invalidates cached gang details via existing tags
 }
 
 export function invalidateVehicleData(vehicleId: string) {
@@ -37,6 +38,7 @@ export function invalidateGangFinancials(gangId: string) {
   invalidateGangCredits(gangId);
   invalidateGangRating(gangId);
   revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
+  // This automatically invalidates cached gang details via existing tags
 }
 
 // Enhanced fighter data invalidation that includes gang financials
