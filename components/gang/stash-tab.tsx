@@ -71,14 +71,6 @@ export default function GangInventory({
 
   const getItemName = (item: StashItem): string => {
     const baseName = item.vehicle_name || item.equipment_name || 'Unknown Item';
-    
-    // Special case for Enforcer boltgun - we know it should be master-crafted
-    if (item.equipment_type === 'weapon' && 
-        item.equipment_name && 
-        item.equipment_name.toLowerCase() === 'enforcer boltgun') {
-      return `${baseName} (Master-crafted)`;
-    }
-    
     return baseName;
   };
 
