@@ -317,17 +317,16 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   }
 
   try {
-    // Fetch gang data using server-side RPC call
-    const { data, error } = await supabase.rpc('get_gang_details', {
-      p_gang_id: params.id
-    });
+    // Fetch gang data using cached server function
+    const { getGangDetails } = await import('@/app/lib/gang-details');
+    const result = await getGangDetails(params.id);
 
-    if (error) {
-      console.error('Error fetching gang details:', error);
-      throw error;
+    if (!result.success) {
+      console.error('Error fetching gang details:', result.error);
+      throw new Error(result.error || 'Failed to fetch gang details');
     }
 
-    const [gangData] = data || [];
+    const gangData = result.data;
     
     if (!gangData) {
       notFound();
