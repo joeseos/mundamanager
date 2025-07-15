@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { FighterProps, FighterSkills } from "@/types/fighter";
-import { FighterType } from "@/types/fighter-type";
 import { Equipment } from "@/types/equipment";
 
 // Move processGangData function here (server-side processing)
@@ -139,49 +138,6 @@ async function processGangData(gangData: any) {
     };
   });
 
-  // Fetch fighter types on the server-side to enable caching
-  let processedFighterTypes: FighterType[] = [];
-  try {
-    const { getFighterTypes } = await import('@/app/lib/get-fighter-types');
-    const fighterTypes = await getFighterTypes(gangData.gang_type_id);
-    
-    // Transform server response to match UI expectations
-    processedFighterTypes = fighterTypes.map((type: any) => ({
-      id: type.id,
-      fighter_type_id: type.id,
-      fighter_type: type.fighter_type,
-      fighter_class: type.fighter_class,
-      gang_type: type.gang_type,
-      gang_type_id: type.gang_type_id,
-      movement: type.movement,
-      weapon_skill: type.weapon_skill,
-      ballistic_skill: type.ballistic_skill,
-      strength: type.strength,
-      toughness: type.toughness,
-      wounds: type.wounds,
-      initiative: type.initiative,
-      leadership: type.leadership,
-      cool: type.cool,
-      willpower: type.willpower,
-      intelligence: type.intelligence,
-      attacks: type.attacks,
-      limitation: type.limitation,
-      alignment: type.alignment,
-      sub_type: type.sub_type,
-      fighter_sub_type_id: type.sub_type?.id || type.fighter_sub_type_id,
-      cost: type.cost,
-      total_cost: type.total_cost,
-      equipment_selection: type.equipment_selection,
-      default_equipment: type.default_equipment || [],
-      special_rules: type.special_rules || [],
-      is_gang_addition: type.is_gang_addition || false,
-      alliance_id: type.alliance_id || '',
-      alliance_crew_name: type.alliance_crew_name || ''
-    }));
-  } catch (error) {
-    console.error('Error fetching fighter types:', error);
-    // Continue with empty array if fetch fails
-  }
   
   // init or fix positioning for all fighters
   let positioning = gangData.positioning || {};
@@ -256,7 +212,6 @@ async function processGangData(gangData: any) {
     alignment: gangData.alignment,
     alliance_name: gangData.alliance_name || "",
     fighters: processedFighters,
-    fighterTypes: processedFighterTypes,
     campaigns: gangData.campaigns?.map((campaign: any) => ({
       campaign_id: campaign.campaign_id,
       campaign_name: campaign.campaign_name,

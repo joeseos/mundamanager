@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { unstable_cache } from 'next/cache';
 
 // Types for the unified fighter types response
 export interface FighterTypeEquipment {
@@ -83,9 +82,10 @@ interface GetFighterTypesResult {
   error?: string;
 }
 
-// Internal helper function that consolidates both SQL functions
-async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: any) {
+// Core function that calls the appropriate SQL function
+async function getFighterTypesCore(params: GetFighterTypesParams): Promise<GetFighterTypesResult> {
   try {
+    const supabase = await createClient();
     let data;
     
     if (params.isGangAddition) {
@@ -113,7 +113,7 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
     
     return { success: true, data };
   } catch (error) {
-    console.error('Error in _getFighterTypesUnified:', error);
+    console.error('Error in getFighterTypesCore:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'An unknown error occurred'
@@ -122,76 +122,11 @@ async function _getFighterTypesUnified(params: GetFighterTypesParams, supabase: 
 }
 
 /**
- * Unified server action for getting fighter types
- * Replaces both get_add_fighter_details and get_fighter_types_with_cost RPC calls
- * Note: Cached version for server-side calls
- */
-export async function getFighterTypesUnified(params: GetFighterTypesParams): Promise<GetFighterTypesResult> {
-  try {
-    const supabase = await createClient();
-    
-    // For gang additions, use a different cache key pattern
-    if (params.isGangAddition) {
-      return unstable_cache(
-        async () => {
-          return _getFighterTypesUnified(params, supabase);
-        },
-        [`gang-addition-types-${params.gangTypeId || 'all'}`],
-        {
-          tags: ['gang-addition-types', `gang-addition-types-${params.gangTypeId || 'all'}`],
-          revalidate: 3600 // 1 hour for reference data
-        }
-      )();
-    } else {
-      // For regular fighters, maintain the existing cache pattern
-      if (!params.gangTypeId) {
-        return { success: false, error: 'Gang type ID is required for regular fighters' };
-      }
-      
-      return unstable_cache(
-        async () => {
-          return _getFighterTypesUnified(params, supabase);
-        },
-        [`fighter-types-${params.gangTypeId}`],
-        {
-          tags: ['fighter-types', `fighter-types-${params.gangTypeId}`],
-          revalidate: 3600 // 1 hour for reference data
-        }
-      )();
-    }
-  } catch (error) {
-    console.error('Error in getFighterTypesUnified:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
-    };
-  }
-}
-
-/**
- * Direct version without caching for client component calls
- * Use this when calling from client components to avoid cookies() conflict
- */
-export async function getFighterTypesUncached(params: GetFighterTypesParams): Promise<GetFighterTypesResult> {
-  try {
-    const supabase = await createClient();
-    return _getFighterTypesUnified(params, supabase);
-  } catch (error) {
-    console.error('Error in getFighterTypesUncached:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
-    };
-  }
-}
-
-/**
- * Backward-compatible function for regular fighters
- * Maintains the same interface as the existing getFighterTypes function
- * Note: Direct call without caching since these are used from client components
+ * Get fighter types for regular fighters
+ * Used by client components in dropdown menus
  */
 export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUnified({ 
+  const result = await getFighterTypesCore({ 
     gangTypeId, 
     isGangAddition: false, 
     includeClassId: true 
@@ -205,11 +140,11 @@ export async function getFighterTypes(gangTypeId: string): Promise<FighterType[]
 }
 
 /**
- * Function for gang additions - cached version for server components
- * Provides same interface as the RPC call in gang-additions.tsx
+ * Get fighter types for gang additions
+ * Used by client components in dropdown menus
  */
 export async function getGangAdditionTypes(gangTypeId?: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUnified({ 
+  const result = await getFighterTypesCore({ 
     gangTypeId, 
     isGangAddition: true 
   });
@@ -222,31 +157,12 @@ export async function getGangAdditionTypes(gangTypeId?: string): Promise<Fighter
 }
 
 /**
- * Uncached versions for client component calls
+ * Alternative names for client component calls (backward compatibility)
  */
 export async function getFighterTypesUncachedClient(gangTypeId: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUncached({ 
-    gangTypeId, 
-    isGangAddition: false, 
-    includeClassId: true 
-  });
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to fetch fighter types');
-  }
-  
-  return result.data || [];
+  return getFighterTypes(gangTypeId);
 }
 
 export async function getGangAdditionTypesUncachedClient(gangTypeId?: string): Promise<FighterType[]> {
-  const result = await getFighterTypesUncached({ 
-    gangTypeId, 
-    isGangAddition: true 
-  });
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to fetch gang addition types');
-  }
-  
-  return result.data || [];
+  return getGangAdditionTypes(gangTypeId);
 }
