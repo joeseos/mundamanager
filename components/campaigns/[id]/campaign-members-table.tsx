@@ -39,6 +39,9 @@ interface Member {
     status: string | null;
     rating?: number;
     reputation?: number;
+    exploration_points?: number;
+    meat?: number;
+    scavenging_rolls?: number;
   }[];
   index?: number;
 }
@@ -70,6 +73,9 @@ interface MembersTableProps {
   }) => void;
   isCampaignAdmin: boolean;
   isCampaignOwner: boolean;
+  hasExplorationPoints?: boolean;
+  hasMeat?: boolean;
+  hasScavengingRolls?: boolean;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -92,7 +98,10 @@ export default function MembersTable({
   userId,
   onMemberUpdate,
   isCampaignAdmin,
-  isCampaignOwner
+  isCampaignOwner,
+  hasExplorationPoints = false,
+  hasMeat = false,
+  hasScavengingRolls = false
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showGangModal, setShowGangModal] = useState(false)
@@ -456,7 +465,16 @@ export default function MembersTable({
               <th className="px-2 py-2 text-left font-medium max-w-[3rem]">Player</th>
               <th className="px-2 py-2 text-left font-medium max-w-[3.5rem]">Role</th>
               <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Rating</th>
-              <th className="px-2 py-2 text-right font-medium max-w-[3rem]">Reputation</th>
+              <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Rep.</th>
+              {hasExplorationPoints && (
+                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Expl.</th>
+              )}
+              {hasMeat && (
+                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Meat</th>
+              )}
+              {hasScavengingRolls && (
+                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Scav.</th>
+              )}
               {isAdmin && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
             </tr>
           </thead>
@@ -561,6 +579,27 @@ export default function MembersTable({
                     {member.gangs[0]?.reputation ?? "-"}
                   </span>
                 </td>
+                {hasExplorationPoints && (
+                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                    <span className="text-gray-500">
+                      {member.gangs[0]?.exploration_points ?? "-"}
+                    </span>
+                  </td>
+                )}
+                {hasMeat && (
+                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                    <span className="text-gray-500">
+                      {member.gangs[0]?.meat ?? "-"}
+                    </span>
+                  </td>
+                )}
+                {hasScavengingRolls && (
+                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                    <span className="text-gray-500">
+                      {member.gangs[0]?.scavenging_rolls ?? "-"}
+                    </span>
+                  </td>
+                )}
                 {isAdmin && (
                   <td className="px-2 py-2 text-right max-w-[2.5rem]">
                     <Button
@@ -690,7 +729,30 @@ export default function MembersTable({
                 {member.gangs[0]?.reputation ?? "-"}
               </span>
             </div>
-
+            {hasExplorationPoints && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Exploration Points</span>
+                <span className="text-sm text-gray-500">
+                  {member.gangs[0]?.exploration_points ?? "-"}
+                </span>
+              </div>
+            )}
+            {hasMeat && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Meat</span>
+                <span className="text-sm text-gray-500">
+                  {member.gangs[0]?.meat ?? "-"}
+                </span>
+              </div>
+            )}
+            {hasScavengingRolls && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Scavenging Rolls</span>
+                <span className="text-sm text-gray-500">
+                  {member.gangs[0]?.scavenging_rolls ?? "-"}
+                </span>
+              </div>
+            )}
             {isAdmin && (
               <div className="flex justify-end mt-3">
                 <Button

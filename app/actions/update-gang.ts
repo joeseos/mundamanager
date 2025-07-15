@@ -208,6 +208,22 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       revalidateTag(CACHE_TAGS.GANG_CREDITS(params.gang_id));
     }
 
+    // NEW: Invalidate campaign caches if this gang is in any campaigns
+    const { data: campaignGangs, error: campaignGangsError } = await supabase
+      .from('campaign_gangs')
+      .select('campaign_id')
+      .eq('gang_id', params.gang_id);
+    if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
+      for (const cg of campaignGangs) {
+        const campaignId = cg.campaign_id;
+        revalidateTag(`campaign-basic-${campaignId}`);
+        revalidateTag(`campaign-members-${campaignId}`);
+        revalidateTag(`campaign-territories-${campaignId}`);
+        revalidateTag(`campaign-battles-${campaignId}`);
+        revalidateTag(`campaign-${campaignId}`);
+      }
+    }
+
     return {
       success: true,
       data: {

@@ -436,6 +436,9 @@ export default function CampaignPageContent({
                   }}
                   isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                   isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+                  hasExplorationPoints={campaignData.has_exploration_points}
+                  hasMeat={campaignData.has_meat}
+                  hasScavengingRolls={campaignData.has_scavenging_rolls}
                 />
               </div>
 

@@ -6,6 +6,7 @@ import {
   getCampaignTerritories, 
   getCampaignBattles 
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
@@ -19,6 +20,12 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
+    // Revalidate all relevant campaign cache tags for this campaign
+    revalidateTag(`campaign-basic-${campaignId}`);
+    revalidateTag(`campaign-members-${campaignId}`);
+    revalidateTag(`campaign-territories-${campaignId}`);
+    revalidateTag(`campaign-battles-${campaignId}`);
+    revalidateTag(`campaign-${campaignId}`);
     // Use the same cached functions as the page
     const [
       campaignBasic,

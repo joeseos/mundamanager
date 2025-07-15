@@ -128,16 +128,6 @@ export default function CampaignEditModal({
             <div className="space-y-2">
               <label className="flex items-center space-x-2">
                 <Checkbox
-                  checked={formValues.meatEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    meatEnabled: checked === true
-                  }))}
-                />
-                <span>Meat</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <Checkbox
                   checked={formValues.explorationEnabled}
                   onCheckedChange={(checked) => setFormValues(prev => ({
                     ...prev,
@@ -146,6 +136,18 @@ export default function CampaignEditModal({
                 />
                 <span>Exploration Points</span>
               </label>
+              
+              <label className="flex items-center space-x-2">
+                <Checkbox
+                  checked={formValues.meatEnabled}
+                  onCheckedChange={(checked) => setFormValues(prev => ({
+                    ...prev,
+                    meatEnabled: checked === true
+                  }))}
+                />
+                <span>Meat</span>
+              </label>
+
               <label className="flex items-center space-x-2">
                 <Checkbox
                   checked={formValues.scavengingEnabled}
