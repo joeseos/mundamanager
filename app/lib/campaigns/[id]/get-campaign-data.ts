@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { CACHE_TAGS } from '@/utils/cache-tags';
 
 // Type definitions
 interface CampaignBasic {
@@ -299,29 +300,11 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       return sum + individualFighterRating;
     }, 0);
 
-    // Calculate gang-owned vehicles rating - MISSING in original implementation
-    const gangVehicleRating = gangOwnedVehicles.reduce((sum, vehicle) => {
-      let vehicleRating = (vehicle.cost || 0);
-      
-      // Gang vehicle equipment
-      if (vehicle.fighter_equipment) {
-        vehicleRating += vehicle.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
-          equipSum + (eq.purchase_cost || 0), 0);
-      }
-      
-      // Gang vehicle effects
-      if (vehicle.fighter_effects) {
-        vehicleRating += vehicle.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-          const creditsIncrease = effect.type_specific_data?.credits_increase;
-          return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-        }, 0);
-      }
-      
-      return sum + vehicleRating;
-    }, 0);
-
-    // Total gang rating = fighters + gang vehicles
-    const totalRating = fighterRating + gangVehicleRating;
+    // Gang-owned vehicles do NOT count toward gang rating
+    // Only fighter-owned vehicles count (already included in fighterRating)
+    
+    // Total gang rating = fighters only (fighter-owned vehicles already included)
+    const totalRating = fighterRating;
     gangRatings.set(gangId, totalRating);
   });
 
@@ -552,19 +535,38 @@ export const getCampaignBasic = async (campaignId: string) => {
 };
 
 /**
- * Get campaign members with persistent caching
+ * Get campaign members with gang-aware caching
  * Cache key: campaign-members-{campaignId}
- * Invalidation: Server actions only via revalidateTag()
+ * Invalidation: Server actions + gang cache tags
  */
 export const getCampaignMembers = async (campaignId: string) => {
   const supabase = await createClient();
+  
+  // First, get the gang IDs for this campaign to build cache tags
+  const { data: campaignGangs } = await supabase
+    .from('campaign_gangs')
+    .select('gang_id')
+    .eq('campaign_id', campaignId);
+  
+  const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+  
+  // Build cache tags that include gang overview and rating tags
+  const cacheTags = [
+    'campaign-members', 
+    `campaign-members-${campaignId}`, 
+    `campaign-${campaignId}`,
+    // Add gang cache tags so campaign data updates when gang data changes
+    ...gangIds.map(gangId => CACHE_TAGS.GANG_OVERVIEW(gangId)),
+    ...gangIds.map(gangId => CACHE_TAGS.GANG_RATING(gangId))
+  ];
+  
   return unstable_cache(
     async () => {
       return _getCampaignMembers(campaignId, supabase);
     },
     [`campaign-members-${campaignId}`],
     {
-      tags: ['campaign-members', `campaign-members-${campaignId}`, `campaign-${campaignId}`],
+      tags: cacheTags,
       revalidate: false
     }
   )();
