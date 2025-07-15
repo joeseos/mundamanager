@@ -350,9 +350,10 @@ export default function Gang({
     }
   };
 
-  const handleAddFighterClick = () => {
+  const handleAddFighterClick = async () => {
+    // Fetch fighter types BEFORE opening modal to avoid dropdown delay
     if (fighterTypes.length === 0) {
-      fetchFighterTypes();
+      await fetchFighterTypes();
     }
     setShowAddFighterModal(true);
   };
