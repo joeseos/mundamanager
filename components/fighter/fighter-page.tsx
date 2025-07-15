@@ -316,6 +316,32 @@ export default function FighterPage({
 
   const router = useRouter();
   const { toast } = useToast();
+  const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
+
+  // Fetch latest gang credits from API
+  const fetchLatestGangCredits = useCallback(async (gangId: string) => {
+    setIsFetchingGangCredits(true);
+    try {
+      const res = await fetch(`/api/gangs/${gangId}`);
+      if (!res.ok) throw new Error('Failed to fetch gang data');
+      const data = await res.json();
+      if (data.gang && typeof data.gang.credits === 'number') {
+        setFighterData(prev => ({
+          ...prev,
+          gang: prev.gang ? { ...prev.gang, credits: data.gang.credits } : prev.gang
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching latest gang credits:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not fetch latest gang credits.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingGangCredits(false);
+    }
+  }, [toast]);
 
   // Sync local state with props when they change (after router.refresh())
   useEffect(() => {
@@ -710,6 +736,19 @@ export default function FighterPage({
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
+    // If opening the Add Equipment modal, fetch latest credits first
+    if ((modalName === 'addWeapon' || modalName === 'addVehicleEquipment') && value && fighterData.gang?.id) {
+      fetchLatestGangCredits(fighterData.gang.id).then(() => {
+        setUiState(prev => ({
+          ...prev,
+          modals: {
+            ...prev.modals,
+            [modalName]: value
+          }
+        }));
+      });
+      return;
+    }
     setUiState(prev => ({
       ...prev,
       modals: {
@@ -1312,40 +1351,56 @@ export default function FighterPage({
           )}
 
           {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
-            <ItemModal
-              title="Add Equipment"
-              onClose={() => handleModalToggle('addWeapon', false)}
-              gangCredits={fighterData.gang.credits}
-              gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              fighterCredits={fighterData.fighter.credits}
-              onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
-              }
-            />
+            isFetchingGangCredits ? (
+              <Modal
+                title="Loading..."
+                content={<div>Fetching latest gang credits...</div>}
+                onClose={() => handleModalToggle('addWeapon', false)}
+              />
+            ) : (
+              <ItemModal
+                title="Add Equipment"
+                onClose={() => handleModalToggle('addWeapon', false)}
+                gangCredits={fighterData.gang.credits}
+                gangId={fighterData.gang.id}
+                gangTypeId={fighterData.gang.gang_type_id}
+                fighterId={fighterData.fighter.id}
+                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterCredits={fighterData.fighter.credits}
+                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
+                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
+                }
+              />
+            )
           )}
 
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
-            <ItemModal
-              title="Add Vehicle Equipment"
-              onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              gangCredits={fighterData.gang.credits}
-              gangId={fighterData.gang.id}
-              gangTypeId={fighterData.gang.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              fighterCredits={fighterData.fighter.credits}
-              vehicleId={vehicle.id}
-              vehicleType={vehicle.vehicle_type}
-              vehicleTypeId={vehicle.vehicle_type_id}
-              isVehicleEquipment={true}
-              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-              onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
-              }
-            />
+            isFetchingGangCredits ? (
+              <Modal
+                title="Loading..."
+                content={<div>Fetching latest gang credits...</div>}
+                onClose={() => handleModalToggle('addVehicleEquipment', false)}
+              />
+            ) : (
+              <ItemModal
+                title="Add Vehicle Equipment"
+                onClose={() => handleModalToggle('addVehicleEquipment', false)}
+                gangCredits={fighterData.gang.credits}
+                gangId={fighterData.gang.id}
+                gangTypeId={fighterData.gang.gang_type_id}
+                fighterId={fighterData.fighter.id}
+                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterCredits={fighterData.fighter.credits}
+                vehicleId={vehicle.id}
+                vehicleType={vehicle.vehicle_type}
+                vehicleTypeId={vehicle.vehicle_type_id}
+                isVehicleEquipment={true}
+                allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
+                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
+                }
+              />
+            )
           )}
         </div>
       </div>

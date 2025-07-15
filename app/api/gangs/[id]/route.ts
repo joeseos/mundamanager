@@ -11,40 +11,46 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const supabase = await createClient();
 
   try {
-    // Get gang data with all related information, including variant names
+    // Get gang data (no join on gang_variants)
     const { data: gangData, error: gangError } = await supabase
       .from('gangs')
-      .select(`
-        *,
-        campaigns:campaign_gangs(
-          campaign_id, 
-          campaign_name,
-          role,
-          status,
-          has_meat,
-          has_exploration_points,
-          has_scavenging_rolls
-        ),
-        gang_variants!inner(
-          gang_variant_types(id, variant)
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single();
 
     if (gangError) throw gangError;
 
-    // Process the gang data to include variant names
-    const processedGangData = {
-      ...gangData,
-      gang_variants: gangData.gang_variants.map((v: any) => ({
-        id: v.gang_variant_types.id,
-        variant: v.gang_variant_types.variant
-      }))
-    };
+    // Fetch variant details if gang_variants is present and is an array
+    let variantDetails: any[] = [];
+    if (gangData.gang_variants && Array.isArray(gangData.gang_variants)) {
+      const { data: variants, error: variantsError } = await supabase
+        .from('gang_variant_types')
+        .select('id, variant')
+        .in('id', gangData.gang_variants);
+      if (variantsError) throw variantsError;
+      variantDetails = variants;
+    }
 
-    return NextResponse.json({ gang: processedGangData });
+    // Optionally, fetch campaigns as before (if needed)
+    let campaigns: any[] = [];
+    if (gangData.id) {
+      const { data: campaignData, error: campaignError } = await supabase
+        .from('campaign_gangs')
+        .select('campaign_id, campaign_name, role, status, has_meat, has_exploration_points, has_scavenging_rolls')
+        .eq('gang_id', gangData.id);
+      if (!campaignError && campaignData) {
+        campaigns = campaignData;
+      }
+    }
 
+    // Return gang with variant details and campaigns
+    return NextResponse.json({
+      gang: {
+        ...gangData,
+        gang_variants: variantDetails,
+        campaigns,
+      }
+    });
   } catch (error) {
     console.error('Error fetching gang data:', error);
     return NextResponse.json(
