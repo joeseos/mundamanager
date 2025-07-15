@@ -105,6 +105,7 @@ interface GangProps {
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
+  onGangCreditsUpdate?: (newCredits: number) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
@@ -139,6 +140,7 @@ export default function Gang({
   onFighterDeleted,
   onVehicleAdd,
   onFighterAdd,
+  onGangCreditsUpdate,
   positioning,
   gang_variants,
   vehicles,
@@ -282,7 +284,10 @@ export default function Gang({
 
       // Apply optimistic updates
       setName(updates.name);
-      setCredits(prevCredits + (updates.credits_operation === 'add' ? updates.credits : -updates.credits));
+      const newCredits = prevCredits + (updates.credits_operation === 'add' ? updates.credits : -updates.credits);
+      setCredits(newCredits);
+      // Update parent component's credits state
+      onGangCreditsUpdate?.(newCredits);
       setAlignment(updates.alignment);
       setAllianceId(updates.alliance_id);
       setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
@@ -313,6 +318,8 @@ export default function Gang({
         // Revert optimistic updates if the request fails
         setName(prevName);
         setCredits(prevCredits);
+        // Revert parent component's credits state
+        onGangCreditsUpdate?.(prevCredits);
         setAlignment(prevAlignment);
         setAllianceId(prevAllianceId);
         setAllianceName(prevAllianceName);
