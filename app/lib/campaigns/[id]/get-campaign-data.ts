@@ -194,7 +194,10 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         name,
         gang_type,
         gang_colour,
-        reputation
+        reputation,
+        exploration_points,
+        meat,
+        scavenging_rolls
       `)
       .in('id', gangIds);
 
@@ -339,7 +342,10 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         status: cg.status,
         rating: gangRatings.get(cg.gang_id) || 0,
         reputation: gangDetails?.reputation || 0,
-        campaign_member_id: cg.campaign_member_id
+        campaign_member_id: cg.campaign_member_id,
+        exploration_points: gangDetails?.exploration_points ?? null,
+        meat: gangDetails?.meat ?? null,
+        scavenging_rolls: gangDetails?.scavenging_rolls ?? null
       };
     });
 

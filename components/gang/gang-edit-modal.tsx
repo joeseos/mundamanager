@@ -283,6 +283,21 @@ export default function GangEditModal({
         </p>
       </div>
 
+      {campaigns?.[0]?.has_exploration_points && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Exploration Points
+          </label>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedExplorationPoints}
+            onChange={(e) => setEditedExplorationPoints(e.target.value)}
+          />
+        </div>
+      )}
+
       {campaigns?.[0]?.has_meat && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -297,6 +312,7 @@ export default function GangEditModal({
           />
         </div>
       )}
+      
       {campaigns?.[0]?.has_scavenging_rolls && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -308,20 +324,6 @@ export default function GangEditModal({
             pattern="-?[0-9]+"
             value={editedScavengingRolls}
             onChange={(e) => setEditedScavengingRolls(e.target.value)}
-          />
-        </div>
-      )}
-      {campaigns?.[0]?.has_exploration_points && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exploration Points
-          </label>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={editedExplorationPoints}
-            onChange={(e) => setEditedExplorationPoints(e.target.value)}
           />
         </div>
       )}
