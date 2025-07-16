@@ -39,7 +39,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const { dismissNotification, dismissAllNotifications, deleteNotification } = useFetchNotifications({
     onNotifications,
     userId,
-    realtime: true,
+    realtime: false, // Disable realtime here since SettingsModal handles it
     isProfilePage,
   });
 
