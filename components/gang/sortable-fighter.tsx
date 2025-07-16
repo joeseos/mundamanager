@@ -4,16 +4,22 @@ import { CSS } from '@dnd-kit/utilities';
 import FighterCard from './fighter-card';
 import { FighterProps, FighterSkills } from '@/types/fighter';
 import { useState, useEffect } from 'react';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface SortableFighterProps {
   fighter: FighterProps;
   positions: Record<number, string>;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  userPermissions?: UserPermissions;
 }
 
-export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode = 'normal' }: SortableFighterProps) {
+export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode = 'normal', userPermissions }: SortableFighterProps) {
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Check if user can edit to determine if drag should be enabled
+  const canEdit = userPermissions?.canEdit ?? false;
+  
   const {
     attributes,
     listeners,
@@ -23,18 +29,20 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     isDragging: dndKitIsDragging,
   } = useSortable({ 
     id: fighter.id,
-    animateLayoutChanges: () => false
+    animateLayoutChanges: () => false,
+    disabled: !canEdit // Disable drag when user can't edit
   });
 
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
-    cursor: dndKitIsDragging ? 'grabbing' : 'grab',
-    touchAction: 'manipulation',
+    cursor: canEdit ? (dndKitIsDragging ? 'grabbing' : 'grab') : 'default',
+    touchAction: canEdit ? 'manipulation' : 'auto',
     WebkitTouchCallout: 'none',
     WebkitUserSelect: 'none',
     zIndex: dndKitIsDragging ? 50 : 'auto',
     position: 'relative',
+    pointerEvents: 'auto', // Ensure clicks still work for navigation
   } as const;
 
   // Update isDragging when dndKitIsDragging changes
@@ -49,8 +57,8 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(canEdit ? attributes : {})}
+      {...(canEdit ? listeners : {})}
     >
       <FighterCard
         {...fighter}

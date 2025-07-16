@@ -11,6 +11,7 @@ import GangTerritories from "@/components/gang/campaign-tab";
 import GangVehicles from "@/components/gang/vehicles-tab";
 import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
+import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { FiMap } from 'react-icons/fi';
 import { LuClipboard } from 'react-icons/lu';
@@ -19,6 +20,7 @@ interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
   gangId: string;
   userId: string;
+  userPermissions: UserPermissions;
 }
 
 interface GangDataState {
@@ -59,7 +61,8 @@ interface GangDataState {
 export default function GangPageContent({ 
   initialGangData, 
   gangId, 
-  userId 
+  userId,
+  userPermissions 
 }: GangPageContentProps) {
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
@@ -245,6 +248,7 @@ export default function GangPageContent({
             user_id={gangData.processedData.user_id}
             gang_variants={gangData.processedData.gang_variants}
             vehicles={gangData.processedData.vehicles || []}
+            userPermissions={userPermissions}
           />
         </div>
         <GangInventory
@@ -258,6 +262,7 @@ export default function GangPageContent({
           gangId={gangId}
           gangCredits={gangData.processedData.credits}
           onGangCreditsUpdate={handleGangCreditsUpdate}
+          userPermissions={userPermissions}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}
@@ -265,6 +270,7 @@ export default function GangPageContent({
           gangId={gangId}
           onVehicleUpdate={handleVehicleUpdate}
           onFighterUpdate={handleFighterUpdate}
+          userPermissions={userPermissions}
         />
         <div className="bg-white shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
@@ -277,6 +283,7 @@ export default function GangPageContent({
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
           onNoteUpdate={handleNoteUpdate}
+          userPermissions={userPermissions}
         />
       </Tabs>
     </div>

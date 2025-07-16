@@ -4,6 +4,7 @@ import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { SortableFighter } from './sortable-fighter';
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { UserPermissions } from '@/types/user-permissions';
 
 // Add interface definition for MyFightersProps
 interface MyFightersProps {
@@ -12,6 +13,7 @@ interface MyFightersProps {
   error?: string;
   positions: Record<number, string>;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  userPermissions?: UserPermissions;
 }
 
 
@@ -25,7 +27,7 @@ const imageSizes = {
   desktop: '800px'
 };
 
-export function MyFighters({ fighters, positions, isLoading, error, viewMode = 'normal' }: MyFightersProps) {
+export function MyFighters({ fighters, positions, isLoading, error, viewMode = 'normal', userPermissions }: MyFightersProps) {
   const memoizedFormatters = useMemo(() => ({
     getSortedWargear: (wargear: any[]) => 
       wargear
@@ -114,6 +116,7 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
           fighter={fighter}
           positions={positions}
           viewMode={viewMode}
+          userPermissions={userPermissions}
         />
       ))}
     </div>

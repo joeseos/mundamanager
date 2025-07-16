@@ -3,6 +3,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, 
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface DraggableFightersProps {
   fighters: FighterProps[];
@@ -10,6 +11,7 @@ interface DraggableFightersProps {
   onFightersReorder?: (newFighters: FighterProps[]) => void;
   initialPositions: Record<number, string>;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  userPermissions?: UserPermissions;
 }
 
 export function DraggableFighters({ 
@@ -18,6 +20,7 @@ export function DraggableFighters({
   onFightersReorder,
   initialPositions,
   viewMode = 'normal',
+  userPermissions,
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
   const [isMounted, setIsMounted] = useState(false);
@@ -168,6 +171,19 @@ export function DraggableFighters({
         fighters={sortedFighters}
         positions={currentPositions}
         viewMode={viewMode}
+        userPermissions={userPermissions}
+      />
+    );
+  }
+
+  // If user doesn't have edit permissions, render without drag functionality
+  if (!userPermissions?.canEdit) {
+    return (
+      <MyFighters
+        fighters={sortedFighters}
+        positions={currentPositions}
+        viewMode={viewMode}
+        userPermissions={userPermissions}
       />
     );
   }
@@ -186,6 +202,7 @@ export function DraggableFighters({
           fighters={sortedFighters}
           positions={currentPositions}
           viewMode={viewMode}
+          userPermissions={userPermissions}
         />
       </SortableContext>
     </DndContext>
