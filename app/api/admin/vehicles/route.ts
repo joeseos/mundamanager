@@ -1,8 +1,15 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { checkAdmin } from '@/utils/auth';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
+  
+  // Check admin authorization
+  const isAdmin = await checkAdmin(supabase);
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   
   const { searchParams } = new URL(request.url);
   const fetch_type = searchParams.get('fetch_type');
@@ -76,6 +83,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
+  // Check admin authorization
+  const isAdmin = await checkAdmin(supabase);
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const vehicleData = await request.json();
     
@@ -120,6 +133,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   const supabase = await createClient();
+
+  // Check admin authorization
+  const isAdmin = await checkAdmin(supabase);
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   try {
     const vehicleData = await request.json();

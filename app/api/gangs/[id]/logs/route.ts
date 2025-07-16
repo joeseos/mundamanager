@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { checkAdmin } from "@/utils/auth";
 
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -76,7 +77,13 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       }
     }
 
+    // Check if user is admin (admins can access any gang's logs)
+    let isAdmin = false;
     if (!ownsGang && !hasArbitratorAccess) {
+      isAdmin = await checkAdmin(supabase);
+    }
+
+    if (!ownsGang && !hasArbitratorAccess && !isAdmin) {
       console.error('User does not own gang and is not an arbitrator/owner of campaigns containing this gang');
       return NextResponse.json(
         { error: 'Forbidden' },
