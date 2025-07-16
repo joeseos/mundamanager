@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
@@ -53,10 +52,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       throw new Error('User not authenticated');
     }
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
-
-    // Get gang information and verify ownership
+    // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select('id, user_id, credits, reputation')
@@ -65,11 +61,6 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     if (gangError || !gang) {
       throw new Error('Gang not found');
-    }
-
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gang.user_id !== user.id) {
-      throw new Error('User does not have permission to edit this gang');
     }
 
     // Prepare update object
