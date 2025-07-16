@@ -26,6 +26,7 @@ import html2canvas from 'html2canvas';
 import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface VehicleType {
   id: string;
@@ -109,6 +110,7 @@ interface GangProps {
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
+  userPermissions?: UserPermissions;
 }
 
 export default function Gang({ 
@@ -144,6 +146,7 @@ export default function Gang({
   positioning,
   gang_variants,
   vehicles,
+  userPermissions,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -630,7 +633,8 @@ export default function Gang({
                   {additionalButtons}
                   <Button
                     onClick={handleEditModalOpen}
-                    className="bg-black text-white hover:bg-gray-800 print:hidden"
+                    disabled={!userPermissions?.canEdit}
+                    className="bg-black text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Edit
                   </Button>
@@ -806,19 +810,22 @@ export default function Gang({
             <div className="mt-2 flex flex-wrap sm:justify-end justify-center gap-2">
               <Button
                 onClick={handleAddFighterClick}
-                className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
+                disabled={!userPermissions?.canEdit}
+                className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Fighter
               </Button>
               <Button
                 onClick={handleAddVehicleModalOpen}
-                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+                disabled={!userPermissions?.canEdit}
+                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Vehicle
               </Button>
               <Button
                 onClick={handleGangAdditionsModalOpen}
-                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+                disabled={!userPermissions?.canEdit}
+                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Gang Additions
               </Button>
@@ -947,6 +954,7 @@ export default function Gang({
             onFightersReorder={handleFightersReorder}
             initialPositions={positions}
             viewMode={viewMode}
+            userPermissions={userPermissions}
           />
         ) : (
           <div className="text-white italic text-center">No fighters available.</div>

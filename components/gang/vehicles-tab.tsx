@@ -12,6 +12,7 @@ import { Plus, Minus, X } from "lucide-react";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -20,6 +21,7 @@ interface GangVehiclesProps {
   title?: string;
   onVehicleUpdate?: (updatedVehicles: VehicleProps[]) => void;
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
+  userPermissions?: UserPermissions;
 }
 
 // Update the type to match VehicleProps
@@ -34,7 +36,8 @@ export default function GangVehicles({
   gangId,
   title = 'Vehicles',
   onVehicleUpdate,
-  onFighterUpdate
+  onFighterUpdate,
+  userPermissions
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -491,7 +494,7 @@ export default function GangVehicles({
                         size="sm"
                         className="h-6 px-2 text-xs py-0"
                         onClick={(e) => handleEditClick(e, vehicle)}
-                        disabled={isLoading || isEditLoading}
+                        disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
                       >
                         {isEditLoading ? 'Saving...' : 'Edit'}
                       </Button>
@@ -500,7 +503,7 @@ export default function GangVehicles({
                         size="sm"
                         className="h-6 px-2 text-xs py-0"
                         onClick={(e) => handleDeleteClick(e, vehicle)}
-                        disabled={isLoading || isDeleteLoading}
+                        disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
                       >
                         Delete
                       </Button>
@@ -535,7 +538,7 @@ export default function GangVehicles({
 
                 <Button
                   onClick={handleMoveToFighter}
-                  disabled={selectedVehicle === null || !selectedFighter || isLoading}
+                  disabled={selectedVehicle === null || !selectedFighter || isLoading || !userPermissions?.canEdit}
                   className="w-full"
                 >
                   Move to Crew

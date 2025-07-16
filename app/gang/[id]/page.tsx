@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { FighterProps, FighterSkills } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
+import { PermissionService } from "@/app/lib/user-permissions";
 
 // Move processGangData function here (server-side processing)
 async function processGangData(gangData: any) {
@@ -290,11 +291,16 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     // Process the data server-side
     const processedData = await processGangData(gangData);
     
+    // Get user permissions for this gang
+    const permissionService = new PermissionService();
+    const userPermissions = await permissionService.getGangPermissions(user.id, params.id);
+    
     return (
       <GangPageContent
         initialGangData={processedData}
         gangId={params.id}
         userId={user.id}
+        userPermissions={userPermissions}
       />
     );
   } catch (error) {

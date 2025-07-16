@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { Textarea } from '../ui/textarea';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface GangNotesProps {
   gangId: string;
   initialNote?: string;
   onNoteUpdate?: (updatedNote: string) => void;
+  userPermissions?: UserPermissions;
 }
 
-export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesProps) {
+export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissions }: GangNotesProps) {
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +111,10 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate }: GangNotesP
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => setIsEditing(true)}>
+                  <Button 
+                    onClick={() => setIsEditing(true)}
+                    disabled={!userPermissions?.canEdit}
+                  >
                     Edit
                   </Button>
                 )}

@@ -16,6 +16,7 @@ import ItemModal from '@/components/equipment';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
+import { UserPermissions } from '@/types/user-permissions';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -29,6 +30,7 @@ interface GangInventoryProps {
   gangId: string;
   gangCredits: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
+  userPermissions?: UserPermissions;
 }
 
 export default function GangInventory({ 
@@ -42,7 +44,8 @@ export default function GangInventory({
   gangTypeId,
   gangId,
   gangCredits,
-  onGangCreditsUpdate
+  onGangCreditsUpdate,
+  userPermissions
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -365,6 +368,7 @@ export default function GangInventory({
               {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
                 <Button
                   onClick={() => setShowChemAlchemy(true)}
+                  disabled={!userPermissions?.canEdit}
                   variant="default"
                   size="sm"
                   className="font-medium"
@@ -374,6 +378,7 @@ export default function GangInventory({
               )}
               <Button
                 onClick={() => setShowTradingPost(true)}
+                disabled={!userPermissions?.canEdit}
                 variant="default"
                 size="sm"
                 className="font-medium"
@@ -508,6 +513,7 @@ export default function GangInventory({
                       selectedItems.length === 0 || 
                       !selectedFighter || 
                       isLoading || 
+                      !userPermissions?.canEdit ||
                       (hasSelectedVehicle && 
                        !isCrew(findFighter(selectedFighter)) && 
                        !selectedFighter.startsWith('vehicle-')) ||
