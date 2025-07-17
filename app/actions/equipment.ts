@@ -15,6 +15,7 @@ interface BuyEquipmentParams {
   master_crafted?: boolean;
   use_base_cost_for_rating?: boolean;
   buy_for_gang_stash?: boolean;
+  selected_effect_ids?: string[];
 }
 
 interface DeleteEquipmentParams {
@@ -51,7 +52,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       manual_cost: params.manual_cost ?? null,
       master_crafted: params.master_crafted || false,
       use_base_cost_for_rating: params.use_base_cost_for_rating ?? true,
-      buy_for_gang_stash: params.buy_for_gang_stash || false
+      buy_for_gang_stash: params.buy_for_gang_stash || false,
+      selected_effect_ids: params.selected_effect_ids || null
     });
 
     if (error) {

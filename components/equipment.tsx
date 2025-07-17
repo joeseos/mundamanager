@@ -15,6 +15,7 @@ import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Tooltip } from 'react-tooltip';
+import FighterEffectSelection from './fighter-effect-selection';
 
 interface ItemModalProps {
   title: string;
@@ -58,7 +59,7 @@ interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean) => void;
+  onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean, selectedEffectIds?: string[]) => void;
 }
 
 interface Category {
@@ -71,6 +72,11 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
+  const [showEffectSelection, setShowEffectSelection] = useState(false);
+  const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
+  const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const [effectTypes, setEffectTypes] = useState<any[]>([]);
+  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -99,9 +105,102 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
     }
 
     setCreditError(null);
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating);
+    
+    // Check if this equipment has effects that need selection
+    if (!item.is_custom && !showEffectSelection) {
+      // Check if there are any selectable effects (non-fixed) for this equipment
+      const checkSelectableEffects = async () => {
+        try {
+          // Fetch full effect data including modifiers
+          const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch fighter effects');
+          }
+
+          const fetchedEffectTypes = await response.json();
+          setEffectTypes(fetchedEffectTypes);
+
+          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
+            effect.type_specific_data?.effect_selection === 'single_select' || 
+            effect.type_specific_data?.effect_selection === 'multiple_select'
+          );
+
+          if (hasSelectableEffects) {
+            setShowEffectSelection(true);
+            setIsEffectSelectionValid(false);
+            return false; // Don't close modal, show effect selection
+          } else {
+            // All effects are fixed, collect them and proceed directly with purchase
+            const fixedEffects = fetchedEffectTypes
+              ?.filter((effect: any) => 
+                effect.type_specific_data?.effect_selection === 'fixed' || 
+                !effect.type_specific_data?.effect_selection
+              )
+              .map((effect: any) => effect.id) || [];
+            
+            onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
+            return true; // Allow modal to close
+          }
+        } catch (error) {
+          console.error('Error checking selectable effects:', error);
+          // On error, proceed with purchase to avoid blocking the user
+          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
+          return true;
+        }
+      };
+
+      checkSelectableEffects();
+      return false; // Prevent modal from closing while we check
+    }
+    
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
     return true; // Allow modal to close
   };
+
+  const handleEffectSelectionComplete = (effectIds: string[]) => {
+    setSelectedEffectIds(effectIds);
+    setShowEffectSelection(false);
+    setEffectTypes([]);
+    // Proceed with purchase
+    onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, effectIds);
+  };
+
+  const handleEffectSelectionCancel = () => {
+    setShowEffectSelection(false);
+    setSelectedEffectIds([]);
+    setIsEffectSelectionValid(false);
+    setEffectTypes([]);
+  };
+
+  const handleEffectSelectionValidityChange = (isValid: boolean) => {
+    setIsEffectSelectionValid(isValid);
+  };
+
+  if (showEffectSelection) {
+    return (
+      <Modal
+        title="Equipment Effects"
+        content={
+          <FighterEffectSelection
+            equipmentId={item.equipment_id}
+            effectTypes={effectTypes}
+            onSelectionComplete={handleEffectSelectionComplete}
+            onCancel={handleEffectSelectionCancel}
+            onValidityChange={handleEffectSelectionValidityChange}
+            ref={effectSelectionRef}
+          />
+        }
+        onClose={onClose}
+        onConfirm={() => {
+          return effectSelectionRef.current?.handleConfirm() || false;
+        }}
+        confirmText="Confirm Selection"
+        confirmDisabled={!isEffectSelectionValid}
+        width="lg"
+      />
+    );
+  }
 
   return (
     <Modal
@@ -498,7 +597,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true) => {
+  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
     if (!session) return;
     try {
       // Determine if this is a gang stash purchase
@@ -514,6 +613,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
         use_base_cost_for_rating: useBaseCostForRating,
         buy_for_gang_stash: isGangStashPurchase,
+        selected_effect_ids: selectedEffectIds,
         // Only include fighter_id or vehicle_id if not buying for gang stash
         ...(!isGangStashPurchase && (isVehicleEquipment
           ? { vehicle_id: vehicleId || undefined }
@@ -1013,8 +1113,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating) => {
-                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating);
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => {
+                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || []);
                 }}
               />
             )}
@@ -1027,7 +1127,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           item={buyModalData}
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating)}
+          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [])}
         />
       )}
       {/* Weapon Profile Tooltip */}

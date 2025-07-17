@@ -5,6 +5,7 @@ DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUI
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID);
 DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN);
+DROP FUNCTION IF EXISTS buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN, UUID[]);
 
 -- Then create our new function with vehicle support, user_id, fighter effect support, use_base_cost_for_rating, custom equipment support, and gang_stash support
 CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
@@ -16,7 +17,8 @@ CREATE OR REPLACE FUNCTION buy_equipment_for_fighter(
   master_crafted BOOLEAN DEFAULT FALSE,
   use_base_cost_for_rating BOOLEAN DEFAULT TRUE,
   custom_equipment_id UUID DEFAULT NULL,
-  buy_for_gang_stash BOOLEAN DEFAULT FALSE
+  buy_for_gang_stash BOOLEAN DEFAULT FALSE,
+  selected_effect_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB 
 SECURITY DEFINER
@@ -483,120 +485,122 @@ BEGIN
   -- Initialize the final result with collections data
   v_final_result := v_collections_data;
 
-  -- Check if there are any fighter effects associated with this equipment
-  -- Apply effects for fighters OR vehicles (but not gang stash) and not custom equipment
-  IF (v_owner_type = 'fighter' OR v_owner_type = 'vehicle') AND NOT v_is_custom_equipment THEN
-    -- Find fighter effect type that references this equipment
-    SELECT fet.*, fec.id as category_id INTO v_effect_type_record
-    FROM fighter_effect_types fet
-    JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
-    WHERE fet.type_specific_data->>'equipment_id' = buy_equipment_for_fighter.equipment_id::text;
-    
-    -- Only apply effects if we found a matching effect type
-    IF v_effect_type_record.id IS NOT NULL THEN
-      v_has_effect := TRUE;
-      v_fighter_effect_category_id := v_effect_type_record.category_id;
-      v_fighter_effect_type_id := v_effect_type_record.id;
+  -- Apply selected fighter effects for fighters OR vehicles (but not gang stash) and not custom equipment
+  IF (v_owner_type = 'fighter' OR v_owner_type = 'vehicle') AND NOT v_is_custom_equipment AND selected_effect_ids IS NOT NULL AND array_length(selected_effect_ids, 1) > 0 THEN
+    -- Loop through selected effect IDs and apply each one
+    FOR i IN 1..array_length(selected_effect_ids, 1) LOOP
+      -- Get the effect type details
+      SELECT fet.*, fec.id as category_id INTO v_effect_type_record
+      FROM fighter_effect_types fet
+      JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
+      WHERE fet.id = selected_effect_ids[i];
       
-      -- Call appropriate effect function based on owner type
-      IF v_owner_type = 'fighter' THEN
-        -- Call add_fighter_effect function and store result in v_effect_result
-        SELECT afe.result INTO v_effect_result
-        FROM add_fighter_effect(
-          fighter_id,
-          v_fighter_effect_category_id,
-          v_fighter_effect_type_id,
-          v_user_id
-        ) AS afe;
-      ELSIF v_owner_type = 'vehicle' THEN
-        -- Call add_vehicle_effect function and store result in v_effect_result (returns JSON directly)
-        SELECT add_vehicle_effect(
-          vehicle_id,
-          v_fighter_effect_type_id,
-          v_user_id,
-          v_fighter_effect_category_id
-        ) INTO v_effect_result;
-      END IF;
-      
-      -- Extract the fighter effect ID from the result
-      v_fighter_effect_id := (v_effect_result->>'id')::UUID;
-      
-      -- If effect was created successfully, link it to this equipment
-      IF v_fighter_effect_id IS NOT NULL THEN
-        -- Update the fighter_effects record to link to the equipment
-        UPDATE fighter_effects
-        SET fighter_equipment_id = v_new_equipment_id
-        WHERE id = v_fighter_effect_id;
+      -- Only apply effects if we found a matching effect type
+      IF v_effect_type_record.id IS NOT NULL THEN
+        v_has_effect := TRUE;
+        v_fighter_effect_category_id := v_effect_type_record.category_id;
+        v_fighter_effect_type_id := v_effect_type_record.id;
         
-        -- Get the fighter effect details for collections data format
-        SELECT jsonb_build_object(
-          'id', fe.id,
-          'fighter_id', fe.fighter_id,
-          'effect_name', fe.effect_name,
-          'fighter_effect_type_id', fe.fighter_effect_type_id,
-          'fighter_equipment_id', fe.fighter_equipment_id,
-          'created_at', fe.created_at,
-          'category_name', fec.category_name
-        ) INTO v_fighter_effect
-        FROM fighter_effects fe
-        JOIN fighter_effect_categories fec ON fec.id = v_fighter_effect_category_id
-        WHERE fe.id = v_fighter_effect_id;
-        
-        -- Get all effect modifiers for this fighter effect
-        SELECT 
-          jsonb_agg(
-            jsonb_build_object(
-              'id', fem.id,
-              'fighter_effect_id', fem.fighter_effect_id,
-              'stat_name', fem.stat_name,
-              'numeric_value', fem.numeric_value
-            )
-          ) 
-        INTO v_fighter_effect_modifiers
-        FROM fighter_effect_modifiers fem
-        WHERE fem.fighter_effect_id = v_fighter_effect_id;
-        
-        -- Handle NULL case for modifiers
-        IF v_fighter_effect_modifiers IS NULL THEN
-          v_fighter_effect_modifiers := '[]'::jsonb;
-        END IF;
-        
-        -- Add the equipment effect information to the final result
-        -- Only include fighter info if this is for a fighter
+        -- Call appropriate effect function based on owner type
         IF v_owner_type = 'fighter' THEN
-          v_final_result := v_collections_data || jsonb_build_object(
-            'success', TRUE,
-            'fighter', jsonb_build_object(
-              'id', v_fighter_record.id,
-              'xp', v_fighter_record.xp
-            ),
-            'equipment_effect', jsonb_build_object(
-              'id', v_fighter_effect_id, 
-              'effect_name', v_fighter_effect->>'effect_name',
-              'fighter_effect_type_id', v_fighter_effect->>'fighter_effect_type_id',
-              'fighter_equipment_id', v_fighter_effect->>'fighter_equipment_id',
-              'category_name', v_fighter_effect->>'category_name',
-              'fighter_effect_modifiers', v_fighter_effect_modifiers,
-              'created_at', v_fighter_effect->>'created_at'
-            )
-          );
-        ELSE
-          -- For vehicles, don't include fighter info
-          v_final_result := v_collections_data || jsonb_build_object(
-            'success', TRUE,
-            'equipment_effect', jsonb_build_object(
-              'id', v_fighter_effect_id, 
-              'effect_name', v_fighter_effect->>'effect_name',
-              'fighter_effect_type_id', v_fighter_effect->>'fighter_effect_type_id',
-              'fighter_equipment_id', v_fighter_effect->>'fighter_equipment_id',
-              'category_name', v_fighter_effect->>'category_name',
-              'fighter_effect_modifiers', v_fighter_effect_modifiers,
-              'created_at', v_fighter_effect->>'created_at'
-            )
-          );
+          -- Call add_fighter_effect function and store result in v_effect_result
+          SELECT afe.result INTO v_effect_result
+          FROM add_fighter_effect(
+            fighter_id,
+            v_fighter_effect_category_id,
+            v_fighter_effect_type_id,
+            v_user_id
+          ) AS afe;
+        ELSIF v_owner_type = 'vehicle' THEN
+          -- Call add_vehicle_effect function and store result in v_effect_result (returns JSON directly)
+          SELECT add_vehicle_effect(
+            vehicle_id,
+            v_fighter_effect_type_id,
+            v_user_id,
+            v_fighter_effect_category_id
+          ) INTO v_effect_result;
+        END IF;
+        
+        -- Extract the fighter effect ID from the result
+        v_fighter_effect_id := (v_effect_result->>'id')::UUID;
+        
+        -- If effect was created successfully, link it to this equipment
+        IF v_fighter_effect_id IS NOT NULL THEN
+          -- Update the fighter_effects record to link to the equipment
+          UPDATE fighter_effects
+          SET fighter_equipment_id = v_new_equipment_id
+          WHERE id = v_fighter_effect_id;
+          
+          -- Get the fighter effect details for collections data format
+          SELECT jsonb_build_object(
+            'id', fe.id,
+            'fighter_id', fe.fighter_id,
+            'effect_name', fe.effect_name,
+            'fighter_effect_type_id', fe.fighter_effect_type_id,
+            'fighter_equipment_id', fe.fighter_equipment_id,
+            'created_at', fe.created_at,
+            'category_name', fec.category_name
+          ) INTO v_fighter_effect
+          FROM fighter_effects fe
+          JOIN fighter_effect_categories fec ON fec.id = v_fighter_effect_category_id
+          WHERE fe.id = v_fighter_effect_id;
+          
+          -- Get all effect modifiers for this fighter effect
+          SELECT 
+            jsonb_agg(
+              jsonb_build_object(
+                'id', fem.id,
+                'fighter_effect_id', fem.fighter_effect_id,
+                'stat_name', fem.stat_name,
+                'numeric_value', fem.numeric_value
+              )
+            ) 
+          INTO v_fighter_effect_modifiers
+          FROM fighter_effect_modifiers fem
+          WHERE fem.fighter_effect_id = v_fighter_effect_id;
+          
+          -- Handle NULL case for modifiers
+          IF v_fighter_effect_modifiers IS NULL THEN
+            v_fighter_effect_modifiers := '[]'::jsonb;
+          END IF;
+          
+          -- Add the equipment effect information to the final result
+          -- Only include fighter info if this is for a fighter
+          IF v_owner_type = 'fighter' THEN
+            v_final_result := v_collections_data || jsonb_build_object(
+              'success', TRUE,
+              'fighter', jsonb_build_object(
+                'id', v_fighter_record.id,
+                'xp', v_fighter_record.xp
+              ),
+              'equipment_effect', jsonb_build_object(
+                'id', v_fighter_effect_id, 
+                'effect_name', v_fighter_effect->>'effect_name',
+                'fighter_effect_type_id', v_fighter_effect->>'fighter_effect_type_id',
+                'fighter_equipment_id', v_fighter_effect->>'fighter_equipment_id',
+                'category_name', v_fighter_effect->>'category_name',
+                'fighter_effect_modifiers', v_fighter_effect_modifiers,
+                'created_at', v_fighter_effect->>'created_at'
+              )
+            );
+          ELSE
+            -- For vehicles, don't include fighter info
+            v_final_result := v_collections_data || jsonb_build_object(
+              'success', TRUE,
+              'equipment_effect', jsonb_build_object(
+                'id', v_fighter_effect_id, 
+                'effect_name', v_fighter_effect->>'effect_name',
+                'fighter_effect_type_id', v_fighter_effect->>'fighter_effect_type_id',
+                'fighter_equipment_id', v_fighter_effect->>'fighter_equipment_id',
+                'category_name', v_fighter_effect->>'category_name',
+                'fighter_effect_modifiers', v_fighter_effect_modifiers,
+                'created_at', v_fighter_effect->>'created_at'
+              )
+            );
+          END IF;
         END IF;
       END IF;
-    END IF;
+    END LOOP;
   END IF;
 
   -- Return the final result with all necessary data
@@ -605,6 +609,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) TO authenticated;
-GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN) TO service_role;
+REVOKE ALL ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN, UUID[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN, UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_equipment_for_fighter(UUID, UUID, UUID, INTEGER, UUID, BOOLEAN, BOOLEAN, UUID, BOOLEAN, UUID[]) TO service_role;
