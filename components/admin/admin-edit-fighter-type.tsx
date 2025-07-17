@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X, Plus, Minus } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
@@ -134,6 +135,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [gangAdjustedCost, setGangAdjustedCost] = useState('');
   const [gangTypeCosts, setGangTypeCosts] = useState<FighterTypeGangCost[]>([]);
   
+  // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
+  const [skillAccess, setSkillAccess] = useState<{
+    skill_type_id: string;
+    access_level: 'primary' | 'secondary' | 'allowed';
+  }[]>([]);
+  const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
+
   // IMPORTANT: We use uncontrolled inputs with refs for text fields to completely bypass React's
   // rendering cycle during typing, which dramatically improves performance. This prevents the
   // severe lag (1000ms+ per keystroke) that was happening with controlled inputs.
@@ -535,6 +543,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       } else {
         // Reset to empty object if no equipment selection
         setEquipmentSelection({});
+      }
+
+      // Set skill access if present
+      if (data.skill_access) {
+        setSkillAccess(data.skill_access);
+      } else {
+        setSkillAccess([]);
       }
 
       return data;
@@ -1005,7 +1020,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         trading_post_equipment: tradingPostEquipment,
         equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        skill_access: skillAccess
       };
 
       console.log('Sending update data:', updateData);
@@ -1728,6 +1744,100 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       );
                     })}
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Skill Access
+                </label>
+                <div className="overflow-hidden rounded-md border mb-2">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="px-4 py-2 text-left font-medium">Skill Set</th>
+                        <th className="px-4 py-2 text-left font-medium">Access Level</th>
+                        <th className="px-4 py-2 text-center font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {skillAccess.map((row, idx) => {
+                        const skillType = skillTypes.find(st => st.id === row.skill_type_id);
+                        return (
+                          <tr key={row.skill_type_id} className="border-b last:border-0">
+                            <td className="px-4 py-2">{skillType?.skill_type || 'Unknown'}</td>
+                            <td className="px-4 py-2">
+                              <select
+                                value={row.access_level}
+                                onChange={e => {
+                                  const newLevel = e.target.value as 'primary' | 'secondary' | 'allowed';
+                                  setSkillAccess(prev =>
+                                    prev.map((r, i) =>
+                                      i === idx ? { ...r, access_level: newLevel } : r
+                                    )
+                                  );
+                                }}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                              >
+                                <option value="primary">Primary</option>
+                                <option value="secondary">Secondary</option>
+                                <option value="allowed">Allowed</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSkillAccess(prev =>
+                                    prev.filter((_, i) => i !== idx)
+                                  )
+                                }
+                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={skillTypeToAdd}
+                    onChange={e => setSkillTypeToAdd(e.target.value)}
+                    className="p-1 border rounded"
+                  >
+                    <option value="">Add Skill Set</option>
+                    {skillTypes
+                      .filter(st => !skillAccess.some(sa => sa.skill_type_id === st.id))
+                      .map(st => (
+                        <option key={st.id} value={st.id}>
+                          {st.skill_type}
+                        </option>
+                      ))}
+                  </select>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        skillTypeToAdd &&
+                        !skillAccess.some(sa => sa.skill_type_id === skillTypeToAdd)
+                      ) {
+                        setSkillAccess(prev => [
+                          ...prev,
+                          { skill_type_id: skillTypeToAdd, access_level: 'allowed' }
+                        ]);
+                        setSkillTypeToAdd('');
+                      }
+                    }}
+                    disabled={!skillTypeToAdd}
+                    size="sm"
+                  >
+                    Add
+                  </Button>
                 </div>
               </div>
 

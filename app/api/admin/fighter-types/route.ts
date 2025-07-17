@@ -193,6 +193,16 @@ export async function GET(request: Request) {
         throw tradingPostError;
       }
 
+      // Fetch skill access
+      const { data: skillAccess, error: skillAccessError } = await supabase
+        .from('fighter_type_skill_access')
+        .select('skill_type_id, access_level')
+        .eq('fighter_type_id', fighterType.id);
+      if (skillAccessError) {
+        console.error('Error fetching skill access:', skillAccessError);
+        throw skillAccessError;
+      }
+
       const formattedFighterType = {
         ...fighterType,
         default_equipment: defaultEquipment?.map(d => d.equipment_id) || [],
@@ -204,7 +214,8 @@ export async function GET(request: Request) {
         })) || [],
         equipment_selection: equipmentSelection?.equipment_selection || null,
         trading_post_equipment: tradingPostData?.equipment_tradingpost || [],
-        gang_type_costs: gangTypeCosts || []
+        gang_type_costs: gangTypeCosts || [],
+        skill_access: skillAccess || []
       };
 
       return NextResponse.json(formattedFighterType);
@@ -726,6 +737,34 @@ export async function PUT(request: Request) {
         if (insertError) {
           console.error('Error inserting gang-specific costs:', insertError);
           throw insertError;
+        }
+      }
+    }
+
+    // Handle skill access
+    if (Array.isArray(data.skill_access)) {
+      // Delete all existing skill access for this fighter type
+      const { error: deleteSkillAccessError } = await supabase
+        .from('fighter_type_skill_access')
+        .delete()
+        .eq('fighter_type_id', id);
+      if (deleteSkillAccessError) {
+        console.error('Error deleting existing skill access:', deleteSkillAccessError);
+        throw deleteSkillAccessError;
+      }
+      // Insert new skill access rows if any
+      if (data.skill_access.length > 0) {
+        const skillAccessRows = data.skill_access.map((row: { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed' }) => ({
+          fighter_type_id: id,
+          skill_type_id: row.skill_type_id,
+          access_level: row.access_level
+        }));
+        const { error: insertSkillAccessError } = await supabase
+          .from('fighter_type_skill_access')
+          .insert(skillAccessRows);
+        if (insertSkillAccessError) {
+          console.error('Error inserting skill access:', insertSkillAccessError);
+          throw insertSkillAccessError;
         }
       }
     }
