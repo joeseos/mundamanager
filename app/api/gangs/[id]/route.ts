@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { CACHE_TAGS } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
 
 enum GangAlignment {
   LAW_ABIDING = 'Law Abiding',
@@ -218,6 +220,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       .single();
 
     if (gangUpdateError) throw gangUpdateError;
+
+    // Invalidate cache for this gang so changes are reflected on reload
+    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(params.id));
 
     return NextResponse.json(updatedGang);
   } catch (error) {
