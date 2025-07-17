@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X } from "lucide-react";
 import Modal from "@/components/modal";
+import { Badge } from "@/components/ui/badge";
 
 // Mapping of stat_name (database value) to display_name (UI label)
 const STAT_MAPPINGS = [
@@ -51,6 +52,9 @@ interface FighterEffectType {
   fighter_effect_category_id: string | null;
   type_specific_data: {
     equipment_id: string;
+    effect_selection?: "fixed" | "single_select" | "multiple_select";
+    max_selections?: number;
+    selection_group?: string;
   } | null;
   modifiers: FighterEffectTypeModifier[];
 }
@@ -73,7 +77,7 @@ export function AdminFighterEffects({
   fighterEffects = [], 
   fighterEffectCategories = [],
   onUpdate, 
-  onChange 
+  onChange
 }: AdminFighterEffectsProps) {
   const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
   const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
@@ -83,9 +87,14 @@ export function AdminFighterEffects({
   const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<string | null>(null);
   
   // New effect form state
-  const [newEffectName, setNewEffectName] = useState('');
-  const [newEffectCategoryId, setNewEffectCategoryId] = useState('');
-  
+  const [newEffect, setNewEffect] = useState({
+    effect_name: '',
+    fighter_effect_category_id: '',
+    effect_selection: 'fixed' as 'fixed' | 'single_select' | 'multiple_select',
+    max_selections: 1,
+    selection_group: ''
+  });
+
   // New modifier form state
   const [newModifierStatName, setNewModifierStatName] = useState('');
   const [newModifierValue, setNewModifierValue] = useState<string>('');
@@ -109,10 +118,18 @@ export function AdminFighterEffects({
   }, [fighterEffectTypes, onChange]);
 
   const handleAddEffect = async () => {
-    if (!newEffectName) {
+    if (!newEffect.effect_name) {
       toast({
         description: "Effect name is required",
         variant: "destructive"
+      });
+      return false;
+    }
+
+    if (newEffect.effect_selection === 'multiple_select' && (!newEffect.max_selections || newEffect.max_selections < 1)) {
+      toast({
+        description: "Max selections must be at least 1 for multiple select",
+        variant: "destructive",
       });
       return false;
     }
@@ -129,21 +146,30 @@ export function AdminFighterEffects({
     try {
       // Create a new fighter effect locally
       const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const newEffect: FighterEffectType = {
+      const typeSpecificData = {
+        equipment_id: equipmentId,
+        effect_selection: newEffect.effect_selection,
+        ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
+        ...(newEffect.selection_group && { selection_group: newEffect.selection_group })
+      };
+      const newEffectType: FighterEffectType = {
         id: tempId,
-        effect_name: newEffectName,
-        fighter_effect_category_id: newEffectCategoryId || null,
-        type_specific_data: {
-          equipment_id: equipmentId
-        },
+        effect_name: newEffect.effect_name,
+        fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
+        type_specific_data: typeSpecificData,
         modifiers: []
       };
       
-      setFighterEffectTypes([...fighterEffectTypes, newEffect]);
+      setFighterEffectTypes([...fighterEffectTypes, newEffectType]);
       
       setShowAddEffectDialog(false);
-      setNewEffectName('');
-      setNewEffectCategoryId('');
+      setNewEffect({
+        effect_name: '',
+        fighter_effect_category_id: '',
+        effect_selection: 'fixed',
+        max_selections: 1,
+        selection_group: ''
+      });
       
       if (onUpdate) {
         onUpdate();
@@ -281,6 +307,24 @@ export function AdminFighterEffects({
     }
   };
 
+  const getSelectionTypeLabel = (selectionType: string) => {
+    switch (selectionType) {
+      case 'fixed': return 'Fixed Effect';
+      case 'single_select': return 'Single Select';
+      case 'multiple_select': return 'Multiple Select';
+      default: return 'Fixed Effect';
+    }
+  };
+
+  const getSelectionTypeBadgeVariant = (selectionType: string) => {
+    switch (selectionType) {
+      case 'fixed': return 'default';
+      case 'single_select': return 'secondary';
+      case 'multiple_select': return 'outline';
+      default: return 'default';
+    }
+  };
+
   return (
     <div className="space-y-4 mt-6">
       <div className="flex justify-between items-center">
@@ -304,67 +348,89 @@ export function AdminFighterEffects({
         </div>
       ) : (
         <div className="space-y-4">
-          {fighterEffectTypes.map((effect) => (
-            <div key={effect.id} className="border rounded-md p-4">
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <h4 className="font-medium">{effect.effect_name}</h4>
-                  <p className="text-sm text-gray-500">
-                    {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      setSelectedEffectTypeId(effect.id);
-                      setShowAddModifierDialog(true);
-                    }}
-                    variant="outline"
-                    size="sm"
-                    disabled={isLoading}
-                  >
-                    Add Modifier
-                  </Button>
-                  <Button
-                    onClick={() => handleDeleteEffect(effect.id)}
-                    variant="destructive"
-                    size="sm"
-                    disabled={isLoading}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-
-              {/* List of Modifiers */}
-              {effect.modifiers.length > 0 ? (
-                <div className="mt-2">
-                  <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {effect.modifiers.map((modifier) => (
-                      <div key={modifier.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
-                        <div>
-                          <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
-                          <span>{modifier.default_numeric_value !== null ? modifier.default_numeric_value : 'N/A'}</span>
-                        </div>
-                        <Button
-                          onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0"
-                          disabled={isLoading}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+          {fighterEffectTypes.map((effect) => {
+            const selectionType = effect.type_specific_data?.effect_selection || 'fixed';
+            
+            return (
+              <div key={effect.id} className="border rounded-md p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant={getSelectionTypeBadgeVariant(effect.type_specific_data?.effect_selection || 'fixed')}>
+                        {getSelectionTypeLabel(effect.type_specific_data?.effect_selection || 'fixed')}
+                        {effect.type_specific_data?.effect_selection === 'multiple_select' && 
+                         effect.type_specific_data?.max_selections && 
+                         ` (max ${effect.type_specific_data.max_selections})`}
+                      </Badge>
+                      
+                      {effect.type_specific_data?.selection_group && (
+                        <Badge variant="outline">
+                          Group {effect.type_specific_data.selection_group}
+                        </Badge>
+                      )}
+                    </div>
+                    <h4 className="font-medium">{effect.effect_name}</h4>
+                     <p className="text-sm text-gray-500">
+                      {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setSelectedEffectTypeId(effect.id);
+                        setShowAddModifierDialog(true);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoading}
+                    >
+                      Add Modifier
+                    </Button>
+                    <Button
+                      onClick={() => handleDeleteEffect(effect.id)}
+                      variant="destructive"
+                      size="sm"
+                      disabled={isLoading}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500 italic">No modifiers for this effect.</p>
-              )}
-            </div>
-          ))}
+
+                {/* List of Modifiers */}
+                {effect.modifiers.length > 0 ? (
+                  <div className="mt-2">
+                    <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {effect.modifiers.map((modifier) => (
+                        <div key={modifier.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                          <div>
+                            <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
+                            <span>
+                              {modifier.default_numeric_value !== null 
+                                ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value 
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <Button
+                            onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            disabled={isLoading}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No modifiers for this effect.</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -374,29 +440,36 @@ export function AdminFighterEffects({
           title="Add Fighter Effect"
           onClose={() => {
             setShowAddEffectDialog(false);
-            setNewEffectName('');
-            setNewEffectCategoryId('');
+            setNewEffect({
+              effect_name: '',
+              fighter_effect_category_id: '',
+              effect_selection: 'fixed',
+              max_selections: 1,
+              selection_group: ''
+            });
           }}
           onConfirm={handleAddEffect}
           confirmText="Add Effect"
-          confirmDisabled={isLoading || !newEffectName}
+          confirmDisabled={isLoading || !newEffect.effect_name}
         >
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Effect Name *</label>
               <Input
                 type="text"
-                value={newEffectName}
-                onChange={(e) => setNewEffectName(e.target.value)}
+                value={newEffect.effect_name}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, effect_name: e.target.value }))}
                 placeholder="E.g. Increases Movement"
               />
             </div>
 
+
+
             <div>
               <label className="block text-sm font-medium mb-1">Category</label>
               <select
-                value={newEffectCategoryId}
-                onChange={(e) => setNewEffectCategoryId(e.target.value)}
+                value={newEffect.fighter_effect_category_id}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, fighter_effect_category_id: e.target.value }))}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select a category</option>
@@ -406,6 +479,51 @@ export function AdminFighterEffects({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Selection Type *</label>
+              <select
+                value={newEffect.effect_selection}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, effect_selection: e.target.value as "fixed" | "single_select" | "multiple_select" }))}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="fixed">Fixed</option>
+                <option value="single_select">Single Select</option>
+                <option value="multiple_select">Multiple Select</option>
+              </select>
+            </div>
+
+            {newEffect.effect_selection === 'multiple_select' && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Max Selections *</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={newEffect.max_selections.toString()}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, max_selections: parseInt(e.target.value) || 1 }))}
+                  placeholder="Maximum number of effects user can select"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This applies to all multiple_select effects on this equipment
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Selection Group (optional)
+              </label>
+              <input
+                type="text"
+                value={newEffect.selection_group}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, selection_group: e.target.value }))}
+                placeholder="Enter selection group name"
+                className="w-full p-2 border rounded-md"
+              />
+              <p className="text-xs text-gray-500">
+                Effects with the same selection group are mutually exclusive within single_select mode
+              </p>
             </div>
           </div>
         </Modal>
@@ -447,7 +565,7 @@ export function AdminFighterEffects({
                 type="number"
                 value={newModifierValue}
                 onChange={(e) => setNewModifierValue(e.target.value)}
-                placeholder="Examples: 1, 2, 3"
+                placeholder="Examples: 1, -1, 2"
               />
             </div>
           </div>

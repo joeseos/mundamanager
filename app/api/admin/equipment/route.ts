@@ -44,6 +44,8 @@ interface FighterEffectType {
   fighter_effect_category_id: string | null;
   type_specific_data: {
     equipment_id: string;
+    effect_selection?: "fixed" | "single_select" | "multiple_select";
+    max_selections?: number;
   } | null;
   modifiers: FighterEffectTypeModifier[];
 }
@@ -1045,7 +1047,7 @@ export async function PATCH(request: Request) {
               .insert({
                 effect_name: effect.effect_name,
                 fighter_effect_category_id: effect.fighter_effect_category_id,
-                type_specific_data: { equipment_id: id }
+                type_specific_data: effect.type_specific_data || { equipment_id: id }
               })
               .select()
               .single();
@@ -1081,7 +1083,7 @@ export async function PATCH(request: Request) {
               .update({
                 effect_name: effect.effect_name,
                 fighter_effect_category_id: effect.fighter_effect_category_id,
-                type_specific_data: { equipment_id: id }
+                type_specific_data: effect.type_specific_data || { equipment_id: id }
               })
               .eq('id', effect.id);
             
