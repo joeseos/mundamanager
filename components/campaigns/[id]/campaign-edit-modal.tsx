@@ -8,6 +8,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { ImInfo } from "react-icons/im";
+import { Tooltip } from 'react-tooltip';
 
 interface EditCampaignModalProps {
   isOpen: boolean;
@@ -125,7 +127,19 @@ export default function CampaignEditModal({
                 className="w-full p-2 border rounded"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 text-sm font-medium mb-1">
+              <div className="flex items-center space-x-2">
+              <span>Resources</span>
+              <span
+                className="relative cursor-pointer text-gray-500 hover:text-black"
+                data-tooltip-id="resources-tooltip"
+                data-tooltip-html={
+                  'Exploration Points: Underhells campaign.<br/>Meat and Scavenging Rolls: Uprising campaign.'
+                }
+              >
+                <ImInfo />
+              </span>
+              </div>
               <label className="flex items-center space-x-2">
                 <Checkbox
                   checked={formValues.explorationEnabled}
@@ -217,6 +231,19 @@ export default function CampaignEditModal({
           confirmDisabled={isDeleting}
         />
       )}
+      <Tooltip
+        id="resources-tooltip"
+        place="top"
+        className="!bg-black !text-white !text-xs !z-[2000]"
+        style={{
+          backgroundColor: '#000',
+          color: 'white',
+          padding: '6px',
+          fontSize: '12px',
+          maxWidth: '20rem',
+          zIndex: 2000
+        }}
+      />
     </div>
   );
 } 
