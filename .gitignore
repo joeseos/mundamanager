@@ -39,3 +39,6 @@ next-env.d.ts
 
 # intelliJ IDE:
 .idea/
+
+# cursor
+.cursor
