@@ -103,7 +103,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         vehicle_name: string; 
         special_rules?: string[]; 
       } = { 
-        vehicle_name 
+        vehicle_name: vehicle_name.trimEnd()
       };
       
       // Only include special_rules if they were provided
@@ -137,7 +137,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // Add name if provided
     if (name !== undefined) {
-      updates.name = name;
+      updates.name = name.trimEnd();
     }
 
     // Add note if provided

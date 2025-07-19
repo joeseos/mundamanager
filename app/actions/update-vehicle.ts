@@ -32,7 +32,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     const { data, error } = await supabase
       .from('vehicles')
       .update({
-        vehicle_name: params.vehicleName,
+        vehicle_name: params.vehicleName.trimEnd(),
         special_rules: params.specialRules,
         updated_at: new Date().toISOString()
       })

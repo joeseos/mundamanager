@@ -58,7 +58,7 @@ export async function saveCustomWeaponProfiles(
         const { id, ...profileWithoutId } = profile as any;
         
         return {
-          profile_name: profile.profile_name || null, // Explicitly preserve profile_name
+          profile_name: profile.profile_name ? profile.profile_name.trimEnd() : null, // Trim profile_name if present
           range_short: profile.range_short,
           range_long: profile.range_long,
           acc_short: profile.acc_short,

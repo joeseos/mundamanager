@@ -73,7 +73,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     // Add name if provided
     if (params.name !== undefined) {
-      updates.name = params.name;
+      updates.name = params.name.trimEnd();
     }
 
     // Add note if provided

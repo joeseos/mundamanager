@@ -445,7 +445,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       updated_at: new Date().toISOString()
     };
 
-    if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name;
+    if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
     if (params.label !== undefined) updateData.label = params.label;
     if (params.kills !== undefined) updateData.kills = params.kills;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;

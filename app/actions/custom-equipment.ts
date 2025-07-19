@@ -29,6 +29,11 @@ export async function updateCustomEquipment(
     updated_at: new Date().toISOString()
   };
   
+  // Trim equipment name if it's being updated
+  if (updates.equipment_name !== undefined) {
+    updateData.equipment_name = updates.equipment_name.trimEnd();
+  }
+  
   // If equipment_category is being updated, we need to get the category_id
   if (updates.equipment_category) {
     const { data: categoryData, error: categoryError } = await supabase
@@ -139,7 +144,7 @@ export async function createCustomEquipment(data: {
     .from('custom_equipment')
     .insert({
       user_id: user.id,
-      equipment_name: data.equipment_name,
+      equipment_name: data.equipment_name.trimEnd(),
       trading_post_category: 'Custom',
       availability: data.availability,
       cost: data.cost,

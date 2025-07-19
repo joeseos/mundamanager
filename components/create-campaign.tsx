@@ -103,7 +103,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
       const { data, error: rpcError } = await supabase
         .rpc('create_campaign', {
           p_campaign_type_id: campaignType,
-          p_campaign_name: campaignName,
+          p_campaign_name: campaignName.trimEnd(),
           p_user_id: userId
         })
 

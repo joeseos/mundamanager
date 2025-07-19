@@ -363,9 +363,9 @@ export async function POST(request: Request) {
     const { data: equipment, error: equipmentError } = await supabase
       .from('equipment')
       .insert({
-        equipment_name,
+        equipment_name: equipment_name.trimEnd(),
         trading_post_category,
-        availability,
+        availability: availability.trimEnd(),
         cost,
         faction,
         variants,
@@ -385,6 +385,7 @@ export async function POST(request: Request) {
       const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfile) => ({
         ...profile,
         weapon_id: weaponId,
+        profile_name: profile.profile_name.trimEnd(),
         // Set weapon_group_id to either the selected weapon's ID or this weapon's ID
         weapon_group_id: profile.weapon_group_id || null,
         // Properly handle explicit null values
@@ -442,7 +443,7 @@ export async function POST(request: Request) {
       const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
         equipment_id: equipment.id,
         gang_type_id: avail.gang_type_id,
-        availability: avail.availability
+        availability: avail.availability.trimEnd()
       }));
 
       const { error: availabilityError } = await supabase
@@ -504,9 +505,9 @@ export async function PUT(request: Request) {
     const { error: equipmentError } = await supabase
       .from('equipment')
       .update({
-        equipment_name,
+        equipment_name: equipment_name.trimEnd(),
         trading_post_category,
-        availability,
+        availability: availability.trimEnd(),
         cost,
         faction,
         variants,
@@ -537,7 +538,7 @@ export async function PUT(request: Request) {
           .insert(
             weapon_profiles.map((profile: WeaponProfile) => ({
               weapon_id: id,
-              profile_name: profile.profile_name,
+              profile_name: profile.profile_name.trimEnd(),
               range_short: profile.range_short,
               range_long: profile.range_long,
               acc_short: profile.acc_short,
@@ -747,7 +748,7 @@ export async function PATCH(request: Request) {
           .insert(
             weapon_profiles.map((profile: WeaponProfile) => ({
               weapon_id: id,
-              profile_name: profile.profile_name,
+              profile_name: profile.profile_name.trimEnd(),
               range_short: profile.range_short,
               range_long: profile.range_long,
               acc_short: profile.acc_short,
@@ -890,7 +891,7 @@ export async function PATCH(request: Request) {
         const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
-          availability: avail.availability
+          availability: avail.availability.trimEnd()
         }));
 
         if (availabilityRecords.length > 0) {

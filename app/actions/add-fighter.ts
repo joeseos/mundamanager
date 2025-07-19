@@ -147,7 +147,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const { data: insertedFighter, error: insertError } = await supabase
       .from('fighters')
       .insert({
-        fighter_name: params.fighter_name,
+        fighter_name: params.fighter_name.trimEnd(),
         gang_id: params.gang_id,
         fighter_type_id: params.fighter_type_id,
         fighter_class_id: fighterTypeData.fighter_class_id,
