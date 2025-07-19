@@ -839,7 +839,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     }}
                     className="mr-1"
                   />
-                  Fighter's List
+                  {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                 </label>
               )}
               <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
