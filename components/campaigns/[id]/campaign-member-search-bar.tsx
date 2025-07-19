@@ -156,7 +156,7 @@ export default function MemberSearchBar({
     <div className="relative mb-4">
       <Input
         type="text"
-        placeholder="Search users by username"
+        placeholder="Search players by their username"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full"
