@@ -31,7 +31,7 @@ export async function createGang({
     const { data, error } = await supabase
       .from('gangs')
       .insert([{
-        name,
+        name: name.trimEnd(),
         credits: "1000",
         reputation: "1",
         user_id: user.id,

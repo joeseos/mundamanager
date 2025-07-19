@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         { 
           gang_id,
           fighter_type_id: fighter_type_id === "" ? null : fighter_type_id,
-          fighter_name,
+          fighter_name: fighter_name.trimEnd(),
           fighter_type,
           fighter_sub_type,
           fighter_sub_type_id: fighter_sub_type_id === "" ? null : fighter_sub_type_id,

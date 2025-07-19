@@ -97,7 +97,7 @@ export default function AddVehicle({
 
     // Get the entered cost or use the base cost if none entered
     const paymentCost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
-    const name = vehicleName || selectedVehicleType.vehicle_type;
+    const name = (vehicleName || selectedVehicleType.vehicle_type).trimEnd();
     
     // The cost for gang rating purposes
     const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;

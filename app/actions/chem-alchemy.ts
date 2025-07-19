@@ -58,7 +58,7 @@ export async function createChemAlchemy({
     const { data: customEquipment, error: customEquipmentError } = await supabase
       .from('custom_equipment')
       .insert([{
-        equipment_name: name,
+        equipment_name: name.trimEnd(),
         trading_post_category: 'Chem-Alchemy',
         availability: 'E',
         cost: useBaseCostForRating ? baseCost : totalCost,

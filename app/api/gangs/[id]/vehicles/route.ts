@@ -92,7 +92,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
-        vehicle_name: vehicleName || vehicleType.vehicle_type,
+        vehicle_name: (vehicleName || vehicleType.vehicle_type).trimEnd(),
         movement: vehicleType.movement,
         front: vehicleType.front,
         side: vehicleType.side,

@@ -32,7 +32,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 
     // Only include provided fields in the update
     const updateData: any = { updated_at: new Date().toISOString() };
-    if (campaign_name !== undefined) updateData.campaign_name = campaign_name;
+    if (campaign_name !== undefined) updateData.campaign_name = campaign_name.trimEnd();
     if (description !== undefined) updateData.description = description;
     if (has_meat !== undefined) updateData.has_meat = has_meat;
     if (has_exploration_points !== undefined) updateData.has_exploration_points = has_exploration_points;

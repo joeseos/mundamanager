@@ -193,7 +193,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         updated_at: new Date().toISOString()
       };
       
-      if (fighter_name !== undefined) updateData.fighter_name = fighter_name;
+      if (fighter_name !== undefined) updateData.fighter_name = fighter_name.trimEnd();
       if (label !== undefined) updateData.label = label;
       if (kills !== undefined) updateData.kills = kills;
       if (cost_adjustment !== undefined) updateData.cost_adjustment = cost_adjustment;
