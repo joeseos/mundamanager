@@ -35,6 +35,53 @@ export class PermissionService {
   }
 
   /**
+   * Gets the user's highest role across all campaigns that a gang belongs to
+   * @param userId - The user's ID
+   * @param gangId - The gang's ID
+   * @returns The user's highest role across campaigns, or null if not a member
+   */
+  async getUserRoleInGangCampaigns(userId: string, gangId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
+    const supabase = await createClient();
+    
+    // First get campaign IDs for this gang
+    const { data: campaignGangs, error: campaignGangsError } = await supabase
+      .from('campaign_gangs')
+      .select('campaign_id')
+      .eq('gang_id', gangId);
+
+    if (campaignGangsError || !campaignGangs || campaignGangs.length === 0) {
+      return null;
+    }
+
+    const campaignIds = campaignGangs.map(cg => cg.campaign_id);
+
+    // Then get user's roles in those campaigns
+    const { data: userRoles, error } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('user_id', userId)
+      .in('campaign_id', campaignIds);
+
+    if (error || !userRoles || userRoles.length === 0) {
+      return null;
+    }
+
+    // Return the highest role across all campaigns
+    // Role hierarchy: OWNER > ARBITRATOR > MEMBER
+    const roles = userRoles.map(r => r.role);
+    
+    if (roles.includes('OWNER')) {
+      return 'OWNER';
+    } else if (roles.includes('ARBITRATOR')) {
+      return 'ARBITRATOR';
+    } else if (roles.includes('MEMBER')) {
+      return 'MEMBER';
+    }
+    
+    return null;
+  }
+
+  /**
    * Gets the user's role in a specific campaign
    * @param userId - The user's ID
    * @param campaignId - The campaign's ID
@@ -73,11 +120,8 @@ export class PermissionService {
    * Determines user permissions for a specific fighter
    * 
    * Permission Logic:
-   * - isOwner: User owns the gang that the fighter belongs to
-   * - isAdmin: User has 'admin' role in their profile
-   * - canEdit: User is either the gang owner OR an admin
-   * - canDelete: User is either the gang owner OR an admin  
-   * - canView: Everyone can view fighters (set to true)
+   * - Delegates to gang permissions since fighter permissions should match gang permissions
+   * - If fighter has no gang, returns default permissions
    * 
    * @param userId - The current user's ID
    * @param fighterId - The fighter's ID we're checking permissions for
@@ -89,36 +133,18 @@ export class PermissionService {
   ): Promise<UserPermissions> {
     const supabase = await createClient();
     
-    // First, get which gang this fighter belongs to
     const { data: fighter } = await supabase
       .from('fighters')
       .select('gang_id')
       .eq('id', fighterId)
       .single();
 
-    // If fighter has no gang, user gets default permissions (view only)
     if (!fighter?.gang_id) {
       return this.getDefaultPermissions(userId);
     }
 
-    // Check both user role and gang ownership in parallel for efficiency
-    const [profile, gangOwnerId] = await Promise.all([
-      this.getUserProfile(userId),
-      this.getGangOwnership(fighter.gang_id)
-    ]);
-
-    // Determine permission flags
-    const isAdmin = profile?.user_role === 'admin'; // User has admin role
-    const isOwner = gangOwnerId === userId; // User owns the gang this fighter belongs to
-
-    return {
-      isOwner,
-      isAdmin,
-      canEdit: isOwner || isAdmin, // Gang owners can edit their fighters, admins can edit any fighter
-      canDelete: isOwner || isAdmin, // Gang owners can delete their fighters, admins can delete any fighter
-      canView: true, // Everyone can view fighter details
-      userId
-    };
+    // Delegate to gang permissions since logic should be identical
+    return this.getGangPermissions(userId, fighter.gang_id);
   }
 
   /**
@@ -127,8 +153,8 @@ export class PermissionService {
    * Permission Logic:
    * - isOwner: User created/owns this specific gang
    * - isAdmin: User has 'admin' role in their profile
-   * - canEdit: User is either the gang owner OR an admin
-   * - canDelete: User is either the gang owner OR an admin
+   * - canEdit: User is either the gang owner OR an admin OR campaign owner/arbitrator
+   * - canDelete: User is either the gang owner OR an admin OR campaign owner/arbitrator
    * - canView: Everyone can view gangs (set to true)
    * 
    * @param userId - The current user's ID  
@@ -139,21 +165,24 @@ export class PermissionService {
     userId: string, 
     gangId: string
   ): Promise<UserPermissions> {
-    // Check both user role and gang ownership in parallel for efficiency
-    const [profile, gangOwnerId] = await Promise.all([
+    // Get user profile, gang ownership, and campaign role in parallel (efficient single query approach)
+    const [profile, gangOwnerId, campaignRole] = await Promise.all([
       this.getUserProfile(userId),
-      this.getGangOwnership(gangId)
+      this.getGangOwnership(gangId),
+      this.getUserRoleInGangCampaigns(userId, gangId)
     ]);
 
     // Determine permission flags
     const isAdmin = profile?.user_role === 'admin'; // User has admin role
     const isOwner = gangOwnerId === userId; // User owns this specific gang
+    const isCampaignOwner = campaignRole === 'OWNER';
+    const isCampaignArbitrator = campaignRole === 'ARBITRATOR';
 
     return {
       isOwner,
       isAdmin,
-      canEdit: isOwner || isAdmin, // Gang owners can edit their own gang, admins can edit any gang
-      canDelete: isOwner || isAdmin, // Gang owners can delete their own gang, admins can delete any gang
+      canEdit: isOwner || isAdmin || isCampaignOwner || isCampaignArbitrator, // Gang owners can edit their own gang, admins can edit any gang, campaign owners/arbitrators can edit gangs in their campaigns
+      canDelete: isOwner || isAdmin || isCampaignOwner || isCampaignArbitrator, // Gang owners can delete their own gang, admins can delete any gang, campaign owners/arbitrators can delete gangs in their campaigns
       canView: true, // Everyone can view gang details
       userId
     };
