@@ -42,7 +42,7 @@
     "@types/node": "20.10.6",
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
-    "eslint": "9.25.1",
+    "eslint": "^9.31.0",
     "eslint-config-next": "15.3.5",
     "postcss": "8.4.33",
     "tailwind-merge": "^2.5.4",
