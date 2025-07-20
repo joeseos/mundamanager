@@ -116,6 +116,14 @@ export interface FighterVehicle {
   effects: Record<string, FighterEffect[]>;
 }
 
+export interface Gang {
+  id: string;
+  credits: number;
+  gang_type_id: string;
+  positioning?: Record<string, string>;
+  gang_variants?: Array<{id: string, variant: string}>;
+}
+
 export interface Campaign {
   campaign_id: string;
   campaign_name: string;
@@ -232,13 +240,38 @@ async function _getGang(gangId: string, supabase: SupabaseClient): Promise<Gang>
       id,
       credits,
       gang_type_id,
-      positioning
+      positioning,
+      gang_variants
     `)
     .eq('id', gangId)
     .single();
 
   if (error) throw error;
-  return data;
+  
+  // Fetch variant details if gang_variants is present and is an array
+  let variantDetails: Array<{id: string, variant: string}> = [];
+  if (data.gang_variants && Array.isArray(data.gang_variants) && data.gang_variants.length > 0) {
+    const { data: variants, error: variantsError } = await supabase
+      .from('gang_variant_types')
+      .select('id, variant')
+      .in('id', data.gang_variants);
+    
+    if (variantsError) {
+      console.error('Error fetching gang variants:', variantsError);
+    }
+    
+    if (!variantsError && variants) {
+      variantDetails = variants.map((v: any) => ({
+        id: v.id,
+        variant: v.variant
+      }));
+    }
+  }
+  
+  return {
+    ...data,
+    gang_variants: variantDetails
+  };
 }
 
 async function _getFighterEquipment(fighterId: string, supabase: SupabaseClient): Promise<FighterEquipment[]> {
