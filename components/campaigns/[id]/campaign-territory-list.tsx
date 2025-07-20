@@ -81,6 +81,8 @@ export default function CampaignTerritoryList({
   const [showTerritoryEditModal, setShowTerritoryEditModal] = useState(false);
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [sortField, setSortField] = useState<'territory' | 'controllingGang'>('territory');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Helper function to get gang details from members data
   const getGangDetails = (gangId: string) => {
@@ -201,6 +203,26 @@ export default function CampaignTerritoryList({
     }
   };
 
+  // Handle column header click for sorting
+  const handleSort = (field: 'territory' | 'controllingGang') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort indicator component
+  const SortIndicator = ({ field }: { field: 'territory' | 'controllingGang' }) => {
+    if (sortField !== field) return null;
+    return (
+      <span className="ml-1">
+        {sortDirection === 'asc' ? '↑' : '↓'}
+      </span>
+    );
+  };
+
   // Territory deletion
   const handleDeleteClick = (territoryId: string, territoryName: string) => {
     setTerritoryToDelete({ id: territoryId, name: territoryName });
@@ -240,8 +262,20 @@ export default function CampaignTerritoryList({
         <table className="text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-              <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Controlled by</th>
+              <th 
+                className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('territory')}
+              >
+                Territory
+                <SortIndicator field="territory" />
+              </th>
+              <th 
+                className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('controllingGang')}
+              >
+                Controlled by
+                <SortIndicator field="controllingGang" />
+              </th>
               <th className="w-[100px] px-4 py-2 text-right font-medium whitespace-nowrap"></th>
             </tr>
           </thead>
@@ -254,7 +288,24 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               [...territories]
-                .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
+                .sort((a, b) => {
+                  let aValue: string;
+                  let bValue: string;
+
+                  if (sortField === 'territory') {
+                    aValue = a.territory_name;
+                    bValue = b.territory_name;
+                  } else {
+                    // Sort by controlling gang name
+                    const aGang = a.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled'; // ZZZ to sort uncontrolled last
+                    const bGang = b.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled';
+                    aValue = aGang;
+                    bValue = bGang;
+                  }
+
+                  const comparison = aValue.localeCompare(bValue);
+                  return sortDirection === 'asc' ? comparison : -comparison;
+                })
                 .map((territory) => (
                 <tr key={territory.id} className="border-b last:border-0">
                   <td className="w-2/5 px-4 py-2">
