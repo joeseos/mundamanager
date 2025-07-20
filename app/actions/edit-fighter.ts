@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
 import { invalidateFighterData } from '@/utils/cache-tags';
 
 interface EditFighterStatusParams {
@@ -64,10 +63,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       throw new Error('User not authenticated');
     }
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
-
-    // Get fighter information
+    // Get fighter information (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
       .select(`
@@ -97,11 +93,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
     if (gangError || !gang) {
       throw new Error('Gang not found');
-    }
-
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gang.user_id !== user.id) {
-      throw new Error('User does not have permission to edit this fighter');
     }
 
     const gangId = fighter.gang_id;
@@ -346,9 +337,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
       throw new Error('User not authenticated');
     }
 
-    const isAdmin = await checkAdmin(supabase);
-
-    // Get fighter data
+    // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
       .select('id, gang_id, xp')
@@ -357,19 +346,6 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
-    }
-
-    // Check permissions
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', fighter.gang_id)
-        .single();
-
-      if (gangError || !gang || gang.user_id !== user.id) {
-        throw new Error('User does not have permission to edit this fighter');
-      }
     }
 
     // Update XP
@@ -414,9 +390,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       throw new Error('User not authenticated');
     }
 
-    const isAdmin = await checkAdmin(supabase);
-
-    // Get fighter data
+    // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
       .select('id, gang_id')
@@ -425,19 +399,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
-    }
-
-    // Check permissions
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', fighter.gang_id)
-        .single();
-
-      if (gangError || !gang || gang.user_id !== user.id) {
-        throw new Error('User does not have permission to edit this fighter');
-      }
     }
 
     // Build update object with only provided fields
