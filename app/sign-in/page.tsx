@@ -61,7 +61,15 @@ export default function SignIn() {
       <div className="container mx-auto max-w-4xl w-full p-4">
         {topMessage && (
           <div className="mb-4">
-            <FormMessage message={topMessage} />
+            {'success' in topMessage && topMessage.success === 'Password updated successfully. Please sign in with your new password.' ? (
+              <div className="flex flex-col gap-2 w-full max-w-md text-sm">
+                <div className="text-white border-l-2 border-foreground px-4">
+                  {topMessage.success}
+                </div>
+              </div>
+            ) : (
+              <FormMessage message={topMessage} />
+            )}
           </div>
         )}
         <form 
