@@ -32,6 +32,29 @@ import { editFighterStatus, updateFighterXp, updateFighterDetails } from "@/app/
 
 
 
+interface FighterTypesData {
+  displayTypes: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    gang_type_id: string;
+    total_cost: number;
+    typeClassKey?: string;
+    is_gang_variant?: boolean;
+    gang_variant_name?: string;
+  }>;
+  subTypesByTypeClass: Map<string, Array<{
+    id: string;
+    fighter_sub_type: string;
+    cost: number;
+    fighter_type_id: string;
+    fighter_type_name: string;
+    fighter_class_name: string;
+  }>>;
+}
+
 interface FighterPageProps {
   initialFighterData: any;
   initialGangFighters: Array<{
@@ -42,6 +65,7 @@ interface FighterPageProps {
   }>;
   userPermissions: UserPermissions;
   fighterId: string;
+  fighterTypesData: FighterTypesData;
 }
 
 interface Weapon {
@@ -194,7 +218,8 @@ export default function FighterPage({
   initialFighterData, 
   initialGangFighters, 
   userPermissions, 
-  fighterId 
+  fighterId,
+  fighterTypesData
 }: FighterPageProps) {
   // Transform initial data and set up state
   const [fighterData, setFighterData] = useState<FighterPageState>(() => {
@@ -1317,6 +1342,7 @@ export default function FighterPage({
                 kills: fighterData.fighter.kills || 0,
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
+              fighterTypesData={fighterTypesData}
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {

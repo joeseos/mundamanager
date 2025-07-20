@@ -198,6 +198,13 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     if (creditsChanged) {
       revalidateTag(CACHE_TAGS.GANG_CREDITS(params.gang_id));
     }
+    
+    // If gang variants were updated, invalidate fighter types cache
+    if (params.gang_variants !== undefined) {
+      revalidateTag(CACHE_TAGS.FIGHTER_TYPES_FOR_GANG(params.gang_id));
+      // Also invalidate all fighter pages for this gang since their gang data includes gang_variants
+      revalidateTag('complete-fighter-data');
+    }
 
     // NEW: Invalidate campaign caches if this gang is in any campaigns
     const { data: campaignGangs, error: campaignGangsError } = await supabase
