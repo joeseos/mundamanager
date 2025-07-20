@@ -147,11 +147,15 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
     setCreditError(null)
     setIsCreating(true)
     try {
+      const finalName = selectedEffects.length > 0 
+        ? `${chemName.trim()} (${selectedEffects.map(effect => effect.name).join(", ")})`
+        : chemName.trim()
+      
       await onCreateChem?.({
         type: selectedType,
         effects: selectedEffects,
         totalCost: parsedCost,
-        name: chemName.trim(),
+        name: finalName,
         useBaseCostForRating,
         baseCost: totalCost
       })
@@ -210,6 +214,13 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
             placeholder="Enter a name for your elixir..."
             className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
+          
+          <div className="mt-0">
+            <span className="text-sm text-gray-500">
+              Name Suffix: {selectedEffects.length > 0 ? `(${selectedEffects.map(effect => effect.name).join(", ")})` : "()"}
+            </span>
+          </div>
+          
         </div>
 
         {/* Chem Type Selection */}
@@ -252,14 +263,14 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
             min="0"
           />
           <p className="text-sm text-gray-500 mt-1">
-            Base cost: {totalCost} credits
+            Listed cost: {totalCost} credits
           </p>
           {creditError && (
             <p className="text-red-500 text-sm mt-1">{creditError}</p>
           )}
         </div>
 
-        {/* Use Base Cost Checkbox */}
+        {/* Use Listed / Base Cost Checkbox */}
         <div className="flex items-center space-x-2">
           <Checkbox 
             id="use-base-cost-for-rating"
@@ -293,11 +304,12 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
               const canSelect = selectedEffects.length < 3 || isSelected
 
               return (
-                <div
+                <label
                   key={effect.name}
+                  htmlFor={`effect-${effect.name}`}
                   className={`flex items-center justify-between p-3 ${
                     index !== availableEffects.length - 1 ? "border-b border-gray-100" : ""
-                  } ${!canSelect ? "opacity-40" : "hover:bg-gray-50"} transition-colors`}
+                  } ${!canSelect ? "opacity-40" : "hover:bg-gray-50"} transition-colors cursor-pointer`}
                 >
                   <div className="flex items-center space-x-3 flex-1">
                     <Checkbox
@@ -306,17 +318,14 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
                       onCheckedChange={() => handleEffectToggle(effect)}
                       disabled={!canSelect}
                     />
-                    <label
-                      htmlFor={`effect-${effect.name}`}
-                      className="text-sm font-medium text-gray-900 cursor-pointer"
-                    >
+                    <span className="text-sm font-medium text-gray-900">
                       {effect.name}
-                    </label>
+                    </span>
                   </div>
                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
                     <span className="text-[10px] font-medium">{effect.cost}</span>
                   </div>
-                </div>
+                </label>
               )
             })}
           </div>

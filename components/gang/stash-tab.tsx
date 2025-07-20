@@ -548,16 +548,36 @@ export default function GangInventory({
             });
 
             if (result.success) {
+              // Create new stash item from the created chem-alchemy
+              const newStashItem: StashItem = {
+                id: result.data?.stashItem?.id || `temp-${Date.now()}`,
+                cost: chem.totalCost,
+                type: 'equipment',
+                equipment_id: result.data?.customEquipment?.id,
+                equipment_name: chem.name,
+                equipment_type: 'wargear',
+                equipment_category: 'Chem-Alchemy',
+                custom_equipment_id: result.data?.customEquipment?.id
+              };
+
+              // Update the stash state optimistically
+              const newStash = [...stash, newStashItem];
+              setStash(newStash);
+
+              // Call parent update function if provided
+              if (onStashUpdate) {
+                onStashUpdate(newStash);
+              }
+
+              // Update gang credits in parent component if provided
+              if (onGangCreditsUpdate) {
+                onGangCreditsUpdate(gangCredits - chem.totalCost);
+              }
+
               toast({
                 title: "Elixir Created",
                 description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`,
               });
-              
-              // The server action will revalidate the path, so the stash will update automatically
-              // But we can also trigger a manual refresh if needed
-              if (onStashUpdate) {
-                // Optionally refresh the stash data here
-              }
             } else {
               toast({
                 title: "Error",
