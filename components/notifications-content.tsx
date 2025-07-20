@@ -157,7 +157,9 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     {getNotificationIcon(notification.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm mb-1">{notification.text}</p>
+                    <p className="text-sm mb-1 whitespace-pre-line">
+                      {notification.text}
+                    </p>
                     <p className="text-xs text-gray-500 mb-2">
                       {timeAgo(notification.created_at)}
                     </p>
