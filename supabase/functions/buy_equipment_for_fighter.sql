@@ -302,7 +302,7 @@ BEGIN
       now(),
       buy_equipment_for_fighter.gang_id,
       buy_equipment_for_fighter.equipment_id,
-      final_purchase_cost,
+      rating_cost,
       CASE 
         WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
         ELSE FALSE
