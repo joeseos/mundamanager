@@ -1903,7 +1903,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedEquipment.includes(value)) {
+                    if (value) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1913,7 +1913,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(item => !selectedEquipment.includes(item.id))
                     .map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.equipment_name}
@@ -1922,13 +1921,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipId) => {
+                  {selectedEquipment.map((equipId, index) => {
                     const item = equipment.find(e => e.id === equipId);
                     if (!item) return null;
 
                     return (
                       <div
-                        key={item.id}
+                        key={`${item.id}-${index}`}
                         className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
                           selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
                         }`}
@@ -1936,7 +1935,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         <span>{item.equipment_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
                           className="hover:text-red-500 focus:outline-none"
                           disabled={!selectedFighterTypeId}
                         >
