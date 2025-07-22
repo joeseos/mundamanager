@@ -309,11 +309,12 @@ export default function MembersTable({
         return false;
       }
     }
-    // Only campaign owners and arbitrators can remove members
-    if (!isCampaignOwner && !isCampaignAdmin) {
+    // Allow users to remove themselves, or campaign owners/arbitrators to remove others
+    const isRemovingSelf = memberToRemove.user_id === currentUserId;
+    if (!isRemovingSelf && !isCampaignOwner && !isCampaignAdmin) {
       toast({
         variant: "destructive",
-        description: "You don't have permission to remove members"
+        description: "You don't have permission to remove other members"
       });
       return false;
     }
@@ -428,23 +429,26 @@ export default function MembersTable({
     </div>
   ), [roleChange]);
 
-  const removeMemberModalContent = useMemo(() => (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-600">
-        Are you sure you want to remove <span className="font-medium">{memberToRemove?.profile.username}</span> from this campaign?
-        {memberToRemove?.gangs[0] && (
-          <span className="block mt-2 text-red-600">
-            This will also remove their gang "{memberToRemove.gangs[0].gang_name}" from the campaign.
-          </span>
-        )}
-      </p>
-      {memberToRemove?.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1 && (
-        <p className="text-sm text-red-600 font-medium mt-2">
-          Action blocked: the campaign Owner cannot be removed.
+  const removeMemberModalContent = useMemo(() => {
+    const isRemovingSelf = memberToRemove?.user_id === currentUserId;
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Are you sure you want to {isRemovingSelf ? 'leave' : 'remove'} {isRemovingSelf ? '' : <span className="font-medium">{memberToRemove?.profile.username}</span>} {isRemovingSelf ? 'this' : 'from this'} campaign?
+          {memberToRemove?.gangs[0] && (
+            <span className="block mt-2 text-red-600">
+              This will also remove {isRemovingSelf ? 'your' : 'their'} gang "{memberToRemove.gangs[0].gang_name}" from the campaign.
+            </span>
+          )}
         </p>
-      )}
-    </div>
-  ), [memberToRemove, members]);
+        {memberToRemove?.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1 && (
+          <p className="text-sm text-red-600 font-medium mt-2">
+            Action blocked: the campaign Owner cannot be removed.
+          </p>
+        )}
+      </div>
+    );
+  }, [memberToRemove, members, currentUserId]);
 
   const removeGangModalContent = useMemo(() => (
     <div className="space-y-4">
@@ -475,7 +479,7 @@ export default function MembersTable({
               {hasScavengingRolls && (
                 <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Scav.</th>
               )}
-              {isAdmin && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
+              {(isAdmin || sortedMembers.some(member => member.user_id === currentUserId)) && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -600,7 +604,7 @@ export default function MembersTable({
                     </span>
                   </td>
                 )}
-                {isAdmin && (
+                {(isAdmin || member.user_id === currentUserId) && (
                   <td className="px-2 py-2 text-right max-w-[2.5rem]">
                     <Button
                       variant="destructive"
@@ -753,7 +757,7 @@ export default function MembersTable({
                 </span>
               </div>
             )}
-            {isAdmin && (
+            {(isAdmin || member.user_id === currentUserId) && (
               <div className="flex justify-end mt-3">
                 <Button
                   variant="destructive"
@@ -819,14 +823,14 @@ export default function MembersTable({
 
       {showRemoveMemberModal && (
         <Modal
-          title="Remove Player from Campaign"
+          title={memberToRemove?.user_id === currentUserId ? "Leave Campaign" : "Remove Player from Campaign"}
           content={removeMemberModalContent}
           onClose={() => {
             setShowRemoveMemberModal(false);
             setMemberToRemove(null);
           }}
           onConfirm={handleRemoveMember}
-          confirmText="Remove Player"
+          confirmText={memberToRemove?.user_id === currentUserId ? "Leave Campaign" : "Remove Player"}
           confirmDisabled={false}
         />
       )}
