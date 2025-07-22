@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
+import { CACHE_TAGS } from "@/utils/cache-tags";
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -93,6 +94,11 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     revalidateTag(`campaign-battles-${campaignId}`); // Gang additions may affect battle history
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang cache to update campaign membership display
+    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
+    revalidateTag(`gang-details-${gangId}`);
+    revalidatePath(`/gang/${gangId}`);
 
     return { success: true };
   } catch (error) {
@@ -180,6 +186,15 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     revalidateTag(`campaign-battles-${campaignId}`); // Member removal may affect battle history
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang caches for all affected gangs to update campaign membership display
+    if (memberGangs && memberGangs.length > 0) {
+      memberGangs.forEach(gang => {
+        revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gang.gang_id));
+        revalidateTag(`gang-details-${gang.gang_id}`);
+        revalidatePath(`/gang/${gang.gang_id}`);
+      });
+    }
 
     return { success: true };
   } catch (error) {
@@ -257,6 +272,11 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     revalidateTag(`campaign-battles-${campaignId}`); // Gang removal may affect battle history
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang cache to update campaign membership display
+    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
+    revalidateTag(`gang-details-${gangId}`);
+    revalidatePath(`/gang/${gangId}`);
 
     return { success: true };
   } catch (error) {
