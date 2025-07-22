@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { logCreditsChanged, logCustomEvent } from './gang-logs';
 
 interface ChemEffect {
   name: string;
@@ -103,6 +104,20 @@ export async function createChemAlchemy({
       console.error('Error updating gang credits:', creditUpdateError);
       throw creditUpdateError;
     }
+
+    // Add gang logging for custom equipment creation and credit change
+    await logCustomEvent(
+      gangId,
+      'custom_equipment_created',
+      `Created custom ${type} "${name}" for ${totalCost} credits and added to gang stash`
+    );
+
+    await logCreditsChanged(
+      gangId,
+      gangData.credits,
+      gangData.credits - totalCost,
+      `Custom equipment creation: ${name}`
+    );
 
     console.log('Chem-alchemy created successfully, revalidating path');
     

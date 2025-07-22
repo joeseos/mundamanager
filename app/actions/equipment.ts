@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
 import { getCompleteFighterData } from '@/app/lib/fighter-details';
+import { logEquipmentPurchase, logCreditsChanged } from './gang-logs';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -59,6 +60,52 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     if (error) {
       console.error('Error buying equipment:', error);
       throw new Error(error.message || 'Failed to buy equipment');
+    }
+
+    // Add gang logging for equipment purchase
+    if (!params.buy_for_gang_stash && data.rating_cost) {
+      // Get fighter or vehicle name for logging
+      let fighterName = 'Unknown Fighter';
+      let equipmentName = 'Unknown Equipment';
+      
+      if (params.fighter_id) {
+        const { data: fighterData } = await supabase
+          .from('fighters')
+          .select('fighter_name, gang_id')
+          .eq('id', params.fighter_id)
+          .single();
+        
+        if (fighterData) {
+          fighterName = fighterData.fighter_name;
+          
+          // Get equipment name from response data
+          const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
+          if (equipmentRecord) {
+            // Extract equipment name from the equipment details
+            equipmentName = equipmentRecord.equipment_name || equipmentRecord.wargear_details?.name || 'Equipment';
+          }
+          
+          await logEquipmentPurchase(
+            params.gang_id,
+            params.fighter_id,
+            fighterName,
+            equipmentName,
+            params.manual_cost || data.rating_cost,
+            0 // We don't have gang rating in this context
+          );
+        }
+      }
+      
+      // Log credit change
+      const gangCredits = data.updategangsCollection?.records[0]?.credits;
+      if (gangCredits !== undefined) {
+        await logCreditsChanged(
+          params.gang_id,
+          gangCredits + (params.manual_cost || data.rating_cost || 0),
+          gangCredits,
+          `Equipment purchase: ${equipmentName}`
+        );
+      }
     }
 
     // Invalidate caches - all equipment purchases affect gang credits/rating

@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { logAdvancementPurchase } from './gang-logs';
 
 // Types for advancement operations
 export interface AddCharacteristicAdvancementParams {
@@ -163,6 +164,21 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to update fighter XP' };
     }
 
+    // Log the advancement purchase
+    const logResult = await logAdvancementPurchase(
+      fighter.gang_id,
+      params.fighter_id,
+      effectType.effect_name,
+      'characteristic',
+      params.xp_cost,
+      params.credits_increase
+    );
+
+    if (!logResult.success) {
+      console.error('Failed to log advancement purchase:', logResult.error);
+      // Don't fail the advancement if logging fails
+    }
+
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
 
@@ -195,6 +211,7 @@ export async function addSkillAdvancement(
     if (authError || !user) {
       return { success: false, error: 'Authentication required' };
     }
+    console.log(params);
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase);
@@ -264,6 +281,30 @@ export async function addSkillAdvancement(
 
     if (updateError || !updatedFighter) {
       return { success: false, error: 'Failed to update fighter' };
+    }
+
+    // Get skill name for logging
+    const { data: skillData, error: skillError } = await supabase
+      .from('skills')
+      .select('*')
+      .eq('id', params.skill_id)
+      .single();
+
+    const skillName = skillData?.name || 'Unknown Skill';
+
+    // Log the skill advancement purchase
+    const logResult = await logAdvancementPurchase(
+      fighter.gang_id,
+      params.fighter_id,
+      skillName,
+      'skill',
+      params.xp_cost,
+      params.credits_increase
+    );
+
+    if (!logResult.success) {
+      console.error('Failed to log skill advancement purchase:', logResult.error);
+      // Don't fail the advancement if logging fails
     }
 
     // Invalidate fighter cache

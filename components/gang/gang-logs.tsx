@@ -56,11 +56,22 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
   const getActionTypeDisplay = (actionType: string) => {
     const actionTypeMap: { [key: string]: string } = {
       'credits_earned': 'Credits earned',
-      'credits_spent': 'Credits spent',
+      'credits_spent': 'Credits spent', 
       'credits_changed': 'Credits changed',
       'reputation_gained': 'Reputation gained',
       'reputation_lost': 'Reputation lost',
       'reputation_changed': 'Reputation changed',
+      'gang_type_changed': 'Gang type changed',
+      
+      'meat_changed': 'Meat changed',
+      'exploration_points_changed': 'Exploration points changed',
+      'gang_created': 'Gang created',
+      'gang_name_changed': 'Gang name changed',
+      'alignment_changed': 'Alignment changed',
+      'gang_colour_changed': 'Gang colour changed',
+      'alliance_changed': 'Alliance changed',
+      'gang_variants_changed': 'Gang variants changed',
+      
       'fighter_added': 'Fighter added',
       'fighter_removed': 'Fighter removed',
       'fighter_killed': 'Fighter killed',
@@ -70,10 +81,18 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_total_xp_changed': 'Fighter total XP changed',
       'fighter_kills_changed': 'Fighter kills changed',
       'fighter_cost_adjusted': 'Fighter cost adjusted',
+      
+      'advancement_purchased': 'Advancement purchased',
+      
       'equipment_purchased': 'Equipment purchased',
       'Equipment removed': 'Equipment removed',
       'equipment_moved_to_stash': 'Equipment moved to stash',
       'equipment_moved_from_stash': 'Equipment moved from stash',
+      
+      'equipment_sold': 'Equipment sold',
+      'equipment_taken_from_stash': 'Equipment taken from stash',
+      'custom_equipment_created': 'Custom equipment created',
+      
       'vehicle_added': 'Vehicle added',
       'vehicle_deleted': 'Vehicle removed',
       'vehicle_updated': 'Vehicle updated',
@@ -85,13 +104,14 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'Vehicle equipment removed': 'Vehicle equipment removed',
       'vehicle_equipment_moved_to_stash': 'Vehicle equipment moved to stash',
       'vehicle_equipment_moved_from_stash': 'Vehicle equipment moved from stash',
+      
+      'vehicle_equipment_sold': 'Vehicle equipment sold',
+      
       'stash_update': 'Stash updated',
       'alignment_change': 'Alignment changed',
-      'gang_created': 'Gang created',
       'gang_deleted': 'Gang deleted',
       'name_change': 'Name changed',
-      'name_changed': 'Name changed',
-      'gang_type_changed': 'Gang type changed'
+      'name_changed': 'Name changed'
     };
     return actionTypeMap[actionType] || actionType;
   };

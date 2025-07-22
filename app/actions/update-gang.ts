@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { logCreditsChanged, logCustomEvent } from './gang-logs';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -55,7 +56,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation')
+      .select('id, user_id, credits, reputation, meat, exploration_points, name, alignment, gang_colour, alliance_id')
       .eq('id', params.gang_id)
       .single();
 
@@ -162,6 +163,72 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
     }
 
+    // Add gang logging for all changes (matching auto_log_gang_changes trigger)
+    
+    // Log credits changes (if manually updated)
+    if (creditsChanged && gang.credits !== updatedGang.credits) {
+      await logCreditsChanged(
+        params.gang_id,
+        gang.credits,
+        updatedGang.credits,
+        'Manual gang update'
+      );
+    }
+
+    // Log reputation changes
+    if (params.reputation !== undefined && gang.reputation !== updatedGang.reputation) {
+      await logCustomEvent(
+        params.gang_id,
+        'reputation_changed',
+        `Reputation changed from ${gang.reputation || 0} to ${updatedGang.reputation || 0}`
+      );
+    }
+
+    // Log meat changes
+    if (params.meat !== undefined && updates.meat !== undefined) {
+      await logCustomEvent(
+        params.gang_id,
+        'meat_changed',
+        `Meat changed from ${gang.meat || 0} to ${updates.meat}`
+      );
+    }
+
+    // Log exploration points changes
+    if (params.exploration_points !== undefined && updates.exploration_points !== undefined) {
+      await logCustomEvent(
+        params.gang_id,
+        'exploration_points_changed',
+        `Exploration points changed from ${gang.exploration_points || 0} to ${updates.exploration_points}`
+      );
+    }
+
+    // Log name changes
+    if (params.name !== undefined && gang.name !== updatedGang.name) {
+      await logCustomEvent(
+        params.gang_id,
+        'gang_name_changed',
+        `Gang name changed from "${gang.name}" to "${updatedGang.name}"`
+      );
+    }
+
+    // Log alignment changes
+    if (params.alignment !== undefined && gang.alignment !== updatedGang.alignment) {
+      await logCustomEvent(
+        params.gang_id,
+        'alignment_changed',
+        `Alignment changed from "${gang.alignment || 'None'}" to "${updatedGang.alignment || 'None'}"`
+      );
+    }
+
+    // Log gang color changes
+    if (params.gang_colour !== undefined && gang.gang_colour !== updatedGang.gang_colour) {
+      await logCustomEvent(
+        params.gang_id,
+        'gang_colour_changed',
+        `Gang colour changed to "${updatedGang.gang_colour || 'Default'}"`
+      );
+    }
+
     // Fetch alliance name if alliance_id was updated
     let allianceName: string | null = null;
     if (params.alliance_id !== undefined && updatedGang.alliance_id) {
@@ -190,6 +257,28 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
           variant: v.variant
         }));
       }
+    }
+
+    // Log alliance changes
+    if (params.alliance_id !== undefined && gang.alliance_id !== updatedGang.alliance_id) {
+      const oldAllianceName = gang.alliance_id ? 'Unknown Alliance' : 'None';
+      const newAllianceName = allianceName || (updatedGang.alliance_id ? 'Unknown Alliance' : 'None');
+      
+      await logCustomEvent(
+        params.gang_id,
+        'alliance_changed',
+        `Alliance changed from "${oldAllianceName}" to "${newAllianceName}"`
+      );
+    }
+
+    // Log gang variant changes
+    if (params.gang_variants !== undefined) {
+      const variantNames = gangVariants.map(v => v.variant).join(', ') || 'None';
+      await logCustomEvent(
+        params.gang_id,
+        'gang_variants_changed',
+        `Gang variants changed to: ${variantNames}`
+      );
     }
 
     // Targeted cache invalidation

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
+import { logFighterAdded, logCreditsChanged } from './gang-logs';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -360,6 +361,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (gangUpdateError) {
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
+
+    // Add gang logging for fighter addition and credit change
+    const newGangRating = (gangData.credits - fighterCost) + ratingCost; // Simplified rating calculation
+    
+    await logFighterAdded(
+      params.gang_id,
+      fighterId,
+      insertedFighter.fighter_name,
+      ratingCost,
+      newGangRating
+    );
+
+    await logCreditsChanged(
+      params.gang_id,
+      gangData.credits,
+      gangData.credits - fighterCost,
+      `Fighter addition: ${insertedFighter.fighter_name}`
+    );
 
     // Revalidate paths
     revalidatePath(`/gang/${params.gang_id}`);

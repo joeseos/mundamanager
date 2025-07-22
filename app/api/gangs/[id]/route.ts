@@ -2,6 +2,8 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
+import { checkAdmin } from "@/utils/auth";
+import { logCreditsChanged, logCustomEvent } from '@/app/actions/gang-logs';
 
 enum GangAlignment {
   LAW_ABIDING = 'Law Abiding',
@@ -135,6 +137,15 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       last_updated: new Date().toISOString()
     };
 
+    // Fetch the current gang data for comparison and logging
+    const { data: currentGang, error: gangFetchError } = await supabase
+      .from("gangs")
+      .select("id, user_id, credits, reputation, meat, exploration_points, name, alignment, gang_colour, alliance_id")
+      .eq("id", params.id)
+      .single();
+
+    if (gangFetchError) throw gangFetchError;
+
     // Add name if provided
     if (name !== undefined) {
       updates.name = name.trimEnd();
@@ -186,14 +197,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       (credits !== undefined && credits_operation) ||
       (reputation !== undefined && reputation_operation)
     ) {
-      const { data: currentGang, error: gangFetchError } = await supabase
-        .from("gangs")
-        .select("credits, reputation")
-        .eq("id", params.id)
-        .single();
-
-      if (gangFetchError) throw gangFetchError;
-
       if (credits !== undefined && credits_operation) {
         updates.credits = credits_operation === 'add'
           ? (currentGang.credits || 0) + credits
@@ -211,15 +214,53 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       updates.gang_variants = gang_variants;
     }
 
-    // Perform the update
-    const { data: updatedGang, error: gangUpdateError } = await supabase
+    // Update the gang
+    const { data: updatedGang, error: updateError } = await supabase
       .from("gangs")
       .update(updates)
       .eq('id', params.id)
       .select()
       .single();
 
-    if (gangUpdateError) throw gangUpdateError;
+    if (updateError) throw updateError;
+
+    // Add gang logging for changes (matching server action logging)
+    
+    // Log credits changes (if manually updated)
+    if (credits !== undefined && credits_operation && currentGang.credits !== updatedGang.credits) {
+      await logCreditsChanged(
+        params.id,
+        currentGang.credits,
+        updatedGang.credits,
+        'Manual gang update (API)'
+      );
+    }
+
+    // Log reputation changes
+    if (reputation !== undefined && reputation_operation && currentGang.reputation !== updatedGang.reputation) {
+      await logCustomEvent(
+        params.id,
+        'reputation_changed',
+        `Reputation changed from ${currentGang.reputation || 0} to ${updatedGang.reputation || 0}`
+      );
+    }
+
+    // Log other field changes if they exist
+    if (name !== undefined && currentGang.name !== updatedGang.name) {
+      await logCustomEvent(
+        params.id,
+        'gang_name_changed',
+        `Gang name changed from "${currentGang.name}" to "${updatedGang.name}"`
+      );
+    }
+
+    if (alignment !== undefined && currentGang.alignment !== updatedGang.alignment) {
+      await logCustomEvent(
+        params.id,
+        'alignment_changed',
+        `Alignment changed from "${currentGang.alignment || 'None'}" to "${updatedGang.alignment || 'None'}"`
+      );
+    }
 
     // Invalidate cache for this gang so changes are reflected on reload
     revalidateTag(CACHE_TAGS.GANG_OVERVIEW(params.id));

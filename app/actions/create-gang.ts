@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { logCustomEvent } from './gang-logs';
 
 interface CreateGangParams {
   name: string;
@@ -45,6 +46,15 @@ export async function createGang({
       console.error('Error creating gang:', error);
       throw error;
     }
+
+    const createdGang = data[0];
+    
+    // Add gang logging for gang creation
+    await logCustomEvent(
+      createdGang.id,
+      'gang_created',
+      `Gang "${name.trimEnd()}" created with ${gangType} gang type and ${alignment} alignment (1000 credits, 1 reputation)`
+    );
     
     console.log('Gang created successfully, revalidating path');
     

@@ -1,7 +1,9 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
+import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { logXpChange, logFighterStatusChange, logCreditsChanged } from './gang-logs';
 
 interface EditFighterStatusParams {
   fighter_id: string;
@@ -155,7 +157,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
-          .select()
+          .select('fighter_name')
           .single();
 
         if (fighterUpdateError) throw fighterUpdateError;
@@ -172,6 +174,21 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .single();
 
         if (gangUpdateError) throw gangUpdateError;
+
+        // Add gang logging for fighter sale
+        await logFighterStatusChange(
+          gangId,
+          params.fighter_id,
+          updatedFighter.fighter_name,
+          'enslaved'
+        );
+
+        await logCreditsChanged(
+          gangId,
+          gangCredits,
+          gangCredits + params.sell_value,
+          `Sold fighter: ${updatedFighter.fighter_name}`
+        );
 
         invalidateFighterData(params.fighter_id, gangId);
 
@@ -356,10 +373,20 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
         updated_at: new Date().toISOString()
       })
       .eq('id', params.fighter_id)
-      .select('id, xp')
+      .select('id, xp, fighter_name')
       .single();
 
     if (updateError) throw updateError;
+
+    // Add gang logging for XP change
+    await logXpChange(
+      fighter.gang_id,
+      params.fighter_id,
+      updatedFighter.fighter_name,
+      fighter.xp,
+      updatedFighter.xp,
+      'Manual XP addition'
+    );
 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
