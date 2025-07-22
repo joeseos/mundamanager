@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
+import { CACHE_TAGS } from "@/utils/cache-tags";
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -53,6 +54,11 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
     revalidateTag(`campaign-territories-${campaignId}`);
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang cache to update territory ownership display
+    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
+    revalidateTag(`gang-details-${gangId}`);
+    revalidatePath(`/gang/${gangId}`);
 
     return { success: true };
   } catch (error) {
@@ -72,6 +78,14 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
     const supabase = await createClient();
     const { campaignId, territoryId } = params;
     
+    // Get the gang_id before removing it so we can invalidate its cache
+    const { data: territoryData } = await supabase
+      .from('campaign_territories')
+      .select('gang_id')
+      .eq('id', territoryId)
+      .eq('campaign_id', campaignId)
+      .single();
+    
     const { error } = await supabase
       .from('campaign_territories')
       .update({ gang_id: null })
@@ -85,6 +99,13 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
     revalidateTag(`campaign-territories-${campaignId}`);
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang cache to update territory ownership display
+    if (territoryData?.gang_id) {
+      revalidateTag(CACHE_TAGS.GANG_OVERVIEW(territoryData.gang_id));
+      revalidateTag(`gang-details-${territoryData.gang_id}`);
+      revalidatePath(`/gang/${territoryData.gang_id}`);
+    }
 
     return { success: true };
   } catch (error) {

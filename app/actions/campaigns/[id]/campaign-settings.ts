@@ -1,8 +1,9 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { CACHE_TAGS } from "@/utils/cache-tags";
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -46,9 +47,24 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 
     if (error) throw error;
 
+    // Get all gangs in this campaign to invalidate their caches
+    const { data: campaignGangs } = await supabase
+      .from('campaign_gangs')
+      .select('gang_id')
+      .eq('campaign_id', campaignId);
+
     // 🎯 TARGETED CACHE INVALIDATION
     revalidateTag(`campaign-basic-${campaignId}`);
     revalidateTag(`campaign-${campaignId}`);
+    
+    // Invalidate gang caches to update campaign resource settings display
+    if (campaignGangs && campaignGangs.length > 0) {
+      campaignGangs.forEach(gang => {
+        revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gang.gang_id));
+        revalidateTag(`gang-details-${gang.gang_id}`);
+        revalidatePath(`/gang/${gang.gang_id}`);
+      });
+    }
 
     return { success: true };
   } catch (error) {
