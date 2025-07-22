@@ -879,60 +879,114 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Special handling for subTypeId and subTypeName
       let finalSubTypeId: string | null = null;
+      let finalSubTypeName: string | null = null;
       
-      // Case 1: Empty sub-type name - Always make it a default fighter
-      if (!subTypeName.trim()) {
-        finalSubTypeId = null;
-        console.log(`No sub-type name provided, setting fighter ${fighterIdToUpdate} as default (null sub-type)`);
-      } 
-      // Case 2: Editing default fighter and adding a name - Create new sub-type
-      else if (selectedSubTypeId === "default") {
-        try {
-          const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
-          console.log(`Creating new sub-type: "${formattedName}" from default fighter`);
-            
-          const createResponse = await fetch('/api/admin/fighter-sub-types', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sub_type_name: formattedName }),
-          });
-            
-          if (createResponse.ok) {
-            const newSubType = await createResponse.json();
-            finalSubTypeId = newSubType.id;
-            console.log(`Created new sub-type with ID: ${finalSubTypeId}`);
-          } else {
-            console.error('Failed to create sub-type:', await createResponse.text());
-            throw new Error('Failed to create new sub-type');
-          }
-        } catch (error) {
-          console.error('Error creating sub-type:', error);
-          throw new Error('Failed to create new sub-type');
-        }
-      } 
-      // Case 3: Editing existing sub-type - Use existing ID but update name if changed
-      else {
-        finalSubTypeId = selectedSubTypeId;
-        console.log(`Using existing sub-type with ID: ${finalSubTypeId}`);
-        
-        // If we're using an existing sub-type but changed the name, update it
-        const existingSubType = fighterSubTypes.find(st => st.id === finalSubTypeId);
-        if (existingSubType && existingSubType.sub_type_name !== subTypeName) {
+      // Get the original fighter data to see what subtype it currently has
+      const originalFighter = fighterTypes.find(f => f.id === fighterIdToUpdate);
+      const originalSubTypeId = originalFighter?.fighter_sub_type_id;
+      
+      // Get the current subtype name from the input field (might be more up-to-date than state)
+      const currentSubTypeName = subTypeNameInputRef.current?.value || subTypeName;
+      
+      // Get the original subtype name if we need to preserve it
+      let originalSubTypeName: string | null = null;
+      if (originalSubTypeId) {
+        const originalSubType = fighterSubTypes.find(st => st.id === originalSubTypeId);
+        originalSubTypeName = originalSubType?.sub_type_name || null;
+      }
+      
+      console.log('Subtype logic - Current state:', {
+        selectedSubTypeId,
+        subTypeName,
+        currentSubTypeName,
+        originalSubTypeId,
+        originalSubTypeName,
+        originalFighterSubTypeId: originalFighter?.fighter_sub_type_id
+      });
+      
+      // Case 1: User selected "default" - Convert to default fighter
+      if (selectedSubTypeId === "default") {
+        // Check if user added a name to create a new subtype
+        if (currentSubTypeName && currentSubTypeName.trim()) {
           try {
-            console.log(`Updating sub-type name from "${existingSubType.sub_type_name}" to "${subTypeName}"`);
-            const updateResponse = await fetch(`/api/admin/fighter-sub-types?id=${finalSubTypeId}`, {
-              method: 'PUT',
+            const formattedName = currentSubTypeName.trim().charAt(0).toUpperCase() + currentSubTypeName.trim().slice(1);
+            console.log(`Creating new sub-type: "${formattedName}" from default fighter`);
+              
+            const createResponse = await fetch('/api/admin/fighter-sub-types', {
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sub_type_name: subTypeName }),
+              body: JSON.stringify({ sub_type_name: formattedName }),
             });
-            
-            if (!updateResponse.ok) {
-              console.error('Failed to update sub-type name:', await updateResponse.text());
+              
+            if (createResponse.ok) {
+              const newSubType = await createResponse.json();
+              finalSubTypeId = newSubType.id;
+              finalSubTypeName = newSubType.sub_type_name;
+              console.log(`Created new sub-type with ID: ${finalSubTypeId}`);
+            } else {
+              console.error('Failed to create sub-type:', await createResponse.text());
+              throw new Error('Failed to create new sub-type');
             }
           } catch (error) {
-            console.error('Error updating sub-type name:', error);
+            console.error('Error creating sub-type:', error);
+            throw new Error('Failed to create new sub-type');
+          }
+        } else {
+          // No name provided, keep as default fighter
+          finalSubTypeId = null;
+          finalSubTypeName = null;
+          console.log(`Converting fighter ${fighterIdToUpdate} to default (null sub-type)`);
+        }
+      }
+      // Case 2: User selected an existing subtype - Use that subtype
+      else if (selectedSubTypeId && selectedSubTypeId !== "default") {
+        finalSubTypeId = selectedSubTypeId;
+        
+        // If user provided a name in the input, use that; otherwise preserve the original name
+        if (currentSubTypeName && currentSubTypeName.trim()) {
+          finalSubTypeName = currentSubTypeName.trim();
+        } else {
+          // No input provided, find and preserve the original subtype name
+          const selectedSubType = fighterSubTypes.find(st => st.id === selectedSubTypeId);
+          finalSubTypeName = selectedSubType?.sub_type_name || null;
+        }
+        
+        console.log(`Using selected sub-type with ID: ${finalSubTypeId}, name: ${finalSubTypeName}`);
+        
+        // If user changed the subtype name, update it
+        if (currentSubTypeName && currentSubTypeName.trim()) {
+          const existingSubType = fighterSubTypes.find(st => st.id === finalSubTypeId);
+          if (existingSubType && existingSubType.sub_type_name !== currentSubTypeName.trim()) {
+            try {
+              console.log(`Updating sub-type name from "${existingSubType.sub_type_name}" to "${currentSubTypeName.trim()}"`);
+              const updateResponse = await fetch(`/api/admin/fighter-sub-types?id=${finalSubTypeId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sub_type_name: currentSubTypeName.trim() }),
+              });
+              
+              if (!updateResponse.ok) {
+                console.error('Failed to update sub-type name:', await updateResponse.text());
+              } else {
+                finalSubTypeName = currentSubTypeName.trim();
+              }
+            } catch (error) {
+              console.error('Error updating sub-type name:', error);
+            }
           }
         }
+      }
+      // Case 3: No subtype selected but fighter originally had one - preserve original
+      else if (!selectedSubTypeId && originalSubTypeId) {
+        finalSubTypeId = originalSubTypeId;
+        finalSubTypeName = originalSubTypeName;
+        console.log(`No subtype selection made, preserving original sub-type ID: ${finalSubTypeId} with name: ${finalSubTypeName}`);
+      }
+      // Case 4: No subtype selected and fighter was originally default - keep as default
+      else {
+        finalSubTypeId = null;
+        finalSubTypeName = null;
+        console.log(`No subtype selection made and fighter was originally default, keeping as default`);
       }
 
       // Log equipment selection state before preparing update data
@@ -997,7 +1051,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fighter_class: selectedFighterClass,
         fighter_class_id: fighterClass?.id,
         fighter_sub_type_id: finalSubTypeId,
-        fighter_sub_type: subTypeName.trim() || null,
+        fighter_sub_type: finalSubTypeName,
         movement: parseInt(movement),
         weapon_skill: parseInt(weaponSkill),
         ballistic_skill: parseInt(ballisticSkill),
