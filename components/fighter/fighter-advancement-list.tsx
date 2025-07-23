@@ -157,6 +157,13 @@ function isStatChangeCategory(category: StatChangeCategory | SkillType): categor
   return category.type === 'characteristic';
 }
 
+// Add SkillAccess interface
+interface SkillAccess {
+  skill_type_id: string;
+  access_level: 'primary' | 'secondary' | 'allowed';
+  skill_type_name: string;
+}
+
 // AdvancementModal Component
 export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
   const { toast } = useToast();
@@ -172,6 +179,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
 
   // Fetch stat change categories
   useEffect(() => {
@@ -412,6 +420,25 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     }
   }, [selectedCategory, selectedAdvancement, advancementType]);
 
+  // Fetch skill access for fighter when advancementType is 'skill'
+  useEffect(() => {
+    if (advancementType !== 'skill') return;
+    const fetchSkillAccess = async () => {
+      try {
+        const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSkillAccess(data.skill_access || []);
+        } else {
+          setSkillAccess([]);
+        }
+      } catch {
+        setSkillAccess([]);
+      }
+    };
+    fetchSkillAccess();
+  }, [advancementType, fighterId]);
+
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -606,40 +633,75 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
                       </optgroup>
                     ))
                   ) : (
-                    // If selecting a Skill Set, sort and group dynamically
-                    Object.entries(
+                    // Skill set rendering with access display
+                    (() => {
+                      // Map skill access by skill type ID
+                      const skillAccessMap = new Map<string, SkillAccess>();
+                      skillAccess.forEach(access => {
+                        skillAccessMap.set(access.skill_type_id, access);
+                      });
+                      // Group categories by rank label
+                      const groupByLabel: Record<string, SkillType[]> = {};
                       categories
-                        .filter((cat): cat is SkillType => cat.type === 'skill')  // Filter to only SkillType
-                        .sort((a, b) => {
+                        .filter((cat): cat is SkillType => cat.type === 'skill')
+                        .forEach(category => {
+                          const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
+                          let groupLabel = 'Misc.';
+                          if (rank <= 19) groupLabel = 'Universal Skills';
+                          else if (rank <= 39) groupLabel = 'Gang-specific Skills';
+                          else if (rank <= 59) groupLabel = 'Wyrd Powers';
+                          else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+                          else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+                          else if (rank <= 89) groupLabel = 'Legendary Names';
+                          else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+                          if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
+                          groupByLabel[groupLabel].push(category);
+                        });
+                      // Sort group labels by their first rank
+                      const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+                        const aRank = Math.min(...groupByLabel[a].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
+                        const bRank = Math.min(...groupByLabel[b].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
+                        return aRank - bRank;
+                      });
+                      // Render optgroups
+                      return sortedGroupLabels.map(groupLabel => {
+                        const groupCategories = groupByLabel[groupLabel].sort((a, b) => {
                           const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
                           const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
                           return rankA - rankB;
-                        })
-                        .reduce((groups, category) => {
-                          const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
-                          let groupLabel = "Misc."; // Default category for unlisted skills
-
-                          if (rank <= 19) groupLabel = "Universal Skills";
-                          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                          else if (rank <= 59) groupLabel = "Wyrd Powers";
-                          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                          else if (rank <= 89) groupLabel = "Legendary Names";
-                          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(category);
-                          return groups;
-                        }, {} as Record<string, SkillType[]>)
-                    ).map(([groupLabel, categoryList]) => (
+                        });
+                        return (
                       <optgroup key={groupLabel} label={groupLabel}>
-                        {categoryList.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
+                            {groupCategories.map(category => {
+                              const access = skillAccessMap.get(category.id);
+                              let accessLabel = '';
+                              let style: React.CSSProperties = { color: '#9CA3AF', fontStyle: 'italic' };
+                              if (access) {
+                                if (access.access_level === 'primary') {
+                                  accessLabel = '(Primary)';
+                                  style = {};
+                                } else if (access.access_level === 'secondary') {
+                                  accessLabel = '(Secondary)';
+                                  style = {};
+                                } else if (access.access_level === 'allowed') {
+                                  accessLabel = '(-)';
+                                  style = {};
+                                }
+                              }
+                              return (
+                                <option
+                                  key={category.id}
+                                  value={category.id}
+                                  style={style}
+                                >
+                                  {category.name} {accessLabel}
                           </option>
-                        ))}
+                              );
+                            })}
                       </optgroup>
-                    ))
+                        );
+                      });
+                    })()
                   )}
                 </select>
               </div>

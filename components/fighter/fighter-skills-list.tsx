@@ -61,24 +61,32 @@ interface SkillResponse {
   skills: SkillData[];
 }
 
+interface SkillAccess {
+  skill_type_id: string;
+  access_level: 'primary' | 'secondary' | 'allowed';
+  skill_type_name: string;
+}
+
 // SkillModal Component
 export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string>('');
+  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const { toast } = useToast();
   const session = useSession();
 
-  // Fetch categories (skill sets)
+  // Fetch categories (skill sets) and skill access
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategoriesAndAccess = async () => {
       try {
         // Get the session from the hook
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         
-        const response = await fetch(
+        // Fetch skill types
+        const skillTypesResponse = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/skill_types`,
           {
             headers: {
@@ -89,11 +97,30 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           }
         );
 
-        if (!response.ok) {
+        if (!skillTypesResponse.ok) {
           throw new Error('Failed to fetch skill sets');
         }
-        const data = await response.json();
-        setCategories(data);
+        const skillTypesData = await skillTypesResponse.json();
+        setCategories(skillTypesData);
+
+        // Fetch skill access for this fighter
+        console.log('Fetching skill access for fighter:', fighterId);
+        try {
+          const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
+          console.log('Skill access response status:', skillAccessResponse.status);
+          if (skillAccessResponse.ok) {
+            const skillAccessData = await skillAccessResponse.json();
+            console.log('Skill access data:', skillAccessData);
+            setSkillAccess(skillAccessData.skill_access || []);
+          } else {
+            const errorText = await skillAccessResponse.text();
+            console.warn('Failed to fetch skill access:', errorText);
+            setSkillAccess([]);
+          }
+        } catch (error) {
+          console.error('Error fetching skill access:', error);
+          setSkillAccess([]);
+        }
       } catch (error) {
         console.error('Error fetching skill sets:', error);
         toast({
@@ -103,8 +130,8 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       }
     };
 
-    fetchCategories();
-  }, [toast]);
+    fetchCategoriesAndAccess();
+  }, [fighterId, toast]);
 
   // Fetch skills when category is selected
   useEffect(() => {
@@ -209,38 +236,75 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         >
           <option key="placeholder-type" value="">Select a skill set</option>
 
-          {Object.entries(
-            categories
-              .sort((a, b) => {
+          {(() => {
+            // Map skill access by skill type ID
+            const skillAccessMap = new Map<string, SkillAccess>();
+            skillAccess.forEach(access => {
+              skillAccessMap.set(access.skill_type_id, access);
+            });
+
+            // Group categories by rank label
+            const groupByLabel: Record<string, typeof categories> = {};
+            categories.forEach(category => {
+              const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
+              let groupLabel = 'Misc.';
+              if (rank <= 19) groupLabel = 'Universal Skills';
+              else if (rank <= 39) groupLabel = 'Gang-specific Skills';
+              else if (rank <= 59) groupLabel = 'Wyrd Powers';
+              else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+              else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+              else if (rank <= 89) groupLabel = 'Legendary Names';
+              else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+              if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
+              groupByLabel[groupLabel].push(category);
+            });
+
+            // Sort group labels by their first rank
+            const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+              const aRank = Math.min(...groupByLabel[a].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
+              const bRank = Math.min(...groupByLabel[b].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
+              return aRank - bRank;
+            });
+
+            // Render optgroups
+            return sortedGroupLabels.map(groupLabel => {
+              const groupCategories = groupByLabel[groupLabel].sort((a, b) => {
                 const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
                 const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
                 return rankA - rankB;
-              })
-              .reduce((groups, category) => {
-                const rank = skillSetRank[category.name.toLowerCase()];
-                let groupLabel = "Misc."; // Default category if no clear separator
-
-                if (rank <= 19) groupLabel = "Universal Skills";
-                else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                else if (rank <= 59) groupLabel = "Wyrd Powers";
-                else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                else if (rank <= 89) groupLabel = "Legendary Names";
-                else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                if (!groups[groupLabel]) groups[groupLabel] = [];
-                groups[groupLabel].push(category);
-                return groups;
-              }, {} as Record<string, typeof categories>)
-          ).map(([groupLabel, categoryList]) => (
-            <optgroup key={groupLabel} label={groupLabel}>
-              {categoryList.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
+              });
+              return (
+                <optgroup key={groupLabel} label={groupLabel}>
+                  {groupCategories.map(category => {
+                    const access = skillAccessMap.get(category.id);
+                    let accessLabel = '';
+                    let style: React.CSSProperties = { color: '#999999', fontStyle: 'italic' };
+                    if (access) {
+                      if (access.access_level === 'primary') {
+                        accessLabel = '(Primary)';
+                        style = {};
+                      } else if (access.access_level === 'secondary') {
+                        accessLabel = '(Secondary)';
+                        style = {};
+                      } else if (access.access_level === 'allowed') {
+                        accessLabel = '(-)';
+                        style = {};
+                      }
+                    }
+                    return (
+                      <option
+                        key={category.id}
+                        value={category.id}
+                        style={style}
+                      >
+                        {category.name} {accessLabel}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              );
+            });
+          })()}
         </select>
       </div>
 
