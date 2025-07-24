@@ -45,6 +45,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   vehicle?: Vehicle;
   disableLink?: boolean;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -141,6 +142,7 @@ const FighterCard = memo(function FighterCard({
   vehicle,
   disableLink = false,
   viewMode = 'normal',
+  owner_name,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -433,16 +435,25 @@ const FighterCard = memo(function FighterCard({
             <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} />
           </div>
 
+          {/* Show owner information for owned fighters */}
+          {owner_name && (
+            <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-1'} text-left`}>
+              <div className="text-sm text-black">
+                Owned by <span className="font-semibold">{owner_name}</span>
+              </div>
+            </div>
+          )}
+
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
-            <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
+            <div className={`${owner_name ? 'mt-0' : (viewMode === 'normal' ? 'mt-2' : 'mt-0')}`}>
               <WeaponTable weapons={weapons} viewMode={viewMode}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
-            <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
+            <div className={`${owner_name ? 'mt-0' : (viewMode === 'normal' ? 'mt-2' : 'mt-0')}`}>
               <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
             </div>
           )}

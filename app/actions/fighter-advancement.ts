@@ -4,6 +4,21 @@ import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
 
+// Helper function to invalidate owner's cache when beast fighter is updated
+async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+  // Check if this fighter is an exotic beast owned by another fighter
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .single();
+    
+  if (ownerData) {
+    // Invalidate the owner's cache since their total cost changed
+    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+  }
+}
+
 // Types for advancement operations
 export interface AddCharacteristicAdvancementParams {
   fighter_id: string;
@@ -165,6 +180,9 @@ export async function addCharacteristicAdvancement(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    
+    // If this is a beast fighter, also invalidate owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
       success: true,
@@ -268,6 +286,9 @@ export async function addSkillAdvancement(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    
+    // If this is a beast fighter, also invalidate owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
       success: true,
@@ -451,6 +472,9 @@ export async function deleteAdvancement(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    
+    // If this is a beast fighter, also invalidate owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
       success: true,

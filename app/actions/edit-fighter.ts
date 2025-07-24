@@ -3,6 +3,21 @@
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighterData } from '@/utils/cache-tags';
 
+// Helper function to invalidate owner's cache when beast fighter is updated
+async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+  // Check if this fighter is an exotic beast owned by another fighter
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .single();
+    
+  if (ownerData) {
+    // Invalidate the owner's cache since their total cost changed
+    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+  }
+}
+
 interface EditFighterStatusParams {
   fighter_id: string;
   action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'delete';
@@ -114,6 +129,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -135,6 +151,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -174,6 +191,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (gangUpdateError) throw gangUpdateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -198,6 +216,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -247,6 +266,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           if (updateError) throw updateError;
 
           invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -267,6 +287,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           if (updateError) throw updateError;
 
           invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -289,6 +310,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -306,6 +328,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (deleteError) throw deleteError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
           success: true,
@@ -363,6 +386,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
       success: true,
@@ -429,6 +453,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
       success: true,

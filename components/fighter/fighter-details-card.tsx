@@ -86,6 +86,7 @@ interface FighterDetailsCardProps {
   vehicleEquipment?: VehicleEquipment[];
   gangId?: string;
   userPermissions: UserPermissions;
+  owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -241,7 +242,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   vehicles,
   vehicleEquipment = [],
   gangId,
-  userPermissions
+  userPermissions,
+  owner_name
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -439,6 +441,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       <div className="mt-2">
         <FighterDetailsStatsTable data={stats} isCrew={isCrew} />
       </div>
+      
+      {/* Show owner information for owned fighters */}
+      {owner_name && (
+        <div className="mt-2 text-left">
+          <div className="text-sm text-black">
+            Owned by <span className="font-semibold">{owner_name}</span>
+          </div>
+        </div>
+      )}
+      
         <div className="mt-4">
           {fighter_class === 'Crew' && (
             <p className="text-base text-gray-600">
