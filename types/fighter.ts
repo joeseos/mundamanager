@@ -222,6 +222,8 @@ export interface FighterProps {
     fighter_sub_type: string;
     fighter_sub_type_id: string;
   } | null;
+  
+  owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
 }
 
 export interface WeaponProfile {

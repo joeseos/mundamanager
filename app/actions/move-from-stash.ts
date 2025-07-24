@@ -2,8 +2,19 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { 
+  invalidateFighterData, 
+  invalidateFighterVehicleData,
+  invalidateFighterEquipment,
+  addBeastToGangCache,
+  invalidateFighterOwnedBeasts
+} from '@/utils/cache-tags';
 import { revalidatePath } from "next/cache";
+import { 
+  createExoticBeastsForEquipment, 
+  invalidateCacheForBeastCreation,
+  type CreatedBeast 
+} from '@/app/lib/exotic-beasts';
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -16,6 +27,7 @@ interface MoveFromStashResult {
   data?: {
     equipment_id: string;
     weapon_profiles?: any[];
+    created_beasts?: CreatedBeast[];
   };
   error?: string;
 }
@@ -182,10 +194,39 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
+    // Handle beast creation for fighter equipment moves (not custom equipment)
+    let createdBeasts: CreatedBeast[] = [];
+    if (params.fighter_id && !isCustomEquipment && stashData.equipment_id) {
+      const beastCreationResult = await createExoticBeastsForEquipment({
+        equipmentId: stashData.equipment_id,
+        ownerFighterId: params.fighter_id,
+        gangId: stashData.gang_id,
+        userId: user.id,
+        fighterEquipmentId: equipmentData.id
+      });
+
+      if (beastCreationResult.success) {
+        createdBeasts = beastCreationResult.createdBeasts;
+      } else {
+        console.error('Beast creation failed during move from stash:', beastCreationResult.error);
+      }
+    }
+
     // Invalidate appropriate caches
     if (params.fighter_id) {
-      // Invalidate fighter cache
-      invalidateFighterData(params.fighter_id, stashData.gang_id);
+      // Use the same comprehensive cache invalidation as equipment purchases
+      // Note: We don't pass createdBeasts to invalidateEquipmentPurchase since it handles them differently
+      invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
+
+      // Handle beast-specific cache invalidation
+      if (createdBeasts.length > 0) {
+        // Use addBeastToGangCache directly for each beast (same as invalidateEquipmentPurchase does)
+        createdBeasts.forEach(beast => {
+          addBeastToGangCache(beast.id, stashData.gang_id);
+        });
+        // Also invalidate the owner's beast list
+        invalidateFighterOwnedBeasts(params.fighter_id, stashData.gang_id);
+      }
     } else if (params.vehicle_id) {
       // For vehicle equipment, get the fighter who owns the vehicle and invalidate their cache
       const { data: vehicle, error: vehicleError } = await supabase
@@ -207,7 +248,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       success: true,
       data: {
         equipment_id: equipmentData.id,
-        weapon_profiles: weaponProfiles
+        weapon_profiles: weaponProfiles,
+        ...(createdBeasts.length > 0 && { created_beasts: createdBeasts })
       }
     };
 

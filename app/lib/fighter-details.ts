@@ -38,6 +38,7 @@ export interface FighterBasic {
   gang_id: string;
   fighter_type_id: string;
   fighter_sub_type_id?: string;
+  fighter_pet_id?: string;
 }
 
 export interface FighterType {
@@ -116,6 +117,18 @@ export interface FighterVehicle {
   effects: Record<string, FighterEffect[]>;
 }
 
+export interface FighterExoticBeast {
+  id: string;
+  fighter_name: string;
+  fighter_type: string;
+  fighter_class: string;
+  credits: number;
+  equipment_source: string;
+  equipment_name: string;
+  created_at: string;
+  retired: boolean;
+}
+
 export interface Gang {
   id: string;
   credits: number;
@@ -145,6 +158,8 @@ export interface CompleteFighterData {
     effects: Record<string, FighterEffect[]>;
     vehicles: FighterVehicle[];
     campaigns: Campaign[];
+    owned_beasts: FighterExoticBeast[];
+    owner_name?: string | undefined;
   };
   gang: Gang;
   equipment: FighterEquipment[];
@@ -186,7 +201,8 @@ async function _getFighterBasic(fighterId: string, supabase: SupabaseClient): Pr
       kills,
       gang_id,
       fighter_type_id,
-      fighter_sub_type_id
+      fighter_sub_type_id,
+      fighter_pet_id
     `)
     .eq('id', fighterId)
     .single();
@@ -557,6 +573,126 @@ async function _getFighterCampaigns(fighterId: string, supabase: SupabaseClient)
   return campaigns;
 }
 
+async function _getFighterOwnedBeastsCost(fighterId: string, supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase
+    .from('fighter_exotic_beasts')
+    .select(`
+      fighter_pet_id
+    `)
+    .eq('fighter_owner_id', fighterId);
+
+  if (error || !data || data.length === 0) {
+    return 0;
+  }
+
+  // Get beast IDs
+  const beastIds = data.map(beast => beast.fighter_pet_id);
+
+  // Fetch complete beast data with all cost components including the original beast type cost
+  const { data: beastData, error: beastError } = await supabase
+    .from('fighters')
+    .select(`
+      id,
+      credits,
+      cost_adjustment,
+      killed,
+      retired,
+      enslaved,
+      fighter_type_id,
+      fighter_equipment!fighter_id (purchase_cost),
+      fighter_skills!fighter_id (credits_increase),
+      fighter_effects!fighter_id (type_specific_data),
+      fighter_types!inner (cost)
+    `)
+    .in('id', beastIds)
+    .eq('killed', false)
+    .eq('retired', false)
+    .eq('enslaved', false);
+
+  if (beastError || !beastData) {
+    return 0;
+  }
+
+  return beastData.reduce((total, beast) => {
+    const equipmentCost = (beast.fighter_equipment as any[])?.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0) || 0;
+    const skillsCost = (beast.fighter_skills as any[])?.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0) || 0;
+    const effectsCost = (beast.fighter_effects as any[])?.reduce((sum, effect) => {
+      return sum + (effect.type_specific_data?.credits_increase || 0);
+    }, 0) || 0;
+    
+    // Use the original fighter type cost instead of beast.credits (which is 0)
+    const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
+    
+    return total + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);
+  }, 0);
+}
+
+async function _getFighterOwnedBeasts(fighterId: string, supabase: SupabaseClient): Promise<FighterExoticBeast[]> {
+  const { data, error } = await supabase
+    .from('fighter_exotic_beasts')
+    .select(`
+      fighter_pet_id,
+      fighter_equipment_id,
+      fighter_equipment!fighter_equipment_id (
+        equipment!equipment_id (
+          equipment_name
+        ),
+        custom_equipment!custom_equipment_id (
+          equipment_name
+        )
+      )
+    `)
+    .eq('fighter_owner_id', fighterId);
+
+  if (error) {
+    console.error('Error fetching owned beasts:', error);
+    return [];
+  }
+
+  // Now we need to manually fetch the beast fighter data since there's no direct FK relationship
+  const beastIds = data?.map(beast => beast.fighter_pet_id).filter(Boolean) || [];
+  
+  if (beastIds.length === 0) {
+    return [];
+  }
+
+  const { data: beastFighters, error: beastError } = await supabase
+    .from('fighters')
+    .select(`
+      id,
+      fighter_name,
+      fighter_type,
+      fighter_class,
+      credits,
+      created_at,
+      retired
+    `)
+    .in('id', beastIds);
+
+  if (beastError) {
+    console.error('Error fetching beast fighters:', beastError);
+    return [];
+  }
+
+  // Combine the data from both queries
+  return data?.map((beastOwnership: any) => {
+    const beast = beastFighters?.find(f => f.id === beastOwnership.fighter_pet_id);
+    const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
+    
+    return {
+      id: beast?.id || '',
+      fighter_name: beast?.fighter_name || '',
+      fighter_type: beast?.fighter_type || '',
+      fighter_class: beast?.fighter_class || '',
+      credits: beast?.credits || 0,
+      equipment_source: 'Granted by equipment',
+      equipment_name: equipment?.equipment_name || 'Unknown Equipment',
+      created_at: beast?.created_at || '',
+      retired: beast?.retired || false
+    };
+  }) || [];
+}
+
 // Main orchestration function
 async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClient): Promise<CompleteFighterData> {
   // Fetch basic fighter data first
@@ -571,7 +707,9 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
     skills,
     effects,
     vehicles,
-    campaigns
+    campaigns,
+    ownedBeasts,
+    ownedBeastsCost
   ] = await Promise.all([
     _getFighterType(fighterBasic.fighter_type_id, supabase),
     _getFighterSubType(fighterBasic.fighter_sub_type_id || '', supabase),
@@ -580,23 +718,58 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
     _getFighterSkills(fighterId, supabase),
     _getFighterEffects(fighterId, supabase),
     _getFighterVehicles(fighterId, supabase),
-    _getFighterCampaigns(fighterId, supabase)
+    _getFighterCampaigns(fighterId, supabase),
+    _getFighterOwnedBeasts(fighterId, supabase),
+    _getFighterOwnedBeastsCost(fighterId, supabase)
   ]);
 
-  // Calculate total credits (including equipment, skills, effects, vehicles)
-  const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
-  const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
-  const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
-    const creditsIncrease = effect.type_specific_data?.credits_increase || 0;
-    return sum + creditsIncrease;
-  }, 0);
-  const vehiclesCost = vehicles.reduce((sum, vehicle) => {
-    const vehicleCost = vehicle.cost;
-    const vehicleEquipmentCost = vehicle.equipment.reduce((eqSum, eq) => eqSum + eq.purchase_cost, 0);
-    return sum + vehicleCost + vehicleEquipmentCost;
-  }, 0);
+  // Check if this fighter is owned by another fighter
+  let ownershipData = null;
+  let ownershipError = null;
+  
+  if (fighterBasic.fighter_pet_id) {
+    // Fighter has a pet_id, so it's owned - get the owner info via the ownership record
+    const { data, error } = await supabase
+      .from('fighter_exotic_beasts')
+      .select(`
+        fighter_owner_id,
+        fighters!fighter_owner_id (
+          fighter_name
+        )
+      `)
+      .eq('id', fighterBasic.fighter_pet_id)
+      .single();
+    
+    ownershipData = data;
+    ownershipError = error;
+  }
 
-  const totalCredits = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + (fighterBasic.cost_adjustment || 0) + vehiclesCost;
+  // Log for debugging if needed
+  // console.log('Fighter ownership check:', { fighterId, hasPetId: fighterBasic.fighter_pet_id, ownerName: ownershipData ? (ownershipData.fighters as any)?.fighter_name : 'No owner' });
+
+  // Calculate total credits (including equipment, skills, effects, vehicles, owned beasts)
+  // BUT: Fighters owned by other fighters always show 0 credits regardless of advancements
+  let totalCredits: number;
+  
+  if (ownershipData && !ownershipError) {
+    // This fighter is owned by another fighter - always show 0 cost (actual cost attributed to owner)
+    totalCredits = 0;
+  } else {
+    // Normal fighters: calculate total cost including owned beasts
+    const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
+    const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
+    const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
+      const creditsIncrease = effect.type_specific_data?.credits_increase || 0;
+      return sum + creditsIncrease;
+    }, 0);
+    const vehiclesCost = vehicles.reduce((sum, vehicle) => {
+      const vehicleCost = vehicle.cost;
+      const vehicleEquipmentCost = vehicle.equipment.reduce((eqSum, eq) => eqSum + eq.purchase_cost, 0);
+      return sum + vehicleCost + vehicleEquipmentCost;
+    }, 0);
+
+    totalCredits = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + (fighterBasic.cost_adjustment || 0) + vehiclesCost + ownedBeastsCost;
+  }
 
   return {
     fighter: {
@@ -608,6 +781,8 @@ async function _getCompleteFighterData(fighterId: string, supabase: SupabaseClie
       effects,
       vehicles,
       campaigns,
+      owned_beasts: ownedBeasts,
+      owner_name: (ownershipData && !ownershipError) ? (ownershipData.fighters as any)?.fighter_name : undefined,
     },
     gang,
     equipment,

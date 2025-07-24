@@ -121,6 +121,7 @@ export default function GangInventory({
       // Track fighter updates for optimistic updates
       let updatedFighter: FighterProps | null = null;
       let updatedVehicles: VehicleProps[] = vehicles;
+      let allCreatedBeasts: any[] = []; // Collect all created beasts from all operations
 
       // Move items one by one
       for (const itemIndex of selectedItems) {
@@ -243,6 +244,11 @@ export default function GangInventory({
             };
           }
         }
+
+        // Collect any created beasts from this operation
+        if (responseData?.created_beasts && responseData.created_beasts.length > 0) {
+          allCreatedBeasts.push(...responseData.created_beasts);
+        }
       }
 
       // Apply all fighter updates at once
@@ -293,6 +299,96 @@ export default function GangInventory({
           description: `Failed to move ${errorCount} item${errorCount > 1 ? 's' : ''}`,
           variant: "destructive",
         });
+      }
+
+      // Handle exotic beast creation (after all moves are complete)
+      if (allCreatedBeasts.length > 0) {
+
+        
+        // Add new beast fighters to the fighters list
+        const newBeastFighters: FighterProps[] = allCreatedBeasts.map((beast: any) => ({
+          id: beast.id,
+          fighter_name: beast.fighter_name,
+          fighter_type: beast.fighter_type,
+          fighter_class: beast.fighter_class,
+          credits: beast.credits,
+          // Add other required fighter properties with default values
+          movement: 0,
+          weapon_skill: 0,
+          ballistic_skill: 0,
+          strength: 0,
+          toughness: 0,
+          wounds: 0,
+          initiative: 0,
+          attacks: 0,
+          leadership: 0,
+          cool: 0,
+          willpower: 0,
+          intelligence: 0,
+          xp: 0,
+          kills: 0, // Add missing kills property
+          weapons: [],
+          wargear: [],
+          advancements: { characteristics: {}, skills: {} },
+          effects: { 
+            injuries: [], 
+            advancements: [], 
+            bionics: [], 
+            cyberteknika: [], 
+            'gene-smithing': [], 
+            'rig-glitches': [], 
+            augmentations: [], 
+            equipment: [], 
+            user: [] 
+          },
+          // Add missing base_stats
+          base_stats: {
+            movement: 0,
+            weapon_skill: 0,
+            ballistic_skill: 0,
+            strength: 0,
+            toughness: 0,
+            wounds: 0,
+            initiative: 0,
+            attacks: 0,
+            leadership: 0,
+            cool: 0,
+            willpower: 0,
+            intelligence: 0,
+          },
+          // Add missing current_stats
+          current_stats: {
+            movement: 0,
+            weapon_skill: 0,
+            ballistic_skill: 0,
+            strength: 0,
+            toughness: 0,
+            wounds: 0,
+            initiative: 0,
+            attacks: 0,
+            leadership: 0,
+            cool: 0,
+            willpower: 0,
+            intelligence: 0,
+          },
+          skills: {},
+          special_rules: [],
+          killed: false,
+          retired: false,
+          enslaved: false,
+          starved: false,
+          free_skill: false,
+        }));
+
+        // Update the fighters list to include the new beasts
+        setFighters(prev => [...prev, ...newBeastFighters]);
+
+        // If there's a parent update function, call it for each new beast
+        if (onFighterUpdate) {
+          newBeastFighters.forEach((beast: FighterProps) => {
+            onFighterUpdate(beast);
+          });
+        }
       }
     } catch (error) {
       console.error('Error moving items from stash:', error);
@@ -501,14 +597,7 @@ export default function GangInventory({
                   </select>
 
                   <Button
-                    onClick={() => {
-                      console.log('Move button clicked', {
-                        selectedItems,
-                        selectedFighter,
-                        isLoading
-                      });
-                      handleMoveToFighter();
-                    }}
+                    onClick={handleMoveToFighter}
                     disabled={
                       selectedItems.length === 0 || 
                       !selectedFighter || 

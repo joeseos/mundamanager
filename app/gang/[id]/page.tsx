@@ -135,6 +135,7 @@ async function processGangData(gangData: any) {
       starved: fighter.starved || false,
       recovery: fighter.recovery || false,
       free_skill: fighter.free_skill || false,
+      owner_name: fighter.owner_name, // Preserve owner name for exotic beasts
       vehicle,
     };
   });
