@@ -159,6 +159,7 @@ export interface CompleteFighterData {
     vehicles: FighterVehicle[];
     campaigns: Campaign[];
     owned_beasts: FighterExoticBeast[];
+    owner_name?: string | undefined;
   };
   gang: Gang;
   equipment: FighterEquipment[];
