@@ -171,26 +171,18 @@ export default function MembersTable({
 
       if (error) throw error;
 
-      // Get ALL gangs in ANY campaign
-      const { data: allCampaignGangs, error: campaignError } = await supabase
+      // Check if the user's gangs are in ANY campaign (more efficient than fetching all 1000+ campaigns)
+      const userGangIds = gangs?.map(g => g.id) || [];
+      
+      const { data: userGangsInCampaigns, error: campaignError } = await supabase
         .from('campaign_gangs')
-        .select('gang_id');
+        .select('gang_id')
+        .in('gang_id', userGangIds);
 
       if (campaignError) throw campaignError;
 
-      // Get gangs in THIS campaign
-      const { data: currentCampaignGangs, error: currentCampaignError } = await supabase
-        .from('campaign_gangs')
-        .select('gang_id')
-        .eq('campaign_id', campaignId);
-
-      if (currentCampaignError) throw currentCampaignError;
-
-      // Combine both sets of gang IDs
-      const takenGangIds = new Set([
-        ...(allCampaignGangs?.map(cg => cg.gang_id) || []),
-        ...(currentCampaignGangs?.map(cg => cg.gang_id) || [])
-      ]);
+      // Create set of this user's gang IDs that are already in campaigns
+      const takenGangIds = new Set(userGangsInCampaigns?.map(cg => cg.gang_id) || []);
 
       const gangsWithAvailability = gangs?.map(gang => ({
         ...gang,
