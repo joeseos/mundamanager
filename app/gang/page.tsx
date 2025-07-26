@@ -1,3 +1,7 @@
+// WARNING
+// This whole page is NOT USED ANYMORE.
+// This is OLD CODE and should be REMOVED WHEN APPROPRIATE
+
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Gang from "@/components/gang/gang";

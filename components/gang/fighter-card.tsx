@@ -46,6 +46,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   disableLink?: boolean;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
+  image_url?: string;
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -143,6 +144,7 @@ const FighterCard = memo(function FighterCard({
   disableLink = false,
   viewMode = 'normal',
   owner_name,
+  image_url,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -384,7 +386,7 @@ const FighterCard = memo(function FighterCard({
           backgroundPosition: 'center'
         }}
       >
-      <div className={`flex ${viewMode === 'normal' ? 'mb-2' : 'mb-1'}`}>
+      <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
             className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
@@ -414,19 +416,27 @@ const FighterCard = memo(function FighterCard({
             </div>
           </div>
         </div>
-        <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
-          {killed && <IoSkull className="text-gray-300" />}
-          {retired && <MdChair className="text-gray-600" />}
-          {enslaved && <GiCrossedChains className="text-sky-200" />}
-          {starved && <TbMeatOff className="text-red-500" />}
-          {recovery && <FaMedkit className="text-blue-500" />}
-        </div>
-        {!isInactive && (
-          <div className="bg-[#F0F0F0] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-            <span className="leading-6 font-bold text-2xl">{credits === 0 ? '*' : credits}</span>
-            <span className="leading-3 text-xs">Credits</span>
+        <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-8px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}>
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+            {killed && <IoSkull className="text-gray-300" />}
+            {retired && <MdChair className="text-gray-600" />}
+            {enslaved && <GiCrossedChains className="text-sky-200" />}
+            {starved && <TbMeatOff className="text-red-500" />}
+            {recovery && <FaMedkit className="text-blue-500" />}
           </div>
-        )}
+          {/* Render image if image_url is present, before credits box */}
+          {image_url && (
+            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden flex-shrink-0">
+              <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
+            </div>
+          )}
+          {!isInactive && (
+            <div className="bg-[#F0F0F0] rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+              <span className="leading-6 font-bold md:text-3xl text-2xl">{credits === 0 ? '*' : credits}</span>
+              <span className="leading-3 md:font-bold text-xs">Credits</span>
+            </div>
+          )}
+        </div>
       </div>
         
       {!isInactive && (

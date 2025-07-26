@@ -78,7 +78,8 @@ BEGIN
            f.retired,
            f.enslaved,
            f.recovery,
-           f.free_skill
+           f.free_skill,
+           f.image_url
        FROM fighters f
        WHERE f.id IN (SELECT f_id FROM fighter_ids)
    ),
@@ -612,6 +613,7 @@ BEGIN
            f.recovery,
            f.free_skill,
            f.cost_adjustment,
+           f.image_url,
            (COALESCE(f.base_credits, 0) + 
             COALESCE(fec.total_equipment_cost, 0) + 
             COALESCE(fsk.total_skills_credits, 0) +
@@ -764,7 +766,8 @@ BEGIN
                'retired', cf.retired,
                'enslaved', cf.enslaved,
                'recovery', cf.recovery,
-               'free_skill', cf.free_skill
+               'free_skill', cf.free_skill,
+               'image_url', cf.image_url
            )
        ) as fighters_json
        FROM complete_fighters cf

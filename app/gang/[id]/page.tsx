@@ -135,12 +135,12 @@ async function processGangData(gangData: any) {
       starved: fighter.starved || false,
       recovery: fighter.recovery || false,
       free_skill: fighter.free_skill || false,
+      image_url: fighter.image_url,
       owner_name: fighter.owner_name, // Preserve owner name for exotic beasts
       vehicle,
     };
   });
 
-  
   // init or fix positioning for all fighters
   let positioning = gangData.positioning || {};
 
