@@ -172,7 +172,7 @@ export default function SignIn() {
           {/* What is Munda Manager tab content */}
           {activeTab === 0 && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">What is Munda Manager? And what can you do with it?</h3>
+              <h1 className="text-xl font-semibold mb-4">What is Munda Manager? And what can you do with it?</h1>
               <WhatIsMundaManager />
             </div>
           )}
@@ -180,7 +180,7 @@ export default function SignIn() {
           {/* About Munda Manager tab content */}
           {activeTab === 1 && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">About Munda Manager</h3>
+              <h1 className="text-xl font-semibold mb-4">About Munda Manager</h1>
               <AboutMundaManager />
             </div>
           )}
