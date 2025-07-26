@@ -1,7 +1,7 @@
-import { FaUsers, FaShieldAlt, FaChartLine, FaDice, FaCog, FaUsersCog } from "react-icons/fa";
-import { LuSwords, LuTrophy } from "react-icons/lu";
+import { FaUsers, FaCogs, FaCoins, FaDice, FaCog, FaUsersCog } from "react-icons/fa";
+import { LuSwords } from "react-icons/lu";
 import { FiMap } from "react-icons/fi";
-import { MdFactory } from "react-icons/md";
+import { MdOutlineCurrencyExchange } from "react-icons/md";
 import Link from "next/link";
 
 export default function WhatIsMundaManager() {
@@ -9,7 +9,7 @@ export default function WhatIsMundaManager() {
     {
       icon: <FaUsers className="h-6 w-6" />,
       title: "Gang Management",
-      description: "Create and manage multiple gangs with detailed fighter rosters, equipment, and resources."
+      description: "Create and manage all gang types, including Crusading, Infested, Corrupted, and Wasteland variants, with their unique mechanics and rules."
     },
     {
       icon: <LuSwords className="h-6 w-6" />,
@@ -19,20 +19,20 @@ export default function WhatIsMundaManager() {
     {
       icon: <FiMap className="h-6 w-6" />,
       title: "Campaign Support",
-      description: "Manage campaign territories, record detailed battle reports, and write down your campaign story and house rules in a single place."
+      description: "Manage campaign territories, record detailed battle reports, have multiple Arbitrators, and write down your campaign story and house rules."
     },
     {
-      icon: <MdFactory className="h-6 w-6" />,
+      icon: <MdOutlineCurrencyExchange className="h-6 w-6" />,
       title: "Equipment Lists & Trading Posts",
       description: "Access an exhaustive equipment database, manage gang stashes, and handle Trading Post interactions."
     },
     {
-      icon: <FaChartLine className="h-6 w-6" />,
+      icon: <FaCoins className="h-6 w-6" />,
       title: "Resource Management",
       description: "Track credits, reputation, and other gang and campaign resources with detailed logging and history."
     },
     {
-      icon: <LuTrophy className="h-6 w-6" />,
+      icon: <FaCogs className="h-6 w-6" />,
       title: "Advanced Gang Mechanics",
       description: "Use Chem-Alchemy, Gene-smithing, Archaeo-Cyberteknika for your gangs, or bring your gang to the Ash Wastes with our vehicle support."
     }
@@ -42,19 +42,18 @@ export default function WhatIsMundaManager() {
     <div className="space-y-6">
       <section>
         <p className="text-gray-700 mb-4">
-          Munda Manager is a comprehensive digital tool designed specifically for Necromunda players. 
-          It streamlines the complex task of managing your gangs, fighters, and campaigns, allowing you 
-          to focus on what matters most – playing the game and having fun with your friends.
+        Munda Manager is a complete gang and campaign management tool for Necromunda. It takes the pain out of 
+        tracking your fighters, gear, and credits, so you can focus on building the gang list you want and 
+        getting it to the table.
         </p>
         <p className="text-gray-700">
-          Whether you're a veteran player managing multiple gangs across different campaigns or a newcomer 
-          looking for help with the administrative side of Necromunda, Munda Manager provides all the tools 
-          you need to keep your games organised and running smoothly.
+        Whether you're an Arbitrator running a full campaign or a player juggling multiple gangs, 
+        Munda Manager gives you the tools to keep everything organised and running smoothly.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-semibold mb-4">What Can You Do With Munda Manager?</h2>
+        <h2 className="text-xl font-semibold mb-4">Features</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {features.map((feature, index) => (
             <div key={index} className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
@@ -75,7 +74,7 @@ export default function WhatIsMundaManager() {
         <div className="space-y-3">
           <div className="flex items-center space-x-3">
             <FaDice className="h-5 w-5 text-red-800" />
-            <span className="text-gray-700">Players who want to focus on gameplay rather than paperwork</span>
+            <span className="text-gray-700">Players who enjoy gang management but want it to be fast and frustration-free</span>
           </div>
           <div className="flex items-center space-x-3">
             <FaUsersCog className="h-5 w-5 text-red-800" />
@@ -91,12 +90,6 @@ export default function WhatIsMundaManager() {
       <section>
         <h2 className="text-xl font-semibold mb-4">Why Choose Munda Manager?</h2>
         <div className="space-y-3">
-          <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
-            <p className="text-gray-700">
-              <strong>Complete Gang Support:</strong> Manage all gang types, including Crusading, Infested, Corrupted, and Wasteland variants, with their unique mechanics and rules.
-            </p>
-          </div>
           <div className="flex items-start space-x-3">
             <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
             <p className="text-gray-700">
