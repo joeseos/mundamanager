@@ -338,10 +338,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             } else if (params.vehicle_id) {
               // Call add_vehicle_effect RPC
               const { data: effectResult } = await supabase.rpc('add_vehicle_effect', {
-                vehicle_id: params.vehicle_id,
-                fighter_effect_type_id: effectType.id,
-                user_id: user.id,
-                fighter_effect_category_id: effectType.fighter_effect_category_id
+                in_vehicle_id: params.vehicle_id,
+                in_fighter_effect_type_id: effectType.id,
+                in_user_id: user.id,
+                in_fighter_effect_category_id: effectType.fighter_effect_category_id
               });
 
               if (effectResult?.id) {
