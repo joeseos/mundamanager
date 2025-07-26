@@ -39,6 +39,7 @@ export interface FighterBasic {
   fighter_type_id: string;
   fighter_sub_type_id?: string;
   fighter_pet_id?: string;
+  image_url?: string;
 }
 
 export interface FighterType {
@@ -202,7 +203,8 @@ async function _getFighterBasic(fighterId: string, supabase: SupabaseClient): Pr
       gang_id,
       fighter_type_id,
       fighter_sub_type_id,
-      fighter_pet_id
+      fighter_pet_id,
+      image_url
     `)
     .eq('id', fighterId)
     .single();

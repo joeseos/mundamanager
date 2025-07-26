@@ -156,6 +156,7 @@ interface Fighter {
   weapons?: any[];
   wargear?: any[];
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  image_url?: string;
 }
 
 interface Gang {
@@ -888,6 +889,7 @@ export default function FighterPage({
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
+            image_url={fighterData.fighter?.image_url}
           />
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}

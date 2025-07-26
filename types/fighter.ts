@@ -224,6 +224,7 @@ export interface FighterProps {
   } | null;
   
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  image_url?: string; // URL to the fighter's image
 }
 
 export interface WeaponProfile {

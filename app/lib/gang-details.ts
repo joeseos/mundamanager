@@ -150,6 +150,7 @@ async function _getGangFighters(gangId: string, supabase: SupabaseClient): Promi
           enslaved,
           recovery,
           free_skill,
+          image_url,
           fighter_types!inner (
             alliance_crew_name
           ),
@@ -248,6 +249,7 @@ async function _getGangFighters(gangId: string, supabase: SupabaseClient): Promi
         enslaved: fighterData.enslaved,
         recovery: fighterData.recovery,
         free_skill: fighterData.free_skill,
+        image_url: fighterData.image_url,
         owner_name: (ownershipData && !ownershipError) ? (ownershipData.fighters as any)?.fighter_name : undefined,
       });
     } catch (error) {

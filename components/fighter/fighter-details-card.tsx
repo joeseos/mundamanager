@@ -87,6 +87,7 @@ interface FighterDetailsCardProps {
   gangId?: string;
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  image_url?: string;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -243,7 +244,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   vehicleEquipment = [],
   gangId,
   userPermissions,
-  owner_name
+  owner_name,
+  image_url
 }: FighterDetailsCardProps) {
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -369,8 +371,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   return (
     <div className="relative">
-      <div className="flex mb-6">
-        <div className="flex w-full">
+      <div className="flex items-center mb-20">
+        <div className="flex w-full items-center">
           <div
             className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
             style={{
@@ -401,16 +403,25 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             </div>
           </div>
         </div>
-        <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
-          {killed && <IoSkull className="text-gray-300" />}
-          {retired && <MdChair className="text-gray-600" />}
-          {enslaved && <GiCrossedChains className="text-sky-200" />}
-          {starved && <TbMeatOff className="text-red-500" />}
-          {recovery && <FaMedkit className="text-blue-500" />}
-        </div>
-        <div className="bg-[#FFFFFF] rounded-full p-2 shadow-md border-4 border-black flex flex-col items-center justify-center w-16 h-16 flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
-          <span className="leading-6 font-bold text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
-          <span className="leading-3 text-xs">Credits</span>
+        <div className="absolute right-0 md:top-[-10px] top-0 flex items-center z-20">
+          <div className="relative flex flex-col flex-shrink z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+            {killed && <IoSkull className="text-gray-300" />}
+            {retired && <MdChair className="text-gray-600" />}
+            {enslaved && <GiCrossedChains className="text-sky-200" />}
+            {starved && <TbMeatOff className="text-red-500" />}
+            {recovery && <FaMedkit className="text-blue-500" />}
+          </div>
+        
+          {/* Render image only if image_url is present */}
+          {image_url && (
+            <div className="bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden">
+              <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
+            </div>
+          )}
+          <div className="bg-[#FFFFFF] rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+            <span className="leading-6 font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
+            <span className="leading-3 md:font-bold text-xs">Credits</span>
+          </div>
         </div>
       </div>
 
