@@ -10,10 +10,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
+import { LuTrophy } from "react-icons/lu";
+import { FiMap } from "react-icons/fi";
+import { FaUsers } from "react-icons/fa";
+import { MdFactory } from "react-icons/md";
+import { LuSwords, LuClipboard } from "react-icons/lu";
+import { RiContactsBook3Line } from "react-icons/ri";
+import { FaDiscord, FaPatreon } from "react-icons/fa6";
+import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
+import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 
 export default function SignIn() {
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
   const router = useRouter();
   const supabase = createClient();
   
@@ -123,6 +133,58 @@ export default function SignIn() {
             </SubmitButton>
           </div>
         </form>
+      </div>
+
+      {/* Presentation of the app */}
+      <div className="container mx-auto max-w-4xl w-full space-y-4 mt-6">
+
+        {/* Tabs navigation */}
+        <div className="bg-white rounded-lg mb-4 flex">
+          <button
+            onClick={() => setActiveTab(0)}
+            className={`flex-1 py-4 text-center transition-colors ${
+              activeTab === 0
+                ? 'text-black font-medium'
+                : 'text-gray-500 hover:text-gray-700'
+            } flex items-center justify-center`}
+          >
+            <FaUsers className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">What is Munda Manager?</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab(1)}
+            className={`flex-1 py-4 text-center transition-colors ${
+              activeTab === 1
+                ? 'text-black font-medium'
+                : 'text-gray-500 hover:text-gray-700'
+            } flex items-center justify-center`}
+          >
+            <FiMap className="h-5 w-5" />
+            <span className="ml-2 hidden sm:inline">About</span>
+          </button>
+        </div>
+        
+        {/* Single white box container for all content */}
+        <div className="bg-white shadow-md rounded-lg p-4">
+          {/* Tab-specific content */}
+          
+          {/* What is Munda Manager tab content */}
+          {activeTab === 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">What is Munda Manager? And what can you do with it?</h3>
+              <WhatIsMundaManager />
+            </div>
+          )}
+          
+          {/* About Munda Manager tab content */}
+          {activeTab === 1 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">About Munda Manager</h3>
+              <AboutMundaManager />
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
