@@ -310,9 +310,25 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
   const membersWithGangs = members?.map(member => {
     const memberProfile = profilesData.find(p => p.id === member.user_id);
-    const memberGangs = campaignGangs?.filter(cg => 
+    
+    // First try proper relationship (campaign_member_id)
+    let memberGangs = campaignGangs?.filter(cg => 
       cg.campaign_member_id === member.id
     ) || [];
+    
+    // If no gangs found by campaign_member_id, check for orphaned gangs by user_id
+    // (this handles data inconsistency where campaign_member_id is wrong but user_id is correct)
+    if (memberGangs.length === 0) {
+      // Get all valid campaign member IDs to avoid claiming gangs that are properly assigned
+      const validCampaignMemberIds = members?.map(m => m.id) || [];
+      
+      // Only claim gangs that don't have a valid campaign_member_id relationship
+      // (i.e., orphaned gangs with invalid campaign_member_id)
+      memberGangs = campaignGangs?.filter(cg => 
+        cg.user_id === member.user_id &&
+        !validCampaignMemberIds.includes(cg.campaign_member_id)
+      ) || [];
+    }
 
     const gangs = memberGangs.map(cg => {
       const gangDetails = gangsData.find(g => g.id === cg.gang_id);
