@@ -376,6 +376,7 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     .select(`
       id,
       territory_id,
+      custom_territory_id,
       territory_name,
       gang_id,
       created_at,
@@ -410,11 +411,13 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     return {
       id: territory.id,
       territory_id: territory.territory_id,
+      custom_territory_id: territory.custom_territory_id,
       territory_name: territory.territory_name,
       gang_id: territory.gang_id,
       created_at: territory.created_at,
       ruined: territory.ruined || false,
       default_gang_territory: territory.default_gang_territory || false,
+      is_custom: !!territory.custom_territory_id,
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,
@@ -711,11 +714,92 @@ export const getAllTerritories = async () => {
         .order('territory_name');
       
       if (error) throw error;
-      return data || [];
+      return (data || []).map(territory => ({
+        ...territory,
+        is_custom: false,
+        territory_id: territory.id,
+        custom_territory_id: null
+      }));
     },
     ['territories-list'],
     {
       tags: ['territories-list'],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get all territories including custom territories with persistent caching
+ * Used by territory selection components
+ */
+export const getAllTerritoriesWithCustom = async (userId: string) => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      try {
+        // Get regular territories
+        const { data: regularTerritories, error: regularError } = await supabase
+          .from('territories')
+          .select('id, territory_name, campaign_type_id')
+          .order('territory_name');
+        
+        if (regularError) throw regularError;
+
+        // Get user's custom territories
+        const { data: customTerritories, error: customError } = await supabase
+          .from('custom_territories')
+          .select('id, territory_name')
+          .eq('user_id', userId)
+          .order('territory_name');
+        
+        if (customError) {
+          console.error('Error fetching custom territories:', customError);
+          // Continue without custom territories rather than throwing
+        }
+
+        // Transform regular territories
+        const transformedRegular = (regularTerritories || []).map(territory => ({
+          id: territory.id,
+          territory_name: territory.territory_name,
+          campaign_type_id: territory.campaign_type_id,
+          is_custom: false,
+          territory_id: territory.id,
+          custom_territory_id: null
+        }));
+
+        // Transform custom territories (only if query was successful)
+        const transformedCustom = (!customError && customTerritories) ? customTerritories.map(territory => ({
+          id: territory.id,
+          territory_name: territory.territory_name,
+          campaign_type_id: null, // Custom territories don't have campaign types
+          is_custom: true,
+          territory_id: null,
+          custom_territory_id: territory.id
+        })) : [];
+
+        return [...transformedRegular, ...transformedCustom];
+      } catch (error) {
+        console.error('Error in getAllTerritoriesWithCustom:', error);
+        // Fallback to regular territories only
+        const { data: regularTerritories } = await supabase
+          .from('territories')
+          .select('id, territory_name, campaign_type_id')
+          .order('territory_name');
+        
+        return (regularTerritories || []).map(territory => ({
+          id: territory.id,
+          territory_name: territory.territory_name,
+          campaign_type_id: territory.campaign_type_id,
+          is_custom: false,
+          territory_id: territory.id,
+          custom_territory_id: null
+        }));
+      }
+    },
+    [`territories-list-with-custom-${userId}`],
+    {
+      tags: ['territories-list', `custom-territories-${userId}`],
       revalidate: false
     }
   )();

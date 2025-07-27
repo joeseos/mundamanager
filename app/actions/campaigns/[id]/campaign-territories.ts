@@ -17,8 +17,10 @@ export interface RemoveGangFromTerritoryParams {
 
 export interface AddTerritoryParams {
   campaignId: string;
-  territoryId: string;
+  territoryId?: string;
+  customTerritoryId?: string;
   territoryName: string;
+  isCustom?: boolean;
 }
 
 export interface RemoveTerritoryParams {
@@ -123,15 +125,49 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
 export async function addTerritoryToCampaign(params: AddTerritoryParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, territoryId, territoryName } = params;
+    const { campaignId, territoryId, customTerritoryId, territoryName, isCustom } = params;
+
+    // Validate that exactly one of territoryId or customTerritoryId is provided
+    if (isCustom && !customTerritoryId) {
+      throw new Error('Custom territory ID is required for custom territories');
+    }
+    if (!isCustom && !territoryId) {
+      throw new Error('Territory ID is required for regular territories');
+    }
+
+    // For custom territories, verify ownership
+    if (isCustom && customTerritoryId) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Unauthorized');
+      }
+
+      const { data: customTerritory, error: customError } = await supabase
+        .from('custom_territories')
+        .select('id, user_id')
+        .eq('id', customTerritoryId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (customError || !customTerritory) {
+        throw new Error('Custom territory not found or access denied');
+      }
+    }
+
+    const insertData: any = {
+      campaign_id: campaignId,
+      territory_name: territoryName
+    };
+
+    if (isCustom) {
+      insertData.custom_territory_id = customTerritoryId;
+    } else {
+      insertData.territory_id = territoryId;
+    }
 
     const { error } = await supabase
       .from('campaign_territories')
-      .insert([{
-        campaign_id: campaignId,
-        territory_id: territoryId,
-        territory_name: territoryName
-      }]);
+      .insert([insertData]);
 
     if (error) throw error;
 

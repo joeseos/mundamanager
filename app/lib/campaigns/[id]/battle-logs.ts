@@ -16,7 +16,9 @@ export interface BattleParticipant {
  * Type definition for territory claim
  */
 export interface TerritoryClaimRequest {
-  territory_id: string;
+  territory_id?: string;
+  custom_territory_id?: string;
+  is_custom?: boolean;
 }
 
 /**
@@ -49,6 +51,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       claimed_territories = [] 
     } = params;
 
+    console.log('🆕 Creating battle log with params:', { 
+      campaignId, 
+      claimed_territories,
+      winner_id 
+    });
+
     // First, create the battle record
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
@@ -71,12 +79,34 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 
     // Process territory claims if any
     if (claimed_territories.length > 0 && winner_id) {
+      console.log('🏆 Processing territory claims:', { 
+        claimed_territories, 
+        winner_id, 
+        campaignId 
+      });
+      
       for (const territory of claimed_territories) {
-        await supabase
+        console.log('🎯 Processing territory claim:', territory);
+        
+        let updateQuery = supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
-          .eq('id', territory.territory_id)
           .eq('campaign_id', campaignId);
+
+        if (territory.is_custom && territory.custom_territory_id) {
+          console.log('🎨 Updating custom territory:', territory.custom_territory_id);
+          updateQuery = updateQuery.eq('custom_territory_id', territory.custom_territory_id);
+        } else if (territory.territory_id) {
+          console.log('🏛️ Updating regular territory:', territory.territory_id);
+          updateQuery = updateQuery.eq('territory_id', territory.territory_id);
+        }
+
+        const { data, error } = await updateQuery;
+        console.log('📊 Territory update result:', { data, error });
+        
+        if (error) {
+          console.error('❌ Territory update failed:', error);
+        }
       }
     }
 
@@ -164,11 +194,18 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // Process territory claims if any
     if (claimed_territories.length > 0 && winner_id) {
       for (const territory of claimed_territories) {
-        await supabase
+        let updateQuery = supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
-          .eq('id', territory.territory_id)
           .eq('campaign_id', campaignId);
+
+        if (territory.is_custom && territory.custom_territory_id) {
+          updateQuery = updateQuery.eq('custom_territory_id', territory.custom_territory_id);
+        } else if (territory.territory_id) {
+          updateQuery = updateQuery.eq('territory_id', territory.territory_id);
+        }
+
+        await updateQuery;
       }
     }
 

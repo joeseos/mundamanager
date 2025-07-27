@@ -41,12 +41,14 @@ interface Member {
 
 interface Territory {
   id: string;
-  territory_id: string;
+  territory_id: string | null;
+  custom_territory_id?: string | null;
   territory_name: string;
   gang_id: string | null;
   created_at: string;
   ruined?: boolean;
   default_gang_territory?: boolean;
+  is_custom?: boolean;
   owning_gangs?: Gang[];
   owner?: {
     [key: string]: {

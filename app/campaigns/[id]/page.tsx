@@ -14,6 +14,7 @@ import {
   getCampaignTriumphs,
   getCampaignTypes,
   getAllTerritories,
+  getAllTerritoriesWithCustom,
   getCampaignGangsForModal
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
@@ -76,7 +77,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
-      getAllTerritories()
+      userId ? getAllTerritoriesWithCustom(userId) : getAllTerritories()
     ]);
 
     // Combine the data

@@ -24,6 +24,9 @@ interface Territory {
   id: string;
   name: string;
   controlled_by?: string; // gang_id of controlling gang
+  is_custom?: boolean;
+  territory_id?: string | null;
+  custom_territory_id?: string | null;
 }
 
 interface BattleParticipant {
@@ -445,7 +448,32 @@ const CampaignBattleLogModal = ({
         note: notes || null,
         participants: participants,
         claimed_territories: selectedTerritory 
-          ? [{ territory_id: selectedTerritory }] 
+          ? [(() => {
+              const territory = availableTerritories.find(t => t.id === selectedTerritory);
+              console.log('🏛️ Territory claiming debug:', {
+                selectedTerritory,
+                territory,
+                is_custom: territory?.is_custom,
+                custom_territory_id: territory?.custom_territory_id,
+                territory_id: territory?.territory_id
+              });
+              
+              if (territory?.is_custom) {
+                const claimData = {
+                  custom_territory_id: territory.custom_territory_id || territory.id,
+                  is_custom: true
+                };
+                console.log('🎨 Claiming custom territory:', claimData);
+                return claimData;
+              } else {
+                const claimData = {
+                  territory_id: territory?.territory_id || territory?.id || selectedTerritory,
+                  is_custom: false
+                };
+                console.log('🏛️ Claiming regular territory:', claimData);
+                return claimData;
+              }
+            })()] 
           : []
       };
 
@@ -700,9 +728,10 @@ const CampaignBattleLogModal = ({
                 <option value="">No territory claimed</option>
                 {availableTerritories.map((territory) => {
                   const controlledBy = getGangName(territory.controlled_by || "");
+                  const customLabel = territory.is_custom ? " (Custom)" : "";
                   return (
                     <option key={territory.id} value={territory.id}>
-                      {territory.name}{controlledBy && ` (currently held by ${controlledBy})`}
+                      {territory.name}{customLabel}{controlledBy && ` (currently held by ${controlledBy})`}
                     </option>
                   );
                 })}
