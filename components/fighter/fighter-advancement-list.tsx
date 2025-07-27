@@ -560,10 +560,10 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
         <div className="p-2 overflow-y-auto flex-grow">
           <div className="mb-4">
             <p className="text-sm text-gray-600 mb-2">
-              Cost and value are automatically calculated based on the type and number of advancements.
+              XP cost and rating increase are automatically calculated based on the type and number of advancements.
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              Gangers and custom fighters designated as Gangers have access to a restricted selection.
+              Gangers and Exotic Beasts have access to a restricted selection.
             </p>
           </div>
 

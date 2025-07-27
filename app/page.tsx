@@ -49,7 +49,7 @@ export default async function Home() {
           <div className="mb-0">
             <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
             <p className="text-gray-600 mb-4">
-              Munda Manager is a comprehensive gang management tool for Necromunda, helping you keep track of your gangs, fighters, and campaigns.
+              Join our Discord community to chat or get help with Necromunda and Munda Manager.
             </p>
             <div>
               <div className="flex gap-2">
