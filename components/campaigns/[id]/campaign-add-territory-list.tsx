@@ -11,7 +11,7 @@ import { addTerritoryToCampaign } from "@/app/actions/campaigns/[id]/campaign-te
 interface Territory {
   id: string;
   territory_name: string;
-  campaign_type_id: string;
+  campaign_type_id: string | null;
   is_custom?: boolean;
   territory_id?: string | null;
   custom_territory_id?: string | null;
