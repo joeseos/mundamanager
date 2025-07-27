@@ -11,7 +11,10 @@ import { addTerritoryToCampaign } from "@/app/actions/campaigns/[id]/campaign-te
 interface Territory {
   id: string;
   territory_name: string;
-  campaign_type_id: string;
+  campaign_type_id: string | null;
+  is_custom?: boolean;
+  territory_id?: string | null;
+  custom_territory_id?: string | null;
 }
 
 interface CampaignType {
@@ -20,7 +23,7 @@ interface CampaignType {
 }
 
 interface CampaignTerritory {
-  territory_id: string;
+  territory_id: string | null;
   territory_name: string;
 }
 
@@ -44,6 +47,7 @@ export default function TerritoryList({
   onTerritoryAdd 
 }: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
+  const [showCustomTerritories, setShowCustomTerritories] = useState<boolean>(false);
   const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
@@ -71,14 +75,16 @@ export default function TerritoryList({
     );
   };
 
-  const handleAddTerritory = async (territoryId: string, territoryName: string) => {
-    setIsAdding(territoryId);
+  const handleAddTerritory = async (territory: Territory) => {
+    setIsAdding(territory.id);
     try {
       // ✅ Use server action with proper cache invalidation
       const result = await addTerritoryToCampaign({
         campaignId,
-        territoryId,
-        territoryName
+        territoryId: territory.is_custom ? undefined : territory.territory_id || territory.id,
+        customTerritoryId: territory.is_custom ? territory.custom_territory_id || territory.id : undefined,
+        territoryName: territory.territory_name,
+        isCustom: territory.is_custom
       });
 
       if (!result.success) {
@@ -87,8 +93,8 @@ export default function TerritoryList({
 
       // Create a new territory object
       const newTerritory = {
-        territory_id: territoryId,
-        territory_name: territoryName
+        territory_id: territory.is_custom ? null : (territory.territory_id || territory.id),
+        territory_name: territory.territory_name
       };
 
       // Update local state
@@ -100,7 +106,7 @@ export default function TerritoryList({
       }
 
       toast({
-        description: `Added ${territoryName} to campaign`
+        description: `Added ${territory.territory_name} to campaign`
       });
     } catch (error) {
       console.error('Error adding territory:', error);
@@ -114,7 +120,24 @@ export default function TerritoryList({
   };
 
   const filteredTerritories = allTerritories
-    .filter(territory => selectedTypes.includes(territory.campaign_type_id))
+    .filter(territory => {
+      // Handle custom territories
+      if (territory.is_custom) {
+        // Only include custom territories if the Custom checkbox is checked
+        if (!showCustomTerritories) return false;
+        
+        // If custom territory has a specific campaign type, check if it's selected
+        if (territory.campaign_type_id) {
+          return selectedTypes.includes(territory.campaign_type_id);
+        }
+        
+        // Custom territories without a campaign type are always included when Custom is checked
+        return true;
+      }
+      
+      // Include regular territories that match the selected campaign types
+      return territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id);
+    })
     .sort((a, b) => {
       const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
       const typeB = campaignTypes.find(ct => ct.id === b.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
@@ -129,6 +152,9 @@ export default function TerritoryList({
       return a.territory_name.localeCompare(b.territory_name);
     });
 
+  // All filtered territories should be shown in the same list
+  const allFilteredTerritories = filteredTerritories;
+
 
 
   if (isLoading) {
@@ -139,6 +165,7 @@ export default function TerritoryList({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
+          {/* Campaign Types */}
           {[...campaignTypes]
             .sort((a, b) => {
               const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
@@ -157,29 +184,38 @@ export default function TerritoryList({
                 </label>
               </div>
             ))}
+          
+          {/* Custom Territories Checkbox */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="custom-territories"
+              checked={showCustomTerritories}
+              onCheckedChange={(checked) => setShowCustomTerritories(!!checked)}
+            />
+            <label htmlFor="custom-territories" className="text-sm cursor-pointer">
+              Custom
+            </label>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-              <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
-              {isAdmin && (
-                <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTerritories.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 3 : 2} className="px-4 py-2 text-gray-500 italic text-center">No territories found.</td>
+      {/* All Territories */}
+      {allFilteredTerritories.length > 0 ? (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
+                {isAdmin && (
+                  <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
+                )}
               </tr>
-            ) : (
-              filteredTerritories.map((territory) => {
+            </thead>
+            <tbody>
+              {allFilteredTerritories.map((territory) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
-                const typeName = type?.campaign_type_name ?? 'Unknown';
+                const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
@@ -190,7 +226,7 @@ export default function TerritoryList({
                     {isAdmin && (
                       <td className="w-1/5 px-4 py-2 text-right">
                         <Button
-                          onClick={() => handleAddTerritory(territory.id, territory.territory_name)}
+                          onClick={() => handleAddTerritory(territory)}
                           size="sm"
                           disabled={isAdding === territory.id}
                           className="text-xs px-1.5 h-6"
@@ -201,11 +237,15 @@ export default function TerritoryList({
                     )}
                   </tr>
                 );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500 italic">
+          No territories found for the selected options.
+        </div>
+      )}
     </div>
   );
 } 

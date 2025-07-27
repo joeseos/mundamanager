@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function updateCustomTerritory(
   territoryId: string,
@@ -43,8 +43,10 @@ export async function updateCustomTerritory(
     throw new Error(`Failed to update territory: ${error.message}`);
   }
 
-  // Revalidate the customize page to show updated data
+  // Revalidate the customize page and territory cache
   revalidatePath('/customise');
+  revalidateTag(`custom-territories-${user.id}`);
+  revalidateTag('territories-list');
   
   return data;
 }
@@ -71,8 +73,10 @@ export async function deleteCustomTerritory(territoryId: string) {
     throw new Error(`Failed to delete territory: ${error.message}`);
   }
 
-  // Revalidate the customize page to show updated data
+  // Revalidate the customize page and territory cache
   revalidatePath('/customise');
+  revalidateTag(`custom-territories-${user.id}`);
+  revalidateTag('territories-list');
   
   return { success: true };
 }
@@ -88,17 +92,12 @@ export async function fetchUserCustomTerritories(campaignTypeId?: string) {
   }
 
   try {
-    let query = supabase
+    // Custom territories don't have campaign types, so ignore the campaignTypeId parameter
+    const { data: customTerritories, error } = await supabase
       .from('custom_territories')
       .select('*')
-      .eq('user_id', user.id);
-
-    // Apply campaign type filter if specified
-    if (campaignTypeId) {
-      query = query.eq('campaign_type_id', campaignTypeId);
-    }
-
-    const { data: customTerritories, error } = await query.order('territory_name', { ascending: true });
+      .eq('user_id', user.id)
+      .order('territory_name', { ascending: true });
 
     if (error) {
       console.error('Error fetching custom territories:', error);
@@ -143,8 +142,10 @@ export async function createCustomTerritory(data: {
     throw new Error(`Failed to create territory: ${error.message}`);
   }
 
-  // Revalidate the customize page to show new data
+  // Revalidate the customize page and territory cache
   revalidatePath('/customise');
+  revalidateTag(`custom-territories-${user.id}`);
+  revalidateTag('territories-list');
   
   return newTerritory;
 }
