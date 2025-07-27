@@ -4,21 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from "@/utils/supabase/client";
-
-interface Gang {
-  id: string;
-  name: string;
-  gang_type: string;
-  gang_type_id: string;
-  image_url: string;
-  credits: number;
-  reputation: number;
-  meat: number | null;
-  exploration_points: number | null;
-  rating: number | null;
-  created_at: string;
-  last_updated: string;
-}
+import { Gang } from "@/app/lib/get-user-gangs";
 
 interface MyGangsProps {
   gangs: Gang[];
@@ -76,8 +62,18 @@ export default function MyGangs({ gangs }: MyGangsProps) {
                 <div className="flex-grow min-w-0">
                   <h3 className="text-lg md:text-xl font-medium text-black truncate">{gang.name}</h3>
                   <div className="text-sm md:text-base text-gray-600">
-                    <span className="truncate block">{gang.gang_type}</span>
+                    <span className="truncate block">
+                      {gang.gang_type}
+                      {gang.gang_variants && gang.gang_variants.length > 0 && (
+                        <span className="text-gray-500">
+                          {' '}({gang.gang_variants.map(v => v.variant).join(', ')})
+                        </span>
+                      )}
+                    </span>
                     <span>Rating: {gang.rating ?? 0}</span>
+                    {gang.campaigns && gang.campaigns.length > 0 && (
+                      <span className="block">Campaign: {gang.campaigns[0].campaign_name}</span>
+                    )}
                   </div>
                 </div>
               </Link>

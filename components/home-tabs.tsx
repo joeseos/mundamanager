@@ -5,25 +5,11 @@ import { useSearchParams } from 'next/navigation'
 import MyGangs from '@/components/my-gangs'
 import MyCampaigns from '@/components/my-campaigns'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
+import type { Gang } from '@/app/lib/get-user-gangs'
 
 interface CampaignType {
   id: string;
   campaign_type_name: string;
-}
-
-interface Gang {
-  id: string;
-  name: string;
-  gang_type: string;
-  gang_type_id: string;
-  image_url: string;
-  credits: number;
-  reputation: number;
-  meat: number | null;
-  exploration_points: number | null;
-  rating: number | null;
-  created_at: string;
-  last_updated: string;
 }
 
 interface HomeTabsProps {
