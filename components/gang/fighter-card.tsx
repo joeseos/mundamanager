@@ -646,7 +646,7 @@ const FighterCard = memo(function FighterCard({
             {note && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Notes</div>
-                <div className="min-w-[0px] text-sm break-words">{note}</div>
+                <div className="min-w-[0px] text-sm break-words whitespace-pre-wrap">{note}</div>
               </>
             )}
           </div>

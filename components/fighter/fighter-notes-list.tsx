@@ -122,8 +122,8 @@ export function NotesList({ fighterId, initialNote = '', userPermissions }: Note
           placeholder="Add notes here..."
         />
       ) : (
-        <div className="whitespace-pre-wrap break-words">
-          {note || 'No notes added.'}
+        <div className={`whitespace-pre-wrap break-words ${!note ? 'text-gray-500 italic' : ''}`}>
+          {note || "No notes added. They'll appear on the fighter card."}
         </div>
       )}
     </div>
