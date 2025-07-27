@@ -135,7 +135,7 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissi
             />
           ) : (
             <div className={`whitespace-pre-wrap break-words ${note ? '' : 'text-gray-500 italic text-center'}`}>
-              {note || 'No notes added.'}
+              {note || "No notes added. They'll appear on the Gang card when printed."}
             </div>
           )}
         </div>
