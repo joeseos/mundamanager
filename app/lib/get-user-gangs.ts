@@ -16,6 +16,8 @@ export type Gang = {
   rating: number;
   created_at: string;
   last_updated: string;
+  gang_variants: Array<{id: string, variant: string}>;
+  campaigns: Array<{campaign_id: string, campaign_name: string}>;
 };
 
 // Type for raw gang data from Supabase with nested gang_types
@@ -83,6 +85,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         exploration_points,
         created_at,
         last_updated,
+        gang_variants,
         gang_types!gang_type_id(image_url)
       `)
       .eq('user_id', user.id)
@@ -100,8 +103,65 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
 
     console.log(`Server: Found ${data.length} gangs`);
 
+    // Fetch gang variants details for all gangs that have variants
+    const gangsWithVariants = await Promise.all(data.map(async (gang: any) => {
+      let variantDetails: Array<{id: string, variant: string}> = [];
+      
+      if (gang.gang_variants && Array.isArray(gang.gang_variants) && gang.gang_variants.length > 0) {
+        try {
+          const { data: variants, error: variantsError } = await supabase
+            .from('gang_variant_types')
+            .select('id, variant')
+            .in('id', gang.gang_variants);
+          
+          if (!variantsError && variants) {
+            variantDetails = variants.map((v: any) => ({
+              id: v.id,
+              variant: v.variant
+            }));
+          }
+        } catch (variantError) {
+          console.error(`Error fetching variants for gang ${gang.id}:`, variantError);
+        }
+      }
+      
+      return {
+        ...gang,
+        gang_variants: variantDetails
+      };
+    }));
+
+    // Fetch campaign details for all gangs
+    const gangsWithCampaigns = await Promise.all(gangsWithVariants.map(async (gang: any) => {
+      let campaignDetails: Array<{campaign_id: string, campaign_name: string}> = [];
+      
+      try {
+        const { data: campaignGangs, error: campaignError } = await supabase
+          .from('campaign_gangs')
+          .select(`
+            campaign_id,
+            campaigns!campaign_id(campaign_name)
+          `)
+          .eq('gang_id', gang.id);
+        
+        if (!campaignError && campaignGangs) {
+          campaignDetails = campaignGangs.map((cg: any) => ({
+            campaign_id: cg.campaign_id,
+            campaign_name: cg.campaigns?.campaign_name || 'Unknown Campaign'
+          }));
+        }
+      } catch (campaignError) {
+        console.error(`Error fetching campaigns for gang ${gang.id}:`, campaignError);
+      }
+      
+      return {
+        ...gang,
+        campaigns: campaignDetails
+      };
+    }));
+
     // Calculate gang ratings in parallel using a more efficient approach
-    const gangsWithRatings = await Promise.all(data.map(async (gang: any) => {
+    const gangsWithRatings = await Promise.all(gangsWithCampaigns.map(async (gang: any) => {
       try {
         const fighters = await getFightersWithRating(supabase, gang.id);
         const totalRating = fighters.reduce((sum: number, fighter: FighterWithRating) => sum + fighter.rating, 0);
@@ -118,7 +178,9 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
           exploration_points: gang.exploration_points,
           rating: totalRating,
           created_at: gang.created_at,
-          last_updated: gang.last_updated
+          last_updated: gang.last_updated,
+          gang_variants: gang.gang_variants,
+          campaigns: gang.campaigns
         } as Gang;
       } catch (fighterError) {
         console.error(`Error processing gang ${gang.id}:`, fighterError);
@@ -136,7 +198,9 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
           exploration_points: gang.exploration_points,
           rating: 0,
           created_at: gang.created_at,
-          last_updated: gang.last_updated
+          last_updated: gang.last_updated,
+          gang_variants: gang.gang_variants,
+          campaigns: gang.campaigns
         } as Gang;
       }
     }));
