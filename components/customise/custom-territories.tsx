@@ -1,0 +1,303 @@
+'use client';
+
+import React, { useState } from 'react';
+import { List, ListColumn, ListAction } from '@/components/ui/list';
+import { CustomTerritory } from '@/app/lib/customise/custom-territories';
+import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
+import Modal from '@/components/modal';
+import { useToast } from '@/components/ui/use-toast';
+
+interface CustomiseTerritoriesProps {
+  className?: string;
+  initialTerritories?: CustomTerritory[];
+}
+
+
+export function CustomiseTerritories({ className, initialTerritories = [] }: CustomiseTerritoriesProps) {
+  const [territories, setTerritories] = useState<CustomTerritory[]>(initialTerritories);
+  const [isLoading, setIsLoading] = useState(false);
+  const [editModalData, setEditModalData] = useState<CustomTerritory | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<CustomTerritory | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    territory_name: ''
+  });
+  const [createForm, setCreateForm] = useState({
+    territory_name: ''
+  });
+  const { toast } = useToast();
+
+  // Handle opening the add territory modal
+  const handleAddTerritory = () => {
+    setCreateModalOpen(true);
+  };
+
+
+  // Handle create modal close
+  const handleCreateModalClose = () => {
+    setCreateModalOpen(false);
+    setCreateForm({
+      territory_name: ''
+    });
+  };
+
+  // Handle create form changes
+  const handleCreateFormChange = (field: string, value: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Handle create modal confirm
+  const handleCreateModalConfirm = async () => {
+    try {
+      setIsLoading(true);
+
+      const newTerritory = await createCustomTerritory({
+        territory_name: createForm.territory_name
+      });
+      
+      // Add to local state
+      setTerritories(prev => [...prev, newTerritory]);
+
+      toast({
+        title: "Success",
+        description: "Custom territory created successfully",
+      });
+
+      return true; // Return true to close modal
+    } catch (error) {
+      console.error('Error creating territory:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create territory",
+        variant: "destructive",
+      });
+      return false; // Return false to keep modal open
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check if create form is valid
+  const isCreateFormValid = () => {
+    return createForm.territory_name.trim() !== '';
+  };
+
+  // Define columns for the territory list
+  const columns: ListColumn[] = [
+    {
+      key: 'territory_name',
+      label: 'Territory Name',
+      width: '100%'
+    }
+  ];
+
+  // Define actions for each territory item
+  const actions: ListAction[] = [
+    {
+      label: 'Edit',
+      onClick: (item: CustomTerritory) => handleEditTerritory(item),
+      variant: 'outline',
+      size: 'sm'
+    },
+    {
+      label: 'Delete',
+      onClick: (item: CustomTerritory) => handleDeleteTerritory(item),
+      variant: 'destructive',
+      size: 'sm'
+    }
+  ];
+
+  const handleEditTerritory = async (territory: CustomTerritory) => {
+    setEditModalData(territory);
+    setEditForm({
+      territory_name: territory.territory_name || ''
+    });
+  };
+
+  const handleDeleteTerritory = (territory: CustomTerritory) => {
+    setDeleteModalData(territory);
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalData(null);
+    setEditForm({
+      territory_name: ''
+    });
+  };
+
+  const handleDeleteModalClose = () => {
+    setDeleteModalData(null);
+  };
+
+  const handleEditModalConfirm = async () => {
+    if (!editModalData) return false;
+
+    try {
+      setIsLoading(true);
+      
+      // Call the server action to update the territory
+      const updatedTerritory = await updateCustomTerritory(editModalData.id, {
+        territory_name: editForm.territory_name
+      });
+
+      // Update the local state with the updated territory
+      setTerritories(prev => 
+        prev.map(item => 
+          item.id === editModalData.id 
+            ? { ...item, ...updatedTerritory }
+            : item
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Territory updated successfully",
+      });
+
+      return true; // Return true to close modal
+    } catch (error) {
+      console.error('Error updating territory:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update territory",
+        variant: "destructive",
+      });
+      return false; // Return false to keep modal open
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteModalConfirm = async () => {
+    if (!deleteModalData) return false;
+
+    try {
+      setIsLoading(true);
+      
+      // Call the server action to delete the territory
+      await deleteCustomTerritory(deleteModalData.id);
+
+      // Update the local state by removing the deleted territory
+      setTerritories(prev => 
+        prev.filter(item => item.id !== deleteModalData.id)
+      );
+
+      toast({
+        title: "Success",
+        description: "Territory deleted successfully",
+      });
+
+      return true; // Return true to close modal
+    } catch (error) {
+      console.error('Error deleting territory:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete territory",
+        variant: "destructive",
+      });
+      return false; // Return false to keep modal open
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFormChange = (field: string, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Sort territories by name alphabetically
+  const sortTerritories = (a: CustomTerritory, b: CustomTerritory) => {
+    return a.territory_name.localeCompare(b.territory_name);
+  };
+
+  return (
+    <div className={className}>
+      <List<CustomTerritory>
+        title="Territories"
+        items={territories}
+        columns={columns}
+        actions={actions}
+        onAdd={handleAddTerritory}
+        addButtonText="Add"
+        emptyMessage="No custom territories created yet."
+        isLoading={isLoading}
+        sortBy={sortTerritories}
+      />
+
+      {editModalData && (
+        <Modal
+          title="Edit Territory"
+          content={
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Territory Name *
+                </label>
+                <input
+                  type="text"
+                  value={editForm.territory_name}
+                  onChange={(e) => handleFormChange('territory_name', e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  placeholder="Enter territory name"
+                />
+              </div>
+            </div>
+          }
+          onClose={handleEditModalClose}
+          onConfirm={handleEditModalConfirm}
+          confirmText="Save Changes"
+          confirmDisabled={!editForm.territory_name.trim()}
+        />
+      )}
+
+      {deleteModalData && (
+        <Modal
+          title="Delete Territory"
+          content={
+            <div className="space-y-4">
+              <p>Are you sure you want to delete <strong>{deleteModalData.territory_name}</strong>?</p>
+              <p className="text-sm text-gray-600">
+                <strong>Warning:</strong> This territory will be removed from all campaigns that currently use it.
+              </p>
+            </div>
+          }
+          onClose={handleDeleteModalClose}
+          onConfirm={handleDeleteModalConfirm}
+          confirmText="Delete"
+        />
+      )}
+
+      {createModalOpen && (
+        <Modal
+          title="Create Custom Territory"
+          content={
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Territory Name *
+                </label>
+                <input
+                  type="text"
+                  value={createForm.territory_name}
+                  onChange={(e) => handleCreateFormChange('territory_name', e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  placeholder="Enter territory name"
+                />
+              </div>
+            </div>
+          }
+          onClose={handleCreateModalClose}
+          onConfirm={handleCreateModalConfirm}
+          confirmText="Create Territory"
+          confirmDisabled={!isCreateFormValid() || isLoading}
+        />
+      )}
+    </div>
+  );
+}

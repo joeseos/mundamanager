@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getUserCustomEquipmentByCategory } from "@/app/lib/custom-equipment";
+import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 
 export async function updateCustomEquipment(
   equipmentId: string,

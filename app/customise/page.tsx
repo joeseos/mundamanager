@@ -1,7 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { CustomiseEquipment } from "@/components/customise/custom-equipment";
-import { getUserCustomEquipment } from "@/app/lib/custom-equipment";
+import { CustomiseTerritories } from "@/components/customise/custom-territories";
+import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
+import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 
 export default async function CustomizePage() {
   const supabase = await createClient();
@@ -14,8 +16,9 @@ export default async function CustomizePage() {
     redirect("/sign-in");
   }
 
-  // Fetch user's custom equipment using the lib function
+  // Fetch user's custom equipment and territories using the lib functions
   const customEquipment = await getUserCustomEquipment(user.id);
+  const customTerritories = await getUserCustomTerritories();
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -31,6 +34,8 @@ export default async function CustomizePage() {
             </section>
 
             <CustomiseEquipment initialEquipment={customEquipment} />
+            
+            <CustomiseTerritories initialTerritories={customTerritories} />
           </div>
         </div>
       </div>

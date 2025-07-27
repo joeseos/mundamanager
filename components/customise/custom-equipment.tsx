@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
-import { CustomEquipment } from '@/app/lib/custom-equipment';
-import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/custom-equipment';
-import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/custom-weapon-profiles';
+import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
+import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/customise/custom-equipment';
+import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
 import Modal from '@/components/modal';
 import { useToast } from '@/components/ui/use-toast';
