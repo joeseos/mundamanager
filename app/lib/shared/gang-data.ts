@@ -18,7 +18,6 @@ export interface GangBasic {
   scavenging_rolls: number;
   exploration_points: number;
   alignment: string;
-  positioning?: Record<string, any>;
   note?: string;
   created_at: string;
   last_updated: string;
@@ -139,7 +138,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           scavenging_rolls,
           exploration_points,
           alignment,
-          positioning,
           note,
           created_at,
           last_updated,
@@ -180,6 +178,30 @@ export const getGangCredits = async (gangId: string, supabase: any): Promise<num
     [`gang-credits-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_CREDITS(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get gang positioning data only
+ * Cache: BASE_GANG_POSITIONING
+ */
+export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('gangs')
+        .select('positioning')
+        .eq('id', gangId)
+        .single();
+
+      if (error) throw error;
+      return data.positioning || null;
+    },
+    [`gang-positioning-${gangId}`],
+    {
+      tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
       revalidate: false
     }
   )();
