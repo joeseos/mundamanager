@@ -1,10 +1,8 @@
-import { createClient } from '@/utils/supabase/server';
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Internal helper functions
-async function _getGangFighters(gangId: string, supabase: SupabaseClient) {
+async function _getGangFighters(gangId: string, supabase: any) {
   const { data, error } = await supabase
     .from('fighters')
     .select('id, fighter_name, fighter_type, xp')
@@ -13,7 +11,7 @@ async function _getGangFighters(gangId: string, supabase: SupabaseClient) {
   return data;
 }
 
-async function _getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: SupabaseClient) {
+async function _getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {
   if (advancementType === 'characteristic') {
     const { data, error } = await supabase
       .from('fighter_effect_types')
@@ -41,8 +39,7 @@ async function _getAdvancementCategories(advancementType: 'characteristic' | 'sk
  * Cache key: gang-fighters-{gangId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getGangFighters = async (gangId: string) => {
-  const supabase = await createClient();
+export const getGangFighters = async (gangId: string, supabase: any) => {
   return unstable_cache(
     async () => {
       return _getGangFighters(gangId, supabase);
@@ -55,8 +52,7 @@ export const getGangFighters = async (gangId: string) => {
   )();
 };
 
-export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill') {
-  const supabase = await createClient();
+export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {
   return unstable_cache(
     async () => {
       return _getAdvancementCategories(advancementType, supabase);
@@ -69,7 +65,7 @@ export async function getAdvancementCategories(advancementType: 'characteristic'
   )();
 }
 
-async function _getFighterAvailableAdvancements(fighterId: string, supabase: SupabaseClient) {
+async function _getFighterAvailableAdvancements(fighterId: string, supabase: any) {
   const { data, error } = await supabase.rpc('get_fighter_available_advancements', {
     fighter_id: fighterId
   });
@@ -77,21 +73,20 @@ async function _getFighterAvailableAdvancements(fighterId: string, supabase: Sup
   return data;
 }
 
-export async function getFighterAvailableAdvancements(fighterId: string) {
-  const supabase = await createClient();
+export async function getFighterAvailableAdvancements(fighterId: string, supabase: any) {
   return unstable_cache(
     async () => {
       return _getFighterAvailableAdvancements(fighterId, supabase);
     },
     [`fighter-available-advancements-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'fighter-available-advancements', `fighter-available-advancements-${fighterId}`],
+      tags: ['fighter-available-advancements', `fighter-available-advancements-${fighterId}`],
       revalidate: false
     }
   )();
 }
 
-async function _getAvailableSkills(fighterId: string, supabase: SupabaseClient) {
+async function _getAvailableSkills(fighterId: string, supabase: any) {
   const { data, error } = await supabase.rpc('get_available_skills', {
     fighter_id: fighterId
   });
@@ -99,21 +94,20 @@ async function _getAvailableSkills(fighterId: string, supabase: SupabaseClient) 
   return data;
 }
 
-export async function getAvailableSkills(fighterId: string) {
-  const supabase = await createClient();
+export async function getAvailableSkills(fighterId: string, supabase: any) {
   return unstable_cache(
     async () => {
       return _getAvailableSkills(fighterId, supabase);
     },
     [`available-skills-${fighterId}`],
     {
-      tags: [CACHE_TAGS.FIGHTER_PAGE(fighterId), 'available-skills', `available-skills-${fighterId}`],
+      tags: ['available-skills', `available-skills-${fighterId}`],
       revalidate: false
     }
   )();
 }
 
-async function _getAvailableInjuries(supabase: SupabaseClient) {
+async function _getAvailableInjuries(supabase: any) {
   const { data, error } = await supabase
     .from('fighter_effect_types')
     .select('*')
@@ -123,8 +117,7 @@ async function _getAvailableInjuries(supabase: SupabaseClient) {
   return data;
 }
 
-export async function getAvailableInjuries() {
-  const supabase = await createClient();
+export async function getAvailableInjuries(supabase: any) {
   return unstable_cache(
     async () => {
       return _getAvailableInjuries(supabase);
@@ -137,6 +130,3 @@ export async function getAvailableInjuries() {
   )();
 }
 
-// Fighter types function has been moved to get-fighter-types.ts
-// Re-export for backward compatibility
-export { getFighterTypes } from './get-fighter-types';

@@ -9,7 +9,7 @@ import {
   invalidateEquipmentPurchase,
   invalidateEquipmentDeletion
 } from '@/utils/cache-tags';
-import { getCompleteFighterData } from '@/app/lib/fighter-details';
+import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -733,13 +733,12 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
 
-    // Get fresh fighter data after deletion for accurate response
-    let freshFighterData = null;
+    // Get fresh fighter total cost after deletion for accurate response
+    let freshFighterTotalCost = null;
     try {
-      const completeFighterData = await getCompleteFighterData(params.fighter_id);
-      freshFighterData = completeFighterData;
+      freshFighterTotalCost = await getFighterTotalCost(params.fighter_id, supabase);
     } catch (fighterRefreshError) {
-      console.warn('Could not refresh fighter data:', fighterRefreshError);
+      console.warn('Could not refresh fighter total cost:', fighterRefreshError);
     }
 
     // Calculate equipment details for response - fix TypeScript errors
@@ -773,11 +772,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           vehicle_id: equipmentBefore.vehicle_id
         },
         deletedEffects: associatedEffects || [],
-        // Return fresh fighter data so frontend can update immediately without waiting for revalidation
-        updatedFighter: freshFighterData?.fighter || null,
-        updatedGang: freshFighterData?.gang || null,
-        // Include vehicle data if this was vehicle equipment
-        updatedVehicle: freshFighterData?.fighter?.vehicles?.[0] || null
+        // Return fresh fighter total cost so frontend can update immediately without waiting for revalidation
+        updatedFighterTotalCost: freshFighterTotalCost
       }
     };
   } catch (error) {

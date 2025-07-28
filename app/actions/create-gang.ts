@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
+import { invalidateGangCreation } from '@/utils/cache-tags';
 
 interface CreateGangParams {
   name: string;
@@ -46,10 +46,13 @@ export async function createGang({
       throw error;
     }
     
-    console.log('Gang created successfully, revalidating path');
+    console.log('Gang created successfully, using granular cache invalidation');
     
-    // Revalidate the page according to Next.js best practices
-    revalidatePath('/');
+    // Use granular gang creation invalidation
+    invalidateGangCreation({
+      gangId: data[0].id,
+      userId: user.id
+    });
     
     return { 
       success: true, 

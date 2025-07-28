@@ -1,8 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
+import { invalidateFighterAddition } from '@/utils/cache-tags';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -367,9 +367,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
 
-    // Revalidate paths
-    revalidatePath(`/gang/${params.gang_id}`);
-    revalidatePath(`/fighter/${fighterId}`);
+    // Use granular cache invalidation for fighter addition
+    invalidateFighterAddition({
+      fighterId: fighterId,
+      gangId: params.gang_id,
+      userId: effectiveUserId
+    });
 
     return {
       success: true,

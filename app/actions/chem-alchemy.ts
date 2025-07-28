@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
+import { invalidateGangStash, invalidateUserCustomizations } from '@/utils/cache-tags';
 
 interface ChemEffect {
   name: string;
@@ -108,10 +108,18 @@ export async function createChemAlchemy({
       throw creditUpdateError;
     }
 
-    console.log('Chem-alchemy created successfully, revalidating path');
+    console.log('Chem-alchemy created successfully, using granular cache invalidation');
     
-    // Revalidate the gang page to show the new stash item
-    revalidatePath(`/gang/${gangId}`);
+    // Invalidate gang stash to show the new item
+    invalidateGangStash({
+      gangId: gangId,
+      userId: user.id
+    });
+    
+    // Invalidate user customizations since we created custom equipment
+    invalidateUserCustomizations({
+      userId: user.id
+    });
     
     return { 
       success: true, 

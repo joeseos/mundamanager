@@ -8,9 +8,9 @@ import {
   invalidateFighterVehicleData,
   invalidateFighterEquipment,
   addBeastToGangCache,
-  invalidateFighterOwnedBeasts
+  invalidateFighterOwnedBeasts,
+  invalidateGangStash
 } from '@/utils/cache-tags';
-import { revalidatePath } from "next/cache";
 import { 
   createExoticBeastsForEquipment, 
   invalidateCacheForBeastCreation,
@@ -225,17 +225,17 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
-    // Also invalidate gang page cache
-    revalidatePath(`/gang/${stashData.gang_id}`);
+    // Also invalidate gang stash cache using granular approach
+    invalidateGangStash({
+      gangId: stashData.gang_id,
+      userId: user.id
+    });
 
     // Get updated gang rating after the equipment move
     let updatedGangRating: number | undefined;
     try {
-      const { getGangDetails } = await import('@/app/lib/gang-details');
-      const gangDetailsResult = await getGangDetails(stashData.gang_id);
-      if (gangDetailsResult.success && gangDetailsResult.data) {
-        updatedGangRating = gangDetailsResult.data.rating;
-      }
+      const { getGangRating } = await import('@/app/lib/shared/gang-data');
+      updatedGangRating = await getGangRating(stashData.gang_id, supabase);
     } catch (error) {
       // Silently continue if gang rating fetch fails
     }

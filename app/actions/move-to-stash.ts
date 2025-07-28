@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -145,6 +145,12 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     
     // Always invalidate gang overview to refresh stash display
     invalidateGangFinancials(gangId);
+    
+    // Also invalidate gang stash specifically
+    invalidateGangStash({
+      gangId: gangId,
+      userId: user.id
+    });
 
     return {
       success: true,
