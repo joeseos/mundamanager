@@ -277,6 +277,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     // Fetch gang data using granular shared functions
     const {
       getGangBasic,
+      getGangPositioning,
       getGangType,
       getAlliance,
       getGangFightersList,
@@ -299,6 +300,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
 
     // Fetch all related data in parallel using granular functions
     const [
+      gangPositioning,
       gangType,
       alliance,
       fighters,
@@ -308,6 +310,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangVariants,
       gangRating
     ] = await Promise.all([
+      getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
       getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase),
@@ -333,7 +336,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       exploration_points: gangBasic.exploration_points,
       rating: gangRating,
       alignment: gangBasic.alignment,
-      positioning: gangBasic.positioning,
+      positioning: gangPositioning,
       note: gangBasic.note,
       stash: stash,
       created_at: gangBasic.created_at,

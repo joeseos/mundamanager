@@ -27,6 +27,7 @@ import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
+import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 
 interface VehicleType {
   id: string;
@@ -539,22 +540,18 @@ export default function Gang({
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
     try {
-      console.log('Sending updated positions to API:', newPositions);
+      console.log('Updating positions using server action:', newPositions);
       
-      const response = await fetch(`/api/gangs/${id}/positioning`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ positions: newPositions }),
+      const result = await updateGangPositioning({
+        gangId: id,
+        positions: newPositions
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update positions');
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update positions');
       }
-
-      const updatedData = await response.json();
-      console.log('API response:', updatedData);
+      
+      console.log('Server action completed successfully');
       
       // Update the positions state
       setPositions(newPositions);

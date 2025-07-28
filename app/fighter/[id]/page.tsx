@@ -31,7 +31,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     } = await import('@/app/lib/shared/fighter-data');
 
     const {
-      getGangBasic
+      getGangBasic,
+      getGangPositioning
     } = await import('@/app/lib/shared/gang-data');
 
     // Fetch basic fighter data first to check if fighter exists
@@ -41,8 +42,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       redirect("/");
     }
 
-    // Fetch gang basic data
-    const gangBasic = await getGangBasic(fighterBasic.gang_id, supabase);
+    // Fetch gang basic data and positioning
+    const [gangBasic, gangPositioning] = await Promise.all([
+      getGangBasic(fighterBasic.gang_id, supabase),
+      getGangPositioning(fighterBasic.gang_id, supabase)
+    ]);
 
     // Fetch all fighter-related data in parallel using granular functions
     const [
@@ -223,7 +227,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         id: gangBasic.id,
         credits: gangBasic.credits,
         gang_type_id: gangBasic.gang_type_id,
-        positioning: gangBasic.positioning,
+        positioning: gangPositioning,
         gang_variants: [] as any[] // Will be populated below if needed
       },
       equipment,
