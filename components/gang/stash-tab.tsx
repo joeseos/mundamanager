@@ -30,6 +30,7 @@ interface GangInventoryProps {
   gangId: string;
   gangCredits: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
   userPermissions?: UserPermissions;
 }
 
@@ -45,6 +46,7 @@ export default function GangInventory({
   gangId,
   gangCredits,
   onGangCreditsUpdate,
+  onGangRatingUpdate,
   userPermissions
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -146,6 +148,11 @@ export default function GangInventory({
         
         // Get the response data
         const responseData = result.data;
+        
+        // Update gang rating if provided
+        if (responseData?.updated_gang_rating !== undefined && onGangRatingUpdate) {
+          onGangRatingUpdate(responseData.updated_gang_rating);
+        }
         
         if (isVehicleTarget) {
           // Handle vehicle equipment update

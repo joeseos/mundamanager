@@ -76,14 +76,18 @@ export async function createChemAlchemy({
       throw customEquipmentError;
     }
 
-    // Add the custom equipment to the gang's stash
+    // Add the custom equipment to the gang's stash using unified fighter_equipment table
     const { data: stashItem, error: stashError } = await supabase
-      .from('gang_stash')
+      .from('fighter_equipment')
       .insert([{
         gang_id: gangId,
+        fighter_id: null,
+        vehicle_id: null,
         custom_equipment_id: customEquipment.id,
-        cost: useBaseCostForRating ? baseCost : totalCost,
-        is_master_crafted: false
+        purchase_cost: useBaseCostForRating ? baseCost : totalCost,
+        gang_stash: true,
+        is_master_crafted: false,
+        user_id: user.id
       }])
       .select()
       .single();
