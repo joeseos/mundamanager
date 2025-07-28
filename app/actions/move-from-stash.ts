@@ -29,6 +29,7 @@ interface MoveFromStashResult {
     equipment_id: string;
     weapon_profiles?: any[];
     created_beasts?: CreatedBeast[];
+    updated_gang_rating?: number;
   };
   error?: string;
 }
