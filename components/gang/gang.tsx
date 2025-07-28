@@ -107,6 +107,7 @@ interface GangProps {
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
@@ -143,6 +144,7 @@ export default function Gang({
   onVehicleAdd,
   onFighterAdd,
   onGangCreditsUpdate,
+  onGangRatingUpdate,
   positioning,
   gang_variants,
   vehicles,
@@ -203,6 +205,11 @@ export default function Gang({
   useEffect(() => {
     setRating(initialRating ?? 0);
   }, [initialRating]);
+
+  // Handle external gang rating updates (e.g., from stash operations)
+  const handleGangRatingUpdate = useCallback((newRating: number) => {
+    setRating(newRating);
+  }, []);
 
   // Calculate the total value of unassigned vehicles
   const unassignedVehiclesValue = useMemo(() => {

@@ -104,6 +104,16 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const handleGangRatingUpdate = useCallback((newRating: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        rating: newRating
+      }
+    }));
+  }, []);
+
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
     setGangData((prev: GangDataState) => {
       // Find the previous version of this fighter to compare
@@ -245,6 +255,7 @@ export default function GangPageContent({
             onVehicleAdd={handleVehicleAdd}
             onFighterAdd={handleFighterAdd}
             onGangCreditsUpdate={handleGangCreditsUpdate}
+            onGangRatingUpdate={handleGangRatingUpdate}
             user_id={gangData.processedData.user_id}
             gang_variants={gangData.processedData.gang_variants}
             vehicles={gangData.processedData.vehicles || []}
@@ -262,6 +273,7 @@ export default function GangPageContent({
           gangId={gangId}
           gangCredits={gangData.processedData.credits}
           onGangCreditsUpdate={handleGangCreditsUpdate}
+          onGangRatingUpdate={handleGangRatingUpdate}
           userPermissions={userPermissions}
         />
         <GangVehicles

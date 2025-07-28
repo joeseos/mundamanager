@@ -636,13 +636,13 @@ async function _getGangVehicles(gangId: string, supabase: SupabaseClient): Promi
 
 async function _getGangStash(gangId: string, supabase: SupabaseClient): Promise<any[]> {
   const { data, error } = await supabase
-    .from('gang_stash')
+    .from('fighter_equipment')
     .select(`
       id,
       created_at,
       equipment_id,
       custom_equipment_id,
-      cost,
+      purchase_cost,
       equipment:equipment_id (
         equipment_name,
         equipment_type,
@@ -654,7 +654,8 @@ async function _getGangStash(gangId: string, supabase: SupabaseClient): Promise<
         equipment_category
       )
     `)
-    .eq('gang_id', gangId);
+    .eq('gang_id', gangId)
+    .eq('gang_stash', true);
 
   if (error) return [];
 
@@ -666,7 +667,7 @@ async function _getGangStash(gangId: string, supabase: SupabaseClient): Promise<
     equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
     equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
     equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-    cost: item.cost,
+    cost: item.purchase_cost,
     type: 'equipment'
   }));
 }

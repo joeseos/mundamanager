@@ -635,7 +635,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // Handle different response structures for gang stash vs fighter equipment
       let equipmentRecord;
       if (isGangStashPurchase) {
-        equipmentRecord = data.insertIntogang_stashCollection?.records[0];
+        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
       } else {
         equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
       }

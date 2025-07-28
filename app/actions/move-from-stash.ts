@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { 
   invalidateFighterData, 
+  invalidateFighterDataWithFinancials,
   invalidateFighterVehicleData,
   invalidateFighterEquipment,
   addBeastToGangCache,
@@ -28,6 +29,7 @@ interface MoveFromStashResult {
     equipment_id: string;
     weapon_profiles?: any[];
     created_beasts?: CreatedBeast[];
+    updated_gang_rating?: number;
   };
   error?: string;
 }
@@ -57,16 +59,17 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     
     // Get the stash item data first to check permissions
     const { data: stashData, error: stashError } = await supabase
-      .from('gang_stash')
+      .from('fighter_equipment')
       .select(`
         id,
         gang_id,
         equipment_id,
         custom_equipment_id,
-        cost,
+        purchase_cost,
         is_master_crafted
       `)
       .eq('id', params.stash_id)
+      .eq('gang_stash', true)
       .single();
 
     if (stashError || !stashData) {
@@ -127,39 +130,20 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
-    // Insert into fighter_equipment
-    const { data: equipmentData, error: insertError } = await supabase
+    // Update the equipment to move it from stash to fighter/vehicle
+    const { data: equipmentData, error: updateError } = await supabase
       .from('fighter_equipment')
-      .insert({
+      .update({
         fighter_id: params.fighter_id || null,
         vehicle_id: params.vehicle_id || null,
-        equipment_id: stashData.equipment_id,
-        custom_equipment_id: stashData.custom_equipment_id,
-        purchase_cost: stashData.cost,
-        is_master_crafted: stashData.is_master_crafted || false
+        gang_stash: false
       })
+      .eq('id', params.stash_id)
       .select('id')
       .single();
 
-    if (insertError || !equipmentData) {
-      throw new Error(`Failed to insert equipment into fighter_equipment: ${insertError?.message || 'No data returned'}`);
-    }
-
-    // Delete from gang_stash (this completes the move operation)
-    const { error: deleteError } = await supabase
-      .from('gang_stash')
-      .delete()
-      .eq('id', params.stash_id);
-
-    if (deleteError) {
-      // If delete fails, we should try to rollback the equipment insert
-      // Note: Supabase doesn't support transactions in the JS client, so we manually clean up
-      await supabase
-        .from('fighter_equipment')
-        .delete()
-        .eq('id', equipmentData.id);
-        
-      throw new Error(`Failed to delete from gang_stash: ${deleteError.message}`);
+    if (updateError || !equipmentData) {
+      throw new Error(`Failed to move equipment from stash: ${updateError?.message || 'No data returned'}`);
     }
 
     // Fetch weapon profiles for regular equipment (not custom equipment)
@@ -236,7 +220,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .single();
 
       if (!vehicleError && vehicle?.fighter_id) {
-        invalidateFighterData(vehicle.fighter_id, stashData.gang_id);
+        invalidateFighterEquipment(vehicle.fighter_id, stashData.gang_id);
         invalidateFighterVehicleData(vehicle.fighter_id, stashData.gang_id);
       }
     }
@@ -244,11 +228,24 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Also invalidate gang page cache
     revalidatePath(`/gang/${stashData.gang_id}`);
 
+    // Get updated gang rating after the equipment move
+    let updatedGangRating: number | undefined;
+    try {
+      const { getGangDetails } = await import('@/app/lib/gang-details');
+      const gangDetailsResult = await getGangDetails(stashData.gang_id);
+      if (gangDetailsResult.success && gangDetailsResult.data) {
+        updatedGangRating = gangDetailsResult.data.rating;
+      }
+    } catch (error) {
+      // Silently continue if gang rating fetch fails
+    }
+
     return {
       success: true,
       data: {
         equipment_id: equipmentData.id,
         weapon_profiles: weaponProfiles,
+        updated_gang_rating: updatedGangRating,
         ...(createdBeasts.length > 0 && { created_beasts: createdBeasts })
       }
     };

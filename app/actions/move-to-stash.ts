@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterData, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -107,43 +107,25 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // Start database transaction by inserting into gang_stash first
-    const { data: stashData, error: stashInsertError } = await supabase
-      .from('gang_stash')
-      .insert({
-        gang_id: gangId,
-        equipment_id: equipmentData.equipment_id,
-        custom_equipment_id: equipmentData.custom_equipment_id,
-        cost: equipmentData.purchase_cost,
-        is_master_crafted: equipmentData.is_master_crafted || false
+    // Update the equipment to move it to stash
+    const { data: stashData, error: updateError } = await supabase
+      .from('fighter_equipment')
+      .update({
+        fighter_id: null,
+        vehicle_id: null,
+        gang_stash: true
       })
+      .eq('id', params.fighter_equipment_id)
       .select('id')
       .single();
 
-    if (stashInsertError || !stashData) {
-      throw new Error(`Failed to insert equipment into gang stash: ${stashInsertError?.message || 'No data returned'}`);
-    }
-
-    // Delete from fighter_equipment (this completes the move operation)
-    const { error: deleteError } = await supabase
-      .from('fighter_equipment')
-      .delete()
-      .eq('id', params.fighter_equipment_id);
-
-    if (deleteError) {
-      // If delete fails, we should try to rollback the stash insert
-      // Note: Supabase doesn't support transactions in the JS client, so we manually clean up
-      await supabase
-        .from('gang_stash')
-        .delete()
-        .eq('id', stashData.id);
-        
-      throw new Error(`Failed to delete equipment from fighter: ${deleteError.message}`);
+    if (updateError || !stashData) {
+      throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
     }
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview
     if (equipmentData.fighter_id) {
-      invalidateFighterData(equipmentData.fighter_id, gangId);
+      invalidateFighterEquipment(equipmentData.fighter_id, gangId);
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -153,7 +135,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         .single();
       
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterData(vehicleData.fighter_id, gangId);
+        invalidateFighterEquipment(vehicleData.fighter_id, gangId);
         invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
       }
       

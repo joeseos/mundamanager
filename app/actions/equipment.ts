@@ -235,12 +235,17 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     
     if (params.buy_for_gang_stash) {
       const { data: stashItem, error: stashError } = await supabase
-        .from('gang_stash')
+        .from('fighter_equipment')
         .insert({
           gang_id: params.gang_id,
+          fighter_id: null,
+          vehicle_id: null,
           equipment_id: params.equipment_id,
           custom_equipment_id: params.custom_equipment_id,
-          cost: ratingCost,
+          original_cost: baseCost,
+          purchase_cost: ratingCost,
+          gang_stash: true,
+          user_id: user.id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted
         })
         .select('id')
@@ -544,7 +549,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     };
 
     if (params.buy_for_gang_stash) {
-      // Gang stash response format
+      // Gang stash response format (now using fighter_equipment table)
       responseData = {
         updategangsCollection: {
           records: [{
@@ -552,16 +557,22 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             credits: gang.credits - finalPurchaseCost
           }]
         },
-        insertIntogang_stashCollection: {
+        insertIntofighter_equipmentCollection: {
           records: [{
             id: newEquipmentId,
             gang_id: params.gang_id,
+            fighter_id: null,
+            vehicle_id: null,
             equipment_id: params.equipment_id,
             custom_equipment_id: params.custom_equipment_id,
-            cost: ratingCost,
+            original_cost: baseCost,
+            purchase_cost: ratingCost,
+            gang_stash: true,
             is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
-            equipment_name: equipmentDetails.equipment_name,
-            equipment_type: equipmentDetails.equipment_type
+            wargear_details: {
+              name: equipmentDetails.equipment_name,
+              cost: baseCost
+            }
           }]
         },
         rating_cost: ratingCost

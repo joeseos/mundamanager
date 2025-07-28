@@ -188,6 +188,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       equipment_id: string;
       original_cost: number;
       purchase_cost: number;
+      gang_id: string;
+      user_id: string;
     }> = [];
 
     // Add default equipment (from params.default_equipment)
@@ -198,7 +200,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             fighter_id: fighterId,
             equipment_id: defaultItem.equipment_id,
             original_cost: defaultItem.cost || 0,
-            purchase_cost: 0 // Default equipment is free
+            purchase_cost: 0, // Default equipment is free
+            gang_id: params.gang_id,
+            user_id: gangData.user_id
           });
         }
       });
@@ -212,7 +216,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             fighter_id: fighterId,
             equipment_id: selectedItem.equipment_id,
             original_cost: selectedItem.cost,
-            purchase_cost: 0 // Equipment selections are already paid for in the fighter cost
+            purchase_cost: 0, // Equipment selections are already paid for in the fighter cost
+            gang_id: params.gang_id,
+            user_id: gangData.user_id
           });
         }
       });
