@@ -192,21 +192,35 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
-    // Targeted cache invalidation
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(params.gang_id));
+    // Granular cache invalidation based on what changed
     
+    // Always invalidate basic gang data if gang settings changed
+    if (params.name !== undefined || params.alignment !== undefined || 
+        params.gang_colour !== undefined || params.alliance_id !== undefined) {
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
+      revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
+    }
+    
+    // Invalidate credits if changed
     if (creditsChanged) {
-      revalidateTag(CACHE_TAGS.GANG_CREDITS(params.gang_id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gang_id));
+    }
+    
+    // Invalidate resources if changed
+    if (params.reputation !== undefined || params.meat !== undefined || 
+        params.scavenging_rolls !== undefined || params.exploration_points !== undefined) {
+      revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gang_id));
     }
     
     // If gang variants were updated, invalidate fighter types cache
     if (params.gang_variants !== undefined) {
-      revalidateTag(CACHE_TAGS.FIGHTER_TYPES_FOR_GANG(params.gang_id));
-      // Also invalidate all fighter pages for this gang since their gang data includes gang_variants
-      revalidateTag('complete-fighter-data');
+      revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.gang_id));
     }
+    
+    // Always invalidate composite gang data for any gang update
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gang_id));
 
-    // NEW: Invalidate campaign caches if this gang is in any campaigns
+    // Invalidate campaign caches if this gang is in any campaigns
     const { data: campaignGangs, error: campaignGangsError } = await supabase
       .from('campaign_gangs')
       .select('campaign_id')
@@ -214,11 +228,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
       for (const cg of campaignGangs) {
         const campaignId = cg.campaign_id;
-        revalidateTag(`campaign-basic-${campaignId}`);
-        revalidateTag(`campaign-members-${campaignId}`);
-        revalidateTag(`campaign-territories-${campaignId}`);
-        revalidateTag(`campaign-battles-${campaignId}`);
-        revalidateTag(`campaign-${campaignId}`);
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+        revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+        revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId));
       }
     }
 

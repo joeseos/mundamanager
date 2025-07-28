@@ -1,152 +1,459 @@
 import { revalidateTag } from 'next/cache';
 
+/**
+ * Hierarchical Cache Tag System for Necromunda Gang Manager
+ * 
+ * Architecture:
+ * - BASE: Raw database entities (rarely change, long cache lifetime)
+ * - COMPUTED: Calculated values derived from base data  
+ * - COMPOSITE: Multi-entity aggregated data
+ * - USER_SCOPED: User-specific data isolated per user
+ * - SHARED: Cross-page consistent data
+ * 
+ * Naming Convention: CATEGORY_ENTITY_SCOPE
+ * Example: BASE_GANG_CREDITS, COMPUTED_GANG_RATING, SHARED_GANG_RATING
+ */
 export const CACHE_TAGS = {
-  // Existing tags
-  FIGHTER_PAGE: (id: string) => `fighter-page-${id}`,
-  GANG_OVERVIEW: (id: string) => `gang-overview-${id}`,
-  GANG_FIGHTERS_LIST: (id: string) => `gang-fighters-${id}`,
-  VEHICLE_EQUIPMENT: (id: string) => `vehicle-${id}-equipment`,
-  VEHICLE_STATS: (id: string) => `vehicle-${id}-stats`,
-  GANG_CREDITS: (id: string) => `gang-${id}-credits`,
-  GANG_RATING: (id: string) => `gang-${id}-rating`,
-  VEHICLE_PAGE: (id: string) => `vehicle-page-${id}`,
-  FIGHTER_VEHICLE_DATA: (id: string) => `fighter-vehicle-${id}`,
-  FIGHTER_TYPES_FOR_GANG: (id: string) => `fighter-types-gang-${id}`,
+  // =============================================================================
+  // 1. BASE DATA TAGS - Raw database entities
+  // =============================================================================
   
-  // New granular fighter-level cache tags
-  FIGHTER_DATA: (id: string) => `fighter-data-${id}`,
-  FIGHTER_EQUIPMENT: (id: string) => `fighter-equipment-${id}`,
-  FIGHTER_STATS: (id: string) => `fighter-stats-${id}`,
-  FIGHTER_EFFECTS: (id: string) => `fighter-effects-${id}`,
-  FIGHTER_SKILLS: (id: string) => `fighter-skills-${id}`,
-  FIGHTER_OWNED_BEASTS: (id: string) => `fighter-owned-beasts-${id}`,
+  // Gang base data
+  BASE_GANG_BASIC: (id: string) => `base-gang-basic-${id}`,           // name, type, color, alignment
+  BASE_GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,       // credits only
+  BASE_GANG_RESOURCES: (id: string) => `base-gang-resources-${id}`,   // meat, reputation, scavenging_rolls
+  BASE_GANG_STASH: (id: string) => `base-gang-stash-${id}`,           // gang stash equipment
+  BASE_GANG_POSITIONING: (id: string) => `base-gang-positioning-${id}`, // gang positioning data
   
-  // Gang composition tags (for adding/removing fighters without full refresh)
-  GANG_FIGHTER_COUNT: (id: string) => `gang-fighter-count-${id}`,
-  GANG_BEAST_COUNT: (id: string) => `gang-beast-count-${id}`,
+  // Fighter base data
+  BASE_FIGHTER_BASIC: (id: string) => `base-fighter-basic-${id}`,     // name, stats, basic info
+  BASE_FIGHTER_EQUIPMENT: (id: string) => `base-fighter-equipment-${id}`, // equipment list
+  BASE_FIGHTER_SKILLS: (id: string) => `base-fighter-skills-${id}`,   // skills list
+  BASE_FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`, // effects/injuries
+  BASE_FIGHTER_VEHICLES: (id: string) => `base-fighter-vehicles-${id}`, // assigned vehicles
+  
+  // Campaign base data
+  BASE_CAMPAIGN_BASIC: (id: string) => `base-campaign-basic-${id}`,   // name, settings
+  BASE_CAMPAIGN_MEMBERS: (id: string) => `base-campaign-members-${id}`, // gang memberships
+  BASE_CAMPAIGN_TERRITORIES: (id: string) => `base-campaign-territories-${id}`, // territory control
+  
+  // Vehicle base data
+  BASE_VEHICLE_BASIC: (id: string) => `base-vehicle-basic-${id}`,     // vehicle stats
+  BASE_VEHICLE_EQUIPMENT: (id: string) => `base-vehicle-equipment-${id}`, // vehicle equipment
+  BASE_VEHICLE_EFFECTS: (id: string) => `base-vehicle-effects-${id}`, // vehicle effects
+  
+  // =============================================================================
+  // 2. COMPUTED DATA TAGS - Calculated values derived from base data
+  // =============================================================================
+  
+  // Fighter computed values
+  COMPUTED_FIGHTER_TOTAL_COST: (id: string) => `computed-fighter-cost-${id}`,     // base + equipment + skills + effects
+  COMPUTED_FIGHTER_BEAST_COSTS: (id: string) => `computed-fighter-beasts-${id}`,  // owned exotic beasts costs
+  COMPUTED_FIGHTER_ADVANCEMENT_XP: (id: string) => `computed-fighter-xp-${id}`,   // available advancement XP
+  
+  // Gang computed values
+  COMPUTED_GANG_RATING: (id: string) => `computed-gang-rating-${id}`,             // sum of all fighter costs
+  COMPUTED_GANG_FIGHTER_COUNT: (id: string) => `computed-gang-fighter-count-${id}`, // active fighter count
+  COMPUTED_GANG_VEHICLE_COUNT: (id: string) => `computed-gang-vehicle-count-${id}`, // vehicle count
+  COMPUTED_GANG_BEAST_COUNT: (id: string) => `computed-gang-beast-count-${id}`,   // exotic beast count
+  
+  // Campaign computed values
+  COMPUTED_CAMPAIGN_LEADERBOARD: (id: string) => `computed-campaign-leaderboard-${id}`, // gang rankings
+  COMPUTED_CAMPAIGN_STATISTICS: (id: string) => `computed-campaign-stats-${id}`,   // campaign statistics
+  
+  // =============================================================================
+  // 3. COMPOSITE DATA TAGS - Multi-entity aggregated data
+  // =============================================================================
+  
+  // Page-level aggregations (only for complex multi-entity aggregations)
+  COMPOSITE_GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`,    // all fighters with equipment
+  COMPOSITE_CAMPAIGN_OVERVIEW: (id: string) => `composite-campaign-overview-${id}`, // complete campaign data
+  COMPOSITE_VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,           // complete vehicle page data
+  
+  // Cross-entity relationships
+  COMPOSITE_GANG_CAMPAIGNS: (id: string) => `composite-gang-campaigns-${id}`,       // campaigns this gang is in
+  COMPOSITE_FIGHTER_GANG_DATA: (id: string) => `composite-fighter-gang-${id}`,      // fighter with gang context
+  COMPOSITE_CAMPAIGN_GANG_DATA: (campaignId: string, gangId: string) => `composite-campaign-${campaignId}-gang-${gangId}`,
+  
+  // =============================================================================
+  // 4. USER-SCOPED TAGS - User-specific data isolated per user
+  // =============================================================================
+  
+  // User-specific collections
+  USER_GANGS: (userId: string) => `user-gangs-${userId}`,           // user's gang list
+  USER_CAMPAIGNS: (userId: string) => `user-campaigns-${userId}`,   // user's campaigns
+  USER_CUSTOMIZATIONS: (userId: string) => `user-custom-${userId}`, // custom equipment/territories
+  USER_NOTIFICATIONS: (userId: string) => `user-notifications-${userId}`, // user notifications
+  
+  // User dashboard data
+  USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
+  USER_ACTIVITY_FEED: (userId: string) => `user-activity-${userId}`, // user activity feed
+  
+  // =============================================================================
+  // 5. SHARED DATA TAGS - Cross-page consistent data
+  // =============================================================================
+  
+  // Cross-page shared data (same data, multiple locations)
+  SHARED_GANG_RATING: (id: string) => `shared-gang-rating-${id}`,   // gang page + campaign page + leaderboards
+  SHARED_FIGHTER_COST: (id: string) => `shared-fighter-cost-${id}`, // fighter page + gang page
+  SHARED_CAMPAIGN_GANG_LIST: (id: string) => `shared-campaign-gangs-${id}`, // campaign page + member pages
+  SHARED_GANG_BASIC_INFO: (id: string) => `shared-gang-basic-${id}`, // gang name/color used across pages
+  
+  // =============================================================================
+  // 6. GLOBAL REFERENCE DATA - Static/semi-static data
+  // =============================================================================
+  
+  // Global reference data (rarely changes)
+  GLOBAL_GANG_TYPES: () => `global-gang-types`,                       // gang type options
+  GLOBAL_EQUIPMENT_CATALOG: () => `global-equipment-catalog`,         // equipment options
+  GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
+  GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
+  GLOBAL_SKILL_CATEGORIES: () => `global-skill-categories`,           // skill categories
+  
+  // Gang-specific reference data
+  GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
+  GANG_EQUIPMENT_OPTIONS: (id: string) => `gang-equipment-options-${id}`, // equipment available to gang
+  
+  // =============================================================================
+  // 7. LEGACY COMPATIBILITY TAGS - For smooth migration
+  // =============================================================================
+  
+  // Maintained for backward compatibility during migration
+  // REMOVED: FIGHTER_PAGE, GANG_OVERVIEW - use granular functions instead
+  GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`, // → COMPOSITE_GANG_FIGHTERS_LIST
+  GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,            // → BASE_GANG_CREDITS
+  GANG_RATING: (id: string) => `computed-gang-rating-${id}`,          // → COMPUTED_GANG_RATING
+  VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,       // → COMPOSITE_VEHICLE_PAGE
+  FIGHTER_VEHICLE_DATA: (id: string) => `base-fighter-vehicles-${id}`, // → BASE_FIGHTER_VEHICLES
+  
+  // Legacy granular tags
+  FIGHTER_DATA: (id: string) => `base-fighter-basic-${id}`,           // → BASE_FIGHTER_BASIC
+  FIGHTER_EQUIPMENT: (id: string) => `base-fighter-equipment-${id}`,  // → BASE_FIGHTER_EQUIPMENT
+  FIGHTER_SKILLS: (id: string) => `base-fighter-skills-${id}`,        // → BASE_FIGHTER_SKILLS
+  FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`,      // → BASE_FIGHTER_EFFECTS
+  FIGHTER_OWNED_BEASTS: (id: string) => `computed-fighter-beasts-${id}`, // → COMPUTED_FIGHTER_BEAST_COSTS
+  
+  // Legacy vehicle tags
+  VEHICLE_EQUIPMENT: (id: string) => `base-vehicle-equipment-${id}`,  // → BASE_VEHICLE_EQUIPMENT
+  VEHICLE_STATS: (id: string) => `base-vehicle-basic-${id}`,          // → BASE_VEHICLE_BASIC
+  
+  // Legacy gang composition tags
+  GANG_FIGHTER_COUNT: (id: string) => `computed-gang-fighter-count-${id}`, // → COMPUTED_GANG_FIGHTER_COUNT
+  GANG_BEAST_COUNT: (id: string) => `computed-gang-beast-count-${id}`,     // → COMPUTED_GANG_BEAST_COUNT
+  FIGHTER_TYPES_FOR_GANG: (id: string) => `gang-fighter-types-${id}`,      // → GANG_FIGHTER_TYPES
 } as const;
 
-export function invalidateFighterData(fighterId: string, gangId: string) {
-  revalidateTag(CACHE_TAGS.FIGHTER_PAGE(fighterId));
-  revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
-  // This automatically invalidates cached gang details via existing tags
-}
+// =============================================================================
+// CACHE INVALIDATION FUNCTIONS - Surgical, pattern-based invalidation
+// =============================================================================
 
-export function invalidateVehicleData(vehicleId: string) {
-  revalidateTag(CACHE_TAGS.VEHICLE_EQUIPMENT(vehicleId));
-  revalidateTag(CACHE_TAGS.VEHICLE_STATS(vehicleId));
-  revalidateTag(CACHE_TAGS.VEHICLE_PAGE(vehicleId));
-}
-
-// Gang credit and rating invalidation functions
-export function invalidateGangCredits(gangId: string) {
-  revalidateTag(CACHE_TAGS.GANG_CREDITS(gangId));
-}
-
-export function invalidateGangRating(gangId: string) {
-  revalidateTag(CACHE_TAGS.GANG_RATING(gangId));
-}
-
-export function invalidateGangFinancials(gangId: string) {
-  invalidateGangCredits(gangId);
-  invalidateGangRating(gangId);
-  revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-  revalidateTag(CACHE_TAGS.FIGHTER_TYPES_FOR_GANG(gangId));
-  // This automatically invalidates cached gang details via existing tags
-}
-
-// General gang data invalidation that includes fighter types
-export function invalidateGangData(gangId: string) {
-  revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
-  revalidateTag(CACHE_TAGS.FIGHTER_TYPES_FOR_GANG(gangId));
-}
-
-// Enhanced fighter data invalidation that includes gang financials
-export function invalidateFighterDataWithFinancials(fighterId: string, gangId: string) {
-  invalidateFighterData(fighterId, gangId);
-  invalidateGangFinancials(gangId);
-}
-
-// New function to invalidate fighter vehicle data specifically
-export function invalidateFighterVehicleData(fighterId: string, gangId: string) {
-  revalidateTag(CACHE_TAGS.FIGHTER_VEHICLE_DATA(fighterId));
-  revalidateTag(CACHE_TAGS.FIGHTER_PAGE(fighterId));
-  revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
-}
-
-// NEW GRANULAR CACHE INVALIDATION FUNCTIONS
-
-// Invalidate fighter's equipment and related gang data
-export function invalidateFighterEquipment(fighterId: string, gangId?: string) {
-  revalidateTag(CACHE_TAGS.FIGHTER_EQUIPMENT(fighterId));
-  revalidateTag(CACHE_TAGS.FIGHTER_DATA(fighterId));
-  revalidateTag(CACHE_TAGS.FIGHTER_PAGE(fighterId));
-  
-  // CRITICAL: Invalidate ALL gang cache tags that gang-details depends on
-  if (gangId) {
-    revalidateTag(CACHE_TAGS.GANG_CREDITS(gangId));        // Credits change
-    revalidateTag(CACHE_TAGS.GANG_RATING(gangId));         // Rating changes  
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));       // Gang overview changes
-    revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));  // Fighter equipment shows on cards
-  }
-}
-
-// Add a new beast to gang without refreshing all fighters
-export function addBeastToGangCache(beastId: string, gangId: string) {
-  // Invalidate only the new beast's data and gang composition counts
-  revalidateTag(CACHE_TAGS.FIGHTER_DATA(beastId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTER_COUNT(gangId));
-  revalidateTag(CACHE_TAGS.GANG_BEAST_COUNT(gangId));
-  revalidateTag(CACHE_TAGS.GANG_RATING(gangId));
-  
-  // DO invalidate GANG_FIGHTERS_LIST so new beasts appear on gang page
-  revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(gangId));
-}
-
-// Invalidate fighter's owned beasts when they get new ones
-export function invalidateFighterOwnedBeasts(ownerId: string, gangId: string) {
-  revalidateTag(CACHE_TAGS.FIGHTER_OWNED_BEASTS(ownerId));
-  revalidateTag(CACHE_TAGS.FIGHTER_DATA(ownerId));
-  revalidateTag(CACHE_TAGS.GANG_RATING(gangId));
-}
-
-// Optimized equipment purchase invalidation
+/**
+ * Equipment Purchase Invalidation Pattern
+ * Triggered when: User buys equipment for fighter
+ * Data changed: Fighter equipment, gang credits, gang rating, fighter cost
+ */
 export function invalidateEquipmentPurchase(params: {
   fighterId: string;
   gangId: string;
   createdBeasts?: Array<{ id: string }>;
 }) {
-  // 1. Update only the fighter who got equipment
-  invalidateFighterEquipment(params.fighterId, params.gangId);
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
   
-  // 2. If beasts were created, add them without full refresh  
-  if (params.createdBeasts && params.createdBeasts.length > 0) {
-    // Update the owner's beast list
-    invalidateFighterOwnedBeasts(params.fighterId, params.gangId);
-    
-    // Add each beast individually
+  // Computed data changes  
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  
+  // Beast creation handling
+  if (params.createdBeasts?.length) {
     params.createdBeasts.forEach(beast => {
-      addBeastToGangCache(beast.id, params.gangId);
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beast.id));
+      // Fighter page data changes due to new beast
     });
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
   }
 }
 
-// Optimized equipment deletion invalidation
+/**
+ * Fighter Advancement Invalidation Pattern
+ * Triggered when: Fighter gains skill/effect/injury/stat increase
+ * Data changed: Fighter skills/effects, fighter cost, gang rating
+ */
+export function invalidateFighterAdvancement(params: {
+  fighterId: string;
+  gangId: string;
+  advancementType: 'skill' | 'effect' | 'injury' | 'stat';
+}) {
+  // Base data changes
+  switch (params.advancementType) {
+    case 'skill':
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighterId));
+      break;
+    case 'effect':
+    case 'injury':
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighterId));
+      break;
+    case 'stat':
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+      break;
+  }
+  
+  // Computed data changes
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
+ * Campaign Membership Invalidation Pattern  
+ * Triggered when: Gang joins/leaves campaign or role changes
+ * Data changed: Campaign members, gang campaigns
+ */
+export function invalidateCampaignMembership(params: {
+  campaignId: string;
+  gangId: string;
+  userId: string;
+  action: 'join' | 'leave' | 'role_change';
+}) {
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
+  
+  // Computed data changes
+  revalidateTag(CACHE_TAGS.COMPUTED_CAMPAIGN_LEADERBOARD(params.campaignId));
+  
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(params.campaignId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  
+  // User-scoped changes
+  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId));
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+}
+
+/**
+ * Gang Creation Invalidation Pattern
+ * Triggered when: User creates new gang
+ * Data changed: User gangs, user dashboard
+ */
+export function invalidateGangCreation(params: {
+  gangId: string;
+  userId: string;
+}) {
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gangId));
+  
+  // User-scoped changes
+  revalidateTag(CACHE_TAGS.USER_GANGS(params.userId));
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+  
+  // Composite data (new gang page)
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
+ * Equipment Deletion Invalidation Pattern
+ * Triggered when: Equipment sold/deleted from fighter
+ * Data changed: Fighter equipment, gang credits, gang rating, fighter cost
+ */
 export function invalidateEquipmentDeletion(params: {
   fighterId: string;
   gangId: string;
   deletedBeastIds?: string[];
 }) {
-  // 1. Update the fighter who lost equipment
-  invalidateFighterEquipment(params.fighterId, params.gangId);
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
   
-  // 2. If beasts were deleted, remove them
-  if (params.deletedBeastIds && params.deletedBeastIds.length > 0) {
-    invalidateFighterOwnedBeasts(params.fighterId, params.gangId);
-    revalidateTag(CACHE_TAGS.GANG_FIGHTER_COUNT(params.gangId));
-    revalidateTag(CACHE_TAGS.GANG_BEAST_COUNT(params.gangId));
+  // Computed data changes
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  
+  // Beast deletion handling
+  if (params.deletedBeastIds?.length) {
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(params.gangId));
   }
 }
+
+/**
+ * Fighter Addition Invalidation Pattern
+ * Triggered when: New fighter added to gang
+ * Data changed: Gang fighters list, gang rating, gang fighter count
+ */
+export function invalidateFighterAddition(params: {
+  fighterId: string;
+  gangId: string;
+  userId: string;
+}) {
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  
+  // Computed data changes
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+  
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
+ * Gang Stash Invalidation Pattern
+ * Triggered when: Items added/removed from gang stash
+ * Data changed: Gang stash, gang credits
+ */
+export function invalidateGangStash(params: {
+  gangId: string;
+  userId: string;
+}) {
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_GANG_STASH(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
+ * Campaign Territory Invalidation Pattern
+ * Triggered when: Territory ownership changes in campaign
+ * Data changed: Campaign territories, gang campaigns
+ */
+export function invalidateCampaignTerritory(params: {
+  campaignId: string;
+  gangId: string;
+}) {
+  // Base data changes
+  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId));
+  
+  // Composite data changes
+  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
+ * User Customization Invalidation Pattern
+ * Triggered when: User creates/updates custom equipment/territories
+ * Data changed: User customizations
+ */
+export function invalidateUserCustomizations(params: {
+  userId: string;
+}) {
+  // User-scoped changes
+  revalidateTag(CACHE_TAGS.USER_CUSTOMIZATIONS(params.userId));
+  
+  // Global reference data that includes custom content
+  revalidateTag(CACHE_TAGS.GLOBAL_EQUIPMENT_CATALOG());
+  revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST());
+}
+
+// =============================================================================
+// LEGACY COMPATIBILITY FUNCTIONS - For smooth migration
+// =============================================================================
+
+// Legacy function names maintained for backward compatibility
+export const invalidateFighterData = (fighterId: string, gangId: string) => {
+  invalidateFighterAdvancement({ fighterId, gangId, advancementType: 'stat' });
+};
+
+export const invalidateVehicleData = (vehicleId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EQUIPMENT(vehicleId));
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_BASIC(vehicleId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_VEHICLE_PAGE(vehicleId));
+};
+
+export const invalidateGangCredits = (gangId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId));
+};
+
+export const invalidateGangRating = (gangId: string) => {
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(gangId));
+};
+
+export const invalidateGangFinancials = (gangId: string) => {
+  invalidateGangCredits(gangId);
+  invalidateGangRating(gangId);
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+};
+
+export const invalidateGangData = (gangId: string) => {
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+};
+
+export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: string) => {
+  invalidateFighterData(fighterId, gangId);
+  invalidateGangFinancials(gangId);
+};
+
+export const invalidateFighterVehicleData = (fighterId: string, gangId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
+  // Fighter page data invalidated via granular tags
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+};
+
+export const invalidateFighterEquipment = (fighterId: string, gangId?: string) => {
+  if (gangId) {
+    invalidateEquipmentPurchase({ fighterId, gangId });
+  } else {
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId));
+    // Fighter page data invalidated via granular tags
+  }
+};
+
+export const addBeastToGangCache = (beastId: string, gangId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beastId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+};
+
+export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) => {
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+};

@@ -1,8 +1,8 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag, revalidatePath } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { revalidateTag } from "next/cache";
+import { CACHE_TAGS, invalidateCampaignMembership } from "@/utils/cache-tags";
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -87,18 +87,13 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
       if (error) throw error;
     }
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's caches
-    revalidateTag(`campaign-members-${campaignId}`);
-    revalidateTag(`campaign-territories-${campaignId}`); // Gang assignments affect territories
-    revalidateTag(`campaign-battles-${campaignId}`); // Gang additions may affect battle history
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`);
-    
-    // Invalidate gang cache to update campaign membership display
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-    revalidateTag(`gang-details-${gangId}`);
-    revalidatePath(`/gang/${gangId}`);
+    // Use granular campaign membership invalidation
+    invalidateCampaignMembership({
+      campaignId: campaignId,
+      gangId: gangId,
+      userId: userId,
+      action: 'join'
+    });
 
     return { success: true };
   } catch (error) {
@@ -179,21 +174,20 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     if (error) throw error;
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's caches
-    revalidateTag(`campaign-members-${campaignId}`);
-    revalidateTag(`campaign-territories-${campaignId}`); // Member removal affects territories
-    revalidateTag(`campaign-battles-${campaignId}`); // Member removal may affect battle history
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`);
-    
-    // Invalidate gang caches for all affected gangs to update campaign membership display
+    // Use granular campaign membership invalidation for each affected gang
     if (memberGangs && memberGangs.length > 0) {
       memberGangs.forEach(gang => {
-        revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gang.gang_id));
-        revalidateTag(`gang-details-${gang.gang_id}`);
-        revalidatePath(`/gang/${gang.gang_id}`);
+        invalidateCampaignMembership({
+          campaignId: campaignId,
+          gangId: gang.gang_id,
+          userId: userId,
+          action: 'leave'
+        });
       });
+    } else {
+      // If no specific gangs, still invalidate campaign data
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
     }
 
     return { success: true };
@@ -265,18 +259,20 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       if (error) throw error;
     }
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's caches
-    revalidateTag(`campaign-members-${campaignId}`);
-    revalidateTag(`campaign-territories-${campaignId}`); // Gang removal affects territories
-    revalidateTag(`campaign-battles-${campaignId}`); // Gang removal may affect battle history
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`);
+    // Get gang owner for proper cache invalidation
+    const { data: gangData } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', gangId)
+      .single();
     
-    // Invalidate gang cache to update campaign membership display
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-    revalidateTag(`gang-details-${gangId}`);
-    revalidatePath(`/gang/${gangId}`);
+    // Use granular campaign membership invalidation
+    invalidateCampaignMembership({
+      campaignId: campaignId,
+      gangId: gangId,
+      userId: gangData?.user_id || 'unknown',
+      action: 'leave'
+    });
 
     return { success: true };
   } catch (error) {
@@ -324,11 +320,9 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
 
     if (error) throw error;
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's members cache
-    revalidateTag(`campaign-members-${campaignId}`);
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`);
+    // Use targeted cache invalidation for member addition
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
 
     return { success: true, data };
   } catch (error) {
@@ -356,11 +350,9 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
 
     if (error) throw error;
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    // Invalidate only the affected campaign's members cache
-    revalidateTag(`campaign-members-${campaignId}`);
-    // Also invalidate the general campaign cache for this specific campaign
-    revalidateTag(`campaign-${campaignId}`);
+    // Use targeted cache invalidation for role update
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
 
     return { success: true };
   } catch (error) {

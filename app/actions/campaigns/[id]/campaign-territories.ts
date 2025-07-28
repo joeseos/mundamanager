@@ -58,8 +58,7 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
     revalidateTag(`campaign-${campaignId}`);
     
     // Invalidate gang cache to update territory ownership display
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gangId));
-    revalidateTag(`gang-details-${gangId}`);
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
     revalidatePath(`/gang/${gangId}`);
 
     return { success: true };
@@ -104,8 +103,7 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
     
     // Invalidate gang cache to update territory ownership display
     if (territoryData?.gang_id) {
-      revalidateTag(CACHE_TAGS.GANG_OVERVIEW(territoryData.gang_id));
-      revalidateTag(`gang-details-${territoryData.gang_id}`);
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(territoryData.gang_id));
       revalidatePath(`/gang/${territoryData.gang_id}`);
     }
 

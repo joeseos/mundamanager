@@ -222,7 +222,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (gangUpdateError) throw gangUpdateError;
 
     // Invalidate cache for this gang so changes are reflected on reload
-    revalidateTag(CACHE_TAGS.GANG_OVERVIEW(params.id));
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.id));
 
     return NextResponse.json(updatedGang);
   } catch (error) {

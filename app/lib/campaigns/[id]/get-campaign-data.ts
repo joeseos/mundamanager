@@ -547,7 +547,12 @@ export const getCampaignBasic = async (campaignId: string) => {
     },
     [`campaign-basic-${campaignId}`],
     {
-      tags: ['campaign-basic', `campaign-basic-${campaignId}`, `campaign-${campaignId}`],
+      tags: [
+        CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId),
+        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
+        // Keep legacy tag for backward compatibility during transition
+        `campaign-${campaignId}`
+      ],
       revalidate: false
     }
   )();
@@ -571,11 +576,12 @@ export const getCampaignMembers = async (campaignId: string) => {
   
   // Build cache tags that include gang overview and rating tags
   const cacheTags = [
-    'campaign-members', 
-    `campaign-members-${campaignId}`, 
+    CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
+    CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
+    // Keep legacy tag for backward compatibility during transition
     `campaign-${campaignId}`,
     // Add gang cache tags so campaign data updates when gang data changes
-    ...gangIds.map(gangId => CACHE_TAGS.GANG_OVERVIEW(gangId)),
+    ...gangIds.map(gangId => CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)),
     ...gangIds.map(gangId => CACHE_TAGS.GANG_RATING(gangId))
   ];
   
@@ -604,7 +610,12 @@ export const getCampaignTerritories = async (campaignId: string) => {
     },
     [`campaign-territories-${campaignId}`],
     {
-      tags: ['campaign-territories', `campaign-territories-${campaignId}`, `campaign-${campaignId}`],
+      tags: [
+        CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId),
+        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
+        // Keep legacy tag for backward compatibility during transition
+        `campaign-${campaignId}`
+      ],
       revalidate: false
     }
   )();
@@ -623,7 +634,13 @@ export const getCampaignBattles = async (campaignId: string, limit = 50) => {
     },
     [`campaign-battles-${campaignId}-${limit}`],
     {
-      tags: ['campaign-battles', `campaign-battles-${campaignId}`, `campaign-${campaignId}`],
+      tags: [
+        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
+        // Keep legacy tag for backward compatibility during transition
+        `campaign-${campaignId}`,
+        // Battles don't have a specific BASE tag yet, but could be added to taxonomy
+        `campaign-battles-${campaignId}`
+      ],
       revalidate: false
     }
   )();

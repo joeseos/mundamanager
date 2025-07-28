@@ -1,8 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag, revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 
 export interface UpdateCampaignSettingsParams {
@@ -53,16 +52,17 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       .select('gang_id')
       .eq('campaign_id', campaignId);
 
-    // 🎯 TARGETED CACHE INVALIDATION
-    revalidateTag(`campaign-basic-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`);
+    // Use granular cache invalidation with proper taxonomy
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
     
     // Invalidate gang caches to update campaign resource settings display
     if (campaignGangs && campaignGangs.length > 0) {
       campaignGangs.forEach(gang => {
-        revalidateTag(CACHE_TAGS.GANG_OVERVIEW(gang.gang_id));
-        revalidateTag(`gang-details-${gang.gang_id}`);
-        revalidatePath(`/gang/${gang.gang_id}`);
+        // Gang pages show campaign info (name, settings), so invalidate gang campaign cache
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
+        // Also invalidate gang overview since it may display campaign data
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gang.gang_id));
       });
     }
 
@@ -83,6 +83,12 @@ export async function deleteCampaign(campaignId: string) {
   try {
     const supabase = await createClient();
     
+    // Get all gangs in this campaign before deletion
+    const { data: campaignGangs } = await supabase
+      .from('campaign_gangs')
+      .select('gang_id')
+      .eq('campaign_id', campaignId);
+    
     const { error } = await supabase
       .from('campaigns')
       .delete()
@@ -90,17 +96,23 @@ export async function deleteCampaign(campaignId: string) {
 
     if (error) throw error;
 
-    // 🎯 COMPREHENSIVE CACHE INVALIDATION FOR DELETED CAMPAIGN
-    // Invalidate all caches related to the deleted campaign
-    revalidateTag(`campaign-basic-${campaignId}`);
-    revalidateTag(`campaign-members-${campaignId}`);
-    revalidateTag(`campaign-territories-${campaignId}`);
-    revalidateTag(`campaign-battles-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`);
+    // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId));
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+    revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId));
 
-    // Also invalidate global caches if needed
-    // (e.g., if you have a campaigns list cache)
-    revalidateTag('campaigns-list');
+    // Invalidate gang campaign caches since campaign was deleted
+    if (campaignGangs && campaignGangs.length > 0) {
+      campaignGangs.forEach(gang => {
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gang.gang_id));
+      });
+    }
+
+    // Invalidate user dashboard cache since user's campaign list changed
+    // Note: We'd need the user ID to properly invalidate USER_CAMPAIGNS cache
 
     return { success: true };
   } catch (error) {
