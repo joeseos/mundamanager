@@ -259,6 +259,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       const { data: fighterEquip, error: equipError } = await supabase
         .from('fighter_equipment')
         .insert({
+          gang_id: params.gang_id,
           fighter_id: params.fighter_id,
           vehicle_id: params.vehicle_id,
           equipment_id: params.equipment_id,
@@ -461,6 +462,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   await supabase
                     .from('fighter_equipment')
                     .insert({
+                      gang_id: params.gang_id,
                       fighter_id: newFighter.id,
                       equipment_id: defaultItem.equipment_id,
                       purchase_cost: 0,
