@@ -25,10 +25,15 @@ const inter = Inter({
   variable: '--font-inter',
 })
 
+// Metadata constants
+const SITE_TITLE = "Munda Manager";
+const SITE_DESCRIPTION = "Gang & Campaign management tool for Necromunda";
+const SITE_IMAGE = '/images/favicon-192x192.png';
+
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Munda Manager",
-  description: "A gang management tool for the boardgame Necromunda",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   icons: {
     icon: [
       { url: '/images/favicon.ico', sizes: 'any' },
@@ -36,6 +41,28 @@ export const metadata = {
       { url: '/images/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
     apple: { url: '/images/apple-touch-icon.png' },
+  },
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: defaultUrl,
+    siteName: SITE_TITLE,
+    images: [
+      {
+        url: SITE_IMAGE,
+        width: 192,
+        height: 192,
+        alt: SITE_TITLE,
+      },
+    ],
+    locale: 'en_GB',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [SITE_IMAGE],
   },
 };
 
