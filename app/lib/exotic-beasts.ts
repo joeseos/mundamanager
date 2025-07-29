@@ -115,7 +115,7 @@ export async function createExoticBeastsForEquipment(
       }
 
       // Add default equipment for the beast
-      await addDefaultEquipmentToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId);
+      await addDefaultEquipmentToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId, params.gangId);
 
       // Create ownership record
       const { data: ownershipRecord } = await supabase
@@ -167,7 +167,8 @@ async function addDefaultEquipmentToBeast(
   supabase: any,
   beastFighterId: string,
   fighterTypeId: string,
-  userId: string
+  userId: string,
+  gangId: string
 ): Promise<void> {
   try {
     // Get default equipment for the beast type
@@ -192,6 +193,7 @@ async function addDefaultEquipmentToBeast(
         await supabase
           .from('fighter_equipment')
           .insert({
+            gang_id: gangId,
             fighter_id: beastFighterId,
             equipment_id: defaultItem.equipment_id,
             purchase_cost: 0,
