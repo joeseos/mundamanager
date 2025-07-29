@@ -398,7 +398,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
               leadership,
               cool,
               willpower,
-              intelligence
+              intelligence,
+              special_rules
             )
           `)
           .eq('equipment_id', params.equipment_id);
@@ -430,6 +431,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   cool: fighterType.cool,
                   willpower: fighterType.willpower,
                   intelligence: fighterType.intelligence,
+                  special_rules: fighterType.special_rules || [],
                   xp: 0
                 })
                 .select('id, fighter_name, fighter_type, fighter_class, credits, created_at')
