@@ -453,18 +453,19 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
 // =============================================================================
 
 /**
- * Calculate fighter's total cost (base + equipment + skills + effects + beasts)
+ * Calculate fighter's total cost (base + equipment + skills + effects + vehicles + beasts)
  * Cache: COMPUTED_FIGHTER_TOTAL_COST
  */
 export const getFighterTotalCost = async (fighterId: string, supabase: any): Promise<number> => {
   return unstable_cache(
     async () => {
       // Get all cost components in parallel
-      const [fighterBasic, equipment, skills, effects, beastCosts] = await Promise.all([
+      const [fighterBasic, equipment, skills, effects, vehicles, beastCosts] = await Promise.all([
         getFighterBasic(fighterId, supabase),
         getFighterEquipment(fighterId, supabase),
         getFighterSkills(fighterId, supabase),
         getFighterEffects(fighterId, supabase),
+        getFighterVehicles(fighterId, supabase),
         getFighterOwnedBeastsCost(fighterId, supabase)
       ]);
 
@@ -493,14 +494,36 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
         return sum + (effect.type_specific_data?.credits_increase || 0);
       }, 0);
       
-      return fighterBasic.credits + equipmentCost + skillsCost + effectsCost + 
+      // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)
+      const vehicleCost = vehicles.reduce((sum, vehicle) => {
+        let vehicleTotal = vehicle.cost || 0;
+        
+        // Add vehicle equipment costs
+        if (vehicle.equipment) {
+          vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
+            return equipSum + (eq.cost || 0);
+          }, 0);
+        }
+        
+        // Add vehicle effects costs
+        if (vehicle.effects) {
+          vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+            return effectSum + (effect.type_specific_data?.credits_increase || 0);
+          }, 0);
+        }
+        
+        return sum + vehicleTotal;
+      }, 0);
+      
+      return fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
              (fighterBasic.cost_adjustment || 0) + beastCosts;
     },
     [`fighter-total-cost-${fighterId}`],
     {
       tags: [
         CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId),
-        CACHE_TAGS.SHARED_FIGHTER_COST(fighterId)
+        CACHE_TAGS.SHARED_FIGHTER_COST(fighterId),
+        CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId)
       ],
       revalidate: false
     }

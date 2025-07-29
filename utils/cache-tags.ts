@@ -431,8 +431,10 @@ export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: s
 
 export const invalidateFighterVehicleData = (fighterId: string, gangId: string) => {
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
+  // Fighter total cost now depends on vehicles, so invalidate it too
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(fighterId));
   // Fighter page data invalidated via granular tags
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
 };
 
