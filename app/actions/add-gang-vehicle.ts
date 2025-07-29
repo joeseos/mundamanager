@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { CACHE_TAGS, invalidateGangCredits } from "@/utils/cache-tags";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -144,7 +144,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     }
 
     // Invalidate relevant cache tags
-    revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+    invalidateGangCredits(params.gangId);
     revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
     revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
     

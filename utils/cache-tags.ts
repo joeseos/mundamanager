@@ -160,7 +160,7 @@ export function invalidateEquipmentPurchase(params: {
 }) {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  invalidateGangCredits(params.gangId);
   
   // Computed data changes  
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
@@ -262,7 +262,7 @@ export function invalidateGangCreation(params: {
 }) {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId));
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  invalidateGangCredits(params.gangId);
   revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gangId));
   
   // User-scoped changes
@@ -285,7 +285,7 @@ export function invalidateEquipmentDeletion(params: {
 }) {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  invalidateGangCredits(params.gangId);
   
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
@@ -296,7 +296,6 @@ export function invalidateEquipmentDeletion(params: {
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
   
   // Beast deletion handling
@@ -320,7 +319,7 @@ export function invalidateFighterAddition(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  invalidateGangCredits(params.gangId);
   
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
@@ -347,7 +346,7 @@ export function invalidateGangStash(params: {
 }) {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_GANG_STASH(params.gangId));
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
+  invalidateGangCredits(params.gangId);
   
   // Composite data changes
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));

@@ -12,7 +12,6 @@ export interface GangBasic {
   gang_type: string;
   gang_type_id: string;
   gang_colour: string;
-  credits: number;
   reputation: number;
   meat: number;
   scavenging_rolls: number;
@@ -118,7 +117,7 @@ export interface GangFighter {
 // =============================================================================
 
 /**
- * Get gang basic information (name, type, credits, etc.)
+ * Get gang basic information (name, type, reputation, etc. - excludes credits)
  * Cache: BASE_GANG_BASIC
  */
 export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic> => {
@@ -132,7 +131,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_type,
           gang_type_id,
           gang_colour,
-          credits,
           reputation,
           meat,
           scavenging_rolls,

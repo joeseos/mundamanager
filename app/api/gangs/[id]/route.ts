@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 
 enum GangAlignment {
@@ -134,6 +134,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const updates: any = {
       last_updated: new Date().toISOString()
     };
+    
+    // Track what changed for cache invalidation
+    let creditsChanged = false;
 
     // Add name if provided
     if (name !== undefined) {
@@ -198,6 +201,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         updates.credits = credits_operation === 'add'
           ? (currentGang.credits || 0) + credits
           : (currentGang.credits || 0) - credits;
+        creditsChanged = true;
       }
 
       if (reputation !== undefined && reputation_operation) {
@@ -223,6 +227,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // Invalidate cache for this gang so changes are reflected on reload
     revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.id));
+    
+    // Invalidate credits cache if credits were changed
+    if (creditsChanged) {
+      invalidateGangCredits(params.id);
+    }
 
     return NextResponse.json(updatedGang);
   } catch (error) {
