@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdmin } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -146,8 +146,12 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Invalidate caches - selling equipment affects gang credits/rating
     if (equipmentData.fighter_id) {
-      // Fighter equipment sales affect both fighter data and gang financials
-      invalidateFighterDataWithFinancials(equipmentData.fighter_id, gangId);
+      // Use equipment deletion invalidation since selling is essentially deletion with credit refund
+      // This ensures both fighter equipment list AND gang credits are properly invalidated
+      invalidateEquipmentDeletion({
+        fighterId: equipmentData.fighter_id,
+        gangId: gangId
+      });
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -157,7 +161,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .single();
       
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterDataWithFinancials(vehicleData.fighter_id, gangId);
+        // Use equipment deletion invalidation for the fighter to ensure equipment list updates
+        invalidateEquipmentDeletion({
+          fighterId: vehicleData.fighter_id,
+          gangId: gangId
+        });
         invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
       }
       
