@@ -3,6 +3,11 @@
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { 
+  logCharacteristicAdvancement, 
+  logSkillAdvancement, 
+  logAdvancementDeletion 
+} from './create-gang-log';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -72,7 +77,7 @@ export async function addCharacteristicAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -184,6 +189,18 @@ export async function addCharacteristicAdvancement(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
+    // Log the characteristic advancement
+    await logCharacteristicAdvancement({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      characteristic_name: effectType.effect_name,
+      xp_cost: params.xp_cost,
+      credits_increase: params.credits_increase,
+      remaining_xp: updatedFighter.xp,
+      include_gang_rating: true
+    });
+
     return {
       success: true,
       fighter: updatedFighter,
@@ -220,7 +237,7 @@ export async function addSkillAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -290,6 +307,26 @@ export async function addSkillAdvancement(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
+    // Get skill name for logging
+    const { data: skillData } = await supabase
+      .from('skills')
+      .select('name')
+      .eq('id', params.skill_id)
+      .single();
+
+    // Log the skill advancement
+    await logSkillAdvancement({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      skill_name: skillData?.name || 'Unknown Skill',
+      xp_cost: params.xp_cost,
+      credits_increase: params.credits_increase,
+      remaining_xp: updatedFighter.xp,
+      is_advance: params.is_advance ?? true,
+      include_gang_rating: true
+    });
+
     return {
       success: true,
       fighter: updatedFighter,
@@ -326,7 +363,7 @@ export async function deleteAdvancement(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -475,6 +512,43 @@ export async function deleteAdvancement(
     
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+
+    // Get advancement name for logging
+    let advancementName = 'Unknown Advancement';
+    if (params.advancement_type === 'skill') {
+      const { data: skillData } = await supabase
+        .from('fighter_skills')
+        .select(`
+          skills!inner(name)
+        `)
+        .eq('id', params.advancement_id)
+        .single();
+      
+      if (skillData && skillData.skills) {
+        const skills = Array.isArray(skillData.skills) ? skillData.skills[0] : skillData.skills;
+        advancementName = skills.name;
+      }
+    } else {
+      const { data: effectData } = await supabase
+        .from('fighter_effects')
+        .select('effect_name')
+        .eq('id', params.advancement_id)
+        .single();
+      
+      advancementName = effectData?.effect_name || 'Unknown Characteristic';
+    }
+
+    // Log the advancement deletion
+    await logAdvancementDeletion({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      advancement_name: advancementName,
+      advancement_type: params.advancement_type,
+      xp_refunded: xpToRefund,
+      new_xp_total: updatedFighter.xp,
+      include_gang_rating: true
+    });
 
     return {
       success: true,

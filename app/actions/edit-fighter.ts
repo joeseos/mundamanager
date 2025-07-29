@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { logFighterRecovery } from './create-gang-log';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -308,6 +309,15 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .single();
 
         if (updateError) throw updateError;
+
+        // Log the recovery status change
+        const recoveryType = !!fighter.recovery ? 'recovered' : 'sent_to_recovery';
+        await logFighterRecovery({
+          gang_id: gangId,
+          fighter_id: params.fighter_id,
+          fighter_name: fighter.fighter_name,
+          recovery_type: recoveryType
+        });
 
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
