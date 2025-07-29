@@ -96,7 +96,9 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_skill_advancement': 'Skill advanced',
       'fighter_skill_learned': 'Skill learned',
       'fighter_skill_removed': 'Skill removed',
-      'fighter_characteristic_removed': 'Characteristic removed'
+      'fighter_characteristic_removed': 'Characteristic removed',
+      'fighter_injured': 'Fighter injured',
+      'fighter_recovered': 'Fighter recovered'
     };
     return actionTypeMap[actionType] || actionType;
   };

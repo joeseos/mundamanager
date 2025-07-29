@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { logFighterInjury, logFighterRecovery } from './create-gang-log';
 
 // Helper function to check if user is admin
 async function checkAdmin(supabase: any): Promise<boolean> {
@@ -60,7 +61,7 @@ export async function addFighterInjury(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id')
+      .select('id, user_id, gang_id, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -116,6 +117,15 @@ export async function addFighterInjury(
       }
     }
 
+    if (fighter.fighter_name) {
+      await logFighterInjury({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        fighter_name: fighter.fighter_name,
+        injury_name: injuryData.effect_name
+      });
+    }
+
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
 
@@ -159,7 +169,7 @@ export async function deleteFighterInjury(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id')
+      .select('id, user_id, gang_id, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -180,10 +190,9 @@ export async function deleteFighterInjury(
       }
     }
 
-    // Verify the injury belongs to this fighter
     const { data: injury, error: injuryError } = await supabase
       .from('fighter_effects')
-      .select('id, fighter_id')
+      .select('id, fighter_id, effect_name')
       .eq('id', params.injury_id)
       .single();
 
@@ -203,6 +212,17 @@ export async function deleteFighterInjury(
         success: false, 
         error: deleteError.message || 'Failed to delete injury'
       };
+    }
+
+    // Log the injury removal as recovery
+    if (fighter.fighter_name) {
+      await logFighterRecovery({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        fighter_name: fighter.fighter_name,
+        recovery_type: 'injury_removed',
+        recovered_from: injury.effect_name
+      });
     }
 
     // Invalidate fighter cache
