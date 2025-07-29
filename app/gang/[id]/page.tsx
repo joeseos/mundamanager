@@ -285,7 +285,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangStash,
       getGangCampaigns,
       getGangVariants,
-      getGangRating
+      getGangRating,
+      getGangCredits
     } = await import('@/app/lib/shared/gang-data');
 
     // Get supabase client first to pass to all functions
@@ -307,6 +308,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       vehicles,
       stash,
       campaigns,
+      gangCredits,
       gangVariants,
       gangRating
     ] = await Promise.all([
@@ -317,6 +319,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangVehicles(params.id, supabase),
       getGangStash(params.id, supabase),
       getGangCampaigns(params.id, supabase),
+      getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRating(params.id, supabase)
     ]);
@@ -329,7 +332,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_type_id: gangBasic.gang_type_id,
       gang_type_image_url: gangType.image_url,
       gang_colour: gangBasic.gang_colour,
-      credits: gangBasic.credits,
+      credits: gangCredits,
       reputation: gangBasic.reputation,
       meat: gangBasic.meat,
       scavenging_rolls: gangBasic.scavenging_rolls,

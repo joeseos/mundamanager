@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -203,7 +203,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Invalidate credits if changed
     if (creditsChanged) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gang_id));
+      invalidateGangCredits(params.gang_id);
     }
     
     // Invalidate resources if changed

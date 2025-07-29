@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangStash, invalidateUserCustomizations } from '@/utils/cache-tags';
+import { invalidateGangStash, invalidateUserCustomizations, invalidateGangCredits } from '@/utils/cache-tags';
 
 interface ChemEffect {
   name: string;
@@ -109,6 +109,9 @@ export async function createChemAlchemy({
     }
 
     console.log('Chem-alchemy created successfully, using granular cache invalidation');
+    
+    // Invalidate gang credits since we deducted credits
+    invalidateGangCredits(gangId);
     
     // Invalidate gang stash to show the new item
     invalidateGangStash({
