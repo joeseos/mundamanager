@@ -501,7 +501,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
         // Add vehicle equipment costs
         if (vehicle.equipment) {
           vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
-            return equipSum + (eq.cost || 0);
+            return equipSum + (eq.purchase_cost || 0);
           }, 0);
         }
         
@@ -665,7 +665,7 @@ const getVehicleEquipment = async (vehicleId: string, supabase: any): Promise<an
         equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
         equipment_type: equipmentType || 'unknown',
         equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-        cost: item.purchase_cost || 0,
+        purchase_cost: item.purchase_cost || 0,
         weapon_profiles: weaponProfiles
       };
     })
