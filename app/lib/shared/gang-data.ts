@@ -677,27 +677,28 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
           vehicle_type,
           cost,
           vehicle_name,
+          movement,
+          front,
+          side,
+          rear,
+          hull_points,
+          handling,
+          save,
+          body_slots,
+          drive_slots,
+          engine_slots,
           body_slots_occupied,
           drive_slots_occupied,
           engine_slots_occupied,
-          special_rules,
-          vehicle_types!inner (
-            movement,
-            front,
-            side,
-            rear,
-            hull_points,
-            handling,
-            save,
-            body_slots,
-            drive_slots,
-            engine_slots
-          )
+          special_rules
         `)
         .eq('gang_id', gangId)
         .is('fighter_id', null);
 
-      if (error) return [];
+      if (error) {
+        console.error('🚗 Database error:', error);
+        return [];
+      }
 
       // Get equipment and effects for each gang vehicle using helper functions
       const vehiclesWithDetails = await Promise.all(
@@ -719,16 +720,16 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
             vehicle_type: vehicle.vehicle_type,
             cost: vehicle.cost,
             vehicle_name: vehicle.vehicle_name,
-            movement: (vehicle.vehicle_types as any).movement,
-            front: (vehicle.vehicle_types as any).front,
-            side: (vehicle.vehicle_types as any).side,
-            rear: (vehicle.vehicle_types as any).rear,
-            hull_points: (vehicle.vehicle_types as any).hull_points,
-            handling: (vehicle.vehicle_types as any).handling,
-            save: (vehicle.vehicle_types as any).save,
-            body_slots: (vehicle.vehicle_types as any).body_slots,
-            drive_slots: (vehicle.vehicle_types as any).drive_slots,
-            engine_slots: (vehicle.vehicle_types as any).engine_slots,
+            movement: vehicle.movement,
+            front: vehicle.front,
+            side: vehicle.side,
+            rear: vehicle.rear,
+            hull_points: vehicle.hull_points,
+            handling: vehicle.handling,
+            save: vehicle.save,
+            body_slots: vehicle.body_slots,
+            drive_slots: vehicle.drive_slots,
+            engine_slots: vehicle.engine_slots,
             body_slots_occupied: vehicle.body_slots_occupied,
             drive_slots_occupied: vehicle.drive_slots_occupied,
             engine_slots_occupied: vehicle.engine_slots_occupied,
@@ -743,9 +744,9 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
 
       return vehiclesWithDetails;
     },
-    [`gang-vehicles-${gangId}`],
+    [`base-gang-vehicles-${gangId}`],
     {
-      tags: [`gang-vehicles-${gangId}`],
+      tags: [CACHE_TAGS.BASE_GANG_VEHICLES(gangId)],
       revalidate: false
     }
   )();

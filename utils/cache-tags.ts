@@ -23,6 +23,7 @@ export const CACHE_TAGS = {
   BASE_GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,       // credits only
   BASE_GANG_RESOURCES: (id: string) => `base-gang-resources-${id}`,   // meat, reputation, scavenging_rolls
   BASE_GANG_STASH: (id: string) => `base-gang-stash-${id}`,           // gang stash equipment
+  BASE_GANG_VEHICLES: (id: string) => `base-gang-vehicles-${id}`,     // gang-owned vehicles
   BASE_GANG_POSITIONING: (id: string) => `base-gang-positioning-${id}`, // gang positioning data
   
   // Fighter base data
