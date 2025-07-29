@@ -88,13 +88,6 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     }
 
     // Create the vehicle in vehicles table
-    console.log('🚗 Creating vehicle with data:', {
-      vehicleName: (params.vehicleName || vehicleType.vehicle_type).trimEnd(),
-      gangId: params.gangId,
-      vehicleTypeId: params.vehicleTypeId,
-      cost: vehicleBaseCost
-    });
-
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
@@ -121,8 +114,6 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       })
       .select()
       .single();
-
-    console.log('🚗 Vehicle created:', vehicle);
 
     if (vehicleError) {
       console.error('Vehicle creation error:', vehicleError);
@@ -153,16 +144,12 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     }
 
     // Invalidate relevant cache tags
-    console.log('🚗 Invalidating cache tags for gang:', params.gangId);
     revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(params.gangId));
     revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
     revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
     
     // Also invalidate computed gang vehicle count
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.gangId));
-    
-    // Note: Page revalidation handled by client-side state updates
-    console.log('🚗 Cache invalidation complete');
 
     return {
       success: true,
