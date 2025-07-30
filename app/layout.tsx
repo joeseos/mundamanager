@@ -14,9 +14,9 @@ const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
   loading: () => <div className="h-16" />
 });
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const defaultUrl = process.env.NODE_ENV === 'development'
+  ? "http://localhost:3000"
+  : "https://www.mundamanager.com";
 
 const inter = Inter({
   subsets: ['latin'],
@@ -67,7 +67,7 @@ export const metadata = {
 };
 
 export const dynamicConfig = 'force-static'
-export const revalidate = 3600 // Revalidate every hour
+export const revalidate = 3600 // In seconds, so 3600 = 1 hour
 
 export default async function RootLayout({
   children,
