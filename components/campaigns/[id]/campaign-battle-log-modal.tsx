@@ -300,7 +300,11 @@ const CampaignBattleLogModal = ({
         .map(gang => gang.gangId);
 
       newAvailableTerritories = territories.filter(
-        territory => territory.controlled_by && losingGangIds.includes(territory.controlled_by)
+        territory => 
+          // Include territories controlled by losing gangs
+          (territory.controlled_by && losingGangIds.includes(territory.controlled_by)) ||
+          // Include territories not controlled by anyone
+          !territory.controlled_by
       );
     }
     
@@ -717,7 +721,7 @@ const CampaignBattleLogModal = ({
           {winner && winner !== "draw" && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Claim Territory
+                Claimed Territory
               </label>
               <select
                 value={selectedTerritory}
@@ -727,11 +731,11 @@ const CampaignBattleLogModal = ({
               >
                 <option value="">No territory claimed</option>
                 {availableTerritories.map((territory) => {
-                  const controlledBy = getGangName(territory.controlled_by || "");
-                  const customLabel = territory.is_custom ? " (Custom)" : "";
+                  const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
+                  const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
                   return (
                     <option key={territory.id} value={territory.id}>
-                      {territory.name}{customLabel}{controlledBy && ` (currently held by ${controlledBy})`}
+                      {territory.name}{statusLabel}
                     </option>
                   );
                 })}
