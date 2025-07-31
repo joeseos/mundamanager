@@ -3,13 +3,15 @@
 import React, { useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import Modal from '../modal';
-import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
-import { List } from "../ui/list";
+import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
+import { MdCurrencyExchange } from 'react-icons/md';
+import { FaBox } from 'react-icons/fa';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -247,7 +249,7 @@ export function VehicleEquipmentList({
         ]}
         actions={[
           {
-            label: 'Stash',
+            icon: <FaBox className="h-4 w-4" />,
             variant: 'outline',
             onClick: (item) => {
               const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
@@ -258,7 +260,7 @@ export function VehicleEquipmentList({
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
-            label: 'Sell',
+            icon: <MdCurrencyExchange className="h-4 w-4" />,
             variant: 'outline',
             onClick: (item) => {
               const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
@@ -269,7 +271,7 @@ export function VehicleEquipmentList({
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
           },
           {
-            label: 'Delete',
+            icon: <LuTrash2 className="h-4 w-4" />,
             variant: 'destructive',
             onClick: (item) => setDeleteModalData({
               id: item.fighter_equipment_id,

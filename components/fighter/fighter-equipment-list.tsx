@@ -9,6 +9,9 @@ import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
+import { MdCurrencyExchange } from 'react-icons/md';
+import { FaBox } from 'react-icons/fa';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface WeaponListProps {
   fighterId: string;
@@ -250,7 +253,7 @@ export function WeaponList({
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
               >
-                Stash
+                <FaBox className="h-4 w-4" /> {/* Stash */}
               </Button>
               <Button
                 variant="outline"
@@ -264,7 +267,7 @@ export function WeaponList({
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
               >
-                Sell
+                <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
               <Button
                 variant="destructive"
@@ -277,7 +280,7 @@ export function WeaponList({
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
               >
-                Delete
+                <LuTrash2 className="h-4 w-4" /> {/* Delete */}
               </Button>
             </>
           )}

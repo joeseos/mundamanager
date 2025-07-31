@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit } from "lucide-react";
+import { LuTrash2 } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { GiAncientRuins } from "react-icons/gi";
 import { IoHome } from "react-icons/io5";
@@ -392,7 +393,7 @@ export default function CampaignTerritoryList({
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                             aria-label="Delete territory"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <LuTrash2 className="h-4 w-4" />
                           </Button>
                         </>
                       )}

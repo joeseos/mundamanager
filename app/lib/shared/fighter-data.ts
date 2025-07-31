@@ -293,7 +293,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           credits_increase,
           xp_cost,
           is_advance,
-          fighter_injury_id,
+          fighter_effect_skill_id,
           created_at,
           skill:skill_id (
             name
@@ -313,7 +313,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             credits_increase: skillData.credits_increase || 0,
             xp_cost: skillData.xp_cost || 0,
             is_advance: skillData.is_advance || false,
-            fighter_injury_id: skillData.fighter_injury_id || undefined,
+            fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
             acquired_at: skillData.created_at,
           };
         }

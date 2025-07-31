@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
-import { ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
 import { deleteBattleLog } from "@/app/lib/campaigns/[id]/battle-logs";
 import Modal from "@/components/modal";
+import { LuTrash2 } from "react-icons/lu";
 
 interface Member {
   id?: string;
@@ -591,7 +592,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           aria-label="Delete battle"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <LuTrash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>

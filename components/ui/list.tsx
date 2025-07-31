@@ -12,7 +12,8 @@ export interface ListColumn {
 }
 
 export interface ListAction {
-  label: string;
+  label?: string;
+  icon?: React.ReactNode;
   onClick: (item: any) => void;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';
@@ -142,7 +143,7 @@ export function List<T = any>({
                               disabled={action.disabled ? action.disabled(item) : false}
                               className={`text-xs px-1.5 h-6 ${action.className || ''}`}
                             >
-                              {action.label}
+                              {action.icon || action.label}
                             </Button>
                           ))}
                         </div>
