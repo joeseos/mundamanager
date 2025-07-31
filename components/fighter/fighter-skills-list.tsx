@@ -413,7 +413,8 @@ export function SkillsList({
       credits_increase: typedData.credits_increase,
       acquired_at: typedData.acquired_at,
       is_advance: typedData.is_advance ?? false,
-      fighter_injury_id: typedData.fighter_injury_id
+      fighter_injury_id: typedData.fighter_injury_id,
+      injury_name: typedData.injury_name
     };
   });
 
@@ -438,13 +439,20 @@ export function SkillsList({
           },
           {
             key: 'action_info',
-            label: 'Action',
+            label: 'Source',
             align: 'right',
             render: (value, item) => {
               if (item.fighter_injury_id) {
                 return (
                   <span className="text-gray-500 text-sm italic whitespace-nowrap">
-                    (added by injury)
+                    ({item.injury_name || 'Lasting Injury'})
+                  </span>
+                );
+              }
+              if (item.is_advance) {
+                return (
+                  <span className="text-gray-500 text-sm italic whitespace-nowrap">
+                    (Advancement)
                   </span>
                 );
               }
@@ -457,7 +465,7 @@ export function SkillsList({
             icon: <LuTrash2 className="h-4 w-4" />,
             variant: 'destructive' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
-            disabled: (item: any) => !!item.fighter_injury_id || !userPermissions.canEdit
+            disabled: (item: any) => !!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit
           }
         ]}
         onAdd={() => setIsAddSkillModalOpen(true)}
