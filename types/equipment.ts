@@ -30,6 +30,7 @@ export interface Equipment {
   created_at?: string;
   weapon_profiles?: WeaponProfile[] | null;
   core_equipment?: boolean;
+  vehicle_upgrade_slot?: string;
 
   master_crafted?: boolean;
   is_master_crafted?: boolean;

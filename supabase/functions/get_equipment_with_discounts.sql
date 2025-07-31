@@ -24,7 +24,8 @@ RETURNS TABLE (
     fighter_type_equipment boolean,
     equipment_tradingpost boolean,
     is_custom boolean,
-    weapon_profiles jsonb
+    weapon_profiles jsonb,
+    vehicle_upgrade_slot text
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -107,7 +108,38 @@ AS $$
                 WHERE wp.weapon_id = e.id
             ),
             '[]'::jsonb
-        ) as weapon_profiles
+        ) as weapon_profiles,
+        -- Determine vehicle upgrade slot from effect modifiers
+        CASE 
+            WHEN e.equipment_type = 'vehicle_upgrade' THEN (
+                SELECT 
+                    CASE 
+                        WHEN EXISTS (
+                            SELECT 1 FROM fighter_effect_types fet
+                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
+                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+                            AND fetm.stat_name = 'body_slots' 
+                            AND fetm.default_numeric_value > 0
+                        ) THEN 'Body'
+                        WHEN EXISTS (
+                            SELECT 1 FROM fighter_effect_types fet
+                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
+                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+                            AND fetm.stat_name = 'drive_slots' 
+                            AND fetm.default_numeric_value > 0
+                        ) THEN 'Drive'
+                        WHEN EXISTS (
+                            SELECT 1 FROM fighter_effect_types fet
+                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
+                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+                            AND fetm.stat_name = 'engine_slots' 
+                            AND fetm.default_numeric_value > 0
+                        ) THEN 'Engine'
+                        ELSE NULL
+                    END
+            )
+            ELSE NULL
+        END as vehicle_upgrade_slot
     FROM equipment e
     -- Join with equipment_availability to get gang-specific availability
     LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
@@ -240,7 +272,9 @@ AS $$
                 WHERE cwp.custom_equipment_id = ce.id
             ),
             '[]'::jsonb
-        ) as weapon_profiles
+        ) as weapon_profiles,
+        -- Custom equipment doesn't have vehicle upgrade slots
+        NULL as vehicle_upgrade_slot
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment
