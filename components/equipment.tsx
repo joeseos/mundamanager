@@ -44,7 +44,7 @@ interface RawEquipmentData {
   discounted_cost: number;
   adjusted_cost: number;
   equipment_category: string;
-  equipment_type: 'weapon' | 'wargear';
+  equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
   created_at: string;
   weapon_profiles?: WeaponProfile[];
   fighter_type_equipment: boolean;
@@ -53,6 +53,7 @@ interface RawEquipmentData {
   fighter_equipment_id: string;
   master_crafted?: boolean;
   is_custom: boolean;
+  vehicle_upgrade_slot?: string;
 }
 
 interface PurchaseModalProps {
@@ -499,10 +500,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
           cost: item.adjusted_cost,
           base_cost: item.base_cost,
           adjusted_cost: item.adjusted_cost,
-          equipment_type: item.equipment_type as 'weapon' | 'wargear',
+          equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false,
-          is_custom: item.is_custom
+          is_custom: item.is_custom,
+          vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined
         }))
         // Remove duplicates based on equipment_id
         .filter((item, index, array) => 
@@ -519,6 +521,28 @@ const ItemModal: React.FC<ItemModalProps> = ({
         }
         equipmentByCategory[category].push(item);
       });
+
+      // Sort Vehicle Upgrades by slot first, then alphabetically
+      if (equipmentByCategory['Vehicle Upgrades']) {
+        equipmentByCategory['Vehicle Upgrades'].sort((a, b) => {
+          // Define slot order - items without slot info come first (0)
+          const slotOrder = { 'Body': 1, 'Drive': 2, 'Engine': 3 };
+          
+          // Get slot values, treating null/undefined as 0 (first)
+          const aSlot = a.vehicle_upgrade_slot || '';
+          const bSlot = b.vehicle_upgrade_slot || '';
+          const aOrder = slotOrder[aSlot as keyof typeof slotOrder] || 0;
+          const bOrder = slotOrder[bSlot as keyof typeof slotOrder] || 0;
+          
+          // Sort by slot first
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+          
+          // Then sort alphabetically
+          return a.equipment_name.localeCompare(b.equipment_name);
+        });
+      }
 
       const uniqueCategories = Object.keys(equipmentByCategory);
 
@@ -1058,7 +1082,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
                                 >
                                   <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
-                                    <span className="text-sm font-medium">{item.equipment_name}</span>
+                                    <span className="text-sm font-medium">
+                                      {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
+                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}` 
+                                        : item.equipment_name
+                                      }
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
