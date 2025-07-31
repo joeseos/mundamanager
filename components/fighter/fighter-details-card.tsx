@@ -427,7 +427,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       <div className="flex flex-wrap justify-between items-center">
         <div className="text-base text-gray-600">
-          <div>Kills: {kills}</div>
+          <div>OOA: {kills}</div>
         </div>
 
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">

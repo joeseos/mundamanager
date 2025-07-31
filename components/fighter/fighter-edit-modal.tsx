@@ -870,7 +870,7 @@ export function EditFighterModal({
               />
             </div>
             
-            {/* Cost Adjustment and Kills - Move this section before Fighter Type */}
+            {/* Label, Cost Adjustment and Kills */}
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label htmlFor="label" className="block text-sm font-medium mb-1">
@@ -888,7 +888,8 @@ export function EditFighterModal({
               </div>
               <div>
                 <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
-                  Cost Adjustment
+                  <span className="hidden sm:inline">Cost Adjustment</span>
+                  <span className="inline sm:hidden">Cost Adj.</span>
                 </label>
                 <Input
                   id="costAdjustment"
@@ -900,7 +901,7 @@ export function EditFighterModal({
               </div>
               <div>
                 <label htmlFor="kills" className="block text-sm font-medium mb-1">
-                  Kills
+                  OOA
                 </label>
                 <Input
                   id="kills"
