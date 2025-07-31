@@ -12,6 +12,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
+import { LuTrash2 } from 'react-icons/lu';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -453,7 +454,7 @@ export function SkillsList({
         ]}
         actions={[
           {
-            label: 'Delete',
+            icon: <LuTrash2 className="h-4 w-4" />,
             variant: 'destructive' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
             disabled: (item: any) => !!item.fighter_injury_id || !userPermissions.canEdit

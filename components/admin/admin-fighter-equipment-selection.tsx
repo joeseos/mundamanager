@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { Equipment } from '@/types/equipment';
 import { Button } from "@/components/ui/button";
+import { LuTrash2 } from "react-icons/lu";
 
 interface EquipmentWithId extends Equipment {
   id: string;
@@ -267,7 +268,7 @@ export function AdminFighterEquipmentSelection({
                 className="text-red-500 hover:text-red-700 hover:bg-red-50"
                 disabled={disabled}
               >
-                <Trash2 className="h-4 w-4 mr-1" /> Remove
+                <LuTrash2 className="h-4 w-4 mr-1" /> Remove
               </Button>
             </div>
 

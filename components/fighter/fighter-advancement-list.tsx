@@ -16,6 +16,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
+import { LuTrash2 } from 'react-icons/lu';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -1056,7 +1057,7 @@ export function AdvancementsList({
         ]}
         actions={[
           {
-            label: 'Delete',
+            icon: <LuTrash2 className="h-4 w-4" />,
             variant: 'destructive',
             onClick: (item) => item.advancement_id ? setDeleteModalData({
               id: item.advancement_id,

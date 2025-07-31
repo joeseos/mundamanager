@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X, Plus, Minus } from "lucide-react";
-import { Trash2 } from "lucide-react";
+import { X } from "lucide-react";
+import { LuTrash2 } from "react-icons/lu";
 import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
@@ -1849,7 +1849,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                                 className="text-gray-400 hover:text-red-600 transition-colors"
                                 title="Remove"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <LuTrash2 className="h-4 w-4" />
                               </button>
                             </td>
                           </tr>

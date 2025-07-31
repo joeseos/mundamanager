@@ -1,16 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { Button } from '../ui/button';
 import { FighterEffect } from '@/types/fighter';
-import { useToast } from '../ui/use-toast';
-import Modal from '../modal';
-import { createClient } from '@/utils/supabase/client';
-import { List } from "../ui/list";
+import { useToast } from '@/components/ui/use-toast';
+import Modal from '@/components/modal';
+import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useRouter } from 'next/navigation';
 import { 
   addFighterInjury, 
   deleteFighterInjury 
 } from '@/app/actions/fighter-injury';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -235,7 +234,7 @@ export function InjuriesList({
         ]}
         actions={[
           {
-            label: 'Delete',
+            icon: <LuTrash2 className="h-4 w-4" />,
             variant: 'destructive',
             onClick: (item) => setDeleteModalData({
               id: item.injury_id,

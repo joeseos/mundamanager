@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
-import { useToast } from '../ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
-import { List } from "../ui/list";
+import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
@@ -331,7 +332,7 @@ export function VehicleDamagesList({
                               disabled={isDeleting === damage.id || !userPermissions.canEdit}
                               className="text-xs px-1.5 h-6"
                             >
-                              Delete
+                              <LuTrash2 className="h-4 w-4" /> {/* Delete */}
                             </Button>
                           </div>
                         </td>
