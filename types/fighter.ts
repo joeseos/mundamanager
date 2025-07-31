@@ -130,6 +130,7 @@ export type FighterSkills = Record<string, {
   is_advance: boolean;
   acquired_at: string;
   fighter_injury_id?: string | null;
+  injury_name?: string;
 }>;
 
 export interface FighterProps {
