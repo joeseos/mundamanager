@@ -3,6 +3,11 @@
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData } from '@/utils/cache-tags';
+import { 
+  logCharacteristicAdvancement, 
+  logSkillAdvancement, 
+  logAdvancementDeletion 
+} from './logs/gang-fighter-logs';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {

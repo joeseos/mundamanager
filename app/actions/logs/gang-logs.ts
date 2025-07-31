@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 
-interface CreateGangLogParams {
+export interface CreateGangLogParams {
   gang_id: string;
   action_type: string;
   description: string;
@@ -11,7 +11,7 @@ interface CreateGangLogParams {
   user_id?: string;
 }
 
-interface GangLogActionResult {
+export interface GangLogActionResult {
   success: boolean;
   data?: any;
   error?: string;
