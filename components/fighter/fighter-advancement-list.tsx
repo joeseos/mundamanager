@@ -1047,7 +1047,8 @@ export function AdvancementsList({
           {
             key: 'xp_cost',
             label: 'XP',
-            align: 'right'
+            align: 'right',
+            width: '25%'
           },
           {
             key: 'credits_increase',

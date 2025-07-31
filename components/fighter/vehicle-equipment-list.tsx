@@ -22,6 +22,7 @@ interface VehicleEquipmentListProps {
   equipment?: VehicleEquipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
+  vehicleEffects?: any; // Add vehicle effects prop
 }
 
 interface SellModalProps {
@@ -69,7 +70,8 @@ export function VehicleEquipmentList({
   onEquipmentUpdate,
   equipment = [],
   onAddEquipment,
-  userPermissions
+  userPermissions,
+  vehicleEffects
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -221,14 +223,40 @@ export function VehicleEquipmentList({
   });
 
   // Transform equipment for List component
-  const listItems = sortedEquipment.map((item) => ({
-    id: item.fighter_equipment_id,
-    equipment_name: item.equipment_name,
-    cost: item.cost ?? 0,
-    core_equipment: item.core_equipment,
-    fighter_equipment_id: item.fighter_equipment_id,
-    equipment_id: item.equipment_id
-  }));
+  const listItems = sortedEquipment.map((item) => {
+    // Determine slot for vehicle upgrades
+    let slot = '';
+    
+    if (item.equipment_type === 'vehicle_upgrade' && vehicleEffects) {
+      // Look for effects that match this equipment
+      const vehicleUpgradeEffects = vehicleEffects['vehicle upgrades'] || vehicleEffects['vehicle_upgrades'] || [];
+      const matchingEffect = vehicleUpgradeEffects.find((effect: any) => 
+        effect.effect_name === item.equipment_name || 
+        effect.effect_name.toLowerCase().includes(item.equipment_name.toLowerCase())
+      );
+      
+      if (matchingEffect?.fighter_effect_modifiers) {
+        const modifiers = matchingEffect.fighter_effect_modifiers;
+        if (modifiers.some((mod: any) => mod.stat_name === 'body_slots' && mod.numeric_value > 0)) {
+          slot = 'Body';
+        } else if (modifiers.some((mod: any) => mod.stat_name === 'drive_slots' && mod.numeric_value > 0)) {
+          slot = 'Drive';
+        } else if (modifiers.some((mod: any) => mod.stat_name === 'engine_slots' && mod.numeric_value > 0)) {
+          slot = 'Engine';
+        }
+      }
+    }
+
+    return {
+      id: item.fighter_equipment_id,
+      equipment_name: item.equipment_name,
+      cost: item.cost ?? 0,
+      core_equipment: item.core_equipment,
+      fighter_equipment_id: item.fighter_equipment_id,
+      equipment_id: item.equipment_id,
+      slot: slot
+    };
+  });
 
   return (
     <>
@@ -239,7 +267,12 @@ export function VehicleEquipmentList({
           {
             key: 'equipment_name',
             label: 'Name',
-            width: '75%'
+            width: '65%'
+          },
+          {
+            key: 'slot',
+            label: 'Slot',
+            width: '10%'
           },
           {
             key: 'cost',

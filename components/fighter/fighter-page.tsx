@@ -910,6 +910,7 @@ export default function FighterPage({
               equipment={fighterData.vehicleEquipment}
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
+              vehicleEffects={vehicle.effects}
             />
           )}
 
