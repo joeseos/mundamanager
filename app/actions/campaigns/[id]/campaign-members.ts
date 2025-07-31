@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -86,6 +87,35 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 
       if (error) throw error;
     }
+
+    try {
+      const [
+        { data: gangData, error: gangError },
+        { data: campaignData, error: campaignError },
+        { data: userData, error: userError }
+      ] = await Promise.all([
+        supabase.from('gangs').select('name').eq('id', gangId).single(),
+        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single(),
+        supabase.from('profiles').select('username').eq('id', userId).single()
+      ]);
+            
+      if (gangError) console.error('Error fetching gang data:', gangError);
+      if (campaignError) console.error('Error fetching campaign data:', campaignError);
+      if (userError) console.error('Error fetching user data:', userError);
+      
+      if (gangData && campaignData && userData) {
+        await logGangJoinedCampaign({
+          gang_id: gangId,
+          gang_name: gangData.name,
+          campaign_name: campaignData.campaign_name,
+          user_name: userData.username || 'Unknown User'
+        });
+      }
+    } catch (logError) {
+      console.error('Error logging gang joined campaign:', logError);
+      // Don't fail the main operation if logging fails
+    }
+    
 
     // 🎯 TARGETED CACHE INVALIDATION
     // Invalidate only the affected campaign's caches
@@ -263,6 +293,42 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
         .eq('gang_id', gangId);
 
       if (error) throw error;
+    }
+    try {
+      const [
+        { data: gangData, error: gangError },
+        { data: campaignData, error: campaignError }
+      ] = await Promise.all([
+        supabase.from('gangs').select('name').eq('id', gangId).single(),
+        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
+      ]);
+
+      if (gangError) console.error('Error fetching gang data:', gangError);
+      if (campaignError) console.error('Error fetching campaign data:', campaignError);
+
+      // Get current user for logging
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) console.error('Error fetching user data:', userError);
+
+        if (gangData && campaignData && userData) {
+          await logGangLeftCampaign({
+            gang_id: gangId,
+            gang_name: gangData.name,
+            campaign_name: campaignData.campaign_name,
+            user_name: userData.username || 'Unknown User'
+          });
+        }
+      }
+    } catch (logError) {
+      console.error('Error logging gang leave campaign:', logError);
+      // Don't fail the main operation if logging fails
     }
 
     // 🎯 TARGETED CACHE INVALIDATION
