@@ -9,6 +9,7 @@ import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-
 import { FiMap } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
+import { ImInfo } from "react-icons/im";
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -398,7 +399,15 @@ export default function CampaignPageContent({
 
               {/* Campaign Members Section */}
               <div className="mb-8">
-                <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs & Players</h2>
+                <div className="flex items-center gap-2 mb-4">
+                  <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
+                  <div className="relative group">
+                    <ImInfo className="text-gray-500 cursor-help" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                      To add a gang to this campaign, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                    </div>
+                  </div>
+                </div>
                 {safePermissions.canManageMembers && (
                   <MemberSearchBar
                     campaignId={campaignData.id}
