@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGangCredits } from '@/utils/cache-tags';
 import { logFighterRecovery } from './create-gang-log';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -192,6 +192,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (gangUpdateError) throw gangUpdateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
