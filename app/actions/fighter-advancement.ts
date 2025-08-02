@@ -7,7 +7,7 @@ import {
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
   logAdvancementDeletion 
-} from './create-gang-log';
+} from './logs/gang-fighter-logs';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
