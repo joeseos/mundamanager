@@ -161,7 +161,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'sell': {
-        if (!params.sell_value || params.sell_value < 0) {
+        if (params.sell_value === undefined || params.sell_value === null || params.sell_value < 0) {
           throw new Error('Invalid sell value provided');
         }
 
