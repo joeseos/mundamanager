@@ -6,6 +6,7 @@ import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
+import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
 
 interface VehicleType {
   id: string;
@@ -103,24 +104,19 @@ export default function AddVehicle({
     const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;
 
     try {
-      const response = await fetch(`/api/gangs/${gangId}/vehicles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vehicleTypeId: selectedVehicleTypeId,
-          cost: paymentCost, // This is what the user pays in credits
-          vehicleName: name,
-          baseCost: ratingCost // The vehicle's base cost for display and when equipped
-        }),
+      const result = await addGangVehicle({
+        gangId,
+        vehicleTypeId: selectedVehicleTypeId,
+        cost: paymentCost, // This is what the user pays in credits
+        vehicleName: name,
+        baseCost: ratingCost // The vehicle's base cost for display and when equipped
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add vehicle');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add vehicle');
       }
+
+      const data = result.vehicle;
       
       // Create the new vehicle object from the response
       const newVehicle: VehicleProps = {
