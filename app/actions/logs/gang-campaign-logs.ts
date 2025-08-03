@@ -37,6 +37,14 @@ interface TerritoryClaimedLogParams {
   is_custom?: boolean;
 }
 
+interface TerritoryLostLogParams {
+  gang_id: string;
+  gang_name: string;
+  territory_name: string;
+  campaign_name: string;
+  is_custom?: boolean;
+}
+
 export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams): Promise<GangLogActionResult> {
   try {
     const description = `Gang joined campaign "${params.campaign_name}" (added by ${params.user_name})`;
@@ -120,6 +128,25 @@ export async function logTerritoryClaimed(params: TerritoryClaimedLogParams): Pr
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to log territory claim'
+    };
+  }
+}
+
+export async function logTerritoryLost(params: TerritoryLostLogParams): Promise<GangLogActionResult> {
+  try {
+    const territoryType = params.is_custom ? 'custom territory' : 'territory';
+    const description = `Gang "${params.gang_name}" lost ${territoryType} "${params.territory_name}" in campaign "${params.campaign_name}"`;
+
+    return await createGangLog({
+      gang_id: params.gang_id,
+      action_type: 'territory_lost',
+      description
+    });
+  } catch (error) {
+    console.error('Error logging territory loss:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to log territory loss'
     };
   }
 }

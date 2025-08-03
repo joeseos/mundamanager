@@ -111,16 +111,93 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       }
     }
 
-    // Then fetch the related data for display
+    // Then fetch the related data for display and logging
     const [
       { data: attacker },
       { data: defender },
-      { data: winner }
+      { data: winner },
+      { data: campaign }
     ] = await Promise.all([
       supabase.from('gangs').select('name').eq('id', attacker_id).single(),
       supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null })
+      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null }),
+      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
+
+    console.log('Battle participants:', { attacker, defender, winner, campaign });
+
+    // Log battle results for both gangs
+    if (attacker && defender && campaign) {
+      try {
+        console.log('Logging battle results...');
+        
+        // Log for attacker
+        const attackerResult = winner_id === attacker_id ? 'won' : (winner_id === defender_id ? 'lost' : 'draw');
+        const attackerLog = await logBattleResult({
+          gang_id: attacker_id,
+          gang_name: attacker.name,
+          campaign_name: campaign.campaign_name,
+          opponent_name: defender.name,
+          scenario,
+          result: attackerResult,
+          is_attacker: true
+        });
+        console.log('Attacker log result:', attackerLog);
+
+        // Log for defender
+        const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
+        const defenderLog = await logBattleResult({
+          gang_id: defender_id,
+          gang_name: defender.name,
+          campaign_name: campaign.campaign_name,
+          opponent_name: attacker.name,
+          scenario,
+          result: defenderResult,
+          is_attacker: false
+        });
+        console.log('Defender log result:', defenderLog);
+
+        // 🎯 Log territory claims if any
+        if (claimed_territories.length > 0 && winner_id && winner) {
+          console.log('Logging territory claims...');
+          for (const territory of claimed_territories) {
+            // Get territory name
+            let territoryName = '';
+            if (territory.is_custom && territory.custom_territory_id) {
+              const { data: customTerritory } = await supabase
+                .from('custom_territories')
+                .select('name')
+                .eq('id', territory.custom_territory_id)
+                .single();
+              territoryName = customTerritory?.name || 'Unknown Custom Territory';
+            } else if (territory.territory_id) {
+              const { data: regularTerritory } = await supabase
+                .from('territories')
+                .select('name')
+                .eq('id', territory.territory_id)
+                .single();
+              territoryName = regularTerritory?.name || 'Unknown Territory';
+            }
+
+            if (territoryName) {
+              const territoryLog = await logTerritoryClaimed({
+                gang_id: winner_id,
+                gang_name: winner.name,
+                territory_name: territoryName,
+                campaign_name: campaign.campaign_name,
+                is_custom: territory.is_custom
+              });
+              console.log('Territory claim log result:', territoryLog);
+            }
+          }
+        }
+      } catch (logError) {
+        console.error('Error logging battle results:', logError);
+        // Don't fail the main operation if logging fails
+      }
+    } else {
+      console.log('Missing data for logging:', { attacker, defender, campaign });
+    }
 
     // Transform the response to match the expected format
     const transformedBattle = {
@@ -220,8 +297,12 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       supabase.from('gangs').select('name').eq('id', attacker_id).single(),
       supabase.from('gangs').select('name').eq('id', defender_id).single(),
       winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null }),
-      supabase.from('campaigns').select('name').eq('id', campaignId).single()
+      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
+    console.log('attacker', attacker);
+    console.log('defender', defender);
+    console.log('winner', winner);
+    console.log('campaign', campaign);
 
     // 🎯 Log battle results for both gangs
     if (attacker && defender && campaign) {
@@ -231,7 +312,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         await logBattleResult({
           gang_id: attacker_id,
           gang_name: attacker.name,
-          campaign_name: campaign.name,
+          campaign_name: campaign.campaign_name,
           opponent_name: defender.name,
           scenario,
           result: attackerResult,
@@ -240,16 +321,16 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
         // Log for defender
         const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
-        await logBattleResult({
+        const testing = await logBattleResult({
           gang_id: defender_id,
           gang_name: defender.name,
-          campaign_name: campaign.name,
+          campaign_name: campaign.campaign_name,
           opponent_name: attacker.name,
           scenario,
           result: defenderResult,
           is_attacker: false
         });
-
+        console.log('testing', testing);
         // 🎯 Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
           for (const territory of claimed_territories) {
@@ -276,7 +357,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
                 gang_id: winner_id,
                 gang_name: winner.name,
                 territory_name: territoryName,
-                campaign_name: campaign.name,
+                campaign_name: campaign.campaign_name,
                 is_custom: territory.is_custom
               });
             }
