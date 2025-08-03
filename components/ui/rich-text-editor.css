@@ -1,0 +1,29 @@
+/* Text Rendering - Override prose for read-only content */
+.prose {
+  color: #000000;
+}
+
+/* TipTap Editor - Matching Prose Rendering */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+  padding: 1rem;
+  
+  @apply prose prose-sm max-w-none; /* Apply prose styling to TipTap editor */
+
+  /* Override prose text color to be black */
+  color: #000000;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #6b7280;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
+}
+
+.ProseMirror a {
+  color: rgb(37, 99, 235);
+}
