@@ -261,7 +261,7 @@ export default function FighterPage({
 
     // Transform vehicle equipment
     const transformedVehicleEquipment = (initialFighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-      fighter_equipment_id: item.fighter_equipment_id,
+      fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id, // Use vehicle_weapon_id as the primary ID
       equipment_id: item.equipment_id,
       equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
         ? `${item.equipment_name} (Master-crafted)`
@@ -271,7 +271,7 @@ export default function FighterPage({
       base_cost: item.original_cost,
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
-      vehicle_equipment_id: item.id
+      vehicle_equipment_id: item.vehicle_weapon_id || item.id
     }));
 
     return {
@@ -408,7 +408,7 @@ export default function FighterPage({
 
     // Transform vehicle equipment
     const transformedVehicleEquipment = (initialFighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-      fighter_equipment_id: item.fighter_equipment_id,
+      fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id, // Use vehicle_weapon_id as the primary ID
       equipment_id: item.equipment_id,
       equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
         ? `${item.equipment_name} (Master-crafted)`
@@ -418,7 +418,7 @@ export default function FighterPage({
       base_cost: item.original_cost,
       core_equipment: false,
       vehicle_id: initialFighterData.fighter?.vehicles?.[0]?.id,
-      vehicle_equipment_id: item.id
+      vehicle_equipment_id: item.vehicle_weapon_id || item.id
     }));
 
     // Update state with fresh data from server
