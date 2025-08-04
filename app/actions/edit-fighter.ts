@@ -420,6 +420,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
   try {
     const supabase = await createClient();
     
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('User not authenticated');
@@ -448,9 +449,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
     if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
     if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+    if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
+    if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
+
 
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase

@@ -65,7 +65,6 @@ interface FighterPageProps {
   }>;
   userPermissions: UserPermissions;
   fighterId: string;
-  fighterTypesData: FighterTypesData;
 }
 
 interface Weapon {
@@ -220,8 +219,7 @@ export default function FighterPage({
   initialFighterData, 
   initialGangFighters, 
   userPermissions, 
-  fighterId,
-  fighterTypesData
+  fighterId
 }: FighterPageProps) {
   // Transform initial data and set up state
   const [fighterData, setFighterData] = useState<FighterPageState>(() => {
@@ -344,6 +342,38 @@ export default function FighterPage({
   const router = useRouter();
   const { toast } = useToast();
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
+  const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
+  const [isFetchingFighterTypes, setIsFetchingFighterTypes] = useState(false);
+
+  // Fetch fighter types for edit modal
+  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
+    setIsFetchingFighterTypes(true);
+    try {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        gang_type_id: gangTypeId,
+        is_gang_addition: 'false'
+      });
+      
+      const response = await fetch(`/api/fighter-types?${params}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch fighter types');
+      }
+      
+      const data = await response.json();
+      setPreFetchedFighterTypes(data);
+    } catch (error) {
+      console.error('Error fetching fighter types:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not fetch fighter types.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingFighterTypes(false);
+    }
+  }, [toast]);
 
   // Fetch latest gang credits from API
   const fetchLatestGangCredits = useCallback(async (gangId: string) => {
@@ -776,6 +806,21 @@ export default function FighterPage({
       });
       return;
     }
+    
+    // If opening the Edit Fighter modal, fetch fighter types first
+    if (modalName === 'editFighter' && value && fighterData.gang?.id && fighterData.gang?.gang_type_id) {
+      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id).then(() => {
+        setUiState(prev => ({
+          ...prev,
+          modals: {
+            ...prev.modals,
+            [modalName]: value
+          }
+        }));
+      });
+      return;
+    }
+    
     setUiState(prev => ({
       ...prev,
       modals: {
@@ -1347,7 +1392,9 @@ export default function FighterPage({
                 kills: fighterData.fighter.kills || 0,
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
-              fighterTypesData={fighterTypesData}
+              gangId={fighterData.gang?.id || ''}
+              gangTypeId={fighterData.gang?.gang_type_id || ''}
+              preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {
@@ -1361,6 +1408,7 @@ export default function FighterPage({
                     special_rules: values.special_rules,
                     fighter_class: values.fighter_class,
                     fighter_class_id: values.fighter_class_id,
+                    fighter_type: values.fighter_type,
                     fighter_type_id: values.fighter_type_id,
                     fighter_sub_type: values.fighter_sub_type,
                     fighter_sub_type_id: values.fighter_sub_type_id,

@@ -8,7 +8,6 @@ import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
 
 // Define constants outside the component to prevent recreation on each render
-const DEFAULT_SUB_TYPE_OPTION = { value: '', label: 'Select a sub-type' };
 
 // FighterCharacteristicTable defined within the same file
 function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
@@ -502,7 +501,22 @@ interface EditFighterModalProps {
     kills: number;
     costAdjustment: string;
   };
-  fighterTypesData: FighterTypesData;
+  gangId: string;
+  gangTypeId: string;
+  preFetchedFighterTypes?: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    gang_type_id: string;
+    total_cost: number;
+    typeClassKey?: string;
+    is_gang_variant?: boolean;
+    gang_variant_name?: string;
+    fighter_sub_type?: string;
+    fighter_sub_type_id?: string;
+  }>;
   onClose: () => void;
   onSubmit: (values: {
     name: string;
@@ -525,7 +539,9 @@ export function EditFighterModal({
   fighter,
   isOpen,
   initialValues,
-  fighterTypesData,
+  gangId,
+  gangTypeId,
+  preFetchedFighterTypes,
   onClose,
   onSubmit,
   onStatsUpdate
@@ -538,15 +554,30 @@ export function EditFighterModal({
     costAdjustment: initialValues.costAdjustment,
     fighter_class: fighter.fighter_class || '',
     fighter_class_id: (fighter as any).fighter_class_id || '',
-    fighter_type: fighter.fighter_type || '',
-    fighter_type_id: fighter.fighter_type_id || '',
+    fighter_type: (fighter.fighter_type as any)?.fighter_type || fighter.fighter_type || '',
+    fighter_type_id: (fighter.fighter_type as any)?.fighter_type_id || '',
     special_rules: Array.isArray(fighter.special_rules) ? fighter.special_rules : [], 
     stats: {} as Record<string, number>
   });
   
-  // Fighter types are now provided via props
-  const fighterTypes = fighterTypesData.displayTypes;
-  const subTypesByFighterType = fighterTypesData.subTypesByTypeClass;
+  // Add state for fighter types
+  const [fighterTypes, setFighterTypes] = useState<Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    gang_type_id: string;
+    total_cost: number;
+    typeClassKey?: string;
+    is_gang_variant?: boolean;
+    gang_variant_name?: string;
+    fighter_sub_type?: string;
+    fighter_sub_type_id?: string;
+  }>>([]);
+  const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
+  const [fighterTypesError, setFighterTypesError] = useState<string | null>(null);
+
   
   // Add state for new special rule input
   const [newSpecialRule, setNewSpecialRule] = useState('');
@@ -561,62 +592,213 @@ export function EditFighterModal({
   const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
-  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>(fighter.fighter_type_id || '');
+  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
   
   // Add state for selected sub-type
-  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>((fighter as any).fighter_sub_type_id || '');
+  const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
   
   // Add state for available sub-types
-  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ value: string; label: string; cost?: number }>>([]);
+  const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ value: string; label: string; cost?: number; fighterTypeId?: string }>>([]);
   
   
   // Track if fighter type has been explicitly selected in this session
   const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
 
+  // Use pre-fetched fighter types or fetch them when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (preFetchedFighterTypes && preFetchedFighterTypes.length > 0) {
+        // Transform pre-fetched data to match the expected format
+        const transformedData = preFetchedFighterTypes.map((type: any) => ({
+          id: type.id,
+          fighter_type: type.fighter_type,
+          fighter_class: type.fighter_class,
+          fighter_class_id: type.fighter_class_id,
+          special_rules: type.special_rules || [],
+          gang_type_id: type.gang_type_id,
+          total_cost: type.total_cost,
+          typeClassKey: type.typeClassKey,
+          is_gang_variant: type.is_gang_variant,
+          gang_variant_name: type.gang_variant_name,
+          // Preserve the sub_type JSONB field from the API response
+          sub_type: type.sub_type || {},
+          // Also extract sub-type data for compatibility (if needed elsewhere)
+          fighter_sub_type: type.sub_type?.sub_type_name || null,
+          fighter_sub_type_id: type.sub_type?.id || null
+        }));
+        setFighterTypes(transformedData);
+      } else if (fighterTypes.length === 0) {
+        fetchFighterTypes();
+      }
+    }
+  }, [isOpen, preFetchedFighterTypes]);
+
+  const fetchFighterTypes = async () => {
+    try {
+      setIsLoadingFighterTypes(true);
+      setFighterTypesError(null);
+      
+      console.log('EditFighterModal: Fetching fighter types for gang ID:', gangId);
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        gang_type_id: gangTypeId,
+        is_gang_addition: 'false'
+      });
+      
+      const response = await fetch(`/api/fighter-types?${params}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch fighter types');
+      }
+      
+      const data = await response.json();
+      
+      // Transform the API response to match the expected FighterType interface
+      const transformedData = data.map((type: any) => ({
+        id: type.id,
+        fighter_type: type.fighter_type,
+        fighter_class: type.fighter_class,
+        fighter_class_id: type.fighter_class_id,
+        special_rules: type.special_rules || [],
+        gang_type_id: type.gang_type_id,
+        total_cost: type.total_cost,
+        typeClassKey: type.typeClassKey,
+        is_gang_variant: type.is_gang_variant,
+        gang_variant_name: type.gang_variant_name,
+        // Preserve the sub_type JSONB field from the API response
+        sub_type: type.sub_type || {},
+        // Also extract sub-type data for compatibility (if needed elsewhere)
+        fighter_sub_type: type.sub_type?.sub_type_name || null,
+        fighter_sub_type_id: type.sub_type?.id || null
+      }));
+      
+      console.log('EditFighterModal: Fetched fighter types:', transformedData.length);
+      setFighterTypes(transformedData);
+    } catch (error) {
+      console.error('Error fetching fighter types:', error);
+      setFighterTypesError(error instanceof Error ? error.message : 'Failed to fetch fighter types');
+    } finally {
+      setIsLoadingFighterTypes(false);
+    }
+  };
+
   // Initialize fighter state and sub-types when fighter or fighter types data changes
   useEffect(() => {
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId(fighter.fighter_type_id || ''); // Pre-select current fighter type
-    setSelectedSubTypeId((fighter as any).fighter_sub_type_id || '');
+    setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || ''); // Pre-select current fighter type
+    setSelectedSubTypeId((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
-    
-    // Initialize available sub-types if fighter has a current type
-    if (fighter.fighter_type_id && fighter.fighter_type && fighter.fighter_class) {
-      const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
-      if (subTypesByFighterType.has(key)) {
-        const subTypes = subTypesByFighterType.get(key) || [];
-        
-        // Filter for valid sub-types
-        const realSubTypes = subTypes.filter((subType: any) => 
-          subType.fighter_sub_type && 
-          subType.id && subType.id.trim() !== ''
-        );
-        
-        if (realSubTypes.length > 0) {
-          // Remove duplicates and sort by name
-          const uniqueSubTypes = realSubTypes
-            .filter((subType: any, index: number, self: any[]) => 
-              index === self.findIndex((s: any) => s.id === subType.id)
-            )
-            .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
+  }, [fighter.id, fighterTypes]); // Update when fighter or fighter types data changes
 
-          setAvailableSubTypes([
-            DEFAULT_SUB_TYPE_OPTION,
-            ...uniqueSubTypes.map((subType: any) => ({
-              value: subType.id,
-              label: subType.fighter_sub_type,
-              cost: subType.cost
-            }))
-          ]);
-        } else {
-          setAvailableSubTypes([]);
+  // Pre-populate current fighter type and sub-type when fighter types are loaded
+  useEffect(() => {
+    if (fighterTypes.length > 0 && !hasExplicitlySelectedType) {
+      // Find the current fighter type
+      const currentFighterTypeId = (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id;
+      if (currentFighterTypeId) {
+        const currentType = fighterTypes.find(ft => ft.id === currentFighterTypeId);
+        if (currentType) {
+          // Find the fighter type that would actually appear in the dropdown
+          // The dropdown uses complex logic to select the "preferred" version for each type+class combo
+          const allVariantsOfType = fighterTypes.filter(ft => 
+            ft.fighter_type === currentType.fighter_type && 
+            ft.fighter_class === currentType.fighter_class
+          );
+          
+          // Use the same logic as the dropdown: prefer fighters with empty sub_type (default version)
+          let dropdownType = allVariantsOfType.find(ft => 
+            !(ft as any).sub_type || Object.keys((ft as any).sub_type).length === 0
+          );
+          
+          // If no default version, take the cheapest one (same as dropdown logic)
+          if (!dropdownType && allVariantsOfType.length > 0) {
+            dropdownType = allVariantsOfType.reduce((cheapest, current) => 
+              current.total_cost < cheapest.total_cost ? current : cheapest
+            );
+          }
+          
+          const dropdownId = dropdownType ? dropdownType.id : currentFighterTypeId;
+          setSelectedFighterTypeId(dropdownId);
+          
+          // Update form values with current type
+          setFormValues(prev => ({
+            ...prev,
+            fighter_type: currentType.fighter_type,
+            fighter_class: currentType.fighter_class,
+            fighter_class_id: currentType.fighter_class_id
+          }));
+
+          // Check for sub-types in the same way as the main logic
+          const fighterTypeGroup = fighterTypes.filter(t => 
+            t.fighter_type === currentType.fighter_type &&
+            t.fighter_class === currentType.fighter_class
+          );
+          
+          if (fighterTypeGroup.length > 1) {
+            // Create sub-type options from all variants
+            const subTypeOptions: Array<{ value: string; label: string; cost?: number; fighterTypeId?: string }> = [];
+            
+            fighterTypeGroup.forEach(ft => {
+              const subTypeData = (ft as any).sub_type;
+              
+              if (!subTypeData || Object.keys(subTypeData).length === 0) {
+                // This is the default version (no sub-type)
+                subTypeOptions.push({
+                  value: '', // Default has no sub-type ID
+                  label: 'Default',
+                  cost: ft.total_cost,
+                  fighterTypeId: ft.id // Store the fighter_type_id separately
+                });
+              } else {
+                // This has a specific sub-type
+                const subTypeName = subTypeData.sub_type_name || 'Unknown';
+                subTypeOptions.push({
+                  value: subTypeData.id || '', // Use the actual sub_type_id from the sub_type data
+                  label: subTypeName,
+                  cost: ft.total_cost,
+                  fighterTypeId: ft.id // Store the fighter_type_id separately
+                });
+              }
+            });
+            
+            // Sort sub-types: Default first, then alphabetically
+            subTypeOptions.sort((a, b) => {
+              if (a.label === 'Default') return -1;
+              if (b.label === 'Default') return 1;
+              return a.label.localeCompare(b.label);
+            });
+            
+            setAvailableSubTypes(subTypeOptions);
+
+            // Set current sub-type if fighter has one
+            if (fighter.fighter_sub_type?.fighter_sub_type_id) {
+              // Find the fighter type that matches this sub-type ID
+              const matchingFighterType = fighterTypes.find(ft => {
+                const subTypeData = (ft as any).sub_type;
+                return subTypeData && subTypeData.id === fighter.fighter_sub_type?.fighter_sub_type_id;
+              });
+              
+              if (matchingFighterType) {
+                // Use the actual sub-type ID from the sub_type data
+                const subTypeData = (matchingFighterType as any).sub_type;
+                const subTypeValue = subTypeData?.id || '';
+                setSelectedSubTypeId(subTypeValue);
+              }
+            } else {
+              // No sub-type, select the default option
+              const defaultOption = subTypeOptions.find(option => option.label === 'Default');
+              if (defaultOption) {
+                setSelectedSubTypeId(defaultOption.value);
+              }
+            }
+          }
         }
-      } else {
-        setAvailableSubTypes([]);
       }
     }
-  }, [fighter.id, subTypesByFighterType]); // Update when fighter or sub-types data changes
+  }, [fighterTypes, fighter, hasExplicitlySelectedType]);
 
   const handleChange = (field: string, value: any) => {
     setFormValues(prev => ({
@@ -634,12 +816,9 @@ export function EditFighterModal({
     setHasExplicitlySelectedType(true);
     
     // Find the selected fighter type
-    const selectedType = fighterTypes.find(ft => ft.id === fighterTypeId);
+    const selectedType = fighterTypes.find((ft: any) => ft.id === fighterTypeId);
     
     if (selectedType) {
-      // Use the fighter_class_id directly from the API data
-      // No need for a fallback mapping anymore
-      
       // Update form values with selected type
       setFormValues(prev => ({
         ...prev,
@@ -648,38 +827,50 @@ export function EditFighterModal({
         fighter_class_id: selectedType.fighter_class_id
       }));
       
-      // Get available sub-types for this fighter type+class combination
-      const key = selectedType.typeClassKey;
-      if (key && subTypesByFighterType.has(key)) {
-        const subTypes = subTypesByFighterType.get(key) || [];
+      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
+      const fighterTypeGroup = fighterTypes.filter(t => 
+        t.fighter_type === selectedType.fighter_type &&
+        t.fighter_class === selectedType.fighter_class
+      );
+      
+      // If we have multiple entries with the same fighter_type + class, they represent different sub-types
+      if (fighterTypeGroup.length > 1) {
+        // Create sub-type options from all variants
+        const subTypeOptions: Array<{ value: string; label: string; cost?: number; fighterTypeId?: string }> = [];
         
-        // Filter to get valid sub-types
-        const realSubTypes = subTypes.filter((subType: any) => 
-          subType.fighter_sub_type && 
-          subType.id && subType.id.trim() !== ''
-        );
+        fighterTypeGroup.forEach(ft => {
+          const subTypeData = (ft as any).sub_type;
+          
+          if (!subTypeData || Object.keys(subTypeData).length === 0) {
+            // This is the default version (no sub-type)
+            subTypeOptions.push({
+              value: '', // Default has no sub-type ID
+              label: 'Default',
+              cost: ft.total_cost,
+              fighterTypeId: ft.id // Store the fighter_type_id separately
+            });
+          } else {
+            // This has a specific sub-type
+            const subTypeName = subTypeData.sub_type_name || 'Unknown';
+            subTypeOptions.push({
+              value: subTypeData.id || '', // Use the actual sub_type_id from the sub_type data
+              label: subTypeName,
+              cost: ft.total_cost,
+              fighterTypeId: ft.id // Store the fighter_type_id separately
+            });
+          }
+        });
         
-        if (realSubTypes.length > 0) {
-          // Remove duplicates based on sub-type ID and sort by name
-          const uniqueSubTypes = realSubTypes
-            .filter((subType: any, index: number, self: any[]) => 
-              index === self.findIndex((s: any) => s.id === subType.id)
-            )
-            .sort((a: any, b: any) => a.fighter_sub_type.localeCompare(b.fighter_sub_type));
-
-          setAvailableSubTypes([
-            DEFAULT_SUB_TYPE_OPTION,
-            ...uniqueSubTypes.map((subType: any) => ({
-              value: subType.id,
-              label: subType.fighter_sub_type,
-              cost: subType.cost
-            }))
-          ]);
-        } else {
-          // If no meaningful sub-types, don't show the dropdown
-          setAvailableSubTypes([]);
-        }
+        // Sort sub-types: Default first, then alphabetically
+        subTypeOptions.sort((a, b) => {
+          if (a.label === 'Default') return -1;
+          if (b.label === 'Default') return 1;
+          return a.label.localeCompare(b.label);
+        });
+        
+        setAvailableSubTypes(subTypeOptions);
       } else {
+        // Only one variant, no sub-types to choose from
         setAvailableSubTypes([]);
       }
     }
@@ -794,43 +985,65 @@ export function EditFighterModal({
     try {
       // Get the selected fighter type details - use existing if not explicitly changed
       let selectedFighterType = selectedFighterTypeId ? 
-        fighterTypes.find(ft => ft.id === selectedFighterTypeId) : 
+        fighterTypes.find((ft: any) => ft.id === selectedFighterTypeId) : 
         null;
       
       // Get the selected sub-type details (without affecting fighter type)
-      type SubType = { id: string; fighter_sub_type: string; cost: number; };
+      type SubType = { id: string; fighter_sub_type: string; cost: number; fighterTypeId: string; };
       let selectedSubType: SubType | null = null;
-      if (selectedSubTypeId) {
+      if (selectedSubTypeId !== undefined && selectedSubTypeId !== null) {
         // Find the sub-type in the currently available sub-types only
         const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
-        if (foundSubType && foundSubType.value) {
+        if (foundSubType) {
           selectedSubType = {
-            id: foundSubType.value,
+            id: foundSubType.value, // This will now be the correct sub_type_id
             fighter_sub_type: foundSubType.label,
-            cost: foundSubType.cost || 0
+            cost: foundSubType.cost || 0,
+            fighterTypeId: foundSubType.fighterTypeId || '' // Store the fighter_type_id
           };
         }
       }
       
-      // Only update fighter type if explicitly selected, not when selecting sub-types
-      // Sub-type changes should NEVER automatically change the fighter type
-      const shouldUpdateFighterType = selectedFighterType && hasExplicitlySelectedType;
+      // Determine which fighter type to use for the update
+      let fighterTypeToUse = null;
+      let shouldUpdateFighterType = false;
+      
+      if (hasExplicitlySelectedType && selectedFighterType) {
+        // User explicitly selected a new fighter type - use it directly
+        fighterTypeToUse = selectedFighterType;
+        shouldUpdateFighterType = true;
+      } else if (selectedSubType && !hasExplicitlySelectedType) {
+        // User only changed sub-type - find the fighter type that matches the sub-type
+        // but preserve the original fighter class
+        const fighterTypeWithSubType = fighterTypes.find(ft => 
+          (ft.fighter_sub_type_id === selectedSubType?.id || 
+           ft.fighter_sub_type === selectedSubType?.fighter_sub_type) &&
+          ft.fighter_class === fighter.fighter_class // Preserve original class
+        );
+        if (fighterTypeWithSubType) {
+          fighterTypeToUse = fighterTypeWithSubType;
+          shouldUpdateFighterType = true;
+        }
+      }
+      
       
       
       // Call onSubmit with all values, including sub-type fields
-      await onSubmit({
+      const submitData = {
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_class : undefined,
-        fighter_class_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_class_id : undefined,
-        fighter_type: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.fighter_type : undefined,
-        fighter_type_id: shouldUpdateFighterType && selectedFighterType ? selectedFighterType.id : undefined,
+        fighter_class: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_class : undefined,
+        fighter_class_id: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_class_id : undefined,
+        fighter_type: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_type : undefined,
+        fighter_type_id: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.id : undefined,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType ? selectedSubType.fighter_sub_type : (selectedSubTypeId === '' ? null : undefined),
-        fighter_sub_type_id: selectedSubType ? selectedSubType.id : (selectedSubTypeId === '' ? null : undefined)
-      });
+        fighter_sub_type: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null,
+        fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null
+      };
+      
+      await onSubmit(submitData);
       toast({
         description: 'Fighter updated successfully',
         variant: "default"
@@ -928,19 +1141,70 @@ export function EditFighterModal({
                 <option value="">
                   Select a fighter type
                 </option>
-                {fighterTypes
-                  .sort((a, b) => {
-                    const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-                    const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-                    if (rankA !== rankB) return rankA - rankB;
-                    return (a.fighter_type || "").localeCompare(b.fighter_type || "");
-                  })
-                  .map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {`${type.fighter_type} (${type.fighter_class || "Unknown Class"})`}
-                      {(type as any).is_gang_variant ? ` - ${(type as any).gang_variant_name}` : ''}
-                    </option>
-                  ))}
+                {(() => {
+                  // Create a map to group fighters by type+class and find default version for each
+                  const typeClassMap = new Map();
+                  
+                  fighterTypes.forEach(fighter => {
+                    const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
+                    
+                    if (!typeClassMap.has(key)) {
+                      typeClassMap.set(key, {
+                        fighter: fighter,
+                        cost: fighter.total_cost
+                      });
+                    } else {
+                      const current = typeClassMap.get(key);
+                      
+                      // Prefer fighters with empty sub_type (default version) for the main dropdown
+                      const currentHasEmptySubType = !(current.fighter as any).sub_type || Object.keys((current.fighter as any).sub_type).length === 0;
+                      const fighterHasEmptySubType = !(fighter as any).sub_type || Object.keys((fighter as any).sub_type).length === 0;
+                      
+                      if (fighterHasEmptySubType && !currentHasEmptySubType) {
+                        // This fighter has empty sub_type, current doesn't - prefer this one
+                        typeClassMap.set(key, {
+                          fighter: fighter,
+                          cost: fighter.total_cost
+                        });
+                      } else if (currentHasEmptySubType && !fighterHasEmptySubType) {
+                        // Current has empty sub_type, this one doesn't - keep current
+                        // Do nothing
+                      } else {
+                        // Both have same sub_type status, take the cheaper option
+                        if (fighter.total_cost < current.cost) {
+                          typeClassMap.set(key, {
+                            fighter: fighter,
+                            cost: fighter.total_cost
+                          });
+                        }
+                      }
+                    }
+                  });
+                  
+                  // Convert the map values to an array and sort
+                  return Array.from(typeClassMap.values())
+                    .sort((a, b) => {
+                      const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                      const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                      if (classRankA !== classRankB) {
+                        return classRankA - classRankB;
+                      }
+
+                      return a.cost - b.cost;
+                    })
+                    .map(({ fighter }) => {
+                      const displayName = `${fighter.fighter_type} (${fighter.fighter_class})`;
+                      const gangVariantSuffix = (fighter as any).is_gang_variant ? ` - ${(fighter as any).gang_variant_name}` : '';
+                      
+                      
+                      return (
+                        <option key={fighter.id} value={fighter.id}>
+                          {displayName}{gangVariantSuffix}
+                        </option>
+                      );
+                    });
+                })()}
               </select>
               {fighter.fighter_type && (
                 <div className="mt-1 text-sm text-gray-500">
@@ -956,7 +1220,7 @@ export function EditFighterModal({
             </div>
             
             {/* Sub-type Dropdown - only show when we have sub-types */}
-            {selectedFighterTypeId && availableSubTypes.length > 1 && availableSubTypes.some(subType => subType.label !== 'Default' && subType.label !== 'Select a sub-type') && (
+            {selectedFighterTypeId && availableSubTypes.length > 0 && (
               <div>
                 <label htmlFor="fighter_sub_type_id" className="block text-sm font-medium mb-1">
                   Fighter Sub-type

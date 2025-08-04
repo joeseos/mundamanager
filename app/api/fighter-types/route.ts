@@ -4,15 +4,13 @@ import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const gangId = searchParams.get('gang_id');
   const gangTypeId = searchParams.get('gang_type_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
-  const gangVariantsParam = searchParams.get('gang_variants');
 
-  console.log('Received request for fighter types with gang_type_id:', gangTypeId, 'isGangAddition:', isGangAddition, 'gangVariants:', gangVariantsParam);
 
-  if (!gangTypeId) {
-    console.log('Error: Gang type ID is required');
-    return NextResponse.json({ error: 'Gang type ID is required' }, { status: 400 });
+  if (!gangId && !isGangAddition) {
+    return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -53,14 +51,41 @@ export async function GET(request: Request) {
       data = result;
     }
 
-    // Process gang variants if provided (same logic as get-fighter-types.ts)
+    // Fetch gang variants from the database
     let gangVariants: Array<{id: string, variant: string}> = [];
-    if (gangVariantsParam && !isGangAddition) {
+    if (!isGangAddition) {
       try {
-        gangVariants = JSON.parse(gangVariantsParam);
-      } catch (parseError) {
-        console.error('Error parsing gang_variants parameter:', parseError);
-        return NextResponse.json({ error: 'Invalid gang_variants parameter' }, { status: 400 });
+        // Get gang data including gang_variants
+        const { data: gangData, error: gangError } = await supabase
+          .from('gangs')
+          .select('gang_variants')
+          .eq('id', gangId)
+          .single();
+
+        if (gangError) {
+          console.error('Error fetching gang data:', gangError);
+          throw gangError;
+        }
+
+
+        // If gang has variants, fetch the variant details
+        if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
+          const { data: variantDetails, error: variantError } = await supabase
+            .from('gang_variant_types')
+            .select('id, variant')
+            .in('id', gangData.gang_variants);
+
+          if (variantError) {
+            console.error('Error fetching variant details:', variantError);
+            throw variantError;
+          }
+
+          gangVariants = variantDetails || [];
+        } else {
+        }
+      } catch (error) {
+        // Continue without variants rather than failing
+        gangVariants = [];
       }
 
       if (gangVariants.length > 0) {
@@ -91,7 +116,6 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log('Fighter types fetched:', data);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching fighter types:', error);
