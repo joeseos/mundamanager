@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
+import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const gangTypeId = searchParams.get('gang_type_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
+  const gangVariantsParam = searchParams.get('gang_variants');
 
-  console.log('Received request for fighter types with gang_type_id:', gangTypeId, 'isGangAddition:', isGangAddition);
+  console.log('Received request for fighter types with gang_type_id:', gangTypeId, 'isGangAddition:', isGangAddition, 'gangVariants:', gangVariantsParam);
 
   if (!gangTypeId) {
     console.log('Error: Gang type ID is required');
@@ -49,6 +51,44 @@ export async function GET(request: Request) {
       }
       
       data = result;
+    }
+
+    // Process gang variants if provided (same logic as get-fighter-types.ts)
+    let gangVariants: Array<{id: string, variant: string}> = [];
+    if (gangVariantsParam && !isGangAddition) {
+      try {
+        gangVariants = JSON.parse(gangVariantsParam);
+      } catch (parseError) {
+        console.error('Error parsing gang_variants parameter:', parseError);
+        return NextResponse.json({ error: 'Invalid gang_variants parameter' }, { status: 400 });
+      }
+
+      if (gangVariants.length > 0) {
+        for (const variant of gangVariants) {
+          const variantModifier = gangVariantFighterModifiers[variant.id];
+          if (!variantModifier) continue;
+
+          // Apply variant rules (like removing Leaders)
+          if (variantModifier.removeLeaders) {
+            data = data.filter((type: any) => type.fighter_class !== 'Leader');
+          }
+
+          // Fetch variant-specific fighter types and merge
+          const { data: variantData, error: variantError } = await supabase.rpc('get_add_fighter_details', {
+            p_gang_type_id: variantModifier.variantGangTypeId
+          });
+          
+          if (!variantError && variantData) {
+            // Mark these as gang variant fighter types
+            const markedVariantData = variantData.map((type: any) => ({
+              ...type,
+              is_gang_variant: true,
+              gang_variant_name: variant.variant
+            }));
+            data = [...data, ...markedVariantData];
+          }
+        }
+      }
     }
 
     console.log('Fighter types fetched:', data);

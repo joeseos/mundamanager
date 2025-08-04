@@ -248,7 +248,6 @@ export default function GangPageContent({
         <div className="container max-w-full w-full space-y-4 print:print-fighters">
           <Gang
             {...gangData.processedData}
-            initialFighterTypes={gangData.processedData.fighterTypes}
             initialFighters={gangData.processedData.fighters}
             stash={gangData.stash}
             onStashUpdate={gangData.onStashUpdate}
