@@ -592,7 +592,7 @@ export function EditFighterModal({
   const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
-  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || '');
+  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
   
   // Add state for selected sub-type
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
@@ -687,7 +687,7 @@ export function EditFighterModal({
   // Initialize fighter state and sub-types when fighter or fighter types data changes
   useEffect(() => {
     setCurrentFighter(fighter);
-    setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || ''); // Pre-select current fighter type
+    setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || ''); // Pre-select current fighter type
     setSelectedSubTypeId((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
@@ -697,19 +697,30 @@ export function EditFighterModal({
   useEffect(() => {
     if (fighterTypes.length > 0 && !hasExplicitlySelectedType) {
       // Find the current fighter type
-      const currentFighterTypeId = (fighter.fighter_type as any)?.fighter_type_id;
+      const currentFighterTypeId = (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id;
       if (currentFighterTypeId) {
         const currentType = fighterTypes.find(ft => ft.id === currentFighterTypeId);
         if (currentType) {
-          // Find the DEFAULT version of this fighter type/class combination for the dropdown
-          // The dropdown shows the default version, not the sub-type variant
-          const defaultVersion = fighterTypes.find(ft => 
+          // Find the fighter type that would actually appear in the dropdown
+          // The dropdown uses complex logic to select the "preferred" version for each type+class combo
+          const allVariantsOfType = fighterTypes.filter(ft => 
             ft.fighter_type === currentType.fighter_type && 
-            ft.fighter_class === fighter.fighter_class && // Use the fighter's original class
-            (!(ft as any).sub_type || Object.keys((ft as any).sub_type).length === 0)
+            ft.fighter_class === currentType.fighter_class
           );
           
-          const dropdownId = defaultVersion ? defaultVersion.id : currentFighterTypeId;
+          // Use the same logic as the dropdown: prefer fighters with empty sub_type (default version)
+          let dropdownType = allVariantsOfType.find(ft => 
+            !(ft as any).sub_type || Object.keys((ft as any).sub_type).length === 0
+          );
+          
+          // If no default version, take the cheapest one (same as dropdown logic)
+          if (!dropdownType && allVariantsOfType.length > 0) {
+            dropdownType = allVariantsOfType.reduce((cheapest, current) => 
+              current.total_cost < cheapest.total_cost ? current : cheapest
+            );
+          }
+          
+          const dropdownId = dropdownType ? dropdownType.id : currentFighterTypeId;
           setSelectedFighterTypeId(dropdownId);
           
           // Update form values with current type
@@ -1005,8 +1016,8 @@ export function EditFighterModal({
         // User only changed sub-type - find the fighter type that matches the sub-type
         // but preserve the original fighter class
         const fighterTypeWithSubType = fighterTypes.find(ft => 
-          (ft.fighter_sub_type_id === selectedSubType.id || 
-           ft.fighter_sub_type === selectedSubType.fighter_sub_type) &&
+          (ft.fighter_sub_type_id === selectedSubType?.id || 
+           ft.fighter_sub_type === selectedSubType?.fighter_sub_type) &&
           ft.fighter_class === fighter.fighter_class // Preserve original class
         );
         if (fighterTypeWithSubType) {
@@ -1185,6 +1196,7 @@ export function EditFighterModal({
                     .map(({ fighter }) => {
                       const displayName = `${fighter.fighter_type} (${fighter.fighter_class})`;
                       const gangVariantSuffix = (fighter as any).is_gang_variant ? ` - ${(fighter as any).gang_variant_name}` : '';
+                      
                       
                       return (
                         <option key={fighter.id} value={fighter.id}>
