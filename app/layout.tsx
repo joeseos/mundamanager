@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { createClient } from "@/utils/supabase/server";
 import ClientToaster from "@/components/ui/client-toaster";
+import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 
 const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
   ssr: true,
@@ -34,6 +35,15 @@ export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  keywords: "Necromunda, gang management, campaign tool, list builder, gang list, yaktribe replacement, Munda Manager",
+  authors: [{ name: "Munda Manager Team" }],
+  creator: "Munda Manager",
+  publisher: "Munda Manager",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: '/images/favicon.ico', sizes: 'any' },
@@ -64,6 +74,17 @@ export const metadata = {
     description: SITE_DESCRIPTION,
     images: [SITE_IMAGE],
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export const dynamicConfig = 'force-static'
@@ -85,6 +106,8 @@ export default async function RootLayout({
     <html lang="en" className={inter.className}>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
+        <WebsiteStructuredData />
+        <OrganizationStructuredData />
         {process.env.NODE_ENV === 'development' && (
           <script
             dangerouslySetInnerHTML={{
