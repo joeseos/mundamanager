@@ -271,10 +271,16 @@ export default function GangAdditions({
 
   const fetchGangAdditionTypes = async () => {
     try {
-      const { getGangAdditionTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
-      const data = await getGangAdditionTypesUncachedClient(gangTypeId);
+      // Use the API route
+      const response = await fetch(`/api/fighter-types?gang_type_id=${gangTypeId}&is_gang_addition=true`);
       
-      // Transform server action response to match existing FighterType interface
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transform API response to match existing FighterType interface
       const transformedData = data.map((type: any) => ({
         id: type.id,
         fighter_type_id: type.id, // Map id to fighter_type_id for compatibility
