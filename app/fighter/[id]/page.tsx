@@ -274,7 +274,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         initialGangFighters={gangFighters}
         userPermissions={userPermissions}
         fighterId={id}
-        fighterTypesData={fighterTypesData}
       />
     );
 

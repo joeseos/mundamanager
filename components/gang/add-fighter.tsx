@@ -243,7 +243,7 @@ export default function AddFighter({
     try {
       // Use the API route instead of server action
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
-      const response = await fetch(`/api/fighter-types?gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}`);
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
