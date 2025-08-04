@@ -420,14 +420,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
   try {
     const supabase = await createClient();
     
-    // Add logging to see what parameters are being received
-    console.log('updateFighterDetails - Received params:', {
-      fighter_id: params.fighter_id,
-      fighter_sub_type: params.fighter_sub_type,
-      fighter_sub_type_id: params.fighter_sub_type_id,
-      fighter_type: params.fighter_type,
-      fighter_type_id: params.fighter_type_id
-    });
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -463,8 +455,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
 
-    // Add logging to see what's being updated
-    console.log('updateFighterDetails - Update data:', updateData);
 
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase

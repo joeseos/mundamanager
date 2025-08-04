@@ -8,10 +8,8 @@ export async function GET(request: Request) {
   const gangTypeId = searchParams.get('gang_type_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
 
-  console.log('Received request for fighter types with gang_id:', gangId, 'gang_type_id:', gangTypeId, 'isGangAddition:', isGangAddition);
 
   if (!gangId && !isGangAddition) {
-    console.log('Error: Gang ID is required');
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
   }
 
@@ -69,7 +67,6 @@ export async function GET(request: Request) {
           throw gangError;
         }
 
-        console.log('API Route: Gang data fetched:', gangData);
 
         // If gang has variants, fetch the variant details
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
@@ -84,12 +81,9 @@ export async function GET(request: Request) {
           }
 
           gangVariants = variantDetails || [];
-          console.log('API Route: Gang variants fetched:', gangVariants);
         } else {
-          console.log('API Route: No gang variants found');
         }
       } catch (error) {
-        console.error('Error processing gang variants:', error);
         // Continue without variants rather than failing
         gangVariants = [];
       }
@@ -122,7 +116,6 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log('Fighter types fetched:', data);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching fighter types:', error);
