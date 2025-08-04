@@ -1003,7 +1003,7 @@ export function EditFighterModal({
         // User explicitly selected a new fighter type
         if (selectedSubType && selectedSubType.fighterTypeId) {
           // User also selected a sub-type - use the fighter type that contains that sub-type
-          const fighterTypeWithSubType = fighterTypes.find(ft => ft.id === selectedSubType.fighterTypeId);
+          const fighterTypeWithSubType = fighterTypes.find(ft => ft.id === selectedSubType!.fighterTypeId);
           if (fighterTypeWithSubType) {
             fighterTypeToUse = fighterTypeWithSubType;
             shouldUpdateFighterType = true;
@@ -1016,7 +1016,7 @@ export function EditFighterModal({
       } else if (selectedSubType && !hasExplicitlySelectedType) {
         // User only changed sub-type - find the fighter type that matches the sub-type
         const fighterTypeWithSubType = fighterTypes.find(ft => 
-          ft.fighter_sub_type_id === selectedSubType?.id &&
+          ft.fighter_sub_type_id === selectedSubType!.id &&
           ft.fighter_type === fighter.fighter_type &&
           ft.fighter_class === fighter.fighter_class
         );
@@ -1025,8 +1025,6 @@ export function EditFighterModal({
           shouldUpdateFighterType = true;
         }
       }
-      
-      
       
       // Call onSubmit with all values, including sub-type fields
       const submitData = {
