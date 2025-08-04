@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
-import { getFighterTypesForModal } from "@/app/lib/get-fighter-types";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -257,15 +256,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
-
-    // Fetch fighter types including gang variants using cached function
-    // Pass the supabase client to avoid creating a new one inside the cached function
-    const fighterTypesData = await getFighterTypesForModal(
-      fighterData.gang.id,
-      fighterData.gang.gang_type_id,
-      fighterData.gang.gang_variants || [],
-      supabase
-    );
 
     // Pass fighter data and user permissions to client component
     return (
