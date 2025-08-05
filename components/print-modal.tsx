@@ -64,6 +64,7 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
   return (
     <Modal
       title="Print Options"
+      helper="These settings only affect desktop printing. They have no effect when printing from a mobile device."
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Print"
