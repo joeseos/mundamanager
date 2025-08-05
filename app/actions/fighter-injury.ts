@@ -4,15 +4,17 @@ import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { invalidateFighterData } from '@/utils/cache-tags';
 import { logFighterInjury, logFighterRecovery } from './create-gang-log';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 // Helper function to check if user is admin
-async function checkAdmin(supabase: any): Promise<boolean> {
+async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
   try {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('admin')
+      .select('user_role')
+      .eq('id', userId)
       .single();
-    return profile?.admin === true;
+    return profile?.user_role === 'admin';
   } catch {
     return false;
   }
@@ -49,14 +51,11 @@ export async function addFighterInjury(
   try {
     const supabase = await createClient();
     
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    // Check authentication with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    const isAdmin = await checkAdmin(supabase, user.id);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
@@ -157,14 +156,11 @@ export async function deleteFighterInjury(
   try {
     const supabase = await createClient();
     
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    // Check authentication with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    const isAdmin = await checkAdmin(supabase, user.id);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase

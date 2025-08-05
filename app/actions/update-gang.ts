@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -45,12 +46,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase

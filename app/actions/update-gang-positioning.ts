@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 
@@ -19,18 +19,11 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'Authentication failed'
-      };
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
     
     // Get gang information to verify ownership
     const { data: gang, error: gangError } = await supabase

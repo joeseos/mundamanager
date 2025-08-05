@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface AddVehicleDamageParams {
   vehicleId: string;
@@ -21,12 +22,8 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Add the vehicle damage using the RPC function
     const { data, error } = await supabase

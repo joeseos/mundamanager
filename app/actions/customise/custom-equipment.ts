@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 
@@ -17,11 +18,8 @@ export async function updateCustomEquipment(
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // Prepare the update data
   const updateData: any = {
@@ -74,11 +72,8 @@ export async function deleteCustomEquipment(equipmentId: string) {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // Delete the equipment, but only if it belongs to the current user
   const { error } = await supabase
@@ -121,11 +116,8 @@ export async function createCustomEquipment(data: {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // First, get the equipment category details
   const { data: categoryData, error: categoryError } = await supabase

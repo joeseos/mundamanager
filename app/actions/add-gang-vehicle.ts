@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangCredits } from "@/utils/cache-tags";
 
@@ -26,18 +26,11 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'Authentication failed'
-      };
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
     
     // Get gang information to verify ownership and get credits
     const { data: gang, error: gangError } = await supabase
@@ -177,15 +170,8 @@ export async function getGangVehicleTypes(gangId: string) {
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'Authentication failed'
-      };
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // First get the gang's type_id
     const { data: gang, error: gangError } = await supabase

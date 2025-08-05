@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from 'react';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export type Gang = {
   id: string;
@@ -63,13 +64,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
   try {
     const supabase = await createClient();
     
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return [];
-    }
+    const user = await getAuthenticatedUser(supabase);
 
     // Use more efficient joins with Supabase's PostgreSQL capabilities
     const { data, error: gangsError } = await supabase
