@@ -479,9 +479,11 @@ export function SkillsList({
           title="Delete Skill"
           content={
             <div>
-              <p>Are you sure you want to delete "{skillToDelete.name}"?</p>
+              <p>Are you sure you want to delete <strong>{skillToDelete.name}</strong>?</p>
               <br />
-              <p>This action cannot be undone.</p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
             </div>
           }
           onClose={() => setSkillToDelete(null)}

@@ -12,6 +12,7 @@ import {
   removeGangFromCampaign, 
   updateMemberRole 
 } from "@/app/actions/campaigns/[id]/campaign-members"
+import { LuTrash2 } from 'react-icons/lu'
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -425,14 +426,14 @@ export default function MembersTable({
     const isRemovingSelf = memberToRemove?.user_id === currentUserId;
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">
-          Are you sure you want to {isRemovingSelf ? 'leave' : 'remove'} {isRemovingSelf ? '' : <span className="font-medium">{memberToRemove?.profile.username}</span>} {isRemovingSelf ? 'this' : 'from this'} campaign?
+        <div className="text-sm text-gray-600">
+          Are you sure you want to {isRemovingSelf ? 'leave' : 'remove'} {isRemovingSelf ? '' : <strong>{memberToRemove?.profile?.username || 'Unknown User'}</strong>} {isRemovingSelf ? 'this' : 'from this'} campaign?
           {memberToRemove?.gangs[0] && (
-            <span className="block mt-2 text-red-600">
-              This will also remove {isRemovingSelf ? 'your' : 'their'} gang "{memberToRemove.gangs[0].gang_name}" from the campaign.
-            </span>
+            <p className="mt-2 text-red-600">
+              This will also remove {isRemovingSelf ? 'your' : 'their'} gang <strong>{memberToRemove.gangs[0].gang_name}</strong> from the campaign.
+            </p>
           )}
-        </p>
+        </div>
         {memberToRemove?.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1 && (
           <p className="text-sm text-red-600 font-medium mt-2">
             Action blocked: the campaign Owner cannot be removed.
@@ -445,7 +446,7 @@ export default function MembersTable({
   const removeGangModalContent = useMemo(() => (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">
-        Are you sure you want to remove <span className="font-medium">{gangToRemove?.gangName}</span> from this campaign?
+        Are you sure you want to remove <strong>{gangToRemove?.gangName}</strong> from this campaign?
       </p>
     </div>
   ), [gangToRemove]);
@@ -599,16 +600,16 @@ export default function MembersTable({
                 {(isAdmin || member.user_id === currentUserId) && (
                   <td className="px-2 py-2 text-right max-w-[2.5rem]">
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       size="sm"
-                      className="text-xs px-1.5 h-6"
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       onClick={() => {
                         setMemberToRemove({...member, index});
                         setShowRemoveMemberModal(true);
                       }}
                       disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                     >
-                      Remove
+                      <LuTrash2 className="h-4 w-4" />
                     </Button>
                   </td>
                 )}
@@ -761,7 +762,7 @@ export default function MembersTable({
                   }}
                   disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
                 >
-                  Remove
+                  <LuTrash2 className="h-4 w-4" />
                 </Button>
               </div>
             )}

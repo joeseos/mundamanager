@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client"
 import { Database } from "@/types/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
+import { LuTrash2 } from 'react-icons/lu'
 
 type Gang = Database['public']['Tables']['gangs']['Row'] & {
   gang_type?: string;
@@ -299,7 +300,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
                   onClick={() => handleRemoveGang(gang)}
                   className="text-xs px-1.5 h-6"
                 >
-                  Remove
+                  <LuTrash2 className="h-4 w-4" />
                 </Button>
               </li>
             ))}

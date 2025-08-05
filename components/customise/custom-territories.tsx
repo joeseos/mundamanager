@@ -262,7 +262,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
           content={
             <div className="space-y-4">
               <p>Are you sure you want to delete <strong>{deleteModalData.territory_name}</strong>?</p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-red-600">
                 <strong>Warning:</strong> This territory will be removed from all campaigns that currently use it.
               </p>
             </div>

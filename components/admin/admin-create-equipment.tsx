@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X } from "lucide-react";
+import { LuTrash2 } from 'react-icons/lu'
 
 interface AdminCreateEquipmentModalProps {
   onClose: () => void;
@@ -671,9 +672,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         {index > 0 && (
                           <Button
                             variant="destructive"
+                            className="h-8 w-8 p-0"
                             onClick={() => removeProfile(index)}
                           >
-                            Remove
+                            <LuTrash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>

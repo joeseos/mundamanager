@@ -549,7 +549,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
           content={
             <div className="space-y-4">
               <p>Are you sure you want to delete <strong>{deleteModalData.equipment_name}</strong>?</p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-red-600">
                 <strong>Warning:</strong> This equipment will be removed from all fighters that currently have it equipped.
               </p>
             </div>

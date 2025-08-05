@@ -333,9 +333,11 @@ export function VehicleEquipmentList({
           title="Delete Vehicle Equipment"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>This action cannot be undone and will remove any associated stat effects.</p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone and will remove any associated stat effects.
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

@@ -1112,9 +1112,11 @@ export default function FighterPage({
               title="Delete Fighter"
               content={
                 <div>
-                  <p>Are you sure you want to delete "{fighterData.fighter?.fighter_name}"?</p>
+                  <p>Are you sure you want to delete <strong>{fighterData.fighter?.fighter_name}</strong>?</p>
                   <br />
-                  <p>This action cannot be undone.</p>
+                  <p className="text-sm text-red-600">
+                    This action cannot be undone.
+                  </p>
                 </div>
               }
               onClose={() => handleModalToggle('delete', false)}
