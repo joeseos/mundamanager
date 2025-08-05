@@ -20,7 +20,13 @@ export default async function Home() {
   unstable_noStore();
   
   const supabase = await createClient();
-  const user = await getAuthenticatedUser(supabase);
+  
+  let user;
+  try {
+    user = await getAuthenticatedUser(supabase);
+  } catch (error) {
+    redirect("/sign-in");
+  }
 
   // Single invocation that gets both gangs and campaigns
   const [gangs, campaigns] = await Promise.all([
