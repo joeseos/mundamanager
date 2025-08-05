@@ -13,6 +13,7 @@ import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter'
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -505,7 +506,7 @@ export default function GangVehicles({
                         onClick={(e) => handleDeleteClick(e, vehicle)}
                         disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
                       >
-                        Delete
+                        <LuTrash2 className="h-4 w-4" /> {/* Delete */}
                       </Button>
                     </div>
                     <span className="w-20 text-right">{vehicle.cost}</span>
@@ -626,7 +627,7 @@ export default function GangVehicles({
         >
           <div className="space-y-4">
             <p>
-              Are you sure you want to delete the vehicle &quot;{deletingVehicle.vehicle_name || deletingVehicle.vehicle_type}&quot;?
+              Are you sure you want to delete the vehicle <strong>{deletingVehicle.vehicle_name || deletingVehicle.vehicle_type}</strong>?
             </p>
             <p className="text-sm text-red-600">
               This will permanently delete the vehicle and all its equipment.

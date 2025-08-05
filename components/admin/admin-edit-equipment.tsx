@@ -9,6 +9,7 @@ import { X } from "lucide-react";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { AdminTradingPost } from "./admin-trading-post";
+import { LuTrash2 } from 'react-icons/lu'
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -1053,10 +1054,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           {index > 0 && (
                             <Button
                               variant="destructive"
+                              className="h-8 w-8 p-0"
                               onClick={() => removeProfile(index)}
                               disabled={!selectedEquipmentId}
                             >
-                              Remove
+                              <LuTrash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </div>

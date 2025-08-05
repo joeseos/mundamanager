@@ -16,7 +16,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuUndo2 } from 'react-icons/lu';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -945,7 +945,7 @@ export function AdvancementsList({
         const typedSkill = skill as any;
         return {
           id: typedSkill.id,
-          effect_name: `Skill - ${name}`,
+          effect_name: `Skill: ${name}`,
           created_at: typedSkill.acquired_at,
           type_specific_data: {
             xp_cost: typedSkill.xp_cost || 0,
@@ -965,7 +965,7 @@ export function AdvancementsList({
       setIsDeleting(advancementId);
       
       // Determine if this is a skill or characteristic based on the advancement type or name
-      const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill - ');
+      const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
       
       const result = await deleteAdvancement({
         fighter_id: fighterId,
@@ -1018,13 +1018,13 @@ export function AdvancementsList({
           : (advancement.type_specific_data || {});
           
         // Determine if this is a skill or characteristic advancement
-        const isSkill = advancement.effect_name.startsWith('Skill - ');
+        const isSkill = advancement.effect_name.startsWith('Skill: ');
           
         return {
           id: advancement.id || `temp-${Math.random()}`,
           name: advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
                 advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
-                `Characteristic - ${advancement.effect_name}`,
+                `Characteristic: ${advancement.effect_name}`,
           xp_cost: specificData.xp_cost || 0,
           credits_increase: specificData.credits_increase || 0,
           advancement_id: advancement.id,
@@ -1058,7 +1058,7 @@ export function AdvancementsList({
         ]}
         actions={[
           {
-            icon: <LuTrash2 className="h-4 w-4" />,
+            icon: <LuUndo2 className="h-4 w-4" />,
             variant: 'destructive',
             onClick: (item) => item.advancement_id ? setDeleteModalData({
               id: item.advancement_id,
@@ -1086,12 +1086,12 @@ export function AdvancementsList({
 
       {deleteModalData && (
         <Modal
-          title="Delete Advancement"
+          title="Undo Advancement"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>Are you sure you want to undo <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>This action cannot be undone.</p>
+              <p>XP spent will be refunded and the fighter's value will be adjusted accordingly.</p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

@@ -658,13 +658,16 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           title="Delete Battle Report"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle report? This action cannot be undone.</p>
+              <p className="mb-4">Are you sure you want to delete this battle report?</p>
               {battleToDelete && (
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
-                  <div><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</div>
-                  <div><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</div>
+                  <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
+                  <p><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</p>
                 </div>
               )}
+              <p className="text-sm text-red-600 mt-4">
+                This action cannot be undone.
+              </p>
             </div>
           }
           onClose={handleDeleteModalClose}
