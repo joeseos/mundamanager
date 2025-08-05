@@ -13,23 +13,20 @@ import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { unstable_noStore } from 'next/cache';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export default async function Home() {
   // Ensure we never use stale data
   unstable_noStore();
   
   const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/sign-in");
-  }
-
-  const gangs = await getUserGangs();
-  const campaigns = await getUserCampaigns();
+  // Single invocation that gets both gangs and campaigns
+  const [gangs, campaigns] = await Promise.all([
+    getUserGangs(),
+    getUserCampaigns()
+  ]);
   
   // Fetch campaign types for the create campaign modal
   const { data: campaignTypes, error } = await supabase
