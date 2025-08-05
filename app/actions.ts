@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -212,6 +213,9 @@ export const signOutAction = async () => {
 
 export async function getFighters(gangId: string) {
   const supabase = await createClient();
+  
+  // Authenticate user with optimized getClaims()
+  await getAuthenticatedUser(supabase);
 
   try {
     const { data: fighters, error: fightersError } = await supabase
