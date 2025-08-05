@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function updateCustomTerritory(
@@ -12,11 +13,8 @@ export async function updateCustomTerritory(
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // Prepare the update data
   const updateData: any = {
@@ -55,11 +53,8 @@ export async function deleteCustomTerritory(territoryId: string) {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // Delete the territory, but only if it belongs to the current user
   const { error } = await supabase
@@ -85,11 +80,8 @@ export async function fetchUserCustomTerritories(campaignTypeId?: string) {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   try {
     // Custom territories don't have campaign types, so ignore the campaignTypeId parameter
@@ -120,11 +112,8 @@ export async function createCustomTerritory(data: {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   // Create the custom territory
   const { data: newTerritory, error } = await supabase

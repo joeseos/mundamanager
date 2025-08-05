@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -135,10 +136,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
 
     // For custom territories, verify ownership
     if (isCustom && customTerritoryId) {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Unauthorized');
-      }
+      const user = await getAuthenticatedUser(supabase);
 
       const { data: customTerritory, error: customError } = await supabase
         .from('custom_territories')

@@ -10,6 +10,7 @@ import {
   invalidateEquipmentDeletion
 } from '@/utils/cache-tags';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -42,11 +43,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const supabase = await createClient();
     
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser(supabase);
     
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     // Validate parameters
     if (!params.gang_id) {
@@ -681,12 +679,9 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Authenticate user (RLS handles permissions)
+    await getAuthenticatedUser(supabase);
     
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     // Get equipment details before deletion to return proper response data
     const { data: equipmentBefore, error: equipmentError } = await supabase

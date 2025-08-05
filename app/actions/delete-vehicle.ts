@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface DeleteVehicleParams {
   vehicleId: string;
@@ -18,12 +19,8 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Delete the vehicle
     const { error } = await supabase

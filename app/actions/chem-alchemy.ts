@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateGangStash, invalidateUserCustomizations, invalidateGangCredits } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface ChemEffect {
   name: string;
@@ -31,12 +32,8 @@ export async function createChemAlchemy({
     console.log('Server action: Creating chem-alchemy:', name);
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Check if gang has enough credits
     const { data: gangData, error: gangFetchError } = await supabase
