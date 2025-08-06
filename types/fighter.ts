@@ -225,6 +225,7 @@ export interface FighterProps {
   } | null;
   
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  beast_equipment_stashed?: boolean; // Whether the equipment granting this beast is in stash
   image_url?: string; // URL to the fighter's image
 }
 
