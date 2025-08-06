@@ -4,10 +4,10 @@ import { createClient } from "@/utils/supabase/server";
 import { 
   invalidateFighterDataWithFinancials, 
   invalidateVehicleData, 
-  invalidateGangFinancials, 
   invalidateFighterVehicleData,
   invalidateEquipmentPurchase,
-  invalidateEquipmentDeletion
+  invalidateEquipmentDeletion,
+  invalidateGangStash
 } from '@/utils/cache-tags';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -531,7 +531,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       invalidateVehicleData(params.vehicle_id);
     } else {
       // Gang stash purchases
-      invalidateGangFinancials(params.gang_id);
+      invalidateGangStash({
+        gangId: params.gang_id,
+        userId: user.id
+      });
     }
 
     // Build response data to match RPC format
