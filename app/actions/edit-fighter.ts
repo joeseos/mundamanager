@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighterData, invalidateGangCredits } from '@/utils/cache-tags';
-import { logFighterRecovery } from './create-gang-log';
+import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated

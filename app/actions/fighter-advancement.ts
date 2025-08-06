@@ -1,13 +1,14 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
+import { invalidateFighterData, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
-import { invalidateFighterData } from '@/utils/cache-tags';
+
 import { 
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
   logAdvancementDeletion 
-} from './create-gang-log';
+} from './logs/gang-fighter-logs';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -198,6 +199,13 @@ export async function addCharacteristicAdvancement(
       include_gang_rating: true
     });
 
+    // Invalidate cache for fighter advancement
+    invalidateFighterAdvancement({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      advancementType: 'stat'
+    });
+
     return {
       success: true,
       fighter: updatedFighter,
@@ -319,6 +327,13 @@ export async function addSkillAdvancement(
       remaining_xp: updatedFighter.xp,
       is_advance: params.is_advance ?? true,
       include_gang_rating: true
+    });
+
+    // Invalidate cache for fighter advancement
+    invalidateFighterAdvancement({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      advancementType: 'skill'
     });
 
     return {
@@ -539,6 +554,13 @@ export async function deleteAdvancement(
       xp_refunded: xpToRefund,
       new_xp_total: updatedFighter.xp,
       include_gang_rating: true
+    });
+
+    // Invalidate cache for fighter advancement
+    invalidateFighterAdvancement({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      advancementType: params.advancement_type === 'skill' ? 'skill' : 'effect'
     });
 
     return {

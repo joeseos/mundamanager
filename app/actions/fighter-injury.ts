@@ -1,9 +1,8 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { revalidatePath } from 'next/cache';
 import { invalidateFighterData } from '@/utils/cache-tags';
-import { logFighterInjury, logFighterRecovery } from './create-gang-log';
+import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 // Helper function to check if user is admin
