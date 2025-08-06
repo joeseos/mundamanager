@@ -863,7 +863,10 @@ export default function Gang({
                 <div className="gap-1 text-sm mt-2">
                   Notes:
                   <div className="gap-1 text-sm">
-                    <span className="text-black whitespace-pre-wrap">{note}</span>
+                    <div 
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: note }}
+                    />
                   </div>
                 </div>
               )}
