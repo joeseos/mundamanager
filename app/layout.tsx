@@ -4,16 +4,11 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
-import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { createClient } from "@/utils/supabase/server";
 import ClientToaster from "@/components/ui/client-toaster";
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
-
-const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
-  ssr: true,
-  loading: () => <div className="h-16" />
-});
+import HeaderAuth from "@/components/header-auth";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -127,7 +122,7 @@ export default async function RootLayout({
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
         <BackgroundImage />
-        <DynamicHeaderAuth />
+        <HeaderAuth />
         {breadcrumb}
         <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
           <div className="flex-1 w-full flex flex-col items-center">
