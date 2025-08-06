@@ -137,6 +137,7 @@ async function processGangData(gangData: any) {
       free_skill: fighter.free_skill || false,
       image_url: fighter.image_url,
       owner_name: fighter.owner_name, // Preserve owner name for exotic beasts
+      beast_equipment_stashed: fighter.beast_equipment_stashed, // Preserve beast equipment stash status
       vehicle,
     };
   });

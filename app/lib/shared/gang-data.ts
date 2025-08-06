@@ -110,6 +110,7 @@ export interface GangFighter {
   free_skill: boolean;
   image_url?: string;
   owner_name?: string;
+  beast_equipment_stashed?: boolean;
 }
 
 // =============================================================================
@@ -583,13 +584,18 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
 
           // Check if this fighter is owned by another fighter (i.e., is an exotic beast)
           let ownerName: string | undefined;
+          let beastEquipmentStashed = false;
           if (fighterBasic.fighter_pet_id) {
             const { data: ownershipData } = await supabase
               .from('fighter_exotic_beasts')
               .select(`
                 fighter_owner_id,
+                fighter_equipment_id,
                 fighters!fighter_owner_id (
                   fighter_name
+                ),
+                fighter_equipment!fighter_equipment_id (
+                  gang_stash
                 )
               `)
               .eq('id', fighterBasic.fighter_pet_id)
@@ -597,6 +603,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
 
             if (ownershipData) {
               ownerName = (ownershipData.fighters as any)?.fighter_name;
+              beastEquipmentStashed = ownershipData.fighter_equipment?.gang_stash || false;
             }
           }
 
@@ -642,6 +649,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             free_skill: fighterBasic.free_skill || false,
             image_url: fighterBasic.image_url,
             owner_name: ownerName,
+            beast_equipment_stashed: beastEquipmentStashed,
           });
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);

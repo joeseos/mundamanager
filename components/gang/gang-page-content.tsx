@@ -114,10 +114,40 @@ export default function GangPageContent({
     }));
   }, []);
 
-  const handleFighterUpdate = useCallback((updatedFighter: FighterProps) => {
+  const handleFighterUpdate = useCallback((updatedFighter: FighterProps, skipRatingUpdate?: boolean) => {
     setGangData((prev: GangDataState) => {
+      // If server provided updated rating, use that instead of calculating
+      if (skipRatingUpdate) {
+        const existingFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
+        
+        return {
+          ...prev,
+          processedData: {
+            ...prev.processedData,
+            fighters: existingFighter 
+              ? prev.processedData.fighters.map(fighter =>
+                  fighter.id === updatedFighter.id ? updatedFighter : fighter
+                )
+              : [...prev.processedData.fighters, updatedFighter], // Add new fighter if it doesn't exist
+            // Don't modify rating when skipRatingUpdate is true
+          }
+        };
+      }
+
       // Find the previous version of this fighter to compare
       const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
+      
+      // If fighter doesn't exist, add it as a new fighter
+      if (!prevFighter) {
+        return {
+          ...prev,
+          processedData: {
+            ...prev.processedData,
+            fighters: [...prev.processedData.fighters, updatedFighter],
+            // Don't modify rating for new exotic beasts (they have 0 cost)
+          }
+        };
+      }
       
       // Calculate rating change from vehicle updates
       let ratingChange = 0;

@@ -872,9 +872,21 @@ export default function Gang({
         </div>
       </div>
       <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
-        {fighters.length > 0 ? (
+        {(() => {
+          // Filter out exotic beasts whose granting equipment is in stash
+          const visibleFighters = useMemo(() => {
+            return fighters.filter(fighter => {
+              // Hide exotic beasts whose granting equipment is in stash
+              if (fighter.fighter_class === 'exotic beast' && fighter.beast_equipment_stashed) {
+                return false;
+              }
+              return true;
+            });
+          }, [fighters]);
+
+          return visibleFighters.length > 0 ? (
           <DraggableFighters
-            fighters={fighters}
+              fighters={visibleFighters}
             onPositionsUpdate={handlePositionsUpdate}
             onFightersReorder={handleFightersReorder}
             initialPositions={positions}
@@ -883,7 +895,8 @@ export default function Gang({
           />
         ) : (
           <div className="text-white italic text-center">No fighters available.</div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
