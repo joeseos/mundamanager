@@ -4,12 +4,13 @@ import { createClient } from "@/utils/supabase/server";
 import { 
   invalidateFighterDataWithFinancials, 
   invalidateVehicleData, 
-  invalidateGangFinancials, 
   invalidateFighterVehicleData,
   invalidateEquipmentPurchase,
-  invalidateEquipmentDeletion
+  invalidateEquipmentDeletion,
+  invalidateGangStash
 } from '@/utils/cache-tags';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -42,11 +43,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const supabase = await createClient();
     
     // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser(supabase);
     
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     // Validate parameters
     if (!params.gang_id) {
@@ -533,7 +531,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       invalidateVehicleData(params.vehicle_id);
     } else {
       // Gang stash purchases
-      invalidateGangFinancials(params.gang_id);
+      invalidateGangStash({
+        gangId: params.gang_id,
+        userId: user.id
+      });
     }
 
     // Build response data to match RPC format
@@ -681,12 +682,9 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Authenticate user (RLS handles permissions)
+    await getAuthenticatedUser(supabase);
     
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     // Get equipment details before deletion to return proper response data
     const { data: equipmentBefore, error: equipmentError } = await supabase

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { 
   invalidateFighterData, 
   invalidateFighterDataWithFinancials,
@@ -47,15 +47,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       throw new Error('Cannot provide both fighter_id and vehicle_id');
     }
 
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
     
     // Get the stash item data first to check permissions
     const { data: stashData, error: stashError } = await supabase

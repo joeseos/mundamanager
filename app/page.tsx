@@ -1,4 +1,4 @@
-// This page uses server components and React's cache for data fetching
+// This page uses server components with ISR caching for optimal performance
 // Server actions should trigger revalidation of this data using revalidatePath
 
 import { createClient } from "@/utils/supabase/server";
@@ -10,26 +10,25 @@ import { CreateCampaignButton } from '@/components/create-campaign';
 import CreateCampaign from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
-import { unstable_noStore } from 'next/cache';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export default async function Home() {
-  // Ensure we never use stale data
-  unstable_noStore();
-  
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  
+  let user;
+  try {
+    user = await getAuthenticatedUser(supabase);
+  } catch (error) {
     redirect("/sign-in");
   }
 
-  const gangs = await getUserGangs();
-  const campaigns = await getUserCampaigns();
+  // Single invocation that gets both gangs and campaigns
+  const [gangs, campaigns] = await Promise.all([
+    getUserGangs(),
+    getUserCampaigns()
+  ]);
   
   // Fetch campaign types for the create campaign modal
   const { data: campaignTypes, error } = await supabase
@@ -39,8 +38,6 @@ export default async function Home() {
   if (error) {
     console.error('Error fetching campaign types:', error);
   }
-
-  console.log(`Page rendering with ${gangs.length} gangs and ${campaigns.length} campaigns`);
 
   return (
     <main className="flex min-h-screen flex-col items-center">

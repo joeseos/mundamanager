@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export type Campaign = {
   id: string;
@@ -21,13 +22,7 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
   try {
     const supabase = await createClient();
     
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return [];
-    }
+    const user = await getAuthenticatedUser(supabase);
 
     // First get campaign members for this user
     const { data: campaignMembers, error: membersError } = await supabase

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition } from '@/utils/cache-tags';
 
 interface SelectedEquipment {
@@ -73,18 +73,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
     // Use provided user_id or current user's id
     const effectiveUserId = params.user_id || user.id;
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
 
     // Get fighter type data and gang data in parallel
     const [fighterTypeResult, gangResult] = await Promise.all([

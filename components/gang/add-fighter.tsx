@@ -16,10 +16,11 @@ import { addFighterToGang } from '@/app/actions/add-fighter';
 interface AddFighterProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
-  fighterTypes: FighterType[];
   gangId: string;
+  gangTypeId: string;
   initialCredits: number;
   onFighterAdded: (newFighter: any, cost: number) => void;
+  gangVariants?: Array<{id: string, variant: string}>;
 }
 
 interface GangEquipmentOption {
@@ -207,10 +208,11 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
 export default function AddFighter({
   showModal,
   setShowModal,
-  fighterTypes,
   gangId,
+  gangTypeId,
   initialCredits,
   onFighterAdded,
+  gangVariants = [],
 }: AddFighterProps) {
   const { toast } = useToast();
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
@@ -221,6 +223,7 @@ export default function AddFighter({
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
+  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<Array<{
@@ -228,6 +231,69 @@ export default function AddFighter({
     cost: number;
     quantity: number;
   }>>([]);
+
+  // Fetch fighter types when modal opens
+  useEffect(() => {
+    if (showModal && fighterTypes.length === 0) {
+      fetchFighterTypes();
+    }
+  }, [showModal]);
+
+  const fetchFighterTypes = async () => {
+    try {
+      // Use the API route instead of server action
+      const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transform API response to match existing FighterType interface
+      const transformedData = data.map((type: any) => ({
+        id: type.id,
+        fighter_type_id: type.id, // Map id to fighter_type_id for compatibility
+        fighter_type: type.fighter_type,
+        fighter_class: type.fighter_class,
+        gang_type: type.gang_type,
+        cost: type.cost,
+        gang_type_id: type.gang_type_id,
+        special_rules: type.special_rules || [],
+        total_cost: type.total_cost,
+        movement: type.movement,
+        weapon_skill: type.weapon_skill,
+        ballistic_skill: type.ballistic_skill,
+        strength: type.strength,
+        toughness: type.toughness,
+        wounds: type.wounds,
+        initiative: type.initiative,
+        leadership: type.leadership,
+        cool: type.cool,
+        willpower: type.willpower,
+        intelligence: type.intelligence,
+        attacks: type.attacks,
+        limitation: type.limitation,
+        alignment: type.alignment,
+        default_equipment: type.default_equipment || [],
+        is_gang_addition: type.is_gang_addition || false,
+        alliance_id: type.alliance_id || '',
+        alliance_crew_name: type.alliance_crew_name || '',
+        equipment_selection: type.equipment_selection,
+        sub_type: type.sub_type,
+        fighter_sub_type_id: type.sub_type?.id
+      }));
+      
+      setFighterTypes(transformedData);
+    } catch (error) {
+      console.error('Error fetching fighter types:', error);
+      toast({
+        description: "Failed to load fighter types",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Automatically select NULL sub-type if available, otherwise select the cheapest one
   useEffect(() => {
@@ -928,6 +994,7 @@ export default function AddFighter({
     setSelectedEquipment([]);  // Reset equipment with costs
     setUseBaseCostForRating(true);
     setFetchError(null);
+    setFighterTypes([]); // Reset fighter types
   };
 
   const addFighterModalContent = (

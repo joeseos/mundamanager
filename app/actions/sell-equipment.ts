@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
@@ -33,15 +33,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
     
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase

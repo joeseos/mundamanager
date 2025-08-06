@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighterData, invalidateGangCredits } from '@/utils/cache-tags';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -72,12 +73,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
   try {
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Authenticate user (RLS handles permissions)
+    await getAuthenticatedUser(supabase);
     
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     // Get fighter information (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
@@ -161,7 +159,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'sell': {
-        if (!params.sell_value || params.sell_value < 0) {
+        if (params.sell_value === undefined || params.sell_value === null || params.sell_value < 0) {
           throw new Error('Invalid sell value provided');
         }
 
@@ -192,6 +190,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (gangUpdateError) throw gangUpdateError;
 
         invalidateFighterData(params.fighter_id, gangId);
+        invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -365,10 +364,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
   try {
     const supabase = await createClient();
     
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    const user = await getAuthenticatedUser(supabase);
 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
@@ -419,10 +415,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
   try {
     const supabase = await createClient();
     
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    
+    const user = await getAuthenticatedUser(supabase);
 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
@@ -447,9 +441,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
     if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
     if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+    if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
+    if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
+
 
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase

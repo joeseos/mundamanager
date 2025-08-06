@@ -221,7 +221,12 @@ export default function NotificationsContent({ userId }: { userId: string }) {
           title="Delete Notification"
           helper="This action cannot be undone."
           content={
-            <p>Are you sure you want to delete this notification?</p>
+            <div>
+              <p>Are you sure you want to delete this notification?</p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
+            </div>
           }
           onClose={() => setNotificationToDelete(null)}
           onConfirm={handleDelete}

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateGangCreation } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface CreateGangParams {
   name: string;
@@ -20,12 +21,8 @@ export async function createGang({
     console.log('Server action: Creating gang:', name);
     const supabase = await createClient();
     
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
     
     // Insert the new gang
     const { data, error } = await supabase

@@ -83,7 +83,6 @@ interface GangProps {
   last_updated: string | Date | null;
   user_id: string;
   initialFighters: FighterProps[];
-  initialFighterTypes: FighterType[];
   additionalButtons?: React.ReactNode;
   campaigns?: {
     campaign_id: string;
@@ -135,7 +134,6 @@ export default function Gang({
   last_updated: initialLastUpdated,
   user_id,
   initialFighters = [],
-  initialFighterTypes = [],
   additionalButtons,
   campaigns,
   note,
@@ -173,7 +171,6 @@ export default function Gang({
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
-  const [fighterTypes, setFighterTypes] = useState<FighterType[]>(initialFighterTypes);
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
@@ -314,9 +311,6 @@ export default function Gang({
       );
       setGangVariants(newVariants);
       setGangIsVariant(newVariants.length > 0);
-      
-      // Update fighter types if variants changed
-      fetchFighterTypes(newVariants);
 
       // Use server action instead of fetch
       const { updateGang } = await import('@/app/actions/update-gang');
@@ -368,82 +362,8 @@ export default function Gang({
     }
   };
 
-  const handleAddFighterClick = async () => {
-    // Fetch fighter types BEFORE opening modal to avoid dropdown delay
-    if (fighterTypes.length === 0) {
-      await fetchFighterTypes();
-    }
+  const handleAddFighterClick = () => {
     setShowAddFighterModal(true);
-  };
-
-  const fetchFighterTypes = async (variantList: Array<{ id: string, variant: string }> = gang_variants ?? []) => {
-    try {
-      const { getFighterTypesUncachedClient } = await import('@/app/lib/get-fighter-types');
-      
-      // Fetch base Gang fighter types
-      let baseData = await getFighterTypesUncachedClient(gang_type_id);
-
-      // If variantList, fetch Gang Variants fighter types
-      for (const variant of variantList) {
-        const variantModifier = gangVariantFighterModifiers[variant.id];
-        if (!variantModifier) continue;
-
-        if (variantModifier.removeLeaders) {
-          baseData = baseData.filter((type: any) => type.fighter_class !== 'Leader');
-        }
-
-        const variantData = await getFighterTypesUncachedClient(variantModifier.variantGangTypeId);
-        baseData = [...baseData, ...variantData];
-      }
-
-      const processedTypes: FighterType[] = baseData
-        .map((type: any) => ({
-          id: type.id,
-          fighter_type_id: type.id,
-          fighter_type: type.fighter_type,
-          fighter_class: type.fighter_class,
-          gang_type: type.gang_type,
-          gang_type_id: type.gang_type_id,
-          movement: type.movement,
-          weapon_skill: type.weapon_skill,
-          ballistic_skill: type.ballistic_skill,
-          strength: type.strength,
-          toughness: type.toughness,
-          wounds: type.wounds,
-          initiative: type.initiative,
-          leadership: type.leadership,
-          cool: type.cool,
-          willpower: type.willpower,
-          intelligence: type.intelligence,
-          attacks: type.attacks,
-          limitation: type.limitation,
-          alignment: type.alignment,
-          sub_type: type.sub_type,
-          fighter_sub_type_id: type.sub_type?.id || type.fighter_sub_type_id,
-          cost: type.cost,
-          total_cost: type.total_cost,
-          equipment_selection: type.equipment_selection,
-          default_equipment: type.default_equipment || [],
-          special_rules: type.special_rules || [],
-          is_gang_addition: type.is_gang_addition || false,
-          alliance_id: type.alliance_id || '',
-          alliance_crew_name: type.alliance_crew_name || ''
-        }))
-        .sort((a: FighterType, b: FighterType) => {
-          const rankA = fighterClassRank[a.fighter_class?.toLowerCase() || ""] ?? Infinity;
-          const rankB = fighterClassRank[b.fighter_class?.toLowerCase() || ""] ?? Infinity;
-          if (rankA !== rankB) return rankA - rankB;
-          return (a.fighter_type || "").localeCompare(b.fighter_type || "");
-        });
-
-      setFighterTypes(processedTypes);
-    } catch (error) {
-      console.error('Error fetching fighter types:', error);
-      toast({
-        description: "Failed to load fighter types",
-        variant: "destructive"
-      });
-    }
   };
 
 
@@ -864,10 +784,11 @@ export default function Gang({
             <AddFighter
               showModal={showAddFighterModal}
               setShowModal={setShowAddFighterModal}
-              fighterTypes={fighterTypes}
               gangId={id}
+              gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              gangVariants={gangVariants}
             />
           )}
 

@@ -287,7 +287,11 @@ export function VehicleEquipmentList({
             onClick: (item) => {
               const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
               if (equipment) {
-                setStashModalData(equipment);
+                setStashModalData({
+                  ...equipment,
+                  equipment_name: item.equipment_name, // Use the name from the transformed item
+                  fighter_equipment_id: item.fighter_equipment_id // Ensure the ID is correctly set
+                });
               }
             },
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
@@ -298,7 +302,11 @@ export function VehicleEquipmentList({
             onClick: (item) => {
               const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
               if (equipment) {
-                setSellModalData(equipment);
+                setSellModalData({
+                  ...equipment,
+                  equipment_name: item.equipment_name, // Use the name from the transformed item
+                  fighter_equipment_id: item.fighter_equipment_id // Ensure the ID is correctly set
+                });
               }
             },
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
@@ -325,9 +333,11 @@ export function VehicleEquipmentList({
           title="Delete Vehicle Equipment"
           content={
             <div>
-              <p>Are you sure you want to delete "{deleteModalData.name}"?</p>
+              <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>This action cannot be undone and will remove any associated stat effects.</p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone and will remove any associated stat effects.
+              </p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

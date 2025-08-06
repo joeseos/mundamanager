@@ -121,7 +121,9 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
             <div>
               <p>Are you sure you want to delete this gang?</p>
               <br />
-              <p>This action cannot be undone.</p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
             </div>
           }
           onClose={() => setShowModal(false)}

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface CustomWeaponProfileData {
   profile_name?: string;
@@ -24,11 +25,8 @@ export async function saveCustomWeaponProfiles(
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   try {
     // First, delete existing profiles for this equipment
@@ -118,11 +116,8 @@ export async function getCustomWeaponProfiles(equipmentId: string) {
   const supabase = await createClient();
   
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(supabase);
   
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
 
   try {
     // First try to find profiles by weapon_group_id

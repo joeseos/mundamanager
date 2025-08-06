@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS, invalidateCampaignMembership } from "@/utils/cache-tags";
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -46,6 +47,9 @@ export interface AddMemberToCampaignParams {
 export async function addGangToCampaign(params: AddGangToCampaignParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const { campaignId, gangId, userId, campaignMemberId } = params;
     
     let targetMemberId = campaignMemberId;
@@ -141,6 +145,9 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 export async function removeMemberFromCampaign(params: RemoveMemberParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const { campaignId, memberId, userId, memberIndex } = params;
 
     let targetMemberId = memberId;
@@ -236,6 +243,9 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 export async function removeGangFromCampaign(params: RemoveGangParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const { campaignId, gangId, memberId, memberIndex, campaignGangId } = params;
 
     // First, update any territories controlled by this gang
@@ -356,6 +366,9 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
 export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const { campaignId, userId, role, invitedBy } = params;
 
     // Check if the user already exists in the campaign
@@ -406,6 +419,9 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
 export async function updateMemberRole(params: UpdateMemberRoleParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const { campaignId, userId, newRole } = params;
 
     const { error } = await supabase

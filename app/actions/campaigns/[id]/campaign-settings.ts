@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -20,6 +21,9 @@ export interface UpdateCampaignSettingsParams {
 export async function updateCampaignSettings(params: UpdateCampaignSettingsParams) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     const {
       campaignId,
       campaign_name,
@@ -82,6 +86,9 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 export async function deleteCampaign(campaignId: string) {
   try {
     const supabase = await createClient();
+    
+    // Authenticate user
+    await getAuthenticatedUser(supabase);
     
     // Get all gangs in this campaign before deletion
     const { data: campaignGangs } = await supabase

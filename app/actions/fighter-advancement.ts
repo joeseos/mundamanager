@@ -1,8 +1,9 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { checkAdmin } from '@/utils/auth';
 import { invalidateFighterData, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
+
 import { 
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
@@ -65,14 +66,11 @@ export async function addCharacteristicAdvancement(
   try {
     const supabase = await createClient();
     
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    // Check authentication with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
 
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
@@ -232,14 +230,11 @@ export async function addSkillAdvancement(
   try {
     const supabase = await createClient();
     
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    // Check authentication with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
 
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
@@ -365,14 +360,11 @@ export async function deleteAdvancement(
   try {
     const supabase = await createClient();
     
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    // Check authentication with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase);
+    // Check if user is an admin (optimized)
+    const isAdmin = await checkAdminOptimized(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
