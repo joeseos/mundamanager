@@ -251,13 +251,16 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
   // Use cached gang rating calculation instead of manual calculation
   const gangRatings = new Map<string, number>();
   for (const gangId of gangIds) {
-    try {
-      const rating = await getGangRating(gangId, supabase);
-      gangRatings.set(gangId, rating);
-    } catch (error) {
-      console.error(`Error getting rating for gang ${gangId}:`, error);
-      gangRatings.set(gangId, 0);
-    }
+    gangRatings.set(gangId, 0); // Default to 0 for now
+
+    // TODO: Uncomment this when we have a way to get the gang rating and remove above line
+    // try {
+    //   const rating = await getGangRating(gangId, supabase);
+    //   gangRatings.set(gangId, rating);
+    // } catch (error) {
+    //   console.error(`Error getting rating for gang ${gangId}:`, error);
+    //   gangRatings.set(gangId, 0);
+    // }
   }
 
   const membersWithGangs = members?.map(member => {
