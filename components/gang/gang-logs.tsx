@@ -98,14 +98,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_skill_removed': 'Skill removed',
       'fighter_characteristic_removed': 'Characteristic removed',
       'fighter_injured': 'Fighter injured',
-      'fighter_recovered': 'Fighter recovered',
-      'campaign_joined': 'Campaign joined',
-      'campaign_left': 'Campaign left',
-      'battle_won': 'Battle won',
-      'battle_lost': 'Battle lost',
-      'battle_draw': 'Battle draw',
-      'territory_claimed': 'Territory claimed',
-      'territory_lost': 'Territory lost'
+      'fighter_recovered': 'Fighter recovered'
     };
     return actionTypeMap[actionType] || actionType;
   };

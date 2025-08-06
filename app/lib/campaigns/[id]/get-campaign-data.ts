@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { getGangRating } from '@/app/lib/shared/gang-data';
 
 // Type definitions
 interface CampaignBasic {
@@ -248,17 +247,66 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     gangVehiclesData = gangVehicles || [];
   }
 
-  // Use cached gang rating calculation instead of manual calculation
   const gangRatings = new Map<string, number>();
-  for (const gangId of gangIds) {
-    try {
-      const rating = await getGangRating(gangId, supabase);
-      gangRatings.set(gangId, rating);
-    } catch (error) {
-      console.error(`Error getting rating for gang ${gangId}:`, error);
-      gangRatings.set(gangId, 0);
-    }
-  }
+  gangIds.forEach(gangId => {
+    const gangFighters = fightersData.filter(f => f.gang_id === gangId);
+    const gangOwnedVehicles = gangVehiclesData.filter(v => v.gang_id === gangId);
+    
+    // Calculate fighter ratings
+    const fighterRating = gangFighters.reduce((sum, fighter) => {
+      let individualFighterRating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
+      
+      // Fighter equipment
+      if (fighter.fighter_equipment) {
+        individualFighterRating += fighter.fighter_equipment.reduce((equipSum: number, eq: { purchase_cost: number }) => 
+          equipSum + (eq.purchase_cost || 0), 0);
+      }
+      
+      // Fighter skills  
+      if (fighter.fighter_skills) {
+        individualFighterRating += fighter.fighter_skills.reduce((skillSum: number, skill: { credits_increase: number }) => 
+          skillSum + (skill.credits_increase || 0), 0);
+      }
+      
+      // Fighter effects
+      if (fighter.fighter_effects) {
+        individualFighterRating += fighter.fighter_effects.reduce((effectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+          const creditsIncrease = effect.type_specific_data?.credits_increase;
+          return effectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+        }, 0);
+      }
+      
+      // Fighter-owned vehicles
+      if (fighter.vehicles) {
+        fighter.vehicles.forEach((vehicle: any) => {
+          individualFighterRating += (vehicle.cost || 0);
+          
+          // Vehicle equipment
+          if (vehicle.fighter_equipment) {
+            individualFighterRating += vehicle.fighter_equipment.reduce((vehEqSum: number, eq: { purchase_cost: number }) => 
+              vehEqSum + (eq.purchase_cost || 0), 0);
+          }
+          
+          // Vehicle effects - MISSING in original implementation
+          if (vehicle.fighter_effects) {
+            individualFighterRating += vehicle.fighter_effects.reduce((vehEffectSum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
+              const creditsIncrease = effect.type_specific_data?.credits_increase;
+              return vehEffectSum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+            }, 0);
+          }
+        });
+      }
+      
+      return sum + individualFighterRating;
+    }, 0);
+
+    // Gang-owned vehicles do NOT count toward gang rating
+    // Only fighter-owned vehicles count (already included in fighterRating)
+    
+    // Total gang rating = fighters only (fighter-owned vehicles already included)
+    const totalRating = fighterRating;
+    gangRatings.set(gangId, totalRating);
+  });
 
   const membersWithGangs = members?.map(member => {
     const memberProfile = profilesData.find(p => p.id === member.user_id);
@@ -534,8 +582,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     `campaign-${campaignId}`,
     // Add gang cache tags so campaign data updates when gang data changes
     ...gangIds.map(gangId => CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)),
-    ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId)),
-    ...gangIds.map(gangId => CACHE_TAGS.COMPUTED_GANG_RATING(gangId))
+    ...gangIds.map(gangId => CACHE_TAGS.GANG_RATING(gangId))
   ];
   
   return unstable_cache(
