@@ -148,7 +148,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Apply equipment effects if this equipment has any
     let appliedEffects: any[] = [];
     if ((params.fighter_id || params.vehicle_id) && !isCustomEquipment && stashData.equipment_id) {
-      console.log('🔍 Looking for effects for equipment_id:', stashData.equipment_id);
       try {
         // Get equipment effects from fighter_effect_types
         const { data: equipmentEffects, error: effectsError } = await supabase
@@ -161,14 +160,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           `)
           .eq('type_specific_data->>equipment_id', stashData.equipment_id.toString());
 
-        console.log('📊 Found equipment effects:', equipmentEffects?.length || 0, equipmentEffects);
-        console.log('❌ Effects query error:', effectsError);
-
         if (!effectsError && equipmentEffects && equipmentEffects.length > 0) {
-          console.log('✅ Processing', equipmentEffects.length, 'effects');
           // Apply each effect to the fighter or vehicle
           for (const effectType of equipmentEffects) {
-            console.log('🎯 Applying effect:', effectType.effect_name);
             try {
               if (params.fighter_id) {
                 // Call add_fighter_effect RPC
@@ -212,7 +206,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 if (effectResult?.id) {
                   // Link effect to equipment
                   await supabase
-                    .from('vehicle_effects')
+                    .from('fighter_effects')
                     .update({ fighter_equipment_id: equipmentData.id })
                     .eq('id', effectResult.id);
 
@@ -232,24 +226,14 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 }
               }
             } catch (effectError) {
-              console.error(`Error applying effect ${effectType.effect_name}:`, effectError);
+              // Silently continue if effect application fails
             }
           }
-        } else {
-          console.log('⚠️ No effects found for this equipment');
         }
       } catch (error) {
-        console.error('Error fetching equipment effects:', error);
+        // Silently continue if effects fetching fails
       }
-    } else {
-      console.log('⏭️ Skipping effects application:', {
-        hasFighterOrVehicle: !!(params.fighter_id || params.vehicle_id),
-        isNotCustom: !isCustomEquipment,
-        hasEquipmentId: !!stashData.equipment_id
-      });
     }
-
-    console.log('🎉 Final appliedEffects:', appliedEffects.length, appliedEffects);
 
     // Fetch weapon profiles for regular equipment (not custom equipment)
     let weaponProfiles: any[] = [];
