@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -45,6 +46,7 @@ export interface UpdateFighterDetailsParams {
   fighter_sub_type?: string | null;
   fighter_sub_type_id?: string | null;
   note?: string;
+  note_backstory?: string;
 }
 
 interface EditFighterResult {
@@ -446,6 +448,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
+    if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
 
 
     // Update fighter
@@ -461,6 +464,14 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    
+    // Additional cache invalidation for notes
+    if (params.note !== undefined || params.note_backstory !== undefined) {
+      // Invalidate fighter basic data (includes notes)
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
+      // Invalidate composite gang data that includes fighter information
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+    }
 
     return {
       success: true,

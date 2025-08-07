@@ -10,6 +10,7 @@ export interface FighterBasic {
   fighter_name: string;
   label?: string;
   note?: string;
+  note_backstory?: string;
   credits: number;
   cost_adjustment?: number;
   movement: number;
@@ -112,6 +113,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           fighter_name,
           label,
           note,
+          note_backstory,
           credits,
           cost_adjustment,
           movement,

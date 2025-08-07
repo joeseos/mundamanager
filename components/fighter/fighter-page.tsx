@@ -13,7 +13,7 @@ import { Equipment } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { SkillsList } from "@/components/fighter/fighter-skills-list";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
-import { NotesList } from "@/components/fighter/fighter-notes-list";
+import { FighterNotes } from "@/components/fighter/fighter-notes-list";
 import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
@@ -77,6 +77,7 @@ interface Fighter {
     skills: Record<string, any>;
   };
   note?: string;
+  note_backstory?: string;
   special_rules?: string[];
   cost_adjustment?: number;
   injury_advances?: number;
@@ -813,11 +814,25 @@ export default function FighterPage({
             />
           )}
 
+          {/* Notes Section */}
           <div className="mt-6">
             {fighterData.fighter && (
-              <NotesList
+              <FighterNotes
                 fighterId={fighterData.fighter.id}
                 initialNote={fighterData.fighter.note}
+                initialNoteBackstory={fighterData.fighter.note_backstory}
+                onNoteUpdate={(updatedNote) => {
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? { ...prev.fighter, note: updatedNote } : null
+                  }));
+                }}
+                onNoteBackstoryUpdate={(updatedNoteBackstory) => {
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? { ...prev.fighter, note_backstory: updatedNoteBackstory } : null
+                  }));
+                }}
                 userPermissions={userPermissions}
               />
             )}

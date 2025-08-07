@@ -139,7 +139,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         />
       ) : (
         <div 
-          className={`prose max-w-none ${!isEmptyContent(note) ? 'prose-sm' : 'text-gray-500 italic text-center'}`}
+          className={`max-w-none ${!isEmptyContent(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
           dangerouslySetInnerHTML={{ __html: !isEmptyContent(note) ? note : 'No notes added.' }}
         />
       )}

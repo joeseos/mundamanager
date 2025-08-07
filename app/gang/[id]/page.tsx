@@ -342,6 +342,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       alignment: gangBasic.alignment,
       positioning: gangPositioning,
       note: gangBasic.note,
+      note_backstory: gangBasic.note_backstory,
       stash: stash,
       created_at: gangBasic.created_at,
       last_updated: gangBasic.last_updated,

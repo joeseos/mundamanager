@@ -3,6 +3,12 @@
   color: #000000;
 }
 
+/* Ensure bold text is properly colored in read-only mode */
+.prose strong,
+.prose b {
+  color: inherit;
+}
+
 /* TipTap Editor - Matching Prose Rendering */
 .ProseMirror {
   outline: none;
@@ -13,6 +19,12 @@
 
   /* Override prose text color to be black */
   color: #000000;
+}
+
+/* Ensure bold text is properly colored */
+.ProseMirror strong,
+.ProseMirror b {
+  color: inherit;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
