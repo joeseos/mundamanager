@@ -1,12 +1,10 @@
 'use client';
 
-
 import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -23,11 +21,8 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { SellFighterModal } from "@/components/fighter/sell-fighter";
-import { editFighterStatus, updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
-
-
-
+import { updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
+import { FighterActions } from "@/components/fighter/fighter-actions";
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -40,7 +35,6 @@ interface FighterPageProps {
   userPermissions: UserPermissions;
   fighterId: string;
 }
-
 
 interface Fighter {
   id: string;
@@ -133,17 +127,11 @@ interface UIState {
   isLoading: boolean;
   error: string | null;
   modals: {
-    delete: boolean;
-    kill: boolean;
-    retire: boolean;
-    enslave: boolean;
-    starve: boolean;
     addXp: boolean;
     advancement: boolean;
     editFighter: boolean;
     addWeapon: boolean;
     addVehicleEquipment: boolean;
-    recovery: boolean;
   };
 }
 
@@ -155,9 +143,6 @@ interface EditState {
   xpAmount: string;
   xpError: string;
 }
-
-
-
 
 
 // Helper function to transform fighter data
@@ -266,17 +251,11 @@ export default function FighterPage({
     isLoading: false,
     error: null,
     modals: {
-      delete: false,
-      kill: false,
-      retire: false,
-      enslave: false,
-      starve: false,
       addXp: false,
       advancement: false,
       editFighter: false,
       addWeapon: false,
-      addVehicleEquipment: false,
-      recovery: false
+      addVehicleEquipment: false
     }
   });
 
@@ -401,59 +380,6 @@ export default function FighterPage({
       }
     };
   };
-
-  const handleDeleteFighter = useCallback(async () => {
-    if (!fighterData.fighter || !fighterData.gang) return;
-
-    try {
-      const result = await editFighterStatus({
-        fighter_id: fighterData.fighter.id,
-        action: 'delete'
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete fighter');
-      }
-
-      toast({
-        description: `${fighterData.fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
-      });
-
-      // Navigate to the gang page as returned by the server action
-      if (result.data?.redirectTo) {
-        router.push(result.data.redirectTo);
-      } else {
-        router.push(`/gang/${fighterData.gang.id}`);
-      }
-    } catch (error) {
-      console.error('Error deleting fighter:', {
-        error,
-        fighterId: fighterData.fighter.id,
-        fighterName: fighterData.fighter.fighter_name
-      });
-
-      const message = error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred. Please try again.';
-
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive"
-      });
-    } finally {
-      setUiState(prev => ({
-        ...prev,
-        modals: {
-          ...prev.modals,
-          delete: false
-        }
-      }));
-    }
-  }, [fighterData.fighter, fighterData.gang, toast, router]);
-
-
 
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
     setFighterData(prev => {
@@ -647,8 +573,6 @@ export default function FighterPage({
     }
   };
 
-
-
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
     // If opening the Add Equipment modal, fetch latest credits first
@@ -687,12 +611,6 @@ export default function FighterPage({
       }
     }));
   };
-
-
-  // Keep meat-checking functionality
-  const isMeatEnabled = useCallback(() => {
-    return fighterData.fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
-  }, [fighterData.fighter?.campaigns]);
 
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
@@ -905,312 +823,25 @@ export default function FighterPage({
             )}
           </div>
 
-          {/* Action buttons - show for all users */}
-          <div className="mt-6">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="default"
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => handleModalToggle('kill', true)}
-                disabled={!userPermissions.canEdit}
-              >
-                {fighterData.fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
-              </Button>
-              <Button
-                variant={fighterData.fighter?.retired ? 'success' : 'default'}
-                className="flex-1"
-                onClick={() => handleModalToggle('retire', true)}
-                disabled={!userPermissions.canEdit}
-              >
-                {fighterData.fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
-              </Button>
-              <Button
-                variant={fighterData.fighter?.enslaved ? 'success' : 'default'}
-                className="flex-1"
-                onClick={() => handleModalToggle('enslave', true)}
-                disabled={!userPermissions.canEdit}
-              >
-                {fighterData.fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
-              </Button>
-              {isMeatEnabled() && (
-                <Button
-                  variant={fighterData.fighter?.starved ? 'success' : 'default'}
-                  className="flex-1"
-                  onClick={() => handleModalToggle('starve', true)}
-                  disabled={!userPermissions.canEdit}
-                >
-                  {fighterData.fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
-                </Button>
-              )}
-              <Button
-                variant={fighterData.fighter?.recovery ? 'success' : 'default'}
-                className="flex-1"
-                onClick={() => handleModalToggle('recovery', true)}
-                disabled={!userPermissions.canEdit}
-              >
-                {fighterData.fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
-              </Button>
-              
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => handleModalToggle('delete', true)}
-                disabled={!userPermissions.canEdit}
-              >
-                Delete Fighter
-              </Button>
-            </div>
-          </div>
+          {/* Action buttons */}
+          <FighterActions
+            fighter={{
+              id: fighterData.fighter.id,
+              fighter_name: fighterData.fighter.fighter_name,
+              killed: fighterData.fighter.killed,
+              retired: fighterData.fighter.retired,
+              enslaved: fighterData.fighter.enslaved,
+              starved: fighterData.fighter.starved,
+              recovery: fighterData.fighter.recovery,
+              credits: fighterData.fighter.credits || 0,
+              campaigns: fighterData.fighter?.campaigns
+            }}
+            gang={{ id: fighterData.gang?.id || '' }}
+            fighterId={fighterId}
+            userPermissions={userPermissions}
+            onFighterUpdate={() => router.refresh()}
+          />
 
-          {/* Basic modals */}
-          {uiState.modals.delete && (
-            <Modal
-              title="Delete Fighter"
-              content={
-                <div>
-                  <p>Are you sure you want to delete <strong>{fighterData.fighter?.fighter_name}</strong>?</p>
-                  <br />
-                  <p className="text-sm text-red-600">
-                    This action cannot be undone.
-                  </p>
-                </div>
-              }
-              onClose={() => handleModalToggle('delete', false)}
-              onConfirm={handleDeleteFighter}
-            />
-          )}
-
-          {uiState.modals.kill && (
-            <Modal
-              title={fighterData.fighter?.killed ? "Resurrect Fighter" : "Kill Fighter"}
-              content={
-                <div>
-                  <p>
-                    {fighterData.fighter?.killed 
-                      ? `Are you sure you want to resurrect "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to kill "${fighterData.fighter?.fighter_name}"?`
-                    }
-                  </p>
-                </div>
-              }
-              onClose={() => handleModalToggle('kill', false)}
-              onConfirm={async () => {
-                try {
-                  const result = await editFighterStatus({
-                    fighter_id: fighterId,
-                    action: 'kill'
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
-                  }
-
-                  router.refresh();
-                  handleModalToggle('kill', false);
-                  
-                  toast({
-                    description: fighterData.fighter?.killed 
-                      ? 'Fighter has been resurrected' 
-                      : 'Fighter has been killed',
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error updating fighter status:', error);
-                  toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
-                  });
-                }
-              }}
-            />
-          )}
-
-          {uiState.modals.retire && (
-            <Modal
-              title={fighterData.fighter?.retired ? "Unretire Fighter" : "Retire Fighter"}
-              content={
-                <div>
-                  <p>
-                    {fighterData.fighter?.retired 
-                      ? `Are you sure you want to unretire "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to retire "${fighterData.fighter?.fighter_name}"?`
-                    }
-                  </p>
-                </div>
-              }
-              onClose={() => handleModalToggle('retire', false)}
-              onConfirm={async () => {
-                try {
-                  const result = await editFighterStatus({
-                    fighter_id: fighterId,
-                    action: 'retire'
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
-                  }
-
-                  router.refresh();
-                  handleModalToggle('retire', false);
-                  
-                  toast({
-                    description: fighterData.fighter?.retired 
-                      ? 'Fighter has been unretired' 
-                      : 'Fighter has been retired',
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error updating fighter status:', error);
-                  toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
-                  });
-                }
-              }}
-            />
-          )}
-
-          {uiState.modals.enslave && (
-            <SellFighterModal
-              isOpen={uiState.modals.enslave}
-              onClose={() => handleModalToggle('enslave', false)}
-              fighterName={fighterData.fighter?.fighter_name || ''}
-              fighterValue={fighterData.fighter?.credits || 0}
-              isEnslaved={fighterData.fighter?.enslaved || false}
-              onConfirm={async (sellValue) => {
-                try {
-                  const action = fighterData.fighter?.enslaved ? 'rescue' : 'sell';
-                  
-                  const result = await editFighterStatus({
-                    fighter_id: fighterId,
-                    action,
-                    sell_value: action === 'sell' ? sellValue : undefined
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
-                  }
-
-                  // Update local state with new gang credits if selling
-                  if (result.data?.gang) {
-                    setFighterData(prev => ({
-                      ...prev,
-                      gang: prev.gang ? { ...prev.gang, credits: result.data!.gang!.credits } : null
-                    }));
-                  }
-
-                  router.refresh();
-                  handleModalToggle('enslave', false);
-                  
-                  toast({
-                    description: fighterData.fighter?.enslaved 
-                      ? 'Fighter has been rescued from the Guilders' 
-                      : `Fighter has been sold for ${sellValue} credits`,
-                    variant: "default"
-                  });
-                  
-                  return true;
-                } catch (error) {
-                  console.error('Error updating fighter status:', error);
-                  toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
-                  });
-                  return false;
-                }
-              }}
-            />
-          )}
-
-          {uiState.modals.starve && (
-            <Modal
-              title={fighterData.fighter?.starved ? "Feed Fighter" : "Starve Fighter"}
-              content={
-                <div>
-                  <p>
-                    {fighterData.fighter?.starved 
-                      ? `Are you sure you want to feed "${fighterData.fighter?.fighter_name}"?`
-                      : `Are you sure you want to starve "${fighterData.fighter?.fighter_name}"?`
-                    }
-                  </p>
-                </div>
-              }
-              onClose={() => handleModalToggle('starve', false)}
-              onConfirm={async () => {
-                try {
-                  const result = await editFighterStatus({
-                    fighter_id: fighterId,
-                    action: 'starve'
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
-                  }
-
-                  router.refresh();
-                  handleModalToggle('starve', false);
-                  
-                  toast({
-                    description: fighterData.fighter?.starved 
-                      ? 'Fighter has been fed' 
-                      : 'Fighter has been starved',
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error updating fighter status:', error);
-                  toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
-                  });
-                }
-              }}
-            />
-          )}
-
-          {uiState.modals.recovery && (
-            <Modal
-              title={fighterData.fighter?.recovery ? "Recover Fighter" : "Send to Recovery"}
-              content={
-                <div>
-                  <p>
-                    {fighterData.fighter?.recovery 
-                      ? `Are you sure you want to recover "${fighterData.fighter?.fighter_name}" from the recovery bay?`
-                      : `Are you sure you want to send "${fighterData.fighter?.fighter_name}" to the recovery bay?`
-                    }
-                  </p>
-                </div>
-              }
-              onClose={() => handleModalToggle('recovery', false)}
-              onConfirm={async () => {
-                try {
-                  const result = await editFighterStatus({
-                    fighter_id: fighterId,
-                    action: 'recover'
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter status');
-                  }
-
-                  router.refresh();
-                  handleModalToggle('recovery', false);
-                  
-                  toast({
-                    description: fighterData.fighter?.recovery 
-                      ? 'Fighter has been recovered from the recovery bay' 
-                      : 'Fighter has been sent to the recovery bay',
-                    variant: "default"
-                  });
-                } catch (error) {
-                  console.error('Error updating fighter status:', error);
-                  toast({
-                    description: error instanceof Error ? error.message : 'Failed to update fighter status',
-                    variant: "destructive"
-                  });
-                }
-              }}
-            />
-          )}
 
           {uiState.modals.addXp && fighterData.fighter && (
             <FighterXpModal
