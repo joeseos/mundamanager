@@ -19,6 +19,14 @@ interface MoveToStashResult {
       equipment_id?: string;
       custom_equipment_id?: string;
     };
+    removed_effects?: Array<{
+      id: string;
+      effect_name: string;
+      fighter_effect_modifiers: Array<{
+        stat_name: string;
+        numeric_value: number;
+      }>;
+    }>;
   };
   error?: string;
 }
@@ -54,6 +62,19 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       console.error('Looking for equipment ID:', params.fighter_equipment_id);
       throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found. Error: ${equipmentError?.message || 'No data returned'}`);
     }
+
+    // Get associated fighter effects before moving to stash (they need to be removed)
+    const { data: associatedEffects } = await supabase
+      .from('fighter_effects')
+      .select(`
+        id,
+        effect_name,
+        fighter_effect_modifiers (
+          stat_name,
+          numeric_value
+        )
+      `)
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
@@ -100,6 +121,21 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
       if (gang.user_id !== user.id) {
         throw new Error('User does not have permission to move this equipment');
+      }
+    }
+
+    // Remove associated fighter effects first (since equipment is being moved to stash)
+    if (associatedEffects && associatedEffects.length > 0) {
+      const effectIds = associatedEffects.map(effect => effect.id);
+      
+      // Delete the effects (this will cascade delete the modifiers)
+      const { error: deleteEffectsError } = await supabase
+        .from('fighter_effects')
+        .delete()
+        .in('id', effectIds);
+
+      if (deleteEffectsError) {
+        throw new Error(`Failed to remove associated effects: ${deleteEffectsError.message}`);
       }
     }
 
@@ -158,7 +194,8 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           vehicle_id: equipmentData.vehicle_id || undefined,
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
-        }
+        },
+        removed_effects: associatedEffects || []
       }
     };
 
