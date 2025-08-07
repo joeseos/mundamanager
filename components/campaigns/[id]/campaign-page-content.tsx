@@ -518,7 +518,7 @@ export default function CampaignPageContent({
           {/* Battle Log tab content */}
           {activeTab === 2 && (
             <div>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-start mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
                 {safePermissions.canAddBattleLogs && (
                   <Button
