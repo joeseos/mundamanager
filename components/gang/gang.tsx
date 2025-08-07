@@ -11,10 +11,7 @@ import { StashItem } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
-import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { fighterClassRank } from "@/utils/fighterClassRank";
 import { GiAncientRuins } from "react-icons/gi";
-import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
@@ -29,39 +26,6 @@ import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 
-interface VehicleType {
-  id: string;
-  vehicle_type: string;
-  cost: number;
-  movement: number;
-  front: number;
-  side: number;
-  rear: number;
-  hull_points: number;
-  handling: number;
-  save: number;
-  body_slots: number;
-  drive_slots: number;
-  engine_slots: number;
-  special_rules: string[];
-}
-
-interface DefaultEquipmentItem {
-  id: string;
-  quantity: number;
-  equipment_name?: string;
-  equipment_category?: string;
-}
-
-interface WeaponsSelection {
-  options: EquipmentOption[];
-  default?: DefaultEquipmentItem[];
-  select_type: 'single' | 'multiple' | 'optional';
-}
-
-interface EquipmentSelection {
-  weapons?: WeaponsSelection;
-}
 
 interface GangProps {
   id: string;
@@ -81,7 +45,6 @@ interface GangProps {
   alliance_name: string;
   created_at: string | Date | null;
   last_updated: string | Date | null;
-  user_id: string;
   initialFighters: FighterProps[];
   additionalButtons?: React.ReactNode;
   campaigns?: {
@@ -102,12 +65,9 @@ interface GangProps {
   }[];
   note?: string;
   stash: StashItem[];
-  onStashUpdate?: (newStash: StashItem[]) => void;
-  onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
-  onGangRatingUpdate?: (newRating: number) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
@@ -132,18 +92,14 @@ export default function Gang({
   alliance_name: initialAllianceName,
   created_at,
   last_updated: initialLastUpdated,
-  user_id,
   initialFighters = [],
   additionalButtons,
   campaigns,
   note,
   stash,
-  onStashUpdate,
-  onFighterDeleted,
   onVehicleAdd,
   onFighterAdd,
   onGangCreditsUpdate,
-  onGangRatingUpdate,
   positioning,
   gang_variants,
   vehicles,
@@ -204,10 +160,6 @@ export default function Gang({
     setRating(initialRating ?? 0);
   }, [initialRating]);
 
-  // Handle external gang rating updates (e.g., from stash operations)
-  const handleGangRatingUpdate = useCallback((newRating: number) => {
-    setRating(newRating);
-  }, []);
 
   // Calculate the total value of unassigned vehicles
   const unassignedVehiclesValue = useMemo(() => {
@@ -384,41 +336,6 @@ export default function Gang({
     }
   };
 
-  const handleDeleteFighter = async (fighterId: string) => {
-    const fighter = fighters.find(f => f.id === fighterId);
-    if (!fighter) return;
-
-    try {
-      // Optimistically update UI
-      const fighterCost = fighter.credits;
-      setFighters(prev => prev.filter(f => f.id !== fighterId));
-      setRating(prev => prev - fighterCost);
-      onFighterDeleted?.(fighterId, fighterCost);
-      
-      const response = await fetch(`/api/fighters/${fighterId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        // Revert optimistic update if the request fails
-        setFighters(prev => [...prev, fighter]);
-        setRating(prev => prev + fighterCost);
-        throw new Error('Failed to delete fighter');
-      }
-
-      toast({
-        description: "Fighter deleted successfully",
-        variant: "default"
-      });
-    } catch (error) {
-      console.error('Error deleting fighter:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete fighter. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handleEditModalOpen = async () => {
     // Fetch variants BEFORE opening modal (like the original)

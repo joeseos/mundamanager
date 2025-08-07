@@ -291,12 +291,9 @@ export default function GangPageContent({
             {...gangData.processedData}
             initialFighters={gangData.processedData.fighters}
             stash={gangData.stash}
-            onStashUpdate={gangData.onStashUpdate}
             onVehicleAdd={handleVehicleAdd}
             onFighterAdd={handleFighterAdd}
             onGangCreditsUpdate={handleGangCreditsUpdate}
-            onGangRatingUpdate={handleGangRatingUpdate}
-            user_id={gangData.processedData.user_id}
             gang_variants={gangData.processedData.gang_variants}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
