@@ -8,6 +8,8 @@ import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
 import Modal from '@/components/modal';
 import { useToast } from '@/components/ui/use-toast';
+import { Edit } from 'lucide-react';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface CustomiseEquipmentProps {
   className?: string;
@@ -200,16 +202,18 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
   // Define actions for each equipment item
   const actions: ListAction[] = [
     {
-      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleEditEquipment(item),
       variant: 'outline',
-      size: 'sm'
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
     },
     {
-      label: 'Delete',
+      icon: <LuTrash2 className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleDeleteEquipment(item),
       variant: 'destructive',
-      size: 'sm'
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
     }
   ];
 

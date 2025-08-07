@@ -6,6 +6,8 @@ import { CustomTerritory } from '@/app/lib/customise/custom-territories';
 import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
 import Modal from '@/components/modal';
 import { useToast } from '@/components/ui/use-toast';
+import { Edit } from 'lucide-react';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface CustomiseTerritoriesProps {
   className?: string;
@@ -97,16 +99,18 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
   // Define actions for each territory item
   const actions: ListAction[] = [
     {
-      label: 'Edit',
+      icon: <Edit className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleEditTerritory(item),
       variant: 'outline',
-      size: 'sm'
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
     },
     {
-      label: 'Delete',
+      icon: <LuTrash2 className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleDeleteTerritory(item),
       variant: 'destructive',
-      size: 'sm'
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
     }
   ];
 
