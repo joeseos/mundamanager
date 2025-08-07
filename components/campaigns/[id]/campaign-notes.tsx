@@ -91,7 +91,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <h2 className="text-xl md:text-2xl font-bold mb-6">Campaign Notes</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
