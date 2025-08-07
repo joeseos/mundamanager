@@ -175,6 +175,13 @@ export default function GangInventory({
               weapon_profiles: responseData?.weapon_profiles || undefined
             };
 
+            // Apply equipment effects to vehicle effects structure
+            let vehicleEffectsUpdates: any = {};
+            if (responseData?.applied_effects && responseData.applied_effects.length > 0) {
+              // Add effects to the vehicle's effects structure (for fighter-card calculations)
+              vehicleEffectsUpdates = responseData.applied_effects;
+            }
+
             // Update the target vehicle's equipment
             const updatedVehicle: VehicleProps = {
               ...targetVehicle,
@@ -187,12 +194,31 @@ export default function GangInventory({
             );
 
             if (crewFighter) {
-              // Update the crew fighter's vehicle
+              // Update the crew fighter's vehicle with equipment and effects
               const updatedCrewFighter: FighterProps = {
                 ...crewFighter,
-                vehicles: crewFighter.vehicles?.map(v => 
-                  v.id === targetId ? { ...v, equipment: updatedVehicle.equipment } as Vehicle : v
-                )
+                vehicles: crewFighter.vehicles?.map(v => {
+                  if (v.id === targetId) {
+                    // Get existing vehicle upgrades effects
+                    const existingVehicleUpgrades = v.effects?.["vehicle upgrades"] || [];
+                    
+                    return {
+                      ...v, 
+                      equipment: updatedVehicle.equipment,
+                      // Update effects with new vehicle upgrades
+                      effects: vehicleEffectsUpdates.length > 0 
+                        ? {
+                            ...v.effects,
+                            "vehicle upgrades": [
+                              ...existingVehicleUpgrades,
+                              ...vehicleEffectsUpdates
+                            ]
+                          }
+                        : v.effects
+                    } as Vehicle;
+                  }
+                  return v;
+                })
               };
 
               setFighters(prev => 
@@ -246,7 +272,17 @@ export default function GangInventory({
                       is_master_crafted: hasMasterCrafted
                     }
                   ]
-                : currentFighter.wargear || []
+                : currentFighter.wargear || [],
+              // Add applied effects to fighter's effects object
+              effects: responseData?.applied_effects && responseData.applied_effects.length > 0
+                ? {
+                    ...currentFighter.effects,
+                    equipment: [
+                      ...(currentFighter.effects?.equipment || []),
+                      ...responseData.applied_effects
+                    ]
+                  }
+                : currentFighter.effects
             };
           }
         }
