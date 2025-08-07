@@ -32,6 +32,7 @@ interface MoveFromStashResult {
     updated_gang_rating?: number;
     affected_beast_ids?: string[];
     updated_fighters?: any[];
+    applied_effects?: any[];
   };
   error?: string;
 }
@@ -143,6 +144,112 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     if (updateError || !equipmentData) {
       throw new Error(`Failed to move equipment from stash: ${updateError?.message || 'No data returned'}`);
     }
+
+    // Apply equipment effects if this equipment has any
+    let appliedEffects: any[] = [];
+    if ((params.fighter_id || params.vehicle_id) && !isCustomEquipment && stashData.equipment_id) {
+      console.log('🔍 Looking for effects for equipment_id:', stashData.equipment_id);
+      try {
+        // Get equipment effects from fighter_effect_types
+        const { data: equipmentEffects, error: effectsError } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            fighter_effect_category_id,
+            type_specific_data
+          `)
+          .eq('type_specific_data->>equipment_id', stashData.equipment_id.toString());
+
+        console.log('📊 Found equipment effects:', equipmentEffects?.length || 0, equipmentEffects);
+        console.log('❌ Effects query error:', effectsError);
+
+        if (!effectsError && equipmentEffects && equipmentEffects.length > 0) {
+          console.log('✅ Processing', equipmentEffects.length, 'effects');
+          // Apply each effect to the fighter or vehicle
+          for (const effectType of equipmentEffects) {
+            console.log('🎯 Applying effect:', effectType.effect_name);
+            try {
+              if (params.fighter_id) {
+                // Call add_fighter_effect RPC
+                const { data: effectResult } = await supabase.rpc('add_fighter_effect', {
+                  in_fighter_id: params.fighter_id,
+                  in_fighter_effect_category_id: effectType.fighter_effect_category_id,
+                  in_fighter_effect_type_id: effectType.id,
+                  in_user_id: user.id
+                });
+
+                if (effectResult?.id) {
+                  // Link effect to equipment
+                  await supabase
+                    .from('fighter_effects')
+                    .update({ fighter_equipment_id: equipmentData.id })
+                    .eq('id', effectResult.id);
+
+                  // Get effect modifiers for complete effect data
+                  const { data: modifiers } = await supabase
+                    .from('fighter_effect_modifiers')
+                    .select('id, fighter_effect_id, stat_name, numeric_value')
+                    .eq('fighter_effect_id', effectResult.id);
+
+                  // Collect complete effect data for frontend
+                  appliedEffects.push({
+                    id: effectResult.id,
+                    effect_name: effectType.effect_name,
+                    fighter_effect_category_id: effectType.fighter_effect_category_id,
+                    fighter_effect_modifiers: modifiers || []
+                  });
+                }
+              } else if (params.vehicle_id) {
+                // Call add_vehicle_effect RPC
+                const { data: effectResult } = await supabase.rpc('add_vehicle_effect', {
+                  in_vehicle_id: params.vehicle_id,
+                  in_fighter_effect_category_id: effectType.fighter_effect_category_id,
+                  in_fighter_effect_type_id: effectType.id,
+                  in_user_id: user.id
+                });
+
+                if (effectResult?.id) {
+                  // Link effect to equipment
+                  await supabase
+                    .from('vehicle_effects')
+                    .update({ fighter_equipment_id: equipmentData.id })
+                    .eq('id', effectResult.id);
+
+                  // Get effect modifiers for vehicles to prevent NaN errors
+                  const { data: modifiers } = await supabase
+                    .from('fighter_effect_modifiers')
+                    .select('id, fighter_effect_id, stat_name, numeric_value')
+                    .eq('fighter_effect_id', effectResult.id);
+
+                  // Collect complete effect data for frontend
+                  appliedEffects.push({
+                    id: effectResult.id,
+                    effect_name: effectType.effect_name,
+                    fighter_effect_category_id: effectType.fighter_effect_category_id,
+                    fighter_effect_modifiers: modifiers || []
+                  });
+                }
+              }
+            } catch (effectError) {
+              console.error(`Error applying effect ${effectType.effect_name}:`, effectError);
+            }
+          }
+        } else {
+          console.log('⚠️ No effects found for this equipment');
+        }
+      } catch (error) {
+        console.error('Error fetching equipment effects:', error);
+      }
+    } else {
+      console.log('⏭️ Skipping effects application:', {
+        hasFighterOrVehicle: !!(params.fighter_id || params.vehicle_id),
+        isNotCustom: !isCustomEquipment,
+        hasEquipmentId: !!stashData.equipment_id
+      });
+    }
+
+    console.log('🎉 Final appliedEffects:', appliedEffects.length, appliedEffects);
 
     // Fetch weapon profiles for regular equipment (not custom equipment)
     let weaponProfiles: any[] = [];
@@ -367,7 +474,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 weapon_profiles: weaponProfiles,
                 updated_gang_rating: updatedGangRating,
                 affected_beast_ids: affectedBeastIds,
-                updated_fighters: completeBeastData
+                updated_fighters: completeBeastData,
+                ...(appliedEffects.length > 0 && { applied_effects: appliedEffects })
               }
             };
           }
@@ -430,7 +538,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         equipment_id: equipmentData.id,
         weapon_profiles: weaponProfiles,
         updated_gang_rating: updatedGangRating,
-        ...(affectedBeastIds.length > 0 && { affected_beast_ids: affectedBeastIds })
+        ...(affectedBeastIds.length > 0 && { affected_beast_ids: affectedBeastIds }),
+        ...(appliedEffects.length > 0 && { applied_effects: appliedEffects })
       }
     };
 
