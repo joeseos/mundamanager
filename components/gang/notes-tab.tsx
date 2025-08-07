@@ -9,13 +9,31 @@ import { UserPermissions } from '@/types/user-permissions';
 interface GangNotesProps {
   gangId: string;
   initialNote?: string;
+  initialNoteBackstory?: string;
   onNoteUpdate?: (updatedNote: string) => void;
+  onNoteBackstoryUpdate?: (updatedNoteBackstory: string) => void;
   userPermissions?: UserPermissions;
 }
 
-export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissions }: GangNotesProps) {
-  const NOTE_CHAR_LIMIT = 1500;
-  const [note, setNote] = useState(initialNote || '');
+interface NoteEditorProps {
+  title: string;
+  content: string;
+  onContentChange: (content: string) => void;
+  onSave: () => Promise<void>;
+  placeholder: string;
+  charLimit: number;
+  userPermissions?: UserPermissions;
+}
+
+function NoteEditor({ 
+  title, 
+  content, 
+  onContentChange, 
+  onSave, 
+  placeholder, 
+  charLimit, 
+  userPermissions 
+}: NoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -23,9 +41,23 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissi
   const [savedContent, setSavedContent] = useState<string>('');
   const { toast } = useToast();
 
+  // Update content when not editing
+  useEffect(() => {
+    if (!isEditing) {
+      onContentChange(content);
+    }
+  }, [content, isEditing, onContentChange]);
+
+  // Track when the note has been refreshed from server
+  useEffect(() => {
+    if (isRefreshing && content === savedContent) {
+      // The server has returned our saved content, so refresh is complete
+      setIsRefreshing(false);
+    }
+  }, [content, isRefreshing, savedContent]);
+
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
-    // Remove HTML tags and count characters
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
   };
@@ -33,68 +65,38 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissi
   // Check if content is effectively empty (no meaningful text)
   const isEmptyContent = (htmlContent: string) => {
     if (!htmlContent) return true;
-    // Remove HTML tags and check if there's any meaningful text
+    // Remove HTML tags and count characters
     const textContent = htmlContent.replace(/<[^>]*>/g, '').trim();
     return textContent.length === 0;
   };
-
-  useEffect(() => {
-    if (!isEditing) {
-      setNote(initialNote || '');
-    }
-  }, [initialNote, isEditing]);
-
-  // Track when the note has been refreshed from server
-  useEffect(() => {
-    if (isRefreshing && initialNote === savedContent) {
-      // The server has returned our saved content, so refresh is complete
-      setIsRefreshing(false);
-    }
-  }, [initialNote, isRefreshing, savedContent]);
 
   const handleSave = async () => {
     try {
       setError(null);
       setIsSaving(true);
 
-      const charCount = getCharCount(note);
-      if (charCount > NOTE_CHAR_LIMIT) {
-        setError(`Notes cannot exceed ${NOTE_CHAR_LIMIT} characters`);
+      const charCount = getCharCount(content);
+      if (charCount > charLimit) {
+        setError(`${title} cannot exceed ${charLimit} characters`);
         return;
       }
 
-      // Clean up empty content before saving
-      const cleanNote = isEmptyContent(note) ? '' : note;
-
-      const response = await fetch(`/api/gangs/${gangId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ note: cleanNote }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update notes');
-      }
+      await onSave();
 
       toast({
-        description: "Gang Notes updated successfully",
+        description: `${title} updated successfully`,
         variant: "default"
       });
 
-      setSavedContent(note);
+      setSavedContent(content);
       setIsEditing(false);
       setIsRefreshing(true);
-      onNoteUpdate?.(note);
     } catch (error) {
-      console.error('Error updating gang notes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update gang notes');
+      console.error(`Error updating ${title.toLowerCase()}:`, error);
+      setError(error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`);
       toast({
         title: "Error",
-        description: "Failed to update gang notes",
+        description: `Failed to update ${title.toLowerCase()}`,
         variant: "destructive"
       });
     } finally {
@@ -103,65 +105,147 @@ export function GangNotes({ gangId, initialNote = '', onNoteUpdate, userPermissi
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl md:text-2xl font-bold mb-6">Gang Notes</h2>
-            <div className="flex items-center gap-2">
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
-                    <Button
-                      onClick={() => {
-                        setIsEditing(false);
-                        setNote(initialNote);
-                        setError(null);
-                      }}
-                      variant="outline"
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSave}
-                      disabled={getCharCount(note) > NOTE_CHAR_LIMIT || isSaving}
-                    >
-                      {isSaving ? "Saving..." : "Save"}
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    onClick={() => setIsEditing(true)}
-                    disabled={!userPermissions?.canEdit || isRefreshing}
+    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-2">
+              {isEditing ? (
+                <>
+                  <Button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setError(null);
+                    }}
+                    variant="outline"
+                    disabled={isSaving}
                   >
-                    {isRefreshing ? "Updating..." : "Edit"}
+                    Cancel
                   </Button>
-                )}
-              </div>
+                  <Button
+                    onClick={handleSave}
+                    disabled={getCharCount(content) > charLimit || isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => setIsEditing(true)}
+                  disabled={!userPermissions?.canEdit || isRefreshing}
+                >
+                  {isRefreshing ? "Updating..." : "Edit"}
+                </Button>
+              )}
             </div>
           </div>
-
-          {error && (
-            <p className="text-red-500 text-sm">{error}</p>
-          )}
-
-          {isEditing ? (
-            <RichTextEditor
-              content={note}
-              onChange={setNote}
-              placeholder="Add notes here..."
-              className="min-h-[200px]"
-              charLimit={NOTE_CHAR_LIMIT}
-            />
-          ) : (
-            <div 
-              className={`prose max-w-none ${!isEmptyContent(note) ? 'prose-sm' : 'text-gray-500 italic text-center'}`}
-              dangerouslySetInnerHTML={{ __html: !isEmptyContent(note) ? note : 'No notes added. They\'ll appear on the Gang card when printed.' }}
-            />
-          )}
         </div>
+
+        {error && (
+          <p className="text-red-500 text-sm">{error}</p>
+        )}
+
+        {isEditing ? (
+          <RichTextEditor
+            content={content}
+            onChange={onContentChange}
+            placeholder={placeholder}
+            className="min-h-[200px]"
+            charLimit={charLimit}
+          />
+        ) : (
+          <div 
+            className={`prose max-w-none ${!isEmptyContent(content) ? 'prose-sm' : 'text-gray-500 italic text-center'}`}
+            dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
+          />
+        )}
       </div>
     </div>
   );
-} 
+}
+
+export function GangNotes({ 
+  gangId, 
+  initialNote = '', 
+  initialNoteBackstory = '',
+  onNoteUpdate, 
+  onNoteBackstoryUpdate, 
+  userPermissions 
+}: GangNotesProps) {
+  const [note, setNote] = useState(initialNote || '');
+  const [noteBackstory, setNoteBackstory] = useState(initialNoteBackstory || '');
+
+  // Update notes when initial values change
+  useEffect(() => {
+    setNote(initialNote || '');
+  }, [initialNote]);
+
+  useEffect(() => {
+    setNoteBackstory(initialNoteBackstory || '');
+  }, [initialNoteBackstory]);
+
+  const handleNoteSave = async () => {
+    const cleanNote = note.trim() === '' ? '' : note;
+    
+    const response = await fetch(`/api/gangs/${gangId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ note: cleanNote }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update notes');
+    }
+
+    onNoteUpdate?.(note);
+  };
+
+  const handleNoteBackstorySave = async () => {
+    const cleanNoteBackstory = noteBackstory.trim() === '' ? '' : noteBackstory;
+    
+    const response = await fetch(`/api/gangs/${gangId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ note_backstory: cleanNoteBackstory }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update backstory notes');
+    }
+
+    onNoteBackstoryUpdate?.(noteBackstory);
+  };
+
+  return (
+    <div className="container max-w-5xl w-full space-y-4 mx-auto">
+      <NoteEditor
+        title="Gang Notes"
+        content={note}
+        onContentChange={setNote}
+        onSave={handleNoteSave}
+        placeholder="Add gang notes here, they'll appear on the Gang card when printed."
+        charLimit={1500}
+        userPermissions={userPermissions}
+      />
+      
+      <NoteEditor
+        title="Gang Backstory"
+        content={noteBackstory}
+        onContentChange={setNoteBackstory}
+        onSave={handleNoteBackstorySave}
+        placeholder="Add gang backstory here..."
+        charLimit={2500}
+        userPermissions={userPermissions}
+      />
+    </div>
+  );
+}
