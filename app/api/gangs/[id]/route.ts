@@ -79,6 +79,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     scavenging_rolls,
     exploration_points,
     note,
+    note_backstory,
     vehicleId,
     vehicle_name,
     special_rules,
@@ -137,6 +138,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     
     // Track what changed for cache invalidation
     let creditsChanged = false;
+    let notesChanged = false;
 
     // Add name if provided
     if (name !== undefined) {
@@ -146,6 +148,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // Add note if provided
     if (note !== undefined) {
       updates.note = note;
+      notesChanged = true;
+    }
+
+    // Add note_backstory if provided
+    if (note_backstory !== undefined) {
+      updates.note_backstory = note_backstory;
+      notesChanged = true;
     }
 
     // Add alignment if provided
@@ -231,6 +240,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // Invalidate credits cache if credits were changed
     if (creditsChanged) {
       invalidateGangCredits(params.id);
+    }
+
+    // Invalidate gang cache if notes were changed
+    if (notesChanged) {
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.id));
     }
 
     return NextResponse.json(updatedGang);

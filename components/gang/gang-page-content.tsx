@@ -48,6 +48,7 @@ interface GangDataState {
     stash: StashItem[];
     vehicles: VehicleProps[];
     note?: string;
+    note_backstory?: string;
     positioning: Record<number, string>;
     campaigns: any[];
     gang_variants: Array<{id: string, variant: string}>;
@@ -259,6 +260,16 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const handleNoteBackstoryUpdate = useCallback((updatedNoteBackstory: string) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        note_backstory: updatedNoteBackstory
+      }
+    }));
+  }, []);
+
   // Update the gang data callbacks
   gangData.onStashUpdate = handleStashUpdate;
   gangData.onVehicleUpdate = handleVehicleUpdate;
@@ -323,7 +334,9 @@ export default function GangPageContent({
         <GangNotes 
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
+          initialNoteBackstory={gangData.processedData.note_backstory || ''}
           onNoteUpdate={handleNoteUpdate}
+          onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
           userPermissions={userPermissions}
         />
       </Tabs>
