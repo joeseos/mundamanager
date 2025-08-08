@@ -107,7 +107,7 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-
+  
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
   
@@ -238,8 +238,8 @@ const CampaignBattleLogModal = ({
       // Fallback to old data structure
       let idx = 1;
       
-      if (battleToEdit.attacker_id || (battleToEdit as any).attacker?.gang_id) {
-        const gangId = (battleToEdit as any).attacker?.gang_id || battleToEdit.attacker_id || '';
+      if (battleToEdit.attacker_id || battleToEdit.attacker?.gang_id) {
+        const gangId = battleToEdit.attacker?.gang_id || battleToEdit.attacker_id || '';
         if (gangId) {
           newGangsInBattle.push({
             id: idx++,
@@ -249,8 +249,8 @@ const CampaignBattleLogModal = ({
         }
       }
       
-      if (battleToEdit.defender_id || (battleToEdit as any).defender?.gang_id) {
-        const gangId = (battleToEdit as any).defender?.gang_id || battleToEdit.defender_id || '';
+      if (battleToEdit.defender_id || battleToEdit.defender?.gang_id) {
+        const gangId = battleToEdit.defender?.gang_id || battleToEdit.defender_id || '';
         if (gangId) {
           newGangsInBattle.push({
             id: idx++,
@@ -280,12 +280,12 @@ const CampaignBattleLogModal = ({
     }
     
     // Set winner
-    if ((battleToEdit as any).winner_id === null) {
+    if (battleToEdit.winner_id === null) {
       setWinner("draw");
-    } else if ((battleToEdit as any).winner_id) {
-      setWinner((battleToEdit as any).winner_id);
-    } else if ((battleToEdit as any).winner?.gang_id) {
-      setWinner((battleToEdit as any).winner.gang_id);
+    } else if (battleToEdit.winner_id) {
+      setWinner(battleToEdit.winner_id);
+    } else if (battleToEdit.winner?.gang_id) {
+      setWinner(battleToEdit.winner.gang_id);
     } else {
       setWinner("");
     }
@@ -490,18 +490,17 @@ const CampaignBattleLogModal = ({
                 return claimData;
               }
             })()] 
-          : [],
-        created_at: new Date(battleDate).toISOString()
+          : []
       };
 
       // Create or update battle based on mode
       if (isEditMode && battleToEdit) {
-        await updateBattleLog(campaignId, battleToEdit.id, battleData);
+        await updateBattleLog(campaignId, battleToEdit.id, { ...battleData, created_at: new Date(battleDate).toISOString() });
         toast({
           description: "Battle report updated successfully"
         });
       } else {
-        await createBattleLog(campaignId, battleData);
+        await createBattleLog(campaignId, { ...battleData, created_at: new Date(battleDate).toISOString() });
         toast({
           description: "Battle report added successfully"
         });
