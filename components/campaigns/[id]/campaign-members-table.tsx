@@ -117,6 +117,10 @@ export default function MembersTable({
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
   const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false)
   
+  // Sorting state
+  const [sortField, setSortField] = useState<string>('rating')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -155,13 +159,86 @@ export default function MembersTable({
       });
     });
     
-    // Sort the complete array as before
+    // Sort based on the selected field and direction
     return membersWithCorrectIndices.sort((a, b) => {
-      const ratingA = a.gangs[0]?.rating ?? -1;
-      const ratingB = b.gangs[0]?.rating ?? -1;
-      return ratingB - ratingA;
+      let aValue: any;
+      let bValue: any;
+      
+      switch (sortField) {
+        case 'gang':
+          aValue = a.gangs[0]?.gang_name || '';
+          bValue = b.gangs[0]?.gang_name || '';
+          break;
+        case 'type':
+          aValue = a.gangs[0]?.gang_type || '';
+          bValue = b.gangs[0]?.gang_type || '';
+          break;
+        case 'player':
+          aValue = a.profile.username || '';
+          bValue = b.profile.username || '';
+          break;
+        case 'role':
+          aValue = a.role || '';
+          bValue = b.role || '';
+          break;
+        case 'rating':
+          aValue = a.gangs[0]?.rating ?? -1;
+          bValue = b.gangs[0]?.rating ?? -1;
+          break;
+        case 'reputation':
+          aValue = a.gangs[0]?.reputation ?? -1;
+          bValue = b.gangs[0]?.reputation ?? -1;
+          break;
+        case 'exploration_points':
+          aValue = a.gangs[0]?.exploration_points ?? -1;
+          bValue = b.gangs[0]?.exploration_points ?? -1;
+          break;
+        case 'meat':
+          aValue = a.gangs[0]?.meat ?? -1;
+          bValue = b.gangs[0]?.meat ?? -1;
+          break;
+        case 'scavenging_rolls':
+          aValue = a.gangs[0]?.scavenging_rolls ?? -1;
+          bValue = b.gangs[0]?.scavenging_rolls ?? -1;
+          break;
+        default:
+          aValue = a.gangs[0]?.rating ?? -1;
+          bValue = b.gangs[0]?.rating ?? -1;
+      }
+      
+       // Handle string comparison
+       if (typeof aValue === 'string' && typeof bValue === 'string') {
+         // Special handling for role sorting
+         if (sortField === 'role') {
+           const roleOrder = { 'OWNER': 1, 'ARBITRATOR': 2, 'MEMBER': 3 };
+           const aOrder = roleOrder[aValue as keyof typeof roleOrder] || 4;
+           const bOrder = roleOrder[bValue as keyof typeof roleOrder] || 4;
+           if (aOrder < bOrder) return sortDirection === 'asc' ? -1 : 1;
+           if (aOrder > bOrder) return sortDirection === 'asc' ? 1 : -1;
+           return 0;
+         }
+         
+         const comparison = aValue.localeCompare(bValue);
+         return sortDirection === 'asc' ? comparison : -comparison;
+       }
+      
+      // Handle number comparison
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
     });
-  }, [members]);
+  }, [members, sortField, sortDirection]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      // Set default direction based on field type
+      const numericalFields = ['rating', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls'];
+      setSortDirection(numericalFields.includes(field) ? 'desc' : 'asc');
+    }
+  };
 
   const fetchUserGangs = async (userId: string) => {
     try {
@@ -457,20 +534,128 @@ export default function MembersTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-2 text-left font-medium max-w-[8rem]">Gang</th>
-              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Type</th>
-              <th className="px-2 py-2 text-left font-medium max-w-[3rem]">Player</th>
-              <th className="px-2 py-2 text-left font-medium max-w-[3.5rem]">Role</th>
-              <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Rating</th>
-              <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Rep.</th>
+              <th 
+                className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('gang')}
+              >
+                <div className="flex items-center gap-1">
+                  Gang
+                  {sortField === 'gang' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-left font-medium max-w-[5rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('type')}
+              >
+                <div className="flex items-center gap-1">
+                  Type
+                  {sortField === 'type' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-left font-medium max-w-[3rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('player')}
+              >
+                <div className="flex items-center gap-1">
+                  Player
+                  {sortField === 'player' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-left font-medium max-w-[3.5rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('role')}
+              >
+                <div className="flex items-center gap-1">
+                  Role
+                  {sortField === 'role' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('rating')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Rating
+                  {sortField === 'rating' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('reputation')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Rep.
+                  {sortField === 'reputation' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
               {hasExplorationPoints && (
-                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Expl.</th>
+                <th 
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  onClick={() => handleSort('exploration_points')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Expl.
+                    {sortField === 'exploration_points' && (
+                      <span className="text-gray-500">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
               )}
               {hasMeat && (
-                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Meat</th>
+                <th 
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  onClick={() => handleSort('meat')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Meat
+                    {sortField === 'meat' && (
+                      <span className="text-gray-500">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
               )}
               {hasScavengingRolls && (
-                <th className="px-2 py-2 text-right font-medium max-w-[2rem]">Scav.</th>
+                <th 
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  onClick={() => handleSort('scavenging_rolls')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Scav.
+                    {sortField === 'scavenging_rolls' && (
+                      <span className="text-gray-500">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
               )}
               {(isAdmin || sortedMembers.some(member => member.user_id === currentUserId)) && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
             </tr>

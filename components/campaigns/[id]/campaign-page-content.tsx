@@ -275,7 +275,7 @@ export default function CampaignPageContent({
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
         <div className="bg-white rounded-lg mb-4 flex">
           <button
