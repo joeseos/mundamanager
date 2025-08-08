@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 
 import { 
@@ -181,6 +181,23 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to update fighter XP' };
     }
 
+    // Update gang rating (+credits_increase)
+    try {
+      const { data: ratingRow } = await supabase
+        .from('gangs')
+        .select('rating')
+        .eq('id', fighter.gang_id)
+        .single();
+      const currentRating = (ratingRow?.rating ?? 0) as number;
+      await supabase
+        .from('gangs')
+        .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
+        .eq('id', fighter.gang_id);
+      invalidateGangRating(fighter.gang_id);
+    } catch (e) {
+      console.error('Failed to update gang rating after characteristic advancement:', e);
+    }
+
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     
@@ -303,6 +320,23 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
+    // Update gang rating (+credits_increase)
+    try {
+      const { data: ratingRow } = await supabase
+        .from('gangs')
+        .select('rating')
+        .eq('id', fighter.gang_id)
+        .single();
+      const currentRating = (ratingRow?.rating ?? 0) as number;
+      await supabase
+        .from('gangs')
+        .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
+        .eq('id', fighter.gang_id);
+      invalidateGangRating(fighter.gang_id);
+    } catch (e) {
+      console.error('Failed to update gang rating after skill advancement:', e);
+    }
+
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     
@@ -383,15 +417,16 @@ export async function deleteAdvancement(
     }
 
     let xpToRefund = 0;
+    let ratingDelta = 0;
     let newFreeSkillStatus = fighter.free_skill;
 
     if (params.advancement_type === 'skill') {
       // Handle skill deletion
       
-      // Check if skill exists and get skill data
+      // Check if skill exists and get skill data including credits_increase
       const { data: skillData, error: skillError } = await supabase
         .from('fighter_skills')
-        .select('id, fighter_id, skill_id, xp_cost')
+        .select('id, fighter_id, skill_id, xp_cost, credits_increase')
         .eq('id', params.advancement_id)
         .single();
 
@@ -404,6 +439,7 @@ export async function deleteAdvancement(
       }
 
       xpToRefund = skillData.xp_cost || 0;
+      ratingDelta -= (skillData.credits_increase || 0);
 
       // Get fighter type info
       const { data: fighterTypeData, error: fighterTypeError } = await supabase
@@ -477,10 +513,11 @@ export async function deleteAdvancement(
         return { success: false, error: 'Effect does not belong to this fighter' };
       }
 
-      // Extract XP cost from type_specific_data
+      // Extract XP cost and credits_increase from type_specific_data
       if (effectData.type_specific_data && typeof effectData.type_specific_data === 'object') {
         const typeData = effectData.type_specific_data as any;
         xpToRefund = typeData.xp_cost || 0;
+        ratingDelta -= (typeData.credits_increase || 0);
       }
 
       // Delete the effect (this will cascade delete the modifiers)
@@ -511,6 +548,25 @@ export async function deleteAdvancement(
 
     if (updateError || !updatedFighter) {
       return { success: false, error: 'Failed to update fighter' };
+    }
+
+    // Update gang rating (apply ratingDelta which is negative when deleting)
+    if (ratingDelta !== 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', fighter.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .eq('id', fighter.gang_id);
+        invalidateGangRating(fighter.gang_id);
+      } catch (e) {
+        console.error('Failed to update gang rating after advancement deletion:', e);
+      }
     }
 
     // Invalidate fighter cache

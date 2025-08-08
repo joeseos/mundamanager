@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterAddition } from '@/utils/cache-tags';
+import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -361,6 +361,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     if (gangUpdateError) {
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
+    }
+
+    // NEW: Update gang rating by fighter rating cost
+    try {
+      const { data: ratingRow } = await supabase
+        .from('gangs')
+        .select('rating')
+        .eq('id', params.gang_id)
+        .single();
+      const currentRating = (ratingRow?.rating ?? 0) as number;
+      const newRating = Math.max(0, currentRating + ratingCost);
+      await supabase
+        .from('gangs')
+        .update({ rating: newRating, last_updated: new Date().toISOString() })
+        .eq('id', params.gang_id);
+      invalidateGangRating(params.gang_id);
+    } catch (e) {
+      console.error('Failed to update gang rating after fighter addition:', e);
     }
 
     // Use granular cache invalidation for fighter addition

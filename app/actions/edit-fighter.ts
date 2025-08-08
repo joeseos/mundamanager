@@ -1,10 +1,11 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -103,7 +104,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Get gang information
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits')
+      .select('id, user_id, credits, rating')
       .eq('id', fighter.gang_id)
       .single();
 
@@ -114,13 +115,35 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     const gangId = fighter.gang_id;
     const gangCredits = gang.credits;
 
+    // Helper to adjust rating by delta
+    const adjustRating = async (delta: number) => {
+      if (!delta) return;
+      const newRating = Math.max(0, (gang.rating || 0) + delta);
+      await supabase.from('gangs').update({ rating: newRating, last_updated: new Date().toISOString() }).eq('id', gangId);
+      invalidateGangRating(gangId);
+    };
+
+    // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
+    const getEffectiveCost = async () => {
+      try {
+        return await getFighterTotalCost(params.fighter_id, supabase);
+      } catch (e) {
+        console.error('Failed to compute fighter total cost for rating adjustment:', e);
+        return 0;
+      }
+    };
+
     // Handle different actions
     switch (params.action) {
       case 'kill': {
+        const wasKilled = !!fighter.killed;
+        const willBeKilled = !fighter.killed;
+        const delta = willBeKilled ? -(await getEffectiveCost()) : +(await getEffectiveCost());
+
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
-            killed: !fighter.killed,
+            killed: willBeKilled,
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -129,6 +152,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
+        await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -139,10 +163,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'retire': {
+        const willBeRetired = !fighter.retired;
+        const delta = willBeRetired ? -(await getEffectiveCost()) : +(await getEffectiveCost());
+
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
-            retired: !fighter.retired,
+            retired: willBeRetired,
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -151,6 +178,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
+        await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -164,6 +192,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (params.sell_value === undefined || params.sell_value === null || params.sell_value < 0) {
           throw new Error('Invalid sell value provided');
         }
+
+        // Subtract effective cost before changing status
+        const delta = -(await getEffectiveCost());
 
         // Update fighter to enslaved and add credits to gang
         const { data: updatedFighter, error: fighterUpdateError } = await supabase
@@ -191,6 +222,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (gangUpdateError) throw gangUpdateError;
 
+        await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
@@ -216,6 +248,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .single();
 
         if (updateError) throw updateError;
+
+        // Add back effective cost after making fighter active
+        const delta = +(await getEffectiveCost());
+        await adjustRating(delta);
 
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
@@ -330,6 +366,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'delete': {
+        // Subtract effective cost only if fighter is currently active
+        const isActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const delta = isActive ? -(await getEffectiveCost()) : 0;
+
         // Delete the fighter
         const { error: deleteError } = await supabase
           .from('fighters')
@@ -338,6 +378,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (deleteError) throw deleteError;
 
+        await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -423,13 +464,16 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id')
+      .select('id, gang_id, cost_adjustment, killed, retired, enslaved')
       .eq('id', params.fighter_id)
       .single();
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
     }
+
+    const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+    const previousAdjustment = fighter.cost_adjustment || 0;
 
     // Build update object with only provided fields
     const updateData: any = {
@@ -460,6 +504,28 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .single();
 
     if (updateError) throw updateError;
+
+    // If cost_adjustment changed and fighter is active, update rating by delta
+    if (params.cost_adjustment !== undefined && wasActive) {
+      const delta = (params.cost_adjustment || 0) - previousAdjustment;
+      if (delta !== 0) {
+        try {
+          const { data: ratingRow } = await supabase
+            .from('gangs')
+            .select('rating')
+            .eq('id', fighter.gang_id)
+            .single();
+          const currentRating = (ratingRow?.rating ?? 0) as number;
+          await supabase
+            .from('gangs')
+            .update({ rating: Math.max(0, currentRating + delta) })
+            .eq('id', fighter.gang_id);
+          invalidateGangRating(fighter.gang_id);
+        } catch (e) {
+          console.error('Failed to update rating after cost_adjustment change:', e);
+        }
+      }
+    }
 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);

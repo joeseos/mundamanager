@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -98,6 +98,26 @@ export async function addFighterInjury(
 
     // The database function returns the complete injury data with modifiers
     const injuryData = data[0]?.result || data;
+
+    // Update rating based on injury credits_increase (if any)
+    try {
+      const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
+      if (delta) {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', fighter.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + delta) })
+          .eq('id', fighter.gang_id);
+        invalidateGangRating(fighter.gang_id);
+      }
+    } catch (e) {
+      console.error('Failed to update rating for injury addition:', e);
+    }
     
     // If recovery is requested, update the fighter's recovery status
     let recoveryStatus = undefined;
@@ -187,7 +207,7 @@ export async function deleteFighterInjury(
 
     const { data: injury, error: injuryError } = await supabase
       .from('fighter_effects')
-      .select('id, fighter_id, effect_name')
+      .select('id, fighter_id, effect_name, type_specific_data')
       .eq('id', params.injury_id)
       .single();
 
@@ -207,6 +227,26 @@ export async function deleteFighterInjury(
         success: false, 
         error: deleteError.message || 'Failed to delete injury'
       };
+    }
+
+    // Decrease rating by injury credits_increase if present
+    try {
+      const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
+      if (delta) {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', fighter.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + delta) })
+          .eq('id', fighter.gang_id);
+        invalidateGangRating(fighter.gang_id);
+      }
+    } catch (e) {
+      console.error('Failed to update rating after injury delete:', e);
     }
 
     // Log the injury removal as recovery

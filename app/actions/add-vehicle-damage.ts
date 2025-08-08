@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 interface AddVehicleDamageParams {
@@ -37,6 +37,32 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     if (error) {
       console.error('Error adding vehicle damage:', error);
       throw new Error(error.message || 'Failed to add vehicle damage');
+    }
+
+    // Fetch effect credits_increase and update rating if vehicle is assigned
+    try {
+      const [{ data: veh }, { data: eff }] = await Promise.all([
+        supabase.from('vehicles').select('fighter_id').eq('id', params.vehicleId).single(),
+        supabase.from('fighter_effect_types').select('type_specific_data').eq('id', params.damageId).single()
+      ]);
+      if (veh?.fighter_id) {
+        const delta = (eff?.type_specific_data?.credits_increase || 0) as number;
+        if (delta) {
+          const { data: ratingRow } = await supabase
+            .from('gangs')
+            .select('rating')
+            .eq('id', params.gangId)
+            .single();
+          const currentRating = (ratingRow?.rating ?? 0) as number;
+          await supabase
+            .from('gangs')
+            .update({ rating: Math.max(0, currentRating + delta) })
+            .eq('id', params.gangId);
+          invalidateGangRating(params.gangId);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update rating for vehicle damage:', e);
     }
 
     // Invalidate cache for the fighter and gang

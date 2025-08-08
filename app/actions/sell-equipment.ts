@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -59,6 +59,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
+    let vehicleAssigned = false;
     
     if (equipmentData.fighter_id) {
       // Get gang_id from fighter
@@ -73,10 +74,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
       gangId = fighter.gang_id;
     } else if (equipmentData.vehicle_id) {
-      // Get gang_id from vehicle
+      // Get gang_id from vehicle and whether vehicle is assigned
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('gang_id')
+        .select('gang_id, fighter_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
         
@@ -84,6 +85,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         throw new Error('Vehicle not found for this equipment');
       }
       gangId = vehicle.gang_id;
+      vehicleAssigned = !!vehicle.fighter_id;
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
@@ -108,7 +110,13 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Determine sell value (manual or default to purchase cost)
     const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;
 
-    // Start transaction: Delete equipment and update gang credits
+    // Find associated effects before deletion
+    const { data: associatedEffects } = await supabase
+      .from('fighter_effects')
+      .select('id, type_specific_data')
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
+
+    // Start transaction-like sequence: Delete equipment and update gang credits
     const { error: deleteError } = await supabase
       .from('fighter_equipment')
       .delete()
@@ -121,7 +129,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Update gang credits - get current credits and update manually
     const { data: currentGang, error: getCurrentError } = await supabase
       .from('gangs')
-      .select('credits')
+      .select('credits, rating')
       .eq('id', gangId)
       .single();
       
@@ -138,6 +146,32 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       
     if (updateError || !updatedGang) {
       throw new Error(`Failed to update gang credits: ${updateError?.message}`);
+    }
+
+    // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
+    let ratingDelta = 0;
+    if (equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) {
+      ratingDelta -= (equipmentData.purchase_cost || 0);
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
+    }
+
+    if (ratingDelta !== 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .eq('id', gangId);
+        invalidateGangRating(gangId);
+      } catch (e) {
+        console.error('Failed to update gang rating after selling equipment:', e);
+      }
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating

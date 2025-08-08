@@ -66,7 +66,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
     
     const user = await getAuthenticatedUser(supabase);
 
-    // Use more efficient joins with Supabase's PostgreSQL capabilities
+    // Fetch gangs with rating column
     const { data, error: gangsError } = await supabase
       .from('gangs')
       .select(`
@@ -78,6 +78,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         reputation,
         meat,
         exploration_points,
+        rating,
         created_at,
         last_updated,
         gang_variants,
@@ -155,49 +156,22 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
       };
     }));
 
-    // Calculate gang ratings in parallel using a more efficient approach
-    const gangsWithRatings = await Promise.all(gangsWithCampaigns.map(async (gang: any) => {
-      try {
-        const fighters = await getFightersWithRating(supabase, gang.id);
-        const totalRating = fighters.reduce((sum: number, fighter: FighterWithRating) => sum + fighter.rating, 0);
-
-        return {
-          id: gang.id,
-          name: gang.name,
-          gang_type: gang.gang_type,
-          gang_type_id: gang.gang_type_id,
-          image_url: gang.gang_types?.image_url || '',
-          credits: gang.credits,
-          reputation: gang.reputation,
-          meat: gang.meat,
-          exploration_points: gang.exploration_points,
-          rating: totalRating,
-          created_at: gang.created_at,
-          last_updated: gang.last_updated,
-          gang_variants: gang.gang_variants,
-          campaigns: gang.campaigns
-        } as Gang;
-      } catch (fighterError) {
-        console.error(`Error processing gang ${gang.id}:`, fighterError);
-        
-        // Return gang with zero rating in case of error
-        return {
-          id: gang.id,
-          name: gang.name,
-          gang_type: gang.gang_type,
-          gang_type_id: gang.gang_type_id,
-          image_url: gang.gang_types?.image_url || '',
-          credits: gang.credits,
-          reputation: gang.reputation,
-          meat: gang.meat,
-          exploration_points: gang.exploration_points,
-          rating: 0,
-          created_at: gang.created_at,
-          last_updated: gang.last_updated,
-          gang_variants: gang.gang_variants,
-          campaigns: gang.campaigns
-        } as Gang;
-      }
+    // Map final shape using stored rating
+    const gangsWithRatings: Gang[] = gangsWithCampaigns.map((gang: any) => ({
+      id: gang.id,
+      name: gang.name,
+      gang_type: gang.gang_type,
+      gang_type_id: gang.gang_type_id,
+      image_url: gang.gang_types?.image_url || '',
+      credits: gang.credits,
+      reputation: gang.reputation,
+      meat: gang.meat,
+      exploration_points: gang.exploration_points,
+      rating: gang.rating || 0,
+      created_at: gang.created_at,
+      last_updated: gang.last_updated,
+      gang_variants: gang.gang_variants,
+      campaigns: gang.campaigns
     }));
 
     console.log(`Server: Processed ${gangsWithRatings.length} gangs with ratings`);
@@ -212,127 +186,4 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
     
     return [];
   }
-});
-
-// Extract fighter rating calculation to a separate function
-async function getFightersWithRating(
-  supabase: SupabaseClient, 
-  gangId: string
-): Promise<FighterWithRating[]> {
-  try {
-    // Get all fighters with their equipment, characteristics, skills in one query
-    const { data: fighters, error } = await supabase
-      .from('fighters')
-      .select(`
-        id, 
-        credits, 
-        cost_adjustment,
-        fighter_equipment(purchase_cost),
-        fighter_skills(credits_increase),
-        fighter_effects(type_specific_data)
-      `)
-      .eq('gang_id', gangId)
-      .eq('killed', false)
-      .eq('retired', false)
-      .eq('enslaved', false);
-
-    if (error) {
-      console.error(`Error fetching fighters data for gang ${gangId}:`, error);
-      throw error;
-    }
-
-    if (!fighters || fighters.length === 0) {
-      return [];
-    }
-
-    // Get vehicles assigned to fighters separately
-    const fighterIds = fighters.map(f => f.id);
-    const { data: vehicles, error: vehiclesError } = await supabase
-      .from('vehicles')
-      .select(`
-        id,
-        fighter_id,
-        cost,
-        fighter_equipment(purchase_cost),
-        fighter_effects(type_specific_data)
-      `)
-      .in('fighter_id', fighterIds);
-
-    if (vehiclesError) {
-      console.error(`Error fetching vehicles data for gang ${gangId}:`, vehiclesError);
-      throw vehiclesError;
-    }
-
-    // Group vehicles by fighter_id
-    const vehiclesByFighter = vehicles?.reduce((acc, vehicle) => {
-      if (vehicle.fighter_id) {
-        if (!acc[vehicle.fighter_id]) {
-          acc[vehicle.fighter_id] = [];
-        }
-        acc[vehicle.fighter_id].push(vehicle);
-      }
-      return acc;
-    }, {} as Record<string, any[]>) || {};
-
-    return (fighters as Fighter[]).map((fighter) => {
-      try {
-        let rating = (fighter.credits || 0) + (fighter.cost_adjustment || 0);
-        
-        // Add equipment costs
-        if (fighter.fighter_equipment) {
-          const equipmentCost = fighter.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
-            sum + (eq.purchase_cost || 0), 0);
-          rating += equipmentCost;
-          console.log(`Fighter ${fighter.id}: equipment cost = ${equipmentCost}`);
-        }
-        
-        // Add skills costs
-        if (fighter.fighter_skills) {
-          const skillsCost = fighter.fighter_skills.reduce((sum: number, skill: { credits_increase: number }) => 
-            sum + (skill.credits_increase || 0), 0);
-          rating += skillsCost;
-          console.log(`Fighter ${fighter.id}: skills cost = ${skillsCost}`);
-        }
-        
-        // Add effects costs (includes characteristic advancements)
-        if (fighter.fighter_effects) {
-          const effectsCost = fighter.fighter_effects.reduce((sum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-            const creditsIncrease = effect.type_specific_data?.credits_increase;
-            return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-          }, 0);
-          rating += effectsCost;
-          console.log(`Fighter ${fighter.id}: effects cost = ${effectsCost}`);
-        }
-        
-        // Add vehicle costs (only vehicles assigned to this fighter)
-        const fighterVehicles = vehiclesByFighter[fighter.id] || [];
-        let vehicleCost = 0;
-        fighterVehicles.forEach((vehicle) => {
-          vehicleCost += (vehicle.cost || 0);
-          // Add vehicle equipment costs (matching get_gang_details.sql calculation)
-          if (vehicle.fighter_equipment) {
-            vehicleCost += vehicle.fighter_equipment.reduce((sum: number, eq: { purchase_cost: number }) => 
-              sum + (eq.purchase_cost || 0), 0);
-          }
-          // Add vehicle effects costs (matching get_gang_details.sql calculation)
-          if (vehicle.fighter_effects) {
-            vehicleCost += vehicle.fighter_effects.reduce((sum: number, effect: { type_specific_data: { credits_increase?: number } }) => {
-              const creditsIncrease = effect.type_specific_data?.credits_increase;
-              return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
-            }, 0);
-          }
-        });
-        rating += vehicleCost;
-        console.log(`Fighter ${fighter.id}: vehicle cost = ${vehicleCost}, total rating = ${rating}`);
-        
-        return { id: fighter.id, rating };
-      } catch (calculationError) {
-        console.error(`Error calculating rating for fighter ${fighter.id}:`, calculationError);
-        return { id: fighter.id, rating: 0 };
-      }
-    });
-  } catch (error) {
-    console.error(`Unexpected error in getFightersWithRating for gang ${gangId}:`, error);
-    return [];
-  }
-} 
+}); 
