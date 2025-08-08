@@ -15,6 +15,7 @@ interface AssignVehicleToFighterResult {
   data?: {
     removed_from?: any;
     assigned_to?: any;
+    vehicle_cost?: number;
   };
   error?: string;
 }
@@ -37,12 +38,18 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       throw new Error(error.message || 'Failed to assign vehicle to fighter');
     }
 
+    // Get vehicle cost data to return to frontend for immediate UI update
+    const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
+
     // Invalidate cache for the fighter and gang
     invalidateFighterVehicleData(params.fighterId, params.gangId);
 
     return {
       success: true,
-      data
+      data: {
+        ...data,
+        vehicle_cost: vehicleCost
+      }
     };
 
   } catch (error) {
@@ -52,4 +59,43 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
+}
+
+/**
+ * Calculate the total cost of a vehicle including equipment and effects
+ */
+async function calculateVehicleCost(vehicleId: string, supabase: any): Promise<number> {
+  // Get base vehicle cost
+  const { data: vehicleData, error: vehicleError } = await supabase
+    .from('vehicles')
+    .select('cost')
+    .eq('id', vehicleId)
+    .single();
+
+  if (vehicleError) {
+    console.error('Error getting vehicle cost:', vehicleError);
+    return 0;
+  }
+
+  const baseCost = vehicleData?.cost || 0;
+
+  // Get equipment cost
+  const { data: equipmentData } = await supabase
+    .from('fighter_equipment')
+    .select('purchase_cost')
+    .eq('vehicle_id', vehicleId);
+
+  const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
+
+  // Get effects cost
+  const { data: effectsData } = await supabase
+    .from('fighter_effects')
+    .select('type_specific_data')
+    .eq('vehicle_id', vehicleId);
+
+  const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
+    return sum + (effect.type_specific_data?.credits_increase || 0);
+  }, 0) || 0;
+
+  return baseCost + equipmentCost + effectsCost;
 } 

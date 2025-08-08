@@ -433,6 +433,8 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
   // Fighter total cost now depends on vehicles, so invalidate it too
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(fighterId));
+  // Gang rating depends on fighter costs, so invalidate when vehicle costs change
+  invalidateGangRating(gangId);
   // Fighter page data invalidated via granular tags
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
 };
