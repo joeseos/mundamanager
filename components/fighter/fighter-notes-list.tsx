@@ -223,7 +223,7 @@ export function FighterNotes({
         content={note}
         onContentChange={setNote}
         onSave={handleNoteSave}
-        placeholder="Add fighter notes here, they'll appear on the fighter card when printed."
+        placeholder="Add notes here, they'll appear on the fighter card when printed."
         charLimit={1000}
         userPermissions={userPermissions}
       />
@@ -233,7 +233,7 @@ export function FighterNotes({
         content={noteBackstory}
         onContentChange={setNoteBackstory}
         onSave={handleNoteBackstorySave}
-        placeholder="Add fighter backstory here..."
+        placeholder="Add backstory here..."
         charLimit={2000}
         userPermissions={userPermissions}
       />

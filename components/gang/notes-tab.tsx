@@ -232,7 +232,7 @@ export function GangNotes({
         content={note}
         onContentChange={setNote}
         onSave={handleNoteSave}
-        placeholder="Add gang notes here, they'll appear on the Gang card when printed."
+        placeholder="Add notes here, they'll appear on the Gang card when printed."
         charLimit={1500}
         userPermissions={userPermissions}
       />
@@ -242,7 +242,7 @@ export function GangNotes({
         content={noteBackstory}
         onContentChange={setNoteBackstory}
         onSave={handleNoteBackstorySave}
-        placeholder="Add gang backstory here..."
+        placeholder="Add backstory here..."
         charLimit={2500}
         userPermissions={userPermissions}
       />
