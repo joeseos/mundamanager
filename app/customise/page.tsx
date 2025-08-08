@@ -22,14 +22,14 @@ export default async function CustomizePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+      <div className="container max-w-5xl w-full space-y-4 mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-4">
           <h1 className="text-xl md:text-2xl font-bold mb-4">Customise</h1>
           
           <div className="space-y-6">
             <section>
               <p className="text-gray-700">
-                Customise your Munda Manager experience with custom equipment, fighters and more.
+                Here you can create your own Equipment and Territories for your campaigns.
               </p>
             </section>
 
@@ -41,4 +41,4 @@ export default async function CustomizePage() {
       </div>
     </main>
   );
-} 
+}
