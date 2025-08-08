@@ -120,3 +120,22 @@
     color: #0a0a0a;
   }
 }
+
+/* Hide native date picker icon for inputs with this class */
+.hide-date-picker-icon::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
+/* Remove extra padding reserved for the icon in some browsers */
+.hide-date-picker-icon {
+  background: none;
+}
+
+/* Firefox: hide calendar icon */
+@-moz-document url-prefix() {
+  .hide-date-picker-icon {
+    /* Firefox uses a different UI; reduce indicator visibility by pointer-events none */
+    pointer-events: auto;
+  }
+}

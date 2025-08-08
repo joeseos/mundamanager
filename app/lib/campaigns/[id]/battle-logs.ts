@@ -33,6 +33,7 @@ export interface BattleLogParams {
   note: string | null;
   participants: BattleParticipant[];
   claimed_territories?: TerritoryClaimRequest[];
+  created_at?: string;
 }
 
 /**
@@ -49,7 +50,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       winner_id, 
       note,
       participants,
-      claimed_territories = [] 
+      claimed_territories = [],
+      created_at
     } = params;
 
     console.log('🆕 Creating battle log with params:', { 
@@ -70,7 +72,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           winner_id,
           note,
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-          created_at: new Date().toISOString()
+          created_at: created_at ?? new Date().toISOString()
         }
       ])
       .select()
@@ -236,7 +238,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner_id, 
       note,
       participants,
-      claimed_territories = [] 
+      claimed_territories = [],
+      created_at
     } = params;
 
     // First, verify the battle exists and belongs to the campaign
@@ -251,18 +254,24 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       throw new Error('Battle not found or access denied');
     }
 
+    // Build update payload conditionally including created_at if provided
+    const updatePayload: any = {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
+      note,
+      participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
+      updated_at: new Date().toISOString()
+    };
+    if (created_at) {
+      updatePayload.created_at = created_at;
+    }
+
     // Update the battle record
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
-      .update({
-        scenario,
-        attacker_id,
-        defender_id,
-        winner_id,
-        note,
-        participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', battleId)
       .select()
       .single();
