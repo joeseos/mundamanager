@@ -196,9 +196,11 @@ export default function GangVehicles({
           gang_id: gangId,
           equipment: []
         }];
-        
+        // Keep only unassigned and deduplicate by id before pushing to parent
+        const unassignedOnly = vehiclesWithSwapped.filter(v => !(v as any).assigned_to && !v.fighter_id);
+        const deduped = Array.from(new Map(unassignedOnly.map(v => [v.id, v])).values());
         if (onVehicleUpdate) {
-          onVehicleUpdate(vehiclesWithSwapped);
+          onVehicleUpdate(deduped);
         }
       }
 
@@ -206,12 +208,17 @@ export default function GangVehicles({
       if (data?.vehicle_cost && onFighterUpdate) {
         const selectedFighterData = fighters.find(f => f.id === selectedFighter);
         if (selectedFighterData) {
-          const fighterWithUpdatedCost = {
-            ...selectedFighterData,
-            vehicles: [updatedVehicle],
-            credits: selectedFighterData.credits + data.vehicle_cost
-          };
-          onFighterUpdate(fighterWithUpdatedCost);
+          const baseCost = updatedVehicle.cost || 0;
+          const delta = (data.vehicle_cost || 0) - baseCost;
+          if (delta !== 0) {
+            const correctedCredits = (selectedFighterData.credits || 0) + baseCost + delta;
+            const fighterWithUpdatedCost = {
+              ...selectedFighterData,
+              vehicles: [updatedVehicle],
+              credits: correctedCredits
+            };
+            onFighterUpdate(fighterWithUpdatedCost);
+          }
         }
       }
 

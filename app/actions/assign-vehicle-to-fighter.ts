@@ -27,6 +27,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
+    
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
       p_vehicle_id: params.vehicleId,
@@ -38,6 +39,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       throw new Error(error.message || 'Failed to assign vehicle to fighter');
     }
 
+    
     // Get vehicle cost data to return to frontend for immediate UI update
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
