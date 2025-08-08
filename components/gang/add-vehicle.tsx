@@ -31,6 +31,7 @@ interface AddVehicleProps {
   gangId: string;
   initialCredits: number;
   onVehicleAdd: (newVehicle: VehicleProps) => void;
+  onGangCreditsUpdate?: (newCredits: number) => void; // NEW
 }
 
 export default function AddVehicle({ 
@@ -38,7 +39,8 @@ export default function AddVehicle({
   setShowModal,
   gangId,
   initialCredits,
-  onVehicleAdd
+  onVehicleAdd,
+  onGangCreditsUpdate
 }: AddVehicleProps) {
   const { toast } = useToast();
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
@@ -149,6 +151,11 @@ export default function AddVehicle({
       
       // Call the parent component's callback
       onVehicleAdd(newVehicle);
+
+      // Also update credits from server authoritative value if provided
+      if (typeof onGangCreditsUpdate === 'function' && typeof result.gangCredits === 'number') {
+        onGangCreditsUpdate(result.gangCredits);
+      }
 
       // Create a more informative success message when base cost is different from payment
       let successMessage = `${name} added to gang successfully`;

@@ -377,8 +377,6 @@ export default function Gang({
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
     try {
-      console.log('Updating positions using server action:', newPositions);
-      
       const result = await updateGangPositioning({
         gangId: id,
         positions: newPositions
@@ -387,8 +385,6 @@ export default function Gang({
       if (!result.success) {
         throw new Error(result.error || 'Failed to update positions');
       }
-      
-      console.log('Server action completed successfully');
       
       // Update the positions state
       setPositions(newPositions);
@@ -716,6 +712,7 @@ export default function Gang({
               gangId={id}
               initialCredits={credits}
               onVehicleAdd={handleVehicleAdded}
+              onGangCreditsUpdate={onGangCreditsUpdate}
             />
           )}
 

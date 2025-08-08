@@ -152,49 +152,55 @@ export default function GangPageContent({
       
       // Calculate rating change from vehicle updates
       let ratingChange = 0;
+      let nextFighter: FighterProps = { ...updatedFighter };
+      let vehicleChanged = false;
       
       // If fighter now has a vehicle that it didn't have before
-      if (updatedFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
+      if (nextFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
         // Add the vehicle's cost to the rating - we know it's a VehicleProps
-        const vehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const vehicleCost = (nextFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange += vehicleCost;
-        console.log(`Adding vehicle cost ${vehicleCost} to rating`);
+        // Sync fighter credits
+        nextFighter.credits = (prevFighter.credits || 0) + vehicleCost;
+        vehicleChanged = true;
       } 
       // If fighter had a vehicle but no longer does
-      else if ((!updatedFighter.vehicles || updatedFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
+      else if ((!nextFighter.vehicles || nextFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
         // Subtract the vehicle's cost from the rating
         const vehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange -= vehicleCost;
-        console.log(`Removing vehicle cost ${vehicleCost} from rating`);
+        // Sync fighter credits
+        nextFighter.credits = (prevFighter.credits || 0) - vehicleCost;
+        vehicleChanged = true;
       }
       // If fighter had a vehicle and still has one, but it's different
-      else if (updatedFighter.vehicles?.length && prevFighter?.vehicles?.length && 
-               updatedFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
+      else if (nextFighter.vehicles?.length && prevFighter?.vehicles?.length && 
+               nextFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
         // Remove old vehicle cost and add new vehicle cost
         const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        const newVehicleCost = (updatedFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
+        const newVehicleCost = (nextFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
         ratingChange -= prevVehicleCost;
         ratingChange += newVehicleCost;
-        console.log(`Changing vehicle cost from ${prevVehicleCost} to ${newVehicleCost}, net change: ${newVehicleCost - prevVehicleCost}`);
+        // Sync fighter credits
+        nextFighter.credits = (prevFighter.credits || 0) - prevVehicleCost + newVehicleCost;
+        vehicleChanged = true;
       }
 
       // Calculate rating change from credit changes (when equipment is moved from stash)
-      if (prevFighter && updatedFighter.credits !== prevFighter.credits) {
-        const creditChange = updatedFighter.credits - prevFighter.credits;
+      if (!vehicleChanged && prevFighter && nextFighter.credits !== prevFighter.credits) {
+        const creditChange = nextFighter.credits - prevFighter.credits;
         ratingChange += creditChange;
-        console.log(`Fighter credits changed from ${prevFighter.credits} to ${updatedFighter.credits}, rating change: ${creditChange}`);
       }
 
       // Calculate the new rating
       const newRating = prev.processedData.rating + ratingChange;
-      console.log(`Updated rating: ${newRating} (was ${prev.processedData.rating}, change: ${ratingChange})`);
 
       return {
         ...prev,
         processedData: {
           ...prev.processedData,
           fighters: prev.processedData.fighters.map(fighter =>
-            fighter.id === updatedFighter.id ? updatedFighter : fighter
+            fighter.id === nextFighter.id ? nextFighter : fighter
           ),
           // Update the rating based on vehicle and credit changes
           rating: newRating
@@ -225,8 +231,6 @@ export default function GangPageContent({
         [newPosition]: newFighter.id
       };
       
-      console.log(`Adding fighter ${newFighter.fighter_name} - Cost: ${cost}, Fighter Credits: ${newFighter.credits}, New Gang Credits: ${updatedCredits}, New Rating: ${updatedRating}, Position: ${newPosition}`);
-
       return {
         ...prev,
         processedData: {
@@ -241,13 +245,21 @@ export default function GangPageContent({
   }, []);
 
   const handleVehicleAdd = useCallback((newVehicle: VehicleProps) => {
-    setGangData((prev: GangDataState) => ({
-      ...prev,
-      processedData: {
-        ...prev.processedData,
-        vehicles: [...prev.processedData.vehicles, newVehicle]
-      }
-    }));
+    setGangData((prev: GangDataState) => {
+      // Keep only unassigned vehicles and dedupe by id when adding
+      const combined = [...(prev.processedData.vehicles || []), newVehicle];
+      const unassignedOnly = combined.filter((v: any) => !v.assigned_to && !v.fighter_id);
+      const deduped = Array.from(new Map(unassignedOnly.map(v => [v.id, v])).values());
+
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          vehicles: deduped
+          // Do not adjust credits here; AddVehicle now calls onGangCreditsUpdate with server credits
+        }
+      };
+    });
   }, []);
 
   const handleNoteUpdate = useCallback((updatedNote: string) => {
