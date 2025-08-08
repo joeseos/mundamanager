@@ -547,13 +547,13 @@ export default function Gang({
               </Button>
             </div>
 
-            <div className="text-gray-600 mb-2">
+            <div className="text-gray-600 text-sm mb-1">
               <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-1">
                   Type: <Badge variant="secondary">{gang_type}</Badge>
                 </div>
-                {gangVariants.length > 0 && gangIsVariant && (
-                  <div className="flex items-center gap-1 text-sm">
+                {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
+                  <div className="flex items-center gap-1">
                     Variants:
                     {gangVariants
                       .filter((variant) => variant.variant !== 'Outlaw')
@@ -566,7 +566,18 @@ export default function Gang({
                 )}
               </div>
             </div>
-
+            <div className="text-gray-600 text-sm mb-1">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-1 text-sm">
+                  Alignment:
+                  <Badge variant="secondary">{alignment}</Badge>
+                </div>
+                <div className="flex items-center gap-1 text-sm">
+                  Alliance:
+                  <Badge variant="secondary">{allianceName}</Badge>
+                </div>
+              </div>
+            </div>
             <div className="text-gray-600 mb-4">
               <div className="flex flex-wrap gap-4">
                 {campaigns?.[0] && (
@@ -581,78 +592,57 @@ export default function Gang({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-2">
-              <StatItem
-                label="Alignment"
-                value={alignment}
-                isEditing={false}
-                editedValue=""
-                onChange={() => {}}
-              />
-              <StatItem
-                label="Reputation"
-                value={reputation}
-                isEditing={false}
-                editedValue=""
-                onChange={() => {}}
-              />
-              <StatItem
-                label="Credits"
-                value={credits}
-                isEditing={false}
-                editedValue=""
-                onChange={() => {}}
-              />
-              <StatItem
-                label="Rating"
-                value={rating}
-                isEditing={false}
-                editedValue=""
-                onChange={() => {}}
-              />
-              <StatItem
-                label="Wealth"
-                value={rating + credits + unassignedVehiclesValue + totalStashValue}
-                isEditing={false}
-                editedValue=""
-                onChange={() => {}}
-              />
-              {allianceName && (
-                <StatItem
-                  label="Alliance"
-                  value={allianceName}
-                  isEditing={false}
-                  editedValue=""
-                  onChange={() => {}}
-                />
-              )}
-              {campaigns?.[0]?.has_meat && (
-                <StatItem
-                  label="Meat"
-                  value={meat}
-                  isEditing={false}
-                  editedValue=""
-                  onChange={() => {}}
-                />
-              )}
-              {campaigns?.[0]?.has_scavenging_rolls && (
-                <StatItem
-                  label="Scavenging Rolls"
-                  value={scavengingRolls}
-                  isEditing={false}
-                  editedValue=""
-                  onChange={() => {}}
-                />
-              )}
-              {campaigns?.[0]?.has_exploration_points && (
-                <StatItem
-                  label="Exploration Points"
-                  value={explorationPoints}
-                  isEditing={false}
-                  editedValue=""
-                  onChange={() => {}}
-                />
-              )}
+            <div className="mt-2">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+
+                {/* 1st Column */}
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Credits:</span>
+                    <span className="font-semibold">{credits != null ? credits : 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Rating:</span>
+                    <span className="font-semibold">{rating != null ? rating : 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Wealth:</span>
+                    <span className="font-semibold">{rating + credits + unassignedVehiclesValue + totalStashValue}</span>
+                  </div>
+                </div>
+
+                {/* 2nd Column */}
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Reputation:</span>
+                    <span className="font-semibold">{reputation != null ? reputation : 0}</span>
+                  </div>
+                </div>
+
+                {/* 3rd Column */}
+                <div className="space-y-2">
+                  {campaigns?.[0]?.has_exploration_points && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 hidden sm:inline">Exploration Points:</span>
+                      <span className="text-gray-600 inline sm:hidden">Exp. Points:</span>
+                      <span className="font-semibold">{explorationPoints != null ? explorationPoints : 0}</span>
+                    </div>
+                  )}
+                  {campaigns?.[0]?.has_meat && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Meat:</span>
+                      <span className="font-semibold">{meat != null ? meat : 0}</span>
+                    </div>
+                  )}
+                  {campaigns?.[0]?.has_scavenging_rolls && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 hidden sm:inline">Scavenging Rolls:</span>
+                      <span className="text-gray-600 inline sm:hidden">Scav. Rolls:</span>
+                      <span className="font-semibold">{scavengingRolls != null ? scavengingRolls : 0}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
               <span>Created: {formatDate(created_at)}</span>
