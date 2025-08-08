@@ -443,7 +443,7 @@ export default function GangInventory({
     <>
       <div className="container max-w-5xl w-full space-y-4 mx-auto">
         <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-start mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
             <div className="flex gap-2">
               {gangTypeId === 'cb9d7047-e7df-4196-a51f-a8f452c291ad' && (
