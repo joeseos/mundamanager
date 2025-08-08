@@ -202,6 +202,19 @@ export default function GangVehicles({
         }
       }
 
+      // Update fighter's cost with the actual vehicle cost from server
+      if (data?.vehicle_cost && onFighterUpdate) {
+        const selectedFighterData = fighters.find(f => f.id === selectedFighter);
+        if (selectedFighterData) {
+          const fighterWithUpdatedCost = {
+            ...selectedFighterData,
+            vehicles: [updatedVehicle],
+            credits: selectedFighterData.credits + data.vehicle_cost
+          };
+          onFighterUpdate(fighterWithUpdatedCost);
+        }
+      }
+
     } catch (error) {
       console.error('Error moving vehicle:', error);
       
