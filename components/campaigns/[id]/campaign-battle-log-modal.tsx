@@ -102,7 +102,12 @@ const CampaignBattleLogModal = ({
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
   const { toast } = useToast();
-
+  const [battleDate, setBattleDate] = useState<string>(() => {
+    const now = new Date();
+    const tzOffsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+  });
+  
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
   
@@ -194,6 +199,13 @@ const CampaignBattleLogModal = ({
       // If no matching scenario, set as custom
       setSelectedScenario('custom');
       setCustomScenario(battleToEdit.scenario || battleToEdit.scenario_name || '');
+    }
+    
+    // Prefill date from created_at
+    if (battleToEdit.created_at) {
+      const dt = new Date(battleToEdit.created_at);
+      const tzOffsetMs = dt.getTimezoneOffset() * 60000;
+      setBattleDate(new Date(dt.getTime() - tzOffsetMs).toISOString().slice(0, 10));
     }
     
     // Set gangs and roles
@@ -483,12 +495,12 @@ const CampaignBattleLogModal = ({
 
       // Create or update battle based on mode
       if (isEditMode && battleToEdit) {
-        await updateBattleLog(campaignId, battleToEdit.id, battleData);
+        await updateBattleLog(campaignId, battleToEdit.id, { ...battleData, created_at: new Date(battleDate).toISOString() });
         toast({
           description: "Battle report updated successfully"
         });
       } else {
-        await createBattleLog(campaignId, battleData);
+        await createBattleLog(campaignId, { ...battleData, created_at: new Date(battleDate).toISOString() });
         toast({
           description: "Battle report added successfully"
         });
@@ -517,6 +529,9 @@ const CampaignBattleLogModal = ({
     setWinner('');
     setNotes('');
     setSelectedTerritory('');
+    const now = new Date();
+    const tzOffsetMs = now.getTimezoneOffset() * 60000;
+    setBattleDate(new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10));
   };
 
   const handleClose = () => {
@@ -752,6 +767,19 @@ const CampaignBattleLogModal = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="min-h-[100px] bg-gray-100"
+              disabled={isLoadingBattleData}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+              value={battleDate}
+              onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
             />
           </div>
