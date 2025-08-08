@@ -304,6 +304,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   >
                     <Link
                       href={`/gang/${participant.gang_id}`}
+                      prefetch={false}
                       className="hover:text-gray-600 transition-colors"
                     >
                       {gangName}

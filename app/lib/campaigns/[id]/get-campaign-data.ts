@@ -199,7 +199,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         reputation,
         exploration_points,
         meat,
-        scavenging_rolls
+        scavenging_rolls,
+        rating
       `)
       .in('id', gangIds);
 
@@ -248,18 +249,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     gangVehiclesData = gangVehicles || [];
   }
 
-  // Read stored gang rating from column
-  const gangRatings = new Map<string, number>();
-  for (const gangId of gangIds) {
-    try {
-      const { getGangRating } = await import('@/app/lib/shared/gang-data');
-      const rating = await getGangRating(gangId, supabase);
-      gangRatings.set(gangId, rating);
-    } catch (error) {
-      console.error(`Error getting rating for gang ${gangId}:`, error);
-      gangRatings.set(gangId, 0);
-    }
-  }
+  // Rating now comes directly from the gangs query above; no per-gang fetches needed
 
   const membersWithGangs = members?.map(member => {
     const memberProfile = profilesData.find(p => p.id === member.user_id);
@@ -292,7 +282,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         gang_type: gangDetails?.gang_type || '',
         gang_colour: gangDetails?.gang_colour || '#000000',
         status: cg.status,
-        rating: gangRatings.get(cg.gang_id) || 0,
+        rating: gangDetails?.rating || 0,
         reputation: gangDetails?.reputation || 0,
         campaign_member_id: cg.campaign_member_id,
         exploration_points: gangDetails?.exploration_points ?? null,

@@ -488,6 +488,7 @@ export default function MembersTable({
                       >
                         <Link
                           href={`/gang/${member.gangs[0].gang_id}`}
+                          prefetch={false}
                           className="hover:text-gray-600 transition-colors"
                         >
                           {member.gangs[0].gang_name}
@@ -632,6 +633,7 @@ export default function MembersTable({
                     >
                       <Link
                         href={`/gang/${member.gangs[0].gang_id}`}
+                        prefetch={false}
                         className="hover:text-gray-600 transition-colors"
                       >
                         {member.gangs[0].gang_name}
