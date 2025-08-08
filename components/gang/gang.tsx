@@ -25,6 +25,8 @@ import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
+import { FaRegCopy } from 'react-icons/fa';
+import CopyGangModal from './copy-gang-modal';
 
 
 interface GangProps {
@@ -132,6 +134,7 @@ export default function Gang({
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
 
@@ -489,6 +492,17 @@ export default function Gang({
                 />
               </div>
 
+              {/* Copy button (left of logs) */}
+              <Button
+                onClick={() => setShowCopyModal(true)}
+                variant="ghost"
+                size="icon"
+                className="print:hidden"
+                title="Copy Gang"
+              >
+                <FaRegCopy className="w-5 h-5" />
+              </Button>
+
               {/* Logs button */}
               <Button
                 onClick={() => setShowLogsModal(true)}
@@ -731,6 +745,12 @@ export default function Gang({
             gangId={id}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
+          />
+          <CopyGangModal
+            gangId={id}
+            currentName={name}
+            isOpen={showCopyModal}
+            onClose={() => setShowCopyModal(false)}
           />
         </div>
 
