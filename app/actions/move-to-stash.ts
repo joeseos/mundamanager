@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -69,6 +69,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       .select(`
         id,
         effect_name,
+        type_specific_data,
         fighter_effect_modifiers (
           stat_name,
           numeric_value
@@ -78,6 +79,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
+    let vehicleAssigned = false;
     
     if (equipmentData.fighter_id) {
       // Get gang_id from fighter
@@ -95,7 +97,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Get gang_id from vehicle
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('gang_id')
+        .select('gang_id, fighter_id')
         .eq('id', equipmentData.vehicle_id)
         .single();
         
@@ -103,6 +105,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         throw new Error('Vehicle not found for this equipment');
       }
       gangId = vehicle.gang_id;
+      vehicleAssigned = !!vehicle.fighter_id;
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
@@ -153,6 +156,32 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     if (updateError || !stashData) {
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
+    }
+
+    // Rating delta: subtract equipment purchase_cost and removed effects if from fighter or assigned vehicle
+    let ratingDelta = 0;
+    if (equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) {
+      ratingDelta -= (equipmentData.purchase_cost || 0);
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
+    }
+
+    if (ratingDelta !== 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .eq('id', gangId);
+        invalidateGangRating(gangId);
+      } catch (e) {
+        console.error('Failed to update gang rating after moving equipment to stash:', e);
+      }
     }
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview

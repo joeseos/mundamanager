@@ -7,7 +7,8 @@ import {
   invalidateFighterVehicleData,
   invalidateEquipmentPurchase,
   invalidateEquipmentDeletion,
-  invalidateGangStash
+  invalidateGangStash,
+  invalidateGangRating
 } from '@/utils/cache-tags';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -58,7 +59,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Get gang info first
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, credits, gang_type_id, user_id')
+      .select('id, credits, gang_type_id, user_id, rating')
       .eq('id', params.gang_id)
       .single();
 
@@ -88,6 +89,17 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         .eq('id', params.fighter_id)
         .single();
       fighterTypeId = fighter?.fighter_type_id || null;
+    }
+
+    // If purchasing for vehicle, check if vehicle is assigned to a fighter
+    let vehicleAssignedFighterId: string | null = null;
+    if (params.vehicle_id && !params.buy_for_gang_stash) {
+      const { data: vehicleData } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', params.vehicle_id)
+        .single();
+      vehicleAssignedFighterId = vehicleData?.fighter_id || null;
     }
 
     // Get equipment details
@@ -286,19 +298,30 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error(`Failed to update gang credits: ${updateError.message}`);
     }
 
+    // Initialize rating delta
+    let ratingDelta = 0;
+    if (!params.buy_for_gang_stash) {
+      if (params.fighter_id) {
+        ratingDelta += ratingCost;
+      } else if (params.vehicle_id && vehicleAssignedFighterId) {
+        ratingDelta += ratingCost;
+      }
+    }
+
     // Handle fighter effects if selected
     let appliedEffects: any[] = [];
     
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
       for (const effectId of params.selected_effect_ids) {
         try {
-          // Get effect type details
+          // Get effect type details (include type_specific_data for credits)
           const { data: effectType } = await supabase
             .from('fighter_effect_types')
             .select(`
               id,
               effect_name,
               fighter_effect_category_id,
+              type_specific_data,
               fighter_effect_categories!inner (
                 id,
                 category_name
@@ -338,6 +361,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   category_name: (effectType.fighter_effect_categories as any).category_name,
                   fighter_effect_modifiers: modifiers || []
                 });
+
+                // Rating delta for applied effect on fighter
+                ratingDelta += (effectType.type_specific_data?.credits_increase || 0);
               }
             } else if (params.vehicle_id) {
               // Call add_vehicle_effect RPC
@@ -362,6 +388,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   fighter_equipment_id: newEquipmentId,
                   category_name: (effectType.fighter_effect_categories as any).category_name
                 });
+
+                // Rating delta for applied effect on vehicle only if assigned
+                if (vehicleAssignedFighterId) {
+                  ratingDelta += (effectType.type_specific_data?.credits_increase || 0);
+                }
               }
             }
           }
@@ -373,6 +404,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Handle beast creation for fighter equipment purchases
     let createdBeasts: any[] = [];
+    let createdBeastsRatingDelta = 0;
     
     if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
       try {
@@ -499,12 +531,30 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   equipment_source: 'Granted by equipment',
                   created_at: newFighter.created_at
                 });
+
+                // Increase rating by base beast cost (counted via owner semantics)
+                const baseBeastCost = (fighterType.cost || 0);
+                createdBeastsRatingDelta += baseBeastCost;
               }
             }
           }
         }
       } catch (beastCreationError) {
         console.error('Error in beast creation process:', beastCreationError);
+      }
+    }
+
+    // Apply rating delta for equipment + effects + beasts
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+      try {
+        const newRating = Math.max(0, (gang.rating || 0) + ratingDelta + createdBeastsRatingDelta);
+        await supabase
+          .from('gangs')
+          .update({ rating: newRating })
+          .eq('id', params.gang_id);
+        invalidateGangRating(params.gang_id);
+      } catch (e) {
+        console.error('Failed to update gang rating after equipment purchase:', e);
       }
     }
 
@@ -718,12 +768,34 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       .select(`
         id,
         effect_name,
+        type_specific_data,
         fighter_effect_modifiers (
           stat_name,
           numeric_value
         )
       `)
       .eq('fighter_equipment_id', params.fighter_equipment_id);
+
+    // Determine rating delta prior to deletion
+    let ratingDelta = 0;
+    if (equipmentBefore.fighter_id) {
+      ratingDelta -= (equipmentBefore.purchase_cost || 0);
+      // subtract associated effects credits if any
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
+    } else if (equipmentBefore.vehicle_id) {
+      // Only count if vehicle assigned
+      const { data: veh } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', equipmentBefore.vehicle_id)
+        .single();
+      if (veh?.fighter_id) {
+        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
+      }
+    }
 
     // Delete the equipment (cascade will handle fighter effects automatically)
     const { error: deleteError } = await supabase
@@ -733,6 +805,26 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    // Update rating if needed
+    if (ratingDelta !== 0) {
+      try {
+        // Get current rating and update
+        const { data: curr } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', params.gang_id)
+          .single();
+        const currentRating = (curr?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .eq('id', params.gang_id);
+        invalidateGangRating(params.gang_id);
+      } catch (e) {
+        console.error('Failed to update gang rating after equipment deletion:', e);
+      }
     }
 
     // Get fresh fighter total cost after deletion for accurate response

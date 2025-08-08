@@ -442,26 +442,20 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // =============================================================================
 
 /**
- * Calculate gang rating (sum of all active fighter costs)
+ * Get stored gang rating from column (gangs.rating)
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  */
 export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
   return unstable_cache(
     async () => {
-      const fighters = await getGangFightersList(gangId, supabase);
-      
-      // Calculate gang rating (same logic as SQL function)
-      const rating = fighters
-        .filter(f => !f.killed && !f.retired && !f.enslaved)
-        .reduce((total, fighter) => {
-          // Exclude exotic beasts from direct rating calculation (their costs are already in owner's credits)
-          if (fighter.fighter_class === 'exotic beast') {
-            return total;
-          }
-          return total + fighter.credits;
-        }, 0);
+      const { data, error } = await supabase
+        .from('gangs')
+        .select('rating')
+        .eq('id', gangId)
+        .single();
 
-      return rating;
+      if (error) throw error;
+      return (data?.rating ?? 0) as number;
     },
     [`gang-rating-${gangId}`],
     {

@@ -10,7 +10,8 @@ import {
   invalidateFighterEquipment,
   addBeastToGangCache,
   invalidateFighterOwnedBeasts,
-  invalidateGangStash
+  invalidateGangStash,
+  invalidateGangRating
 } from '@/utils/cache-tags';
 import { 
   createExoticBeastsForEquipment, 
@@ -99,7 +100,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     } else if (params.vehicle_id) {
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('gang_id')
+        .select('gang_id, fighter_id')
         .eq('id', params.vehicle_id)
         .single();
 
@@ -147,6 +148,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Apply equipment effects if this equipment has any
     let appliedEffects: any[] = [];
+    let effectsCreditsDelta = 0;
     if ((params.fighter_id || params.vehicle_id) && !isCustomEquipment && stashData.equipment_id) {
       try {
         // Get equipment effects from fighter_effect_types
@@ -193,6 +195,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                     fighter_effect_category_id: effectType.fighter_effect_category_id,
                     fighter_effect_modifiers: modifiers || []
                   });
+
+                  // Accumulate effect credits delta for rating
+                  effectsCreditsDelta += (effectType.type_specific_data?.credits_increase || 0);
                 }
               } else if (params.vehicle_id) {
                 // Call add_vehicle_effect RPC
@@ -223,6 +228,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                     fighter_effect_category_id: effectType.fighter_effect_category_id,
                     fighter_effect_modifiers: modifiers || []
                   });
+
+                  // Accumulate effect credits delta (will apply to rating if vehicle is assigned below)
+                  effectsCreditsDelta += (effectType.type_specific_data?.credits_increase || 0);
                 }
               }
             } catch (effectError) {
@@ -264,6 +272,42 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           ...profile,
           is_master_crafted: stashData.is_master_crafted || false
         }));
+      }
+    }
+
+    // Determine rating delta
+    let ratingDelta = 0;
+    if (params.fighter_id) {
+      ratingDelta += (stashData.purchase_cost || 0);
+      ratingDelta += effectsCreditsDelta;
+    } else if (params.vehicle_id) {
+      const { data: veh } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', params.vehicle_id)
+        .single();
+      if (veh?.fighter_id) {
+        ratingDelta += (stashData.purchase_cost || 0);
+        ratingDelta += effectsCreditsDelta;
+      }
+    }
+
+    // Update rating if delta
+    if (ratingDelta !== 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', stashData.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .eq('id', stashData.gang_id);
+        invalidateGangRating(stashData.gang_id);
+      } catch (e) {
+        console.error('Failed to update gang rating after moving from stash:', e);
       }
     }
 
