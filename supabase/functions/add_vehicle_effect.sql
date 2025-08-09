@@ -15,78 +15,64 @@ DECLARE
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
-    v_fighter_id UUID;
     v_category_id UUID;
 BEGIN
-    -- Parameter validation
+    -- Validate inputs
     IF in_vehicle_id IS NULL THEN
         RAISE EXCEPTION 'vehicle_id must be provided';
     END IF;
-    
     IF in_fighter_effect_type_id IS NULL THEN
         RAISE EXCEPTION 'fighter_effect_type_id must be provided';
     END IF;
-    
     IF in_user_id IS NULL THEN
         RAISE EXCEPTION 'user_id must be provided';
     END IF;
-    
+
     -- Set user context for is_admin check
     PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
-    
-    -- Check if user is an admin
+
+    -- Admin check
     SELECT private.is_admin() INTO v_is_admin;
-    
-    -- Get the fighter_id from the vehicle
-    SELECT fighter_id INTO v_fighter_id
+
+    -- Authorize via vehicle.gang_id
+    SELECT gang_id INTO v_gang_id
     FROM vehicles
     WHERE id = in_vehicle_id;
-    
-    IF v_fighter_id IS NULL THEN
-        RAISE EXCEPTION 'Vehicle not found or not associated with a fighter';
+
+    IF v_gang_id IS NULL THEN
+        RAISE EXCEPTION 'Vehicle not found';
     END IF;
-    
-    -- Get the gang_id for the fighter
-    SELECT gang_id INTO v_gang_id
-    FROM fighters
-    WHERE id = v_fighter_id;
-    
-    -- If not admin, check if user has permission
+
     IF NOT v_is_admin THEN
         SELECT EXISTS (
-            SELECT 1
-            FROM gangs
-            WHERE id = v_gang_id AND user_id = in_user_id
+            SELECT 1 FROM gangs WHERE id = v_gang_id AND user_id = in_user_id
         ) INTO v_user_has_access;
-        
+
         IF NOT v_user_has_access THEN
             RAISE EXCEPTION 'User does not have permission to add effects to this vehicle';
         END IF;
     END IF;
-    
-    -- Get the effect type details from fighter_effect_types
+
+    -- Get effect type
     SELECT * INTO effect_type_record
     FROM fighter_effect_types
     WHERE id = in_fighter_effect_type_id;
-    
-    -- Validate that the effect type exists
+
     IF effect_type_record.id IS NULL THEN
         RAISE EXCEPTION 'The provided fighter effect type ID does not exist';
     END IF;
-    
-    -- If category ID is not provided, get it from effect type
+
+    -- Determine category
     IF in_fighter_effect_category_id IS NULL THEN
         v_category_id := effect_type_record.fighter_effect_category_id;
     ELSE
         v_category_id := in_fighter_effect_category_id;
-        
-        -- Validate that the effect type belongs to the specified category if provided
         IF effect_type_record.fighter_effect_category_id != v_category_id THEN
             RAISE EXCEPTION 'The provided fighter effect type does not belong to the specified category';
         END IF;
     END IF;
-    
-    -- Insert the new fighter effect with vehicle_id
+
+    -- Insert effect linked only to vehicle_id (fighter_id = NULL)
     INSERT INTO fighter_effects (
         fighter_id,
         fighter_effect_type_id,
@@ -96,7 +82,7 @@ BEGIN
         vehicle_id
     )
     VALUES (
-        v_fighter_id,  -- Use the fighter_id we looked up from the vehicle
+        NULL,
         in_fighter_effect_type_id,
         effect_type_record.effect_name,
         effect_type_record.type_specific_data,
@@ -104,9 +90,9 @@ BEGIN
         in_vehicle_id
     )
     RETURNING id INTO new_effect_id;
-    
-    -- Create the modifiers associated with this effect type
-    FOR modifier_record IN 
+
+    -- Insert default modifiers
+    FOR modifier_record IN
         SELECT * FROM fighter_effect_type_modifiers
         WHERE fighter_effect_type_id = in_fighter_effect_type_id
     LOOP
@@ -121,13 +107,13 @@ BEGIN
             modifier_record.default_numeric_value
         );
     END LOOP;
-    
-    -- Return the newly created effect as a single JSON object
+
+    -- Return created effect
     RETURN (
       SELECT json_build_object(
         'id', fe.id,
         'created_at', fe.created_at,
-        'fighter_id', fe.fighter_id,
+        'fighter_id', fe.fighter_id,   -- will be null
         'vehicle_id', fe.vehicle_id,
         'user_id', fe.user_id,
         'effect_name', fe.effect_name,
@@ -169,7 +155,6 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth, private;
 
--- Revoke and grant permissions
 REVOKE ALL ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) TO service_role;
