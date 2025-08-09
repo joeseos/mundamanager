@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from 'next/cache';
+
+// =============================================================================
+// CACHE INVALIDATION - Invalidate equipment cache when admin makes changes
+// =============================================================================
+
+function invalidateEquipmentCache() {
+  revalidateTag('equipment-categories');
+  revalidateTag('equipment-data');
+  revalidateTag('equipment-effects');
+  revalidateTag('vehicle-types');
+}
 
 interface WeaponProfile {
   profile_name: string;
@@ -455,6 +467,9 @@ export async function POST(request: Request) {
         console.warn('Error inserting into equipment_availability:', availabilityError);
       }
     }
+
+    // Invalidate equipment cache after successful creation
+    invalidateEquipmentCache();
 
     return NextResponse.json(equipment);
   } catch (error) {
@@ -1169,6 +1184,9 @@ export async function PATCH(request: Request) {
         console.log('No fighter effects to process (length is 0)');
       }
     }
+
+    // Invalidate equipment cache after successful update
+    invalidateEquipmentCache();
 
     return NextResponse.json({ success: true });
 

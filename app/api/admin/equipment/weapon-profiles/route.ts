@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from 'next/cache';
+
+// Invalidate equipment cache when weapon profiles change
+function invalidateEquipmentCache() {
+  revalidateTag('equipment-data');
+  revalidateTag('equipment-effects');
+}
 
 export async function GET(request: Request) {
   const supabase = await createClient();

@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from 'next/cache';
+
+// Invalidate equipment cache when categories change
+function invalidateEquipmentCache() {
+  revalidateTag('equipment-categories');
+  revalidateTag('equipment-data');
+}
 
 export async function GET() {
   const supabase = await createClient();

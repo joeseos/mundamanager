@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef, startTransition } from 'react';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/modal";
-import { createClient } from "@/utils/supabase/client";
+
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { ChevronRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,6 +14,12 @@ import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
+import { 
+  getEquipmentCategoriesAction, 
+  getEquipmentWithDiscountsAction, 
+  getFighterEffectsForEquipmentAction,
+  getVehicleTypeIdAction 
+} from '@/app/actions/equipment-data';
 import { Tooltip } from 'react-tooltip';
 import FighterEffectSelection from './fighter-effect-selection';
 
@@ -112,14 +118,14 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
       // Check if there are any selectable effects (non-fixed) for this equipment
       const checkSelectableEffects = async () => {
         try {
-          // Fetch full effect data including modifiers
-          const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+          // Fetch full effect data including modifiers using server action
+          const result = await getFighterEffectsForEquipmentAction(item.equipment_id);
           
-          if (!response.ok) {
-            throw new Error('Failed to fetch fighter effects');
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to fetch fighter effects');
           }
 
-          const fetchedEffectTypes = await response.json();
+          const fetchedEffectTypes = result.data || [];
           setEffectTypes(fetchedEffectTypes);
 
           const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
@@ -314,7 +320,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const mountedRef = useRef(true);
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
-  const [session, setSession] = useState<any>(null);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
     isStashMode ? "fighters-tradingpost" : "fighters-list"
@@ -343,62 +349,31 @@ const ItemModal: React.FC<ItemModalProps> = ({
     };
   }, []);
 
+
+
+  // Categories are now derived from equipment data instead of fetched separately
+  // This eliminates the separate API call and improves performance
   useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!session) return;
-
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/equipment_categories?select=id,category_name&order=category_name`,
-          {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch categories');
-        const data = await response.json();
-        setCategories(data);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        setError('Failed to load categories');
-      }
-    };
-
-    if (session) {
-      fetchCategories();
-    }
-  }, [session]);
+    // Derive categories from available equipment data
+    const categoryNames = availableCategories.map(name => ({
+      id: name.toLowerCase().replace(/\s+/g, '-'),
+      category_name: name
+    }));
+    
+    startTransition(() => {
+      setCategories(categoryNames);
+    });
+  }, [availableCategories]);
 
   useEffect(() => {
     const fetchVehicleTypeId = async () => {
-      if (isVehicleEquipment && !localVehicleTypeId && session && vehicleType) {
+      if (isVehicleEquipment && !localVehicleTypeId && vehicleType) {
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
-            {
-              headers: {
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session.access_token}`
-              }
-            }
-          );
-
-          if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
-          const data = await response.json();
-          if (data && data.length > 0) {
-            setLocalVehicleTypeId(data[0].id);
+          const result = await getVehicleTypeIdAction(vehicleType);
+          if (result.success && result.data) {
+            setLocalVehicleTypeId(result.data);
+          } else {
+            throw new Error(result.error || 'Vehicle type not found');
           }
         } catch (error) {
           console.error('Error fetching vehicle type ID:', error);
@@ -408,10 +383,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     };
 
     fetchVehicleTypeId();
-  }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
+  }, [isVehicleEquipment, localVehicleTypeId, vehicleType]);
 
   const fetchAllCategories = async () => {
-    if (!session || isLoadingAllEquipment) return;
+    if (isLoadingAllEquipment) return;
     
     setIsLoadingAllEquipment(true);
     setError(null);
@@ -466,85 +441,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       console.log(`fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`, requestBody);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch fighter equipment');
-      }
-
-      const data: RawEquipmentData[] = await response.json();
-
-      console.log(`fetchAllCategories response for ${equipmentListType}: ${data.length} items received`);
-
-      if (DEBUG) {
-        console.log('Fighter equipment data:', data);
-      }
-
-      // Format and organize equipment by category
-      const formattedData = data
-        .map((item: RawEquipmentData) => ({
-          ...item,
-          equipment_id: item.id,
-          fighter_equipment_id: '',
-          cost: item.adjusted_cost,
-          base_cost: item.base_cost,
-          adjusted_cost: item.adjusted_cost,
-          equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
-          fighter_weapon_id: item.fighter_weapon_id || undefined,
-          master_crafted: item.master_crafted || false,
-          is_custom: item.is_custom,
-          vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined
-        }))
-        // Remove duplicates based on equipment_id
-        .filter((item, index, array) => 
-          array.findIndex(i => i.equipment_id === item.equipment_id) === index
-        )
-        .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
-
-      // Organize equipment by category
-      const equipmentByCategory: Record<string, Equipment[]> = {};
-      formattedData.forEach(item => {
-        const category = item.equipment_category;
-        if (!equipmentByCategory[category]) {
-          equipmentByCategory[category] = [];
-        }
-        equipmentByCategory[category].push(item);
+      const result = await getEquipmentWithDiscountsAction(requestBody as {
+        gang_type_id: string;
+        fighter_type_id?: string;
+        fighter_type_equipment?: boolean;
+        equipment_tradingpost?: boolean;
       });
 
-      // Sort Vehicle Upgrades by slot first, then alphabetically
-      if (equipmentByCategory['Vehicle Upgrades']) {
-        equipmentByCategory['Vehicle Upgrades'].sort((a, b) => {
-          // Define slot order - items without slot info come first (0)
-          const slotOrder = { 'Body': 1, 'Drive': 2, 'Engine': 3 };
-          
-          // Get slot values, treating null/undefined as 0 (first)
-          const aSlot = a.vehicle_upgrade_slot || '';
-          const bSlot = b.vehicle_upgrade_slot || '';
-          const aOrder = slotOrder[aSlot as keyof typeof slotOrder] || 0;
-          const bOrder = slotOrder[bSlot as keyof typeof slotOrder] || 0;
-          
-          // Sort by slot first
-          if (aOrder !== bOrder) {
-            return aOrder - bOrder;
-          }
-          
-          // Then sort alphabetically
-          return a.equipment_name.localeCompare(b.equipment_name);
-        });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch equipment');
       }
 
-      const uniqueCategories = Object.keys(equipmentByCategory);
+      const { equipment: equipmentByCategory, categories: uniqueCategories } = result.data || { equipment: {}, categories: [] };
+
+      console.log(`fetchAllCategories response for ${equipmentListType}: ${uniqueCategories.length} categories received`);
+
+      if (DEBUG) {
+        console.log('Equipment data:', equipmentByCategory);
+      }
 
       // Cache the data
       if (equipmentListType === 'unrestricted') {
@@ -558,9 +472,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
         setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
       }
 
-      // Set the state
-      setAvailableCategories(uniqueCategories);
-      setEquipment(equipmentByCategory);
+      // Set the state with startTransition to prevent interrupting user interactions
+      startTransition(() => {
+        setAvailableCategories(uniqueCategories);
+        setEquipment(equipmentByCategory);
+      });
 
     } catch (err) {
       console.error('Error fetching all equipment categories:', err);
@@ -622,7 +538,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
-    if (!session) return;
     try {
       // Determine if this is a gang stash purchase
       const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
@@ -723,7 +638,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   useEffect(() => {
-    if (!session || isLoadingAllEquipment) return;
+    if (isLoadingAllEquipment) return;
 
     // Check cache first before making any API calls
     const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
@@ -731,25 +646,31 @@ const ItemModal: React.FC<ItemModalProps> = ({
     // If we have cached data for this equipment list type, use it
     if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
       console.log('Using cached data for unrestricted');
-      setAvailableCategories(cachedAllCategories);
-      setEquipment(cachedEquipment.all);
+      startTransition(() => {
+        setAvailableCategories(cachedAllCategories);
+        setEquipment(cachedEquipment.all);
+      });
       return;
     } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
       console.log('Using cached data for fighters-list');
-      setAvailableCategories(cachedFighterCategories);
-      setEquipment(cachedEquipment.fighter);
+      startTransition(() => {
+        setAvailableCategories(cachedFighterCategories);
+        setEquipment(cachedEquipment.fighter);
+      });
       return;
     } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
       console.log('Using cached data for fighters-tradingpost');
-      setAvailableCategories(cachedFighterTPCategories);
-      setEquipment(cachedEquipment.tradingpost);
+      startTransition(() => {
+        setAvailableCategories(cachedFighterTPCategories);
+        setEquipment(cachedEquipment.tradingpost);
+      });
       return;
     }
 
     // Only fetch if we don't have cached data
     console.log(`No cached data found for ${equipmentListType}, fetching from API`);
     fetchAllCategories();
-  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
+  }, [equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
 
   // Calculate min/max values from equipment data
   useEffect(() => {
