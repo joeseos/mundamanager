@@ -66,9 +66,11 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
           .eq('id', params.gangId)
           .single();
         const currentRating = (ratingRow?.rating ?? 0) as number;
+        const newRating = Math.max(0, currentRating + vehicleCost);
+        
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + vehicleCost) })
+          .update({ rating: newRating })
           .eq('id', params.gangId);
         invalidateGangRating(params.gangId);
       } catch (e) {

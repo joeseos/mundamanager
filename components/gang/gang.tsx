@@ -171,7 +171,9 @@ export default function Gang({
   }, [vehicles]);
 
   // Calculate the total value of the Stash
-  const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
+  const totalStashValue = useMemo(() => {
+    return stash.reduce((total, item) => total + (item.cost || 0), 0);
+  }, [stash]);
 
 
   // view mode
