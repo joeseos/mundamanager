@@ -11,9 +11,11 @@ import { X } from "lucide-react";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
+import { sellVehicle } from '@/app/actions/sell-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { Edit } from 'lucide-react';
+import { MdCurrencyExchange } from 'react-icons/md';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -21,8 +23,10 @@ interface GangVehiclesProps {
   gangId: string;
   title?: string;
   onVehicleUpdate?: (updatedVehicles: VehicleProps[]) => void;
-  onFighterUpdate?: (updatedFighter: FighterProps) => void;
+  onFighterUpdate?: (updatedFighter: FighterProps, skipRatingUpdate?: boolean) => void;
   userPermissions?: UserPermissions;
+  onGangCreditsUpdate?: (newCredits: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
 }
 
 // Update the type to match VehicleProps
@@ -38,17 +42,22 @@ export default function GangVehicles({
   title = 'Vehicles',
   onVehicleUpdate,
   onFighterUpdate,
-  userPermissions
+  userPermissions,
+  onGangCreditsUpdate,
+  onGangRatingUpdate
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+  const [isSellLoading, setIsSellLoading] = useState(false);
   const { toast } = useToast();
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [editedVehicleName, setEditedVehicleName] = useState('');
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
+  const [sellingVehicle, setSellingVehicle] = useState<CombinedVehicleProps | null>(null);
+  const [sellAmount, setSellAmount] = useState<number>(0);
   const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
   const [newSpecialRule, setNewSpecialRule] = useState('');
 
@@ -274,6 +283,12 @@ export default function GangVehicles({
     setVehicleSpecialRules(vehicle.special_rules || []);
   };
 
+  const handleSellClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
+    e.preventDefault();
+    setSellingVehicle(vehicle);
+    setSellAmount(calculateVehicleTotalValue(vehicle));
+  };
+
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
     
@@ -382,6 +397,90 @@ export default function GangVehicles({
       return false;
     } finally {
       setIsEditLoading(false);
+    }
+  };
+
+  const handleConfirmSellVehicle = async () => {
+    if (!sellingVehicle) return false;
+
+    setIsSellLoading(true);
+
+    // Store original state for potential rollback
+    const originalVehicles = [...vehicles];
+    const originalFighters = [...fighters];
+
+    try {
+      const isAssigned = !!sellingVehicle.assigned_to;
+
+      // OPTIMISTIC UPDATES
+      if (!isAssigned && onVehicleUpdate) {
+        const updatedVehicles = vehicles.filter(v => v.id !== sellingVehicle.id);
+        onVehicleUpdate(updatedVehicles);
+      }
+
+      if (isAssigned && onFighterUpdate) {
+        const fighter = fighters.find(f => f.fighter_name === sellingVehicle.assigned_to);
+        if (fighter) {
+          const localVehicleCost = calculateVehicleTotalValue(sellingVehicle);
+          const updatedFighter = {
+            ...fighter,
+            vehicles: [],
+            credits: Math.max(0, (fighter.credits || 0) - localVehicleCost)
+          };
+          onFighterUpdate(updatedFighter, true);
+        }
+      }
+
+      // Server call
+      const result = await sellVehicle({
+        vehicleId: sellingVehicle.id,
+        gangId,
+        manual_cost: sellAmount
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to sell vehicle');
+      }
+
+      // Update gang credits immediately if provided
+      if (typeof result.data?.gang?.credits === 'number' && onGangCreditsUpdate) {
+        onGangCreditsUpdate(result.data.gang.credits);
+      }
+      // Update gang rating immediately if provided
+      if (typeof result.data?.updated_gang_rating === 'number' && onGangRatingUpdate) {
+        onGangRatingUpdate(result.data.updated_gang_rating);
+      }
+
+      toast({
+        title: 'Success',
+        description: `${sellingVehicle.vehicle_name || sellingVehicle.vehicle_type} sold for ${sellAmount} credits`,
+      });
+
+      setSellingVehicle(null);
+      setSelectedVehicle(null);
+      return true;
+    } catch (error) {
+      console.error('Error selling vehicle:', error);
+
+      // ROLLBACK optimistic updates on error
+      if (onVehicleUpdate) {
+        onVehicleUpdate(originalVehicles);
+      }
+      if (onFighterUpdate && sellingVehicle?.assigned_to) {
+        const originalFighter = originalFighters.find(f => f.fighter_name === sellingVehicle.assigned_to);
+        if (originalFighter) {
+          onFighterUpdate(originalFighter, true);
+        }
+      }
+
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to sell vehicle',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsSellLoading(false);
     }
   };
 
@@ -534,8 +633,19 @@ export default function GangVehicles({
                         variant="outline"
                         size="sm"
                         className="h-6 px-2 text-xs py-0"
+                        onClick={(e) => handleSellClick(e, vehicle)}
+                        disabled={isLoading || isSellLoading || !userPermissions?.canEdit}
+                        title="Sell"
+                      >
+                        <MdCurrencyExchange className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs py-0"
                         onClick={(e) => handleEditClick(e, vehicle)}
                         disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
+                        title="Edit"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -545,6 +655,7 @@ export default function GangVehicles({
                         className="h-6 px-2 text-xs py-0"
                         onClick={(e) => handleDeleteClick(e, vehicle)}
                         disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
+                        title="Delete"
                       >
                         <LuTrash2 className="h-4 w-4" /> {/* Delete */}
                       </Button>
@@ -655,6 +766,37 @@ export default function GangVehicles({
                 ))}
               </div>
             </div>
+          </div>
+        </Modal>
+      )}
+      {sellingVehicle && (
+        <Modal
+          title="Sell Vehicle"
+          onClose={() => setSellingVehicle(null)}
+          onConfirm={handleConfirmSellVehicle}
+          confirmText={isSellLoading ? 'Selling...' : 'Sell'}
+        >
+          <div className="space-y-4">
+            <p>
+              Are you sure you want to sell <strong>{sellingVehicle.vehicle_name || sellingVehicle.vehicle_type}</strong>?
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sell Value
+                </label>
+                <Input
+                  type="number"
+                  value={sellAmount}
+                  min={0}
+                  onChange={(e) => setSellAmount(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              Credits will be returned to the gang. If the vehicle is assigned to a Crew, the gang rating will decrease accordingly.
+            </p>
           </div>
         </Modal>
       )}
