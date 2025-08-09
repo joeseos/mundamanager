@@ -39,3 +39,20 @@
 .ProseMirror a {
   color: rgb(37, 99, 235);
 }
+
+/* Prevent long URLs/words from overflowing containers in both read-only and editor views */
+.prose,
+.prose p,
+.prose li,
+.ProseMirror,
+.ProseMirror p,
+.ProseMirror li {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.prose a,
+.ProseMirror a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
