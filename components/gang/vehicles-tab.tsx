@@ -5,10 +5,9 @@ import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from '@/utils/supabase/client';
 import Modal from "@/components/modal";
 import { Input } from "@/components/ui/input";
-import { Plus, Minus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
@@ -51,6 +50,19 @@ export default function GangVehicles({
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
   const [newSpecialRule, setNewSpecialRule] = useState('');
+
+  // Calculate total vehicle value including equipment
+  const calculateVehicleTotalValue = (vehicle: CombinedVehicleProps): number => {
+    const baseCost = vehicle.cost || 0;
+    
+    // Equipment cost using the correct property name
+    const equipmentCost = (vehicle.equipment || []).reduce((sum, eq) => {
+      // Use purchase_cost if available (for vehicle equipment), fallback to cost
+      return sum + ((eq as any).purchase_cost || eq.cost || 0);
+    }, 0);
+    
+    return baseCost + equipmentCost;
+  };
 
   // Filter for only Crew fighters who don't have vehicles assigned
   const crewFighters = fighters.filter(fighter => 
@@ -536,7 +548,7 @@ export default function GangVehicles({
                         <LuTrash2 className="h-4 w-4" /> {/* Delete */}
                       </Button>
                     </div>
-                    <span className="w-20 text-right">{vehicle.cost}</span>
+                    <span className="w-20 text-right">{calculateVehicleTotalValue(vehicle)}</span>
                   </label>
                 ))}
               </div>
