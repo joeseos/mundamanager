@@ -1,6 +1,5 @@
 "use client"
 
-import Link from 'next/link'
 import Image from 'next/image'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 
@@ -36,7 +35,7 @@ export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
         <ul className="space-y-3">
           {sortedCampaigns.map((campaign) => (
             <li key={campaign.campaign_member_id}>
-              <Link href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
+              <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                   {campaign.image_url ? (
                     <Image
@@ -86,7 +85,7 @@ export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
                     )}
                   </div>
                 </div>
-              </Link>
+              </a>
             </li>
           ))}
         </ul>
