@@ -156,7 +156,7 @@ function NoteEditor({
           />
         ) : (
           <div 
-            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
+            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm break-words' : 'text-gray-500 italic text-center'}`}
             dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
           />
         )}
