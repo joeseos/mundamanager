@@ -227,7 +227,9 @@ export default function GangVehicles({
       
       // ROLLBACK optimistic updates on error
       if (onVehicleUpdate) {
-        onVehicleUpdate(originalVehicles);
+        // Only rollback unassigned vehicles to prevent double-counting
+        const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
+        onVehicleUpdate(unassignedOnly);
       }
       
       // Rollback fighter updates if there were any
@@ -294,7 +296,9 @@ export default function GangVehicles({
             ? { ...v, vehicle_name: editedVehicleName, special_rules: vehicleSpecialRules }
             : v
         );
-        onVehicleUpdate(updatedVehicles);
+        // Only pass unassigned vehicles to parent - assigned vehicles are handled via fighter updates
+        const unassignedOnly = updatedVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
+        onVehicleUpdate(unassignedOnly);
       }
 
       // Update fighter's vehicle if assigned
@@ -335,7 +339,6 @@ export default function GangVehicles({
         throw new Error(result.error || 'Failed to update vehicle');
       }
       
-      console.log('Response from server:', result.data);
 
       // Cache invalidation is handled in the server action
       
@@ -345,7 +348,9 @@ export default function GangVehicles({
       
       // ROLLBACK optimistic updates on error
       if (onVehicleUpdate) {
-        onVehicleUpdate(originalVehicles);
+        // Only rollback unassigned vehicles to prevent double-counting
+        const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
+        onVehicleUpdate(unassignedOnly);
       }
       
       // Rollback fighter updates if there were any
@@ -439,7 +444,9 @@ export default function GangVehicles({
       
       // ROLLBACK optimistic updates on error
       if (onVehicleUpdate) {
-        onVehicleUpdate(originalVehicles);
+        // Only rollback unassigned vehicles to prevent double-counting
+        const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
+        onVehicleUpdate(unassignedOnly);
       }
       
       // Rollback fighter updates if there were any
