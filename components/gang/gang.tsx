@@ -27,6 +27,8 @@ import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
+import { Tooltip } from 'react-tooltip';
+import { fighterClassRank } from '@/utils/fighterClassRank';
 
 
 interface GangProps {
@@ -176,6 +178,59 @@ export default function Gang({
 
   // Calculate the total value of the Stash
   const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
+
+  // Fighters composition for tooltip: group by fighter_type and fighter_class
+  const fighterTypeClassCounts = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number; classKey: string }>();
+    for (const fighter of fighters) {
+      const typeLabel = fighter.fighter_type || 'Unknown Type';
+      const classLabel = fighter.fighter_class || 'Unknown Class';
+      const key = `${typeLabel} (${classLabel})`;
+      const classKey = (fighter.fighter_class || 'unknown').toLowerCase();
+      const existing = counts.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        counts.set(key, { label: key, count: 1, classKey });
+      }
+    }
+    return Array.from(counts.values()).sort((a, b) => {
+      const rankA = fighterClassRank[a.classKey] ?? Infinity;
+      const rankB = fighterClassRank[b.classKey] ?? Infinity;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.label.localeCompare(b.label);
+    });
+  }, [fighters]);
+
+  const escapeHtml = (unsafe: string): string =>
+    unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  const fightersTooltipHtml = useMemo(() => {
+    const title = '<div style="font-weight:600;margin-bottom:6px;">Gang Composition</div>';
+    if (fighterTypeClassCounts.length === 0) {
+      return `${title}<div>No fighters</div>`;
+    }
+    const rows = fighterTypeClassCounts
+      .map(({ label, count }) =>
+        `<div style="display:flex;justify-content:space-between;gap:12px;">` +
+          `<span>${escapeHtml(label)}</span>` +
+          `<span>${count}</span>` +
+        `</div>`
+      )
+      .join('');
+    const total = fighterTypeClassCounts.reduce((sum, item) => sum + item.count, 0);
+    const footer =
+      `<div style=\"border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;\">` +
+        `<span>Total :</span>` +
+        `<span>${total}</span>` +
+      `</div>`;
+    return `${title}${rows}${footer}`;
+  }, [fighterTypeClassCounts]);
 
 
   // view mode
@@ -496,7 +551,7 @@ export default function Gang({
                 />
               </div>
 
-              {/* Copy button (left of logs) */}
+              {/* Copy button */}
               <Button
                 onClick={() => setShowCopyModal(true)}
                 variant="ghost"
@@ -528,6 +583,7 @@ export default function Gang({
               >
                 <FiCamera className="w-5 h-5" />
               </Button>
+
               {/* Share button */}
               <Button
                 onClick={() => shareUrl(name)}
@@ -576,10 +632,12 @@ export default function Gang({
                   Alignment:
                   <Badge variant="secondary">{alignment}</Badge>
                 </div>
-                <div className="flex items-center gap-1 text-sm">
-                  Alliance:
-                  <Badge variant="secondary">{allianceName}</Badge>
-                </div>
+                {allianceId && allianceName && (
+                  <div className="flex items-center gap-1 text-sm">
+                    Alliance:
+                    <Badge variant="secondary">{allianceName}</Badge>
+                  </div>
+                )}
               </div>
             </div>
             <div className="text-gray-600 mb-4">
@@ -597,7 +655,7 @@ export default function Gang({
             </div>
 
             <div className="mt-2">
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:gap-x-20 gap-x-10 text-sm">
 
                 {/* 1st Column */}
                 <div className="space-y-2">
@@ -621,14 +679,10 @@ export default function Gang({
                     <span className="text-gray-600">Reputation:</span>
                     <span className="font-semibold">{reputation != null ? reputation : 0}</span>
                   </div>
-                </div>
-
-                {/* 3rd Column */}
-                <div className="space-y-2">
                   {campaigns?.[0]?.has_exploration_points && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 hidden sm:inline">Exploration Points:</span>
-                      <span className="text-gray-600 inline sm:hidden">Exp. Points:</span>
+                      <span className="text-gray-600 inline sm:hidden">Expl. Pts:</span>
                       <span className="font-semibold">{explorationPoints != null ? explorationPoints : 0}</span>
                     </div>
                   )}
@@ -645,7 +699,17 @@ export default function Gang({
                       <span className="font-semibold">{scavengingRolls != null ? scavengingRolls : 0}</span>
                     </div>
                   )}
+                  {/* Gang Composition */}
+                  <div
+                    className="flex justify-between cursor-help"
+                    data-tooltip-id="gang-composition-tooltip"
+                    data-tooltip-html={fightersTooltipHtml}
+                  >
+                    <span className="text-gray-600">Gang Size:</span>
+                    <span className="font-semibold">{fighters.length}</span>
+                  </div>
                 </div>
+
               </div>
             </div>
             <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
@@ -746,6 +810,21 @@ export default function Gang({
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
+          <Tooltip
+            id="gang-composition-tooltip"
+            place="top"
+            className="!bg-black !text-white !text-xs !z-[2000]"
+            delayHide={100}
+            clickable={true}
+            style={{
+              backgroundColor: '#000',
+              color: 'white',
+              padding: '6px',
+              fontSize: '12px',
+              maxWidth: '24rem',
+              zIndex: 2000
+            }}
+          />
         </div>
 
         <div id="gang_card_additional_details" className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
@@ -825,7 +904,7 @@ export default function Gang({
             userPermissions={userPermissions}
           />
         ) : (
-          <div className="text-white italic text-center">No fighters available.</div>
+          <div className="text-white italic text-center">No fighters added yet.</div>
           );
         })()}
       </div>
