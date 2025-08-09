@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from 'next/cache';
+
+// Invalidate equipment cache when trading posts change
+function invalidateEquipmentCache() {
+  revalidateTag('equipment-data');
+}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -79,6 +85,9 @@ export async function POST(request: Request) {
 
       if (insertError) throw insertError;
     }
+
+    // Invalidate equipment cache after successful trading post update
+    invalidateEquipmentCache();
 
     return NextResponse.json({ success: true });
   } catch (error) {
