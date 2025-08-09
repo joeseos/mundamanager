@@ -13,6 +13,7 @@ import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
+import { Edit } from 'lucide-react';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -536,7 +537,7 @@ export default function GangVehicles({
                         onClick={(e) => handleEditClick(e, vehicle)}
                         disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
                       >
-                        {isEditLoading ? 'Saving...' : 'Edit'}
+                        <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="destructive"
