@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/utils/supabase/client"
+import { createCampaign } from "@/app/actions/create-campaign"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
@@ -57,7 +57,6 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
-  const supabase = createClient()
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
@@ -100,19 +99,16 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
     setIsLoading(true)
     setError(null)
     try {
-      const { data, error: rpcError } = await supabase
-        .rpc('create_campaign', {
-          p_campaign_type_id: campaignType,
-          p_campaign_name: campaignName.trimEnd(),
-          p_user_id: userId
-        })
+      const result = await createCampaign({
+        name: campaignName.trimEnd(),
+        campaignTypeId: campaignType,
+      })
 
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-        throw rpcError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create campaign');
       }
 
-      console.log('Campaign created:', data)
+      console.log('Campaign created:', result.data)
       
       // Reset form and close modal first for better UX
       setCampaignName("")
@@ -224,7 +220,6 @@ export default function CreateCampaign({ initialCampaignTypes, userId }: { initi
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
-  const supabase = createClient()
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
@@ -242,19 +237,16 @@ export default function CreateCampaign({ initialCampaignTypes, userId }: { initi
     setIsLoading(true)
     setError(null)
     try {
-      const { data, error: rpcError } = await supabase
-        .rpc('create_campaign', {
-          p_campaign_type_id: campaignType,
-          p_campaign_name: campaignName,
-          p_user_id: userId
-        })
+      const result = await createCampaign({
+        name: campaignName,
+        campaignTypeId: campaignType,
+      })
 
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-        throw rpcError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create campaign');
       }
 
-      console.log('Campaign created:', data)
+      console.log('Campaign created:', result.data)
       setCampaignName("")
       setCampaignType("")
       
