@@ -164,10 +164,14 @@ export default function Gang({
   }, [initialRating]);
 
 
-  // Calculate the total value of unassigned vehicles
+  // Calculate the total value of unassigned vehicles including equipment
   const unassignedVehiclesValue = useMemo(() => {
     if (!vehicles || vehicles.length === 0) return 0;
-    return vehicles.reduce((total, vehicle) => total + (vehicle.cost || 0), 0);
+    return vehicles.reduce((total, vehicle) => {
+      const baseCost = vehicle.cost || 0;
+      const equipmentCost = (vehicle as any).total_equipment_cost || 0;
+      return total + baseCost + equipmentCost;
+    }, 0);
   }, [vehicles]);
 
   // Calculate the total value of the Stash
