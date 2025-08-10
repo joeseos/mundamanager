@@ -10,6 +10,7 @@ import {
   deleteFighterInjury 
 } from '@/app/actions/fighter-injury';
 import { LuTrash2 } from 'react-icons/lu';
+import DiceRoller from '@/components/dice-roller';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -254,7 +255,38 @@ export function InjuriesList({
           title="Lasting Injuries"
           content={
             <div className="space-y-4">
-              <div className="space-y-2">
+              <div>
+                <DiceRoller
+                  items={localAvailableInjuries}
+                  ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
+                  getRange={(i: FighterEffect) => {
+                    const d: any = (i as any)?.type_specific_data || {};
+                    if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
+                      return { min: d.d66_min, max: d.d66_max };
+                    }
+                    return null; // let component fall back to util mapping
+                  }}
+                  getName={(i: FighterEffect) => (i as any).effect_name}
+                  isMultiple={(i: FighterEffect) => {
+                    const d: any = (i as any)?.type_specific_data || {};
+                    return d.is_multiple === true || (i as any).effect_name === 'Multiple Injuries';
+                  }}
+                  getBanned={(i: FighterEffect) => (i as any)?.type_specific_data?.multiple_banned}
+                  inline
+                  onRolled={(rolled) => {
+                    if (rolled.length > 0) {
+                      const first = rolled[0].item as any;
+                      setSelectedInjuryId(first.id);
+                      setSelectedInjury(first);
+                      toast({ description: `Roll ${rolled[0].roll}: ${first.effect_name}` });
+                    }
+                  }}
+                  buttonText="Roll D66"
+                  disabled={!userPermissions.canEdit}
+                />
+              </div>
+
+              <div className="space-y-2 pt-3 border-t">
                 <label htmlFor="injurySelect" className="text-sm font-medium">
                   Lasting Injuries
                 </label>
@@ -272,7 +304,7 @@ export function InjuriesList({
                     }
                   </option>
                   {localAvailableInjuries
-                    .slice() // avoid mutating the original array
+                    .slice()
                     .sort((a, b) => a.effect_name.localeCompare(b.effect_name))
                     .map((injury) => (
                       <option key={injury.id} value={injury.id}>
