@@ -127,11 +127,19 @@ export const signInAction = async (formData: FormData) => {
   }
 
   const cookieStore = await cookies();
-  const redirectPath = cookieStore.get('redirectPath');
-  cookieStore.delete('redirectPath');
-  
-  // Redirect to the home page in all circumstances
-  return redirect("/");
+  const redirectCookie = cookieStore.get('redirectPath');
+  if (redirectCookie) {
+    cookieStore.delete('redirectPath');
+  }
+
+  function safePath(p?: string) {
+    if (!p) return "/";
+    if (!p.startsWith("/") || p.startsWith("//")) return "/";
+    return p;
+  }
+
+  const destination = safePath(redirectCookie?.value);
+  return redirect(destination);
 };
 
 async function verifyTurnstileToken(token: string) {

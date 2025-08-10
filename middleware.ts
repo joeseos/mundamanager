@@ -46,8 +46,9 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
     const response = NextResponse.redirect(redirectUrl);
-    
-    const redirectPath = request.nextUrl.pathname.startsWith('/images/') ? '/' : request.nextUrl.pathname;
+
+    const isImage = request.nextUrl.pathname.startsWith('/images/');
+    const redirectPath = isImage ? '/' : `${request.nextUrl.pathname}${request.nextUrl.search}`;
     response.cookies.set('redirectPath', redirectPath, { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === 'production',
