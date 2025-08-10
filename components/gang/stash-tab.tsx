@@ -13,9 +13,15 @@ import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment';
+import Modal from '@/components/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
+import { deleteEquipmentFromStash } from '@/app/actions/equipment';
+import { sellEquipmentFromStash } from '@/app/actions/sell-equipment';
+import { MdCurrencyExchange } from 'react-icons/md';
+import { LuTrash2 } from 'react-icons/lu';
+import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 
 interface GangInventoryProps {
@@ -57,6 +63,10 @@ export default function GangInventory({
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
   const [showTradingPost, setShowTradingPost] = useState(false);
+  const [sellModalItemIdx, setSellModalItemIdx] = useState<number | null>(null);
+  const [sellManualCost, setSellManualCost] = useState<number>(0);
+  const [sellLastRoll, setSellLastRoll] = useState<number | null>(null);
+  const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
   const { toast } = useToast();
   
   const isVehicleExclusive = (item: StashItem) => 
@@ -477,8 +487,9 @@ export default function GangInventory({
                 <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
                   <div className="w-4 mr-5" />
                   <div className="flex-grow">Name</div>
-                  <div className="w-32 text-right">Category</div>
-                  <div className="w-20 text-right mr-2">Value</div>
+                  <div className="w-56 text-right">Category</div>
+                  <div className="w-40 text-right">Actions</div>
+                  <div className="w-20 text-right">Value</div>
                 </div>
                 <div className="space-y-2 px-0">
                   {stash.map((item, index) => (
@@ -491,13 +502,41 @@ export default function GangInventory({
                         onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
                         className="mr-3"
                       />
-                      <span className="flex-grow">{getItemName(item)}</span>
-                      <span className="w-32 text-right text-sm text-gray-600 whitespace-nowrap">
+                      <span className="flex-grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
+                      <span className="w-56 overflow-hidden text-ellipsis text-gray-600 whitespace-nowrap text-right">
                         {item.type === 'vehicle' 
                           ? 'Vehicle' 
                           : item.equipment_category || 'Equipment'
                         }
                       </span>
+                      <div className="w-40 flex justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs py-0"
+                          onClick={() => {
+                            setSellModalItemIdx(index);
+                            setSellLastRoll(null);
+                            setSellManualCost(stash[index].cost || 0);
+                          }}
+                          disabled={!userPermissions?.canEdit}
+                          title="Sell"
+                          type="button"
+                        >
+                          <MdCurrencyExchange className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-6 px-2 text-xs py-0"
+                          onClick={() => setDeleteModalIdx(index)}
+                          disabled={!userPermissions?.canEdit}
+                          title="Delete"
+                          type="button"
+                        >
+                          <LuTrash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <span className="w-20 text-right">{item.cost}</span>
                     </label>
                   ))}
@@ -715,6 +754,103 @@ export default function GangInventory({
               description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
             });
           }}
+        />
+      )}
+
+      {/* Sell from stash modal */}
+      {sellModalItemIdx !== null && (
+        <Modal
+          title="Sell Stash Item"
+          content={
+            <div className="space-y-4">
+              <p>
+                Are you sure you want to sell <strong>{getItemName(stash[sellModalItemIdx])}</strong>?
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = rollD6();
+                    setSellLastRoll(r);
+                    const cost = stash[sellModalItemIdx!].cost || 0;
+                    const final = Math.max(5, cost - r * 10);
+                    setSellManualCost(final);
+                    toast({ description: `Roll ${r}: -${r * 10} → ${final} credits` });
+                  }}
+                  className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800"
+                >
+                  Roll D6
+                </button>
+                {sellLastRoll !== null && (
+                  <div className="text-sm">Roll {sellLastRoll}: -{sellLastRoll * 10} → {Math.max(5, (stash[sellModalItemIdx!].cost || 0) - sellLastRoll * 10)} credits</div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Sale Price</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={sellManualCost}
+                  onChange={(e) => setSellManualCost(Number(e.target.value))}
+                  className="w-full p-2 border rounded"
+                />
+                <p className="text-xs text-gray-500 mt-1">Minimum 5 credits</p>
+              </div>
+            </div>
+          }
+          onClose={() => { setSellModalItemIdx(null); setSellLastRoll(null); setSellManualCost(0); }}
+          onConfirm={async () => {
+            const idx = sellModalItemIdx!;
+            const item = stash[idx];
+            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: Math.max(5, sellManualCost || 0) });
+            if (res.success) {
+              const newStash = stash.filter((_, i) => i !== idx);
+              setStash(newStash);
+              onStashUpdate?.(newStash);
+              toast({ description: `Sold ${getItemName(item)} for ${Math.max(5, sellManualCost || 0)} credits` });
+              // Optimistically update gang credits using server-returned value
+              if (res.data?.gang?.credits !== undefined) {
+                onGangCreditsUpdate?.(res.data.gang.credits);
+              }
+            } else {
+              toast({ description: res.error || 'Failed to sell item', variant: 'destructive' });
+            }
+            setSellModalItemIdx(null);
+            setSellLastRoll(null);
+          }}
+          confirmText="Sell"
+        />
+      )}
+
+      {/* Delete from stash modal */}
+      {deleteModalIdx !== null && (
+        <Modal
+          title="Delete Equipment"
+          content={
+            <div>
+              <p>Are you sure you want to delete <strong>{getItemName(stash[deleteModalIdx])}</strong>?</p>
+              <br />
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
+            </div>
+          }
+          onClose={() => setDeleteModalIdx(null)}
+          onConfirm={async () => {
+            const idx = deleteModalIdx!;
+            const item = stash[idx];
+            const res = await deleteEquipmentFromStash({ stash_id: item.id });
+            if (res.success) {
+              const newStash = stash.filter((_, i) => i !== idx);
+              setStash(newStash);
+              onStashUpdate?.(newStash);
+              toast({ description: `Deleted ${getItemName(item)} from stash` });
+            } else {
+              toast({ description: res.error || 'Failed to delete item', variant: 'destructive' });
+            }
+            setDeleteModalIdx(null);
+          }}
+          confirmText="Delete"
         />
       )}
     </>
