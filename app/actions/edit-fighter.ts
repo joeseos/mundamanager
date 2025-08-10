@@ -433,8 +433,9 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     if (updateError) throw updateError;
 
-    // Invalidate cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Invalidate cache - surgical XP-only invalidation
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
