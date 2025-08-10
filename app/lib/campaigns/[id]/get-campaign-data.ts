@@ -570,7 +570,7 @@ export const getCampaignTerritories = async (campaignId: string) => {
  * Cache key: campaign-battles-{campaignId}-{limit}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBattles = async (campaignId: string, limit = 50) => {
+export const getCampaignBattles = async (campaignId: string, limit = 100) => {
   const supabase = await createClient();
   return unstable_cache(
     async () => {
