@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
+import { rollD6 } from '@/utils/dice';
 
 interface WeaponListProps {
   fighterId: string;
@@ -31,7 +32,19 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const [manualCost, setManualCost] = useState(item.cost);
+  const originalCost = item.cost ?? 0;
+  const [manualCost, setManualCost] = useState(originalCost);
+  const [lastRoll, setLastRoll] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const handleRoll = () => {
+    const r = rollD6();
+    setLastRoll(r);
+    const deduction = r * 10;
+    const final = Math.max(5, originalCost - deduction);
+    setManualCost(final);
+    toast({ description: `Roll ${r}: -${deduction} → ${final} credits` });
+  };
 
   return (
     <Modal
@@ -39,6 +52,21 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
       content={
         <div className="space-y-4">
           <p>Are you sure you want to sell {item.equipment_name}?</p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleRoll}
+              className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+            >
+              Roll D6
+            </button>
+            {lastRoll !== null && (
+              <div className="text-sm">
+                {`Roll ${lastRoll}: -${lastRoll * 10} → ${Math.max(5, originalCost - lastRoll * 10)} credits`}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -49,14 +77,15 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
                 value={manualCost}
                 onChange={(e) => setManualCost(Number(e.target.value))}
                 className="w-full p-2 border rounded-md"
-                min="0"
+                min={0}
               />
+              <p className="text-xs text-gray-500 mt-1">Minimum 5 credits</p>
             </div>
           </div>
         </div>
       }
       onClose={onClose}
-      onConfirm={() => onConfirm(manualCost)}
+      onConfirm={() => onConfirm(Math.max(5, Number(manualCost) || 0))}
     />
   );
 }
