@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Modal from '@/components/modal';
-import { rollD66, rollD3, resolveInjuryFromUtil, bannedFromUtil } from '@/utils/dice';
 
 type Result<T> = { roll: number; item: T };
 
@@ -11,12 +10,12 @@ type Props<T> = {
   ensureItems?: () => Promise<void>;
   getRange: (item: T) => { min: number; max: number } | null;
   getName: (item: T) => string;
-  isMultiple?: (item: T) => boolean;
-  getBanned?: (item: T) => string[] | undefined;
   onConfirm?: (results: Array<Result<T>>) => Promise<void> | void;
   onRolled?: (results: Array<Result<T>>) => void;
+  onRoll?: (roll: number) => void; // called when no item matched
   inline?: boolean; // if true, show results inline instead of modal and call onRolled
-  expandMultiple?: boolean; // if true, auto-roll extra results for "Multiple Injuries"
+  rollFn: () => number; // required die roll (e.g., D6 / D66)
+  resolveNameForRoll?: (roll: number) => string | undefined; // display-only fallback label
   buttonText?: string;
   disabled?: boolean;
   className?: string;
@@ -27,12 +26,12 @@ export default function DiceRoller<T>({
   ensureItems,
   getRange,
   getName,
-  isMultiple,
-  getBanned,
   onConfirm,
   onRolled,
+  onRoll,
   inline = false,
-  expandMultiple = false,
+  rollFn,
+  resolveNameForRoll,
   buttonText = 'Roll',
   disabled,
   className,
@@ -41,6 +40,7 @@ export default function DiceRoller<T>({
   const [rolling, setRolling] = React.useState(false);
   const [applying, setApplying] = React.useState(false);
   const [results, setResults] = React.useState<Array<Result<T>>>([]);
+  const [lastRoll, setLastRoll] = React.useState<number | null>(null);
 
   const resolveByRoll = React.useCallback(
     (r: number): T | undefined => {
@@ -48,13 +48,9 @@ export default function DiceRoller<T>({
         const rg = getRange(i);
         return rg && r >= rg.min && r <= rg.max;
       });
-      if (match) return match;
-      // Fallback to util mapping by name if DB ranges are missing
-      const util = resolveInjuryFromUtil(r);
-      if (!util) return undefined;
-      return items.find((i) => getName(i) === util.name);
+      return match;
     },
-    [items, getRange, getName]
+    [items, getRange]
   );
 
   const performRoll = React.useCallback(async () => {
@@ -62,38 +58,26 @@ export default function DiceRoller<T>({
       setRolling(true);
       if (ensureItems) await ensureItems();
 
-      const r = rollD66();
+      const r = rollFn();
+      setLastRoll(r);
       const first = resolveByRoll(r);
       const out: Array<Result<T>> = [];
-
-      if (first) {
-        out.push({ roll: r, item: first });
-
-        if (expandMultiple && isMultiple?.(first)) {
-          const banned = new Set(getBanned?.(first) || bannedFromUtil(getName(first)));
-          const extra = rollD3();
-          for (let i = 0; i < extra; i++) {
-            let rr: number;
-            let pick: T | undefined;
-            do {
-              rr = rollD66();
-              pick = resolveByRoll(rr);
-            } while (!pick || banned.has(getName(pick)));
-            out.push({ roll: rr, item: pick });
-          }
-        }
-      }
+      if (first) out.push({ roll: r, item: first });
 
       setResults(out);
       if (inline) {
-        onRolled && onRolled(out);
+        if (out.length > 0) {
+          onRolled && onRolled(out);
+        } else {
+          onRoll && onRoll(r);
+        }
       } else {
         setOpen(true);
       }
     } finally {
       setRolling(false);
     }
-  }, [ensureItems, resolveByRoll, isMultiple, getBanned, getName, inline, onRolled, expandMultiple]);
+  }, [ensureItems, resolveByRoll, getName, inline, onRolled]);
 
   const handleConfirm = async () => {
     setApplying(true);
@@ -120,13 +104,22 @@ export default function DiceRoller<T>({
           {rolling ? 'Rolling...' : buttonText}
         </button>
 
-        {inline && results.length > 0 && (
+        {inline && (
           <div className="text-sm">
-            {results.map((r, idx) => (
-              <span key={idx}>
-                {idx > 0 ? ', ' : ''}Roll {r.roll}: {getName(r.item)}
+            {results.length > 0 ? (
+              results.map((r, idx) => (
+                <span key={idx}>
+                  {idx > 0 ? ', ' : ''}Roll {r.roll}: {getName(r.item)}
+                </span>
+              ))
+            ) : lastRoll !== null ? (
+              <span>
+                {(() => {
+                  const name = resolveNameForRoll?.(lastRoll);
+                  return name ? `Roll ${lastRoll}: ${name}` : `Roll ${lastRoll}`;
+                })()}
               </span>
-            ))}
+            ) : null}
           </div>
         )}
       </div>

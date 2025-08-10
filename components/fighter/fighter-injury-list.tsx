@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/fighter-injury';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
+import { rollD66, resolveInjuryFromUtil } from '@/utils/dice';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -267,18 +268,36 @@ export function InjuriesList({
                     return null; // let component fall back to util mapping
                   }}
                   getName={(i: FighterEffect) => (i as any).effect_name}
-                  isMultiple={(i: FighterEffect) => {
-                    const d: any = (i as any)?.type_specific_data || {};
-                    return d.is_multiple === true || (i as any).effect_name === 'Multiple Injuries';
-                  }}
-                  getBanned={(i: FighterEffect) => (i as any)?.type_specific_data?.multiple_banned}
                   inline
+                  rollFn={rollD66}
+                  resolveNameForRoll={(r) => resolveInjuryFromUtil(r)?.name}
                   onRolled={(rolled) => {
                     if (rolled.length > 0) {
-                      const first = rolled[0].item as any;
-                      setSelectedInjuryId(first.id);
-                      setSelectedInjury(first);
-                      toast({ description: `Roll ${rolled[0].roll}: ${first.effect_name}` });
+                      const roll = rolled[0].roll;
+                      // Prefer DB ranges; if not available, fallback to util by name
+                      const util = resolveInjuryFromUtil(roll);
+                      let match: any = null;
+                      if (util) {
+                        match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
+                      }
+                      if (!match) {
+                        match = rolled[0].item as any;
+                      }
+                      if (match) {
+                        setSelectedInjuryId(match.id);
+                        setSelectedInjury(match);
+                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                      }
+                    }
+                  }}
+                  onRoll={(roll) => {
+                    const util = resolveInjuryFromUtil(roll);
+                    if (!util) return;
+                    const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
+                    if (match) {
+                      setSelectedInjuryId(match.id);
+                      setSelectedInjury(match);
+                      toast({ description: `Roll ${roll}: ${match.effect_name}` });
                     }
                   }}
                   buttonText="Roll D66"
