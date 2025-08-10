@@ -43,14 +43,27 @@ export async function middleware(request: NextRequest) {
   // Redirect to sign-in if user is not authenticated
   if (!user) {
     console.log("Redirecting to sign-in page");
+
+    // Build a clean redirect path: drop common tracking params
+    const cleanUrl = request.nextUrl.clone();
+    const trackingParams = [
+      'fbclid', 'gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'
+    ];
+    trackingParams.forEach((k) => cleanUrl.searchParams.delete(k));
+
+    const isImage = cleanUrl.pathname.startsWith('/images/');
+    const redirectPath = isImage ? '/' : `${cleanUrl.pathname}${cleanUrl.search}`;
+
+    // Append next param to sign-in
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
+    redirectUrl.searchParams.set('next', redirectPath);
+
     const response = NextResponse.redirect(redirectUrl);
 
-    const isImage = request.nextUrl.pathname.startsWith('/images/');
-    const redirectPath = isImage ? '/' : `${request.nextUrl.pathname}${request.nextUrl.search}`;
-    response.cookies.set('redirectPath', redirectPath, { 
-      httpOnly: true, 
+    // Also set short-lived cookie fallback
+    response.cookies.set('redirectPath', redirectPath, {
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 60 * 5 // 5 minutes
