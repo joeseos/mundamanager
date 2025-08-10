@@ -32,7 +32,9 @@ export default function SignIn() {
     async function checkAuth() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        router.push('/');
+        const nextParam = searchParams.get('next');
+        const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
+        router.push(isSafe ? nextParam! : '/');
       }
     }
     
@@ -86,6 +88,14 @@ export default function SignIn() {
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           action={clientAction}
         >
+          {/* Carry next through to server action */}
+          {(() => {
+            const nextParam = searchParams.get('next');
+            const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
+            return isSafe ? (
+              <input type="hidden" name="next" value={nextParam!} />
+            ) : null;
+          })()}
           <h1 className="text-2xl font-medium text-white mb-2">Sign in</h1>
           <p className="text-sm text-white mb-8">
             Don't have an account?{" "}

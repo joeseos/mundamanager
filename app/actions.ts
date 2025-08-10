@@ -98,6 +98,7 @@ export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const turnstileToken = formData.get("cf-turnstile-response") as string;
+  const nextParam = formData.get('next') as string | undefined;
 
   if (process.env.NODE_ENV === "development") {
     console.log("Skipping Turnstile verification in development mode.");
@@ -138,7 +139,7 @@ export const signInAction = async (formData: FormData) => {
     return p;
   }
 
-  const destination = safePath(redirectCookie?.value);
+  const destination = safePath(nextParam ?? redirectCookie?.value);
   return redirect(destination);
 };
 
