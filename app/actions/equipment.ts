@@ -39,6 +39,17 @@ interface EquipmentActionResult {
   error?: string;
 }
 
+// Stash-specific delete params/result
+interface StashDeleteParams {
+  stash_id: string;
+}
+
+interface StashActionResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
@@ -876,6 +887,34 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       success: false, 
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
+  }
+}
+
+// Delete an item directly from the gang stash (no rating updates)
+export async function deleteEquipmentFromStash(params: StashDeleteParams): Promise<StashActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: row, error: fetchErr } = await supabase
+      .from('fighter_equipment')
+      .select('id, gang_id, gang_stash')
+      .eq('id', params.stash_id)
+      .single();
+    if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
+    if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
+
+    // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
+    const { error: delErr } = await supabase
+      .from('fighter_equipment')
+      .delete()
+      .eq('id', params.stash_id);
+    if (delErr) return { success: false, error: delErr.message };
+
+    invalidateGangStash({ gangId: row.gang_id, userId: user.id });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
 
