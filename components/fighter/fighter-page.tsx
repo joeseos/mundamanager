@@ -518,6 +518,32 @@ export default function FighterPage({
       xpError: ''
     }));
 
+    // Store original state for potential rollback
+    const originalFighterData = {
+      fighter: fighterData.fighter,
+      gangFighters: fighterData.gangFighters
+    };
+
+    // Calculate optimistic values
+    const optimisticXp = (fighterData.fighter?.xp || 0) + amount;
+    const optimisticTotalXp = (fighterData.fighter?.total_xp || 0) + amount;
+
+    // OPTIMISTIC UPDATES - Update UI immediately
+    setFighterData(prev => ({
+      ...prev,
+      fighter: prev.fighter ? {
+        ...prev.fighter,
+        xp: optimisticXp,
+        total_xp: optimisticTotalXp
+      } : null,
+      // Update gang fighters list for dropdown
+      gangFighters: prev.gangFighters.map(fighter => 
+        fighter.id === fighterId 
+          ? { ...fighter, xp: optimisticXp }
+          : fighter
+      )
+    }));
+
     try {
       const result = await updateFighterXp({
         fighter_id: fighterId,
@@ -528,8 +554,26 @@ export default function FighterPage({
         throw new Error(result.error || 'Failed to add XP');
       }
 
-      // Refresh the page to get updated data from server
-      router.refresh();
+      // Server confirmation - sync with actual values if different
+      const serverXp = result.data?.xp || optimisticXp;
+      const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
+      
+      // Only update if server values differ from optimistic
+      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp) {
+        setFighterData(prev => ({
+          ...prev,
+          fighter: prev.fighter ? {
+            ...prev.fighter,
+            xp: serverXp,
+            total_xp: serverTotalXp
+          } : null,
+          gangFighters: prev.gangFighters.map(fighter => 
+            fighter.id === fighterId 
+              ? { ...fighter, xp: serverXp }
+              : fighter
+          )
+        }));
+      }
 
       toast({
         description: `Successfully added ${amount} XP`,
@@ -539,6 +583,14 @@ export default function FighterPage({
       return true;
     } catch (error) {
       console.error('Error adding XP:', error);
+      
+      // ROLLBACK optimistic updates on error
+      setFighterData(prev => ({
+        ...prev,
+        fighter: originalFighterData.fighter,
+        gangFighters: originalFighterData.gangFighters
+      }));
+
       setEditState(prev => ({
         ...prev,
         xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
