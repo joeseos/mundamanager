@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating, invalidateFighterXpUpdate } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -433,8 +433,11 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     if (updateError) throw updateError;
 
-    // Invalidate cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Invalidate cache - surgical XP-only invalidation
+    invalidateFighterXpUpdate({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id
+    });
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {

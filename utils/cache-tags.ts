@@ -371,6 +371,23 @@ export function invalidateCampaignTerritory(params: {
 }
 
 /**
+ * Fighter XP Update Invalidation Pattern
+ * Triggered when: Fighter XP changes
+ * Data changed: Fighter basic data, gang fighters list (for dropdowns/gang page)
+ * Does NOT affect: Fighter cost, gang rating, equipment, skills, effects
+ */
+export function invalidateFighterXpUpdate(params: {
+  fighterId: string;
+  gangId: string;
+}) {
+  // Base data changes - only XP field in fighter basic data
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+  
+  // Composite data changes - gang fighters list needs XP updates for display
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
  * User Customization Invalidation Pattern
  * Triggered when: User creates/updates custom equipment/territories
  * Data changed: User customizations
