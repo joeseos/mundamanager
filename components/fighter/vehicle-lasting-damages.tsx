@@ -5,6 +5,8 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '../modal';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import DiceRoller from '@/components/dice-roller';
+import { rollD6 } from '@/utils/dice';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
@@ -350,7 +352,65 @@ export function VehicleDamagesList({
           title="Add Lasting Damage"
           content={
             <div className="space-y-4">
-              <div className="space-y-2">
+              <div>
+                <DiceRoller
+                  items={availableDamages}
+                  ensureItems={availableDamages.length === 0 ? fetchAvailableDamages : undefined}
+                  getRange={(i: FighterEffect) => null}
+                  getName={(i: FighterEffect) => (i as any).effect_name}
+                  inline
+                  rollFn={rollD6}
+                  resolveNameForRoll={(roll) => {
+                    const map: Record<number, string> = {
+                      1: 'Persistent Rattle',
+                      2: 'Handling Glitch',
+                      3: 'Unreliable',
+                      4: 'Loss of Power',
+                      5: 'Damaged Bodywork',
+                      6: 'Damaged Frame',
+                    };
+                    return map[roll as 1|2|3|4|5|6];
+                  }}
+                  buttonText="Roll D6"
+                  disabled={!userPermissions.canEdit}
+                  onRolled={(rolled) => {
+                    if (rolled.length === 0) return;
+                    const roll = rolled[0].roll;
+                    const map: Record<number, string> = {
+                      1: 'Persistent Rattle',
+                      2: 'Handling Glitch',
+                      3: 'Unreliable',
+                      4: 'Loss of Power',
+                      5: 'Damaged Bodywork',
+                      6: 'Damaged Frame',
+                    };
+                    const name = map[roll as 1|2|3|4|5|6];
+                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    if (match) {
+                      setSelectedDamageId(match.id);
+                      toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                    }
+                  }}
+                  onRoll={(roll) => {
+                    const map: Record<number, string> = {
+                      1: 'Persistent Rattle',
+                      2: 'Handling Glitch',
+                      3: 'Unreliable',
+                      4: 'Loss of Power',
+                      5: 'Damaged Bodywork',
+                      6: 'Damaged Frame',
+                    };
+                    const name = map[roll as 1|2|3|4|5|6];
+                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    if (match) {
+                      setSelectedDamageId(match.id);
+                      toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2 pt-3 border-t">
                 <label htmlFor="damageSelect" className="text-sm font-medium">
                   Lasting Damage
                 </label>

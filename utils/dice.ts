@@ -39,10 +39,35 @@ export const LASTING_INJURY_TABLE: TableEntry[] = [
 export const resolveInjuryFromUtil = (roll: number): TableEntry | undefined =>
   LASTING_INJURY_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
 
-export const isMultipleFromUtil = (name: string): boolean =>
-  LASTING_INJURY_TABLE.find((e) => e.name === name)?.is_multiple === true;
+// Keeping resolve by name for optional diagnostics/UI usage
+export const resolveInjuryRangeFromUtilByName = (
+  name: string,
+): [number, number] | undefined => {
+  const entry = LASTING_INJURY_TABLE.find((e) => e.name === name);
+  return entry?.range;
+};
 
-export const bannedFromUtil = (name: string): string[] =>
-  LASTING_INJURY_TABLE.find((e) => e.name === name)?.banned ?? [];
+
+// ============================================================================
+// Vehicle Lasting Damage - D6 table and resolver
+// ============================================================================
+
+export const VEHICLE_DAMAGE_TABLE: Record<number, string> = {
+  1: 'Persistent Rattle',
+  2: 'Handling Glitch',
+  3: 'Unreliable',
+  4: 'Loss of Power',
+  5: 'Damaged Bodywork',
+  6: 'Damaged Frame',
+};
+
+export const resolveVehicleDamageFromUtil = (d6: number): string | undefined =>
+  VEHICLE_DAMAGE_TABLE[d6 as 1 | 2 | 3 | 4 | 5 | 6];
+
+// Utility to look up the D6 value by damage name (optional)
+export const getVehicleDamageRollForName = (name: string): number | undefined => {
+  const found = Object.entries(VEHICLE_DAMAGE_TABLE).find(([, n]) => n === name);
+  return found ? Number(found[0]) : undefined;
+};
 
 
