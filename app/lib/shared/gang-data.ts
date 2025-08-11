@@ -884,3 +884,27 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
 
   return effectsByCategory;
 };
+
+/**
+ * Get username from user_id
+ * Cache: BASE_USER_PROFILE
+ */
+export const getUserProfile = async (userId: string, supabase: any): Promise<{ username: string } | null> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
+      if (error) return null;
+      return data;
+    },
+    [`user-profile-${userId}`],
+    {
+      tags: [CACHE_TAGS.BASE_USER_PROFILE(userId)],
+      revalidate: false
+    }
+  )();
+};

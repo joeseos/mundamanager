@@ -52,6 +52,7 @@ interface GangDataState {
     positioning: Record<number, string>;
     campaigns: any[];
     gang_variants: Array<{id: string, variant: string}>;
+    username?: string;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;

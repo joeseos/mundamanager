@@ -43,6 +43,9 @@ export const CACHE_TAGS = {
   BASE_VEHICLE_EQUIPMENT: (id: string) => `base-vehicle-equipment-${id}`, // vehicle equipment
   BASE_VEHICLE_EFFECTS: (id: string) => `base-vehicle-effects-${id}`, // vehicle effects
   
+  // User base data
+  BASE_USER_PROFILE: (id: string) => `base-user-profile-${id}`,       // username, role
+  
   // =============================================================================
   // 2. COMPUTED DATA TAGS - Calculated values derived from base data
   // =============================================================================
