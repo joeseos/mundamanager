@@ -11,6 +11,7 @@ import { AdminCreateEquipmentModal } from "@/components/admin/admin-create-equip
 import { AdminEditEquipmentModal } from "@/components/admin/admin-edit-equipment";
 import { AdminCreateSkillModal } from "@/components/admin/admin-create-skill";
 import { AdminEditSkillModal } from "@/components/admin/admin-edit-skill";
+import { AdminGangLineageModal } from "@/components/admin/admin-gang-lineage";
 import Modal from "@/components/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
@@ -28,6 +29,7 @@ export default function AdminPage() {
   const [showEditFighterType, setShowEditFighterType] = useState(false);
   const [showCreateEquipment, setShowCreateEquipment] = useState(false);
   const [showEditEquipment, setShowEditEquipment] = useState(false);
+  const [showGangLineages, setShowGangLineages] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
@@ -240,6 +242,12 @@ export default function AdminPage() {
       description:"Edit a skill or skill set",
       action: () => setShowEditSkill(true),
       icon: Edit
+    },
+    {
+      title: "Manage Gang Lineages",
+      description: "Manage gang lineages (legacy/affiliation)",
+      action: () => setShowGangLineages(true),
+      icon: Users
     }
   ];
 
@@ -291,6 +299,13 @@ export default function AdminPage() {
             <AdminEditSkillModal
               onClose={() => setShowEditSkill(false)}
               onSubmit={() => setShowEditSkill(false)}
+            />
+          )}
+
+          {showGangLineages && (
+            <AdminGangLineageModal
+              onClose={() => setShowGangLineages(false)}
+              onSubmit={() => setShowGangLineages(false)}
             />
           )}
 
