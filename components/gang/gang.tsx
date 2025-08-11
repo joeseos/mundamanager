@@ -211,7 +211,7 @@ export default function Gang({
       .replace(/'/g, '&#039;');
 
   const fightersTooltipHtml = useMemo(() => {
-    const title = '<div style="font-weight:600;margin-bottom:6px;">Gang Composition</div>';
+    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Gang Composition</div>';
     if (fighterTypeClassCounts.length === 0) {
       return `${title}<div>No fighters</div>`;
     }
@@ -314,9 +314,9 @@ export default function Gang({
       setAllianceId(updates.alliance_id);
       setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
       setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
-      setMeat(updates.meat);
-      setScavengingRolls(updates.scavenging_rolls);
-      setExplorationPoints(updates.exploration_points);
+      setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
+      setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
+      setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
       setGangColour(updates.gang_colour);
       
       // Handle gang variants
