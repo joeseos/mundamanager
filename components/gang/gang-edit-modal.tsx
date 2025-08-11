@@ -20,8 +20,11 @@ interface GangUpdates {
   reputation: number;
   reputation_operation: 'add' | 'subtract';
   meat: number;
+  meat_operation: 'add' | 'subtract';
   scavenging_rolls: number;
+  scavenging_rolls_operation: 'add' | 'subtract';
   exploration_points: number;
+  exploration_points_operation: 'add' | 'subtract';
   gang_variants: string[];
   gang_colour: string;
 }
@@ -95,9 +98,9 @@ export default function GangEditModal({
   const [editedName, setEditedName] = useState(gangName);
   const [editedCredits, setEditedCredits] = useState('');
   const [editedReputation, setEditedReputation] = useState('');
-  const [editedMeat, setEditedMeat] = useState(meat.toString());
-  const [editedScavengingRolls, setEditedScavengingRolls] = useState(scavengingRolls.toString());
-  const [editedExplorationPoints, setEditedExplorationPoints] = useState(explorationPoints.toString());
+  const [editedMeat, setEditedMeat] = useState('');
+  const [editedScavengingRolls, setEditedScavengingRolls] = useState('');
+  const [editedExplorationPoints, setEditedExplorationPoints] = useState('');
   const [editedAlignment, setEditedAlignment] = useState(alignment);
   const [editedAllianceId, setEditedAllianceId] = useState(allianceId || '');
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
@@ -118,9 +121,9 @@ export default function GangEditModal({
       setEditedName(gangName);
       setEditedCredits('');
       setEditedReputation('');
-      setEditedMeat(meat.toString());
-      setEditedScavengingRolls(scavengingRolls.toString());
-      setEditedExplorationPoints(explorationPoints.toString());
+      setEditedMeat('');
+      setEditedScavengingRolls('');
+      setEditedExplorationPoints('');
       setEditedAlignment(alignment);
       setEditedAllianceId(allianceId || '');
       setEditedGangColour(gangColour);
@@ -168,6 +171,9 @@ export default function GangEditModal({
     try {
       const creditsDifference = parseInt(editedCredits) || 0;
       const reputationDifference = parseInt(editedReputation) || 0;
+      const meatDifference = parseInt(editedMeat) || 0;
+      const scavengingRollsDifference = parseInt(editedScavengingRolls) || 0;
+      const explorationPointsDifference = parseInt(editedExplorationPoints) || 0;
 
       const updates: GangUpdates = {
         name: editedName,
@@ -177,9 +183,12 @@ export default function GangEditModal({
         alliance_id: editedAllianceId === '' ? null : editedAllianceId,
         reputation: Math.abs(reputationDifference),
         reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
-        meat: parseInt(editedMeat),
-        scavenging_rolls: parseInt(editedScavengingRolls),
-        exploration_points: parseInt(editedExplorationPoints),
+        meat: Math.abs(meatDifference),
+        meat_operation: meatDifference >= 0 ? 'add' : 'subtract',
+        scavenging_rolls: Math.abs(scavengingRollsDifference),
+        scavenging_rolls_operation: scavengingRollsDifference >= 0 ? 'add' : 'subtract',
+        exploration_points: Math.abs(explorationPointsDifference),
+        exploration_points_operation: explorationPointsDifference >= 0 ? 'add' : 'subtract',
         gang_variants: editedGangVariants.map(v => v.id),
         gang_colour: editedGangColour,
       };
@@ -195,6 +204,9 @@ export default function GangEditModal({
         onClose();
         setEditedCredits('');
         setEditedReputation('');
+        setEditedMeat('');
+        setEditedScavengingRolls('');
+        setEditedExplorationPoints('');
       }
     } catch (error) {
       console.error('Error updating gang:', error);
@@ -249,7 +261,9 @@ export default function GangEditModal({
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Credits</p>
+        <p className="text-sm font-medium">Credits
+          <span className="text-xs text-gray-500"> (Current: {credits})</span>
+        </p>
         <Input
           type="tel"
           inputMode="url"
@@ -262,13 +276,13 @@ export default function GangEditModal({
           className="flex-1"
           placeholder="Add or remove credits (e.g. 25 or -50)"
         />
-        <p className="text-sm text-gray-500">
-          Current credits: {credits}
-        </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Reputation</p>
+        <p className="text-sm font-medium">
+          Reputation
+          <span className="text-xs text-gray-500"> (Current: {reputation})</span>
+        </p>
         <Input
           type="tel"
           inputMode="url"
@@ -278,52 +292,55 @@ export default function GangEditModal({
           className="flex-1"
           placeholder="Add or remove reputation (e.g. 1 or -2)"
         />
-        <p className="text-sm text-gray-500">
-          Current reputation: {reputation}
-        </p>
       </div>
 
       {campaigns?.[0]?.has_exploration_points && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exploration Points
-          </label>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Exploration Points
+          <span className="text-xs text-gray-500"> (Current: {explorationPoints})</span>
+        </p>
           <Input
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
             value={editedExplorationPoints}
             onChange={(e) => setEditedExplorationPoints(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove exploration points (e.g. 1 or -2)"
           />
         </div>
       )}
 
       {campaigns?.[0]?.has_meat && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Meat
-          </label>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Meat
+          <span className="text-xs text-gray-500"> (Current: {meat})</span>
+        </p>
           <Input
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
             value={editedMeat}
             onChange={(e) => setEditedMeat(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove meat (e.g. 1 or -2)"
           />
         </div>
       )}
       
       {campaigns?.[0]?.has_scavenging_rolls && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Scavenging Rolls
-          </label>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Scavenging Rolls
+          <span className="text-xs text-gray-500"> (Current: {scavengingRolls})</span>
+        </p>
           <Input
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
             value={editedScavengingRolls}
             onChange={(e) => setEditedScavengingRolls(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove scavenging rolls (e.g. 1 or -2)"
           />
         </div>
       )}

@@ -16,8 +16,11 @@ interface UpdateGangParams {
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
   meat?: number;
+  meat_operation?: 'add' | 'subtract';
   scavenging_rolls?: number;
+  scavenging_rolls_operation?: 'add' | 'subtract';
   exploration_points?: number;
+  exploration_points_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   note?: string;
 }
@@ -52,7 +55,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation')
+      .select('id, user_id, credits, reputation, meat, scavenging_rolls, exploration_points')
       .eq('id', params.gang_id)
       .single();
 
@@ -96,25 +99,34 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.alliance_id = params.alliance_id;
     }
 
-    // Add meat if provided
-    if (params.meat !== undefined) {
-      updates.meat = params.meat;
+    // Handle meat changes
+    if (params.meat !== undefined && params.meat_operation) {
+      updates.meat = params.meat_operation === 'add'
+        ? (gang.meat || 0) + params.meat
+        : (gang.meat || 0) - params.meat;
     }
 
-    // Add scavenging rolls if provided
-    if (params.scavenging_rolls !== undefined) {
-      updates.scavenging_rolls = params.scavenging_rolls;
+    // Handle scavenging rolls changes
+    if (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) {
+      updates.scavenging_rolls = params.scavenging_rolls_operation === 'add'
+        ? (gang.scavenging_rolls || 0) + params.scavenging_rolls
+        : (gang.scavenging_rolls || 0) - params.scavenging_rolls;
     }
 
-    // Add exploration points if provided
-    if (params.exploration_points !== undefined) {
-      updates.exploration_points = params.exploration_points;
+    // Handle exploration points changes
+    if (params.exploration_points !== undefined && params.exploration_points_operation) {
+      updates.exploration_points = params.exploration_points_operation === 'add'
+        ? (gang.exploration_points || 0) + params.exploration_points
+        : (gang.exploration_points || 0) - params.exploration_points;
     }
 
     // Handle credits and reputation changes
     if (
       (params.credits !== undefined && params.credits_operation) ||
-      (params.reputation !== undefined && params.reputation_operation)
+      (params.reputation !== undefined && params.reputation_operation) ||
+      (params.meat !== undefined && params.meat_operation) ||
+      (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
+      (params.exploration_points !== undefined && params.exploration_points_operation)
     ) {
       if (params.credits !== undefined && params.credits_operation) {
         updates.credits = params.credits_operation === 'add'
@@ -204,8 +216,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     }
     
     // Invalidate resources if changed
-    if (params.reputation !== undefined || params.meat !== undefined || 
-        params.scavenging_rolls !== undefined || params.exploration_points !== undefined) {
+    if (params.reputation !== undefined || 
+        (params.meat !== undefined && params.meat_operation) || 
+        (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) || 
+        (params.exploration_points !== undefined && params.exploration_points_operation)) {
       revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gang_id));
     }
     
