@@ -1,15 +1,13 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
+import { getAuthenticatedUser } from "@/utils/auth";
 
 export default async function AboutPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  try {
+    await getAuthenticatedUser(supabase);
+  } catch {
     redirect("/sign-in");
   }
 

@@ -4,6 +4,7 @@ import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-conte
 import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { PermissionService } from "@/app/lib/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
+import { getAuthenticatedUser } from "@/utils/auth";
 
 // Import the optimized functions with unstable_cache
 import { 
@@ -22,9 +23,12 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   const params = await props.params;
   const supabase = await createClient();
 
-  // Get the user data once at the page level
-  const { data: user } = await supabase.auth.getUser();
-  const userId = user && user.user ? user.user.id : undefined;
+  // Get the user data once at the page level via claims
+  let userId: string | undefined = undefined;
+  try {
+    const user = await getAuthenticatedUser(supabase);
+    userId = user.id;
+  } catch {}
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
