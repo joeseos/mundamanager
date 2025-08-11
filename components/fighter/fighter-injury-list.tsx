@@ -237,6 +237,7 @@ export function InjuriesList({
         actions={[
           {
             icon: <LuTrash2 className="h-4 w-4" />,
+            title: "Delete",
             variant: 'destructive',
             onClick: (item) => setDeleteModalData({
               id: item.injury_id,

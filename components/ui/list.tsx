@@ -19,6 +19,7 @@ export interface ListAction {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   disabled?: (item: any) => boolean;
   className?: string;
+  title?: string;
 }
 
 export interface ListProps<T = any> {
@@ -142,6 +143,7 @@ export function List<T = any>({
                               onClick={() => action.onClick(item)}
                               disabled={action.disabled ? action.disabled(item) : false}
                               className={`text-xs px-1.5 h-6 ${action.className || ''}`}
+                              title={action.title}
                             >
                               {action.icon || action.label}
                             </Button>

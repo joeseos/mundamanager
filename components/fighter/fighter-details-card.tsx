@@ -1,16 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Button } from '../ui/button';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
-import { FighterEffects, FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
+import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
-import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
-import { Equipment, WeaponProfile } from '@/types/equipment';
+import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 
 

@@ -7,7 +7,6 @@ import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
 import { rollD6 } from '@/utils/dice';
-import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 
@@ -333,6 +332,7 @@ export function VehicleDamagesList({
                               })}
                               disabled={isDeleting === damage.id || !userPermissions.canEdit}
                               className="text-xs px-1.5 h-6"
+                              title="Delete"
                             >
                               <LuTrash2 className="h-4 w-4" /> {/* Delete */}
                             </Button>

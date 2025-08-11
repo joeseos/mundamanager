@@ -281,6 +281,7 @@ export function WeaponList({
                 }}
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
+                title="Store in Stash"
               >
                 <FaBox className="h-4 w-4" /> {/* Stash */}
               </Button>
@@ -295,6 +296,7 @@ export function WeaponList({
                 }}
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
+                title="Sell"
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
@@ -308,6 +310,7 @@ export function WeaponList({
                 })}
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
+                title="Delete"
               >
                 <LuTrash2 className="h-4 w-4" /> {/* Delete */}
               </Button>
