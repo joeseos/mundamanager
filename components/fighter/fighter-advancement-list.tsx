@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/modal";
-import { Skill, FighterEffect, FighterSkills } from '@/types/fighter';
+import { Skill, FighterSkills } from '@/types/fighter';
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from "@/utils/skillSetRank";
@@ -1059,6 +1059,7 @@ export function AdvancementsList({
         actions={[
           {
             icon: <LuUndo2 className="h-4 w-4" />,
+            title: "Undo",
             variant: 'destructive',
             onClick: (item) => item.advancement_id ? setDeleteModalData({
               id: item.advancement_id,
