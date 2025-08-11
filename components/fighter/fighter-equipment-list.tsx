@@ -7,7 +7,7 @@ import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter } from '@/app/actions/delete-equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';

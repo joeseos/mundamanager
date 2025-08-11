@@ -17,7 +17,7 @@ import Modal from '@/components/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
-import { deleteEquipmentFromStash } from '@/app/actions/equipment';
+import { deleteEquipmentFromStash } from '@/app/actions/delete-equipment';
 import { sellEquipmentFromStash } from '@/app/actions/sell-equipment';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { LuTrash2 } from 'react-icons/lu';
