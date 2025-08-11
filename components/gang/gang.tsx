@@ -76,6 +76,7 @@ interface GangProps {
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
   userPermissions?: UserPermissions;
+  username?: string;
 }
 
 export default function Gang({ 
@@ -108,6 +109,7 @@ export default function Gang({
   gang_variants,
   vehicles,
   userPermissions,
+  username,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -652,6 +654,11 @@ export default function Gang({
                   </div>
                 )}
               </div>
+              {username && (
+                <div className="flex items-center gap-1 text-sm mt-1">
+                  Owner: <Badge variant="outline">{username}</Badge>
+                </div>
+              )}
             </div>
 
             <div className="mt-2">

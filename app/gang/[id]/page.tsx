@@ -290,7 +290,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCampaigns,
       getGangVariants,
       getGangRating,
-      getGangCredits
+      getGangCredits,
+      getUserProfile
     } = await import('@/app/lib/shared/gang-data');
 
     // Get supabase client first to pass to all functions
@@ -314,7 +315,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       campaigns,
       gangCredits,
       gangVariants,
-      gangRating
+      gangRating,
+      userProfile
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
@@ -325,7 +327,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCampaigns(params.id, supabase),
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
-      getGangRating(params.id, supabase)
+      getGangRating(params.id, supabase),
+      getUserProfile(gangBasic.user_id, supabase)
     ]);
 
     // Assemble the gang data structure
@@ -356,7 +359,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       alliance_name: alliance?.alliance_name,
       alliance_type: alliance?.alliance_type,
       gang_variants: gangVariants,
-      user_id: gangBasic.user_id
+      user_id: gangBasic.user_id,
+      username: userProfile?.username
     };
 
     // Process the data server-side
