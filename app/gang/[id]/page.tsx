@@ -4,6 +4,7 @@ import GangPageContent from "@/components/gang/gang-page-content";
 import { FighterProps, FighterSkills } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { PermissionService } from "@/app/lib/user-permissions";
+import { getAuthenticatedUser } from "@/utils/auth";
 
 // Move processGangData function here (server-side processing)
 async function processGangData(gangData: any) {
@@ -268,9 +269,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   const params = await props.params;
   const supabase = await createClient();
 
-  // Get authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  // Get authenticated user via claims (no extra network call)
+  let user: { id: string };
+  try {
+    user = await getAuthenticatedUser(supabase);
+  } catch {
     redirect("/sign-in");
   }
 

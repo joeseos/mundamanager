@@ -3,6 +3,7 @@ import CreateCampaign from '@/components/create-campaign'
 import MyCampaigns from '@/components/my-campaigns'
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { unstable_noStore } from 'next/cache';
+import { getAuthenticatedUser } from "@/utils/auth";
 
 export default async function CampaignsPage() {
   // Ensure we never use stale data
@@ -10,9 +11,12 @@ export default async function CampaignsPage() {
   
   const supabase = await createClient();
   
-  // Get the user data once at the page level
-  const { data: { user } } = await supabase.auth.getUser();
-  const userId = user?.id;
+  // Get the user data once at the page level via claims
+  let userId: string | undefined = undefined;
+  try {
+    const user = await getAuthenticatedUser(supabase);
+    userId = user.id;
+  } catch {}
 
   const { data: campaignTypes, error } = await supabase
     .from('campaign_types')

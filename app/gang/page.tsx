@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Gang from "@/components/gang/gang";
 import { FighterProps } from "@/types/fighter";
+import { getAuthenticatedUser } from "@/utils/auth";
 
 interface FighterType {
   fighter_type_id: string;
@@ -94,13 +95,7 @@ export default async function GangPage() {
   const supabase = await createClient();
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return redirect("/");
-    }
+    const user = await getAuthenticatedUser(supabase);
 
     // First get the gang data with fighters
     const { data: gangsData, error: gangsError } = await supabase

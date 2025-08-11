@@ -15,11 +15,12 @@ export async function middleware(request: NextRequest) {
     ? NextResponse.next()
     : await updateSession(request);
 
-  // Check if the user is authenticated
+  // Check if the user is authenticated using claims (no network call)
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = (claims as any)?.claims?.sub as string | undefined;
 
-  console.log("User authenticated:", !!user);
+  console.log("User authenticated:", !!userId);
 
   // List of paths that don't require authentication
   const publicPaths = [
@@ -41,7 +42,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect to sign-in if user is not authenticated
-  if (!user) {
+  if (!userId) {
     console.log("Redirecting to sign-in page");
 
     // Build a clean redirect path: drop common tracking params
@@ -79,7 +80,7 @@ export async function middleware(request: NextRequest) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('user_role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (!profile || profile.user_role !== 'admin') {

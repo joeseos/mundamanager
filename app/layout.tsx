@@ -4,16 +4,13 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
-import dynamic from 'next/dynamic';
-import { headers } from 'next/headers';
+import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from "@/utils/auth";
 import ClientToaster from "@/components/ui/client-toaster";
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
-
-const DynamicHeaderAuth = dynamic(() => import('@/components/header-auth'), {
-  ssr: true,
-  loading: () => <div className="h-16" />
-});
+import SettingsModal from "@/components/settings-modal";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -87,8 +84,7 @@ export const metadata = {
   },
 };
 
-export const dynamicConfig = 'force-static'
-export const revalidate = 3600 // In seconds, so 3600 = 1 hour
+export const dynamic = 'force-dynamic'
 
 export default async function RootLayout({
   children,
@@ -98,9 +94,23 @@ export default async function RootLayout({
   breadcrumb: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string; email?: string } | null = null;
+  try {
+    user = await getAuthenticatedUser(supabase);
+  } catch {}
+
+  // Fetch profile details for header (username, admin flag)
+  let username: string | undefined = undefined;
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_role, username')
+      .eq('id', user.id)
+      .single();
+    username = profile?.username;
+    isAdmin = profile?.user_role === 'admin';
+  }
 
   return (
     <html lang="en" className={inter.className}>
@@ -127,7 +137,30 @@ export default async function RootLayout({
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
         <BackgroundImage />
-        <DynamicHeaderAuth />
+        <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 print:hidden">
+          <div className="flex justify-between items-center h-14 px-2">
+            <Link href="/" className="flex items-center">
+              <Image
+                src="/images/favicon-192x192.png"
+                alt="App Icon"
+                width={36}
+                height={36}
+                className="ml-1 mr-2"
+              />
+              <span className="text-lg font-bold hover:text-primary transition-colors">
+                Munda Manager
+              </span>
+            </Link>
+            {user ? (
+              <div className="mr-2">
+                {/* Fetch minimal profile info for header */}
+                {/* We intentionally avoid an extra auth call here and use claims (done above) */}
+                {/* SettingsModal expects a Supabase user-like object */}
+                <SettingsModal user={{ id: user.id, email: user.email } as any} isAdmin={isAdmin} username={username} />
+              </div>
+            ) : null}
+          </div>
+        </header>
         {breadcrumb}
         <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
           <div className="flex-1 w-full flex flex-col items-center">

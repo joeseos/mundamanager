@@ -4,15 +4,14 @@ import { CustomiseEquipment } from "@/components/customise/custom-equipment";
 import { CustomiseTerritories } from "@/components/customise/custom-territories";
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
+import { getAuthenticatedUser } from "@/utils/auth";
 
 export default async function CustomizePage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  let user: { id: string };
+  try {
+    user = await getAuthenticatedUser(supabase);
+  } catch {
     redirect("/sign-in");
   }
 

@@ -4,14 +4,11 @@ import PasswordChange from "@/components/password-change";
 import { NotificationsSection } from "../../components/settings-modal";
 import FriendsSearchBar from "@/components/profile/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
+// Using full auth user on profile to display email and timestamps
 
 export default async function ProfilePage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect("/sign-in");
   }
@@ -41,9 +38,7 @@ export default async function ProfilePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email
               </label>
-              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">
-                {user.email}
-              </div>
+              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">{user.email}</div>
             </div>
 
             <div>
@@ -66,18 +61,14 @@ export default async function ProfilePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Last Sign In
               </label>
-              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">
-                {new Date(user.last_sign_in_at || '').toISOString().split('T')[0]}
-              </div>
+              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toISOString().split('T')[0] : '—'}</div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Account Created
               </label>
-              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">
-                {new Date(user.created_at).toISOString().split('T')[0]}
-              </div>
+              <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2">{user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : '—'}</div>
             </div>
           </div>
           
