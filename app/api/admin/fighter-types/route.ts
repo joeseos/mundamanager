@@ -420,6 +420,9 @@ export async function GET(request: Request) {
         fighter_class,
         fighter_class_id,
         fighter_sub_type_id,
+        fighter_sub_types(
+          sub_type_name
+        ),
         cost,
         movement,
         weapon_skill,
@@ -453,7 +456,15 @@ export async function GET(request: Request) {
     const { data: fighterTypes, error } = await query;
 
     if (error) throw error;
-    return NextResponse.json(fighterTypes);
+    
+    // Process the data to flatten the fighter_sub_types relation
+    const processedFighterTypes = fighterTypes?.map((fighter: any) => ({
+      ...fighter,
+      fighter_sub_type: fighter.fighter_sub_types?.sub_type_name || null,
+      fighter_sub_types: undefined // Remove the nested object
+    }));
+    
+    return NextResponse.json(processedFighterTypes);
 
   } catch (error) {
     console.error('Error in GET fighter-types:', error);

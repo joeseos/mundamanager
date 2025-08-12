@@ -29,6 +29,7 @@ interface FighterType {
   gang_type: string;
   gang_type_id: string;
   fighter_class: string;
+  fighter_sub_type?: string | null;
 }
 
 interface GangType {
@@ -376,6 +377,23 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     setFighterTypeAccess(fighterTypeAccess.filter(id => id !== fighterTypeId));
   };
 
+  // Helper function to format fighter type display name
+  const getFighterTypeDisplayName = (fighterType: FighterType) => {
+    let displayName = fighterType.fighter_type;
+    
+    // Add fighter class in parentheses
+    if (fighterType.fighter_class) {
+      displayName += ` (${fighterType.fighter_class})`;
+    }
+    
+    // Add sub-type with dash if it exists
+    if (fighterType.fighter_sub_type) {
+      displayName += ` - ${fighterType.fighter_sub_type}`;
+    }
+    
+    return displayName;
+  };
+
   // Create modal content
   const createModalContent = (
     <div className="space-y-4">
@@ -440,7 +458,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           </option>
           {filteredFighterTypes.map((fighterType) => (
             <option key={fighterType.id} value={fighterType.id}>
-              {fighterType.fighter_type}
+              {getFighterTypeDisplayName(fighterType)}
             </option>
           ))}
         </select>
@@ -492,9 +510,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
               </option>
               {accessRuleGangTypeId && fighterTypes
                 .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
+                .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
                 .map((fighterType) => (
                   <option key={fighterType.id} value={fighterType.id}>
-                    {fighterType.fighter_type}
+                    {getFighterTypeDisplayName(fighterType)}
                   </option>
                 ))}
             </select>
@@ -693,7 +712,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                       </option>
                       {filteredFighterTypes.map((fighterType) => (
                         <option key={fighterType.id} value={fighterType.id}>
-                          {fighterType.fighter_type}
+                          {getFighterTypeDisplayName(fighterType)}
                         </option>
                       ))}
                     </select>
@@ -752,10 +771,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                         </option>
                         {accessRuleGangTypeId && fighterTypes
                           .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
-                          .sort((a, b) => a.fighter_type.localeCompare(b.fighter_type))
+                          .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
                           .map((fighterType) => (
                             <option key={fighterType.id} value={fighterType.id}>
-                              {fighterType.fighter_type}
+                              {getFighterTypeDisplayName(fighterType)}
                             </option>
                           ))}
                       </select>
