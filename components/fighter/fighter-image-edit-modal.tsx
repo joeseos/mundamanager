@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '../ui/use-toast';
 import { updateFighterImage } from '@/app/actions/update-fighter-image';
+import Modal from '@/components/modal';
 
 interface FighterImageEditModalProps {
   isOpen: boolean;
@@ -125,11 +126,11 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
           if (blob) {
             resolve(blob);
           } else {
-            throw new Error('Failed to create blob');
+            throw new Error('Failed to create blob for this image');
           }
         },
         'image/webp',
-        0.8 // Start with 80% quality
+        0.85 // 85% quality
       );
     });
   };
@@ -160,7 +161,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         canvas.toBlob(
           (blob) => {
             if (blob) resolve(blob);
-            else throw new Error('Failed to create compressed blob');
+            else throw new Error('Failed to create compressed blob for this image');
           },
           'image/webp',
           quality
@@ -180,7 +181,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       canvas.toBlob(
         (blob) => {
           if (blob) resolve(blob);
-          else throw new Error('Failed to create final compressed blob');
+          else throw new Error('Failed to create final compressed blob for this image');
         },
         'image/webp',
         0.1
@@ -188,14 +189,14 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!image || !croppedAreaPixels) {
       toast({
         title: "No image selected",
         description: "Please select an image to crop",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     setIsUploading(true);
@@ -270,7 +271,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         description: "Fighter image updated successfully",
       });
 
-      onClose();
+      return true;
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
@@ -278,12 +279,13 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         description: "Failed to upload image. Please try again.",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleRemoveImage = async () => {
+  const handleRemoveImage = async (): Promise<boolean> => {
     setIsUploading(true);
     try {
       const supabase = createClient();
@@ -330,7 +332,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         description: "Fighter image removed successfully",
       });
 
-      onClose();
+      return true;
     } catch (error) {
       console.error('Error removing image:', error);
       toast({
@@ -338,6 +340,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         description: "Failed to remove image. Please try again.",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsUploading(false);
     }
@@ -346,122 +349,95 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Edit Fighter Image</h2>
+    <Modal
+      title="Edit Fighter Image"
+      onClose={onClose}
+      onConfirm={handleSave}
+      confirmText={isUploading ? 'Uploading...' : 'Upload Image'}
+      confirmDisabled={!image || !croppedAreaPixels || isUploading}
+      width="2xl"
+    >
+      <div className="space-y-4">
+        {/* Current image display */}
+        {currentImageUrl && (
+          <div className="mb-4">
+            <div className="flex items-center justify-center space-x-4">
+              <img
+                src={currentImageUrl}
+                alt="Current fighter"
+                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+              />
+              <Button
+                variant="destructive"
+                onClick={handleRemoveImage}
+                disabled={isUploading}
+              >
+                Remove Image
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* File upload */}
+        <div className="mb-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           <Button
-            variant="ghost"
-            onClick={onClose}
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="text-gray-500 hover:text-gray-700"
+            className="w-full"
           >
-            ✕
+            Replace with New Image
           </Button>
         </div>
 
-        <div className="space-y-4">
-          {/* Current image display */}
-          {currentImageUrl && (
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Current Image:</h3>
-              <div className="flex items-center space-x-4">
-                <img
-                  src={currentImageUrl}
-                  alt="Current fighter"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                />
-                <Button
-                  variant="outline"
-                  onClick={handleRemoveImage}
-                  disabled={isUploading}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  Remove Image
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* File upload */}
+        {/* Crop area */}
+        {image && (
           <div className="mb-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="w-full"
-            >
-              Select New Image
-            </Button>
-          </div>
-
-                     {/* Crop area */}
-           {image && (
-             <div className="mb-4">
-               <h3 className="text-sm font-medium text-gray-700 mb-2">Crop Image (1:1 ratio):</h3>
-               <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden" style={{ position: 'relative' }}>
-                 <Cropper
-                   image={image}
-                   crop={crop}
-                   zoom={zoom}
-                   aspect={1}
-                   onCropChange={setCrop}
-                   onZoomChange={setZoom}
-                   onCropComplete={onCropComplete}
-                   showGrid={true}
-                   objectFit="contain"
-                   style={{
-                     containerStyle: {
-                       width: '100%',
-                       height: '100%',
-                       backgroundColor: '#f3f4f6'
-                     }
-                   }}
-                 />
-               </div>
-              
-              {/* Zoom control */}
-              <div className="mt-2">
-                <label className="text-sm font-medium text-gray-700">Zoom:</label>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full mt-1"
-                />
-              </div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Crop Image:</h3>
+            <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden" style={{ position: 'relative' }}>
+              <Cropper
+                image={image}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                showGrid={true}
+                objectFit="contain"
+                style={{
+                  containerStyle: {
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: '#f3f4f6'
+                  }
+                }}
+              />
             </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={isUploading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!image || !croppedAreaPixels || isUploading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isUploading ? 'Uploading...' : 'Upload Image'}
-            </Button>
+           
+            {/* Zoom control */}
+            <div className="flex items-center mt-2">
+              <label className="text-sm font-medium text-gray-700">Zoom:</label>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full ml-2 mt-1"
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };
