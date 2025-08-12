@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '../ui/use-toast';
 import { updateFighterImage } from '@/app/actions/update-fighter-image';
-import Modal from '../modal';
+import Modal from '@/components/modal';
 
 interface FighterImageEditModalProps {
   isOpen: boolean;
