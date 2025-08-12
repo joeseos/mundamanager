@@ -378,6 +378,35 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (deleteError) throw deleteError;
 
+        // Clean up fighter images from storage
+        try {
+          // List files in the fighters directory to find the fighter's images
+          const { data: files } = await supabase.storage
+            .from('users-images')
+            .list(`gangs/${gangId}/fighters/`);
+          
+          const filesToRemove: string[] = [];
+          
+          if (files) {
+            // Find all files that start with the fighter ID
+            files.forEach(file => {
+              if (file.name.startsWith(`${params.fighter_id}_`) || file.name === `${params.fighter_id}.webp`) {
+                filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
+              }
+            });
+          }
+          
+          // Remove all matching files
+          if (filesToRemove.length > 0) {
+            await supabase.storage
+              .from('users-images')
+              .remove(filesToRemove);
+          }
+        } catch (imageError) {
+          // Log the error but don't fail the fighter deletion
+          console.error('Error cleaning up fighter images:', imageError);
+        }
+
         await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);

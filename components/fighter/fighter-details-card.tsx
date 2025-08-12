@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
@@ -11,6 +11,7 @@ import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
+import { FighterImageEditModal } from './fighter-image-edit-modal';
 
 
 // Vehicle equipment profile interface
@@ -246,6 +247,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   owner_name,
   image_url
 }: FighterDetailsCardProps) {
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
+
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
     id,
@@ -322,6 +326,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   ]);
   const canShowEditButtons = userPermissions.canEdit;
   const isCrew = fighter_class === 'Crew';
+
+  const handleImageClick = () => {
+    if (canShowEditButtons) {
+      setIsImageModalOpen(true);
+    }
+  };
+
+  const handleImageUpdate = (newImageUrl: string) => {
+    setCurrentImageUrl(newImageUrl);
+  };
   
   // Calculate modified stats including effects (injuries/advancements)
   const modifiedStats = useMemo(() => 
@@ -411,12 +425,17 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {recovery && <FaMedkit className="text-blue-500" />}
           </div>
         
-          {/* Render image only if image_url is present */}
-          {image_url && (
-            <div className="bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden">
-              <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
-            </div>
+          {/* Profile picture of the fighter */}
+          <div 
+            className={`bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-red-800 transition-colors' : ''}`}
+            onClick={handleImageClick}
+          >
+          {currentImageUrl ? (
+            <img src={currentImageUrl} alt="Fighter" className="object-cover rounded-full" />
+          ) : (
+            <img src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1754972459/unknown_cropped_web_foy9m7.avif" alt="Fighter" className="object-cover rounded-full" />
           )}
+          </div>
           <div className="bg-[#FFFFFF] rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
             <span className="leading-6 font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
             <span className="leading-3 md:font-bold text-xs">Credits</span>
@@ -483,6 +502,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             );
           })()}
         </div>
+
+      {/* Image Edit Modal */}
+      <FighterImageEditModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        currentImageUrl={currentImageUrl}
+        fighterId={id}
+        gangId={gangId || ''}
+        onImageUpdate={handleImageUpdate}
+      />
     </div>
   );
 }); 

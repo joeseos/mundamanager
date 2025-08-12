@@ -4,22 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import Modal from '@/components/modal';
-import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { deleteGang } from '@/app/actions/delete-gang';
 
 interface DeleteGangButtonProps {
   gangId: string;
-}
-
-class GangDeleteError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public code?: string
-  ) {
-    super(message);
-    this.name = 'GangDeleteError';
-  }
 }
 
 export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
@@ -32,49 +21,10 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
     try {
       setIsDeleting(true);
 
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new GangDeleteError('You must be logged in to delete a gang', 401);
-      }
+      const result = await deleteGang(gangId);
 
-      const deleteResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/gangs?id=eq.${gangId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Prefer': 'return=representation'
-          }
-        }
-      );
-
-      if (!deleteResponse.ok) {
-        const errorData = await deleteResponse.json().catch(() => null);
-        
-        switch (deleteResponse.status) {
-          case 401:
-            throw new GangDeleteError('Your session has expired. Please log in again.', 401);
-          case 403:
-            throw new GangDeleteError('You do not have permission to delete this gang', 403);
-          case 404:
-            throw new GangDeleteError('Gang not found', 404);
-          default:
-            throw new GangDeleteError(
-              errorData?.message || 'An unexpected error occurred while deleting the gang',
-              deleteResponse.status
-            );
-        }
-      }
-
-      // Try to get the deleted data to confirm deletion
-      const deletedData = await deleteResponse.json().catch(() => null);
-      
-      if (!deletedData || (Array.isArray(deletedData) && deletedData.length === 0)) {
-        throw new GangDeleteError('Gang could not be deleted - no changes made', 403);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete gang');
       }
 
       toast({
@@ -86,7 +36,7 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
     } catch (error) {
       console.error('Error deleting gang:', error);
       
-      const message = error instanceof GangDeleteError 
+      const message = error instanceof Error 
         ? error.message 
         : 'An unexpected error occurred. Please try again.';
 
