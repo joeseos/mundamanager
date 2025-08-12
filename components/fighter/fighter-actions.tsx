@@ -17,6 +17,7 @@ interface Fighter {
   enslaved?: boolean;
   starved?: boolean;
   recovery?: boolean;
+  captured?: boolean;
   credits: number;
   campaigns?: Array<{
     has_meat: boolean;
@@ -42,6 +43,7 @@ interface ActionModals {
   enslave: boolean;
   starve: boolean;
   recovery: boolean;
+  captured: boolean;
 }
 
 export function FighterActions({ 
@@ -60,7 +62,8 @@ export function FighterActions({
     retire: false,
     enslave: false,
     starve: false,
-    recovery: false
+    recovery: false,
+    captured: false
   });
 
   // Keep meat-checking functionality
@@ -123,7 +126,7 @@ export function FighterActions({
     }
   }, [fighter, gang, toast, router]);
 
-  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover', sellValue?: number) => {
+  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number) => {
     try {
       const result = await editFighterStatus({
         fighter_id: fighterId,
@@ -158,6 +161,9 @@ export function FighterActions({
           break;
         case 'recover':
           successMessage = fighter?.recovery ? 'Fighter has been recovered from the recovery bay' : 'Fighter has been sent to the recovery bay';
+          break;
+        case 'capture':
+          successMessage = fighter?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
           break;
       }
       
@@ -223,6 +229,14 @@ export function FighterActions({
             disabled={!userPermissions.canEdit}
           >
             {fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
+          </Button>
+          <Button
+            variant={fighter?.captured ? 'success' : 'default'}
+            className="flex-1"
+            onClick={() => handleModalToggle('captured', true)}
+            disabled={!userPermissions.canEdit}
+          >
+            {fighter?.captured ? 'Rescue Fighter' : 'Capture Fighter'}
           </Button>
           
           <Button
@@ -359,6 +373,29 @@ export function FighterActions({
             const success = await handleActionConfirm('recover');
             if (success) {
               handleModalToggle('recovery', false);
+            }
+          }}
+        />
+      )}
+
+      {modals.captured && (
+        <Modal
+          title={fighter?.captured ? "Rescue Fighter" : "Capture Fighter"}
+          content={
+            <div>
+              <p>
+                {fighter?.captured 
+                  ? `Are you sure you want to rescue "${fighter?.fighter_name}" from captivity?`
+                  : `Are you sure you want to mark "${fighter?.fighter_name}" as captured?`
+                }
+              </p>
+            </div>
+          }
+          onClose={() => handleModalToggle('captured', false)}
+          onConfirm={async () => {
+            const success = await handleActionConfirm('capture');
+            if (success) {
+              handleModalToggle('captured', false);
             }
           }}
         />

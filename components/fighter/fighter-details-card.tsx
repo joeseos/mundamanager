@@ -5,7 +5,7 @@ import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
-import { GiCrossedChains } from "react-icons/gi";
+import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
@@ -69,6 +69,7 @@ interface FighterDetailsCardProps {
   enslaved?: boolean;
   starved?: boolean;
   recovery?: boolean;
+  captured?: boolean;
   fighter_class?: string;
   kills: number;
   effects?: { 
@@ -237,6 +238,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   enslaved,
   starved,
   recovery,
+  captured,
   fighter_class,
   kills,
   effects,
@@ -423,6 +425,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             {enslaved && <GiCrossedChains className="text-sky-200" />}
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
+            {captured && <GiHandcuffs className="text-red-600" />}
           </div>
         
           {/* Profile picture of the fighter */}

@@ -108,6 +108,7 @@ export interface GangFighter {
   retired: boolean;
   enslaved: boolean;
   recovery: boolean;
+  captured: boolean;
   free_skill: boolean;
   image_url?: string;
   owner_name?: string;
@@ -481,7 +482,8 @@ export const getGangFighterCount = async (gangId: string, supabase: any): Promis
         .eq('gang_id', gangId)
         .eq('killed', false)
         .eq('retired', false)
-        .eq('enslaved', false);
+        .eq('enslaved', false)
+        .eq('captured', false);
 
       if (error) throw error;
       return count || 0;
@@ -508,7 +510,8 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
         .eq('fighter_class', 'exotic beast')
         .eq('killed', false)
         .eq('retired', false)
-        .eq('enslaved', false);
+        .eq('enslaved', false)
+        .eq('captured', false);
 
       if (error) throw error;
       return count || 0;
@@ -642,6 +645,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             retired: fighterBasic.retired || false,
             enslaved: fighterBasic.enslaved || false,
             recovery: fighterBasic.recovery || false,
+            captured: fighterBasic.captured || false,
             free_skill: fighterBasic.free_skill || false,
             image_url: fighterBasic.image_url,
             owner_name: ownerName,

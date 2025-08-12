@@ -37,6 +37,7 @@ export interface FighterBasic {
   retired?: boolean;
   enslaved?: boolean;
   recovery?: boolean;
+  captured?: boolean;
   free_skill?: boolean;
   kills?: number;
   gang_id: string;
@@ -140,6 +141,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           retired,
           enslaved,
           recovery,
+          captured,
           free_skill,
           kills,
           gang_id,
@@ -569,6 +571,7 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
           killed,
           retired,
           enslaved,
+          captured,
           fighter_type_id,
           fighter_equipment!fighter_id (purchase_cost),
           fighter_skills!fighter_id (credits_increase),
@@ -578,7 +581,8 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
         .in('id', beastIds)
         .eq('killed', false)
         .eq('retired', false)
-        .eq('enslaved', false);
+        .eq('enslaved', false)
+        .eq('captured', false);
 
       if (beastError || !beastData) {
         return 0;

@@ -135,6 +135,7 @@ async function processGangData(gangData: any) {
       enslaved: fighter.enslaved || false,
       starved: fighter.starved || false,
       recovery: fighter.recovery || false,
+      captured: fighter.captured || false,
       free_skill: fighter.free_skill || false,
       image_url: fighter.image_url,
       owner_name: fighter.owner_name, // Preserve owner name for exotic beasts

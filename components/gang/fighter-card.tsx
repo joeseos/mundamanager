@@ -6,7 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/stats';
 import { TbMeatOff } from "react-icons/tb";
-import { GiCrossedChains } from "react-icons/gi";
+import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair } from "react-icons/md";
@@ -26,6 +26,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   enslaved?: boolean;
   starved?: boolean;
   recovery?: boolean;
+  captured?: boolean;
   free_skill?: boolean;
   kills: number;
   skills?: FighterSkills;
@@ -135,6 +136,7 @@ const FighterCard = memo(function FighterCard({
   enslaved,
   starved,
   recovery,
+  captured,
   free_skill,
   kills = 0,  // Default value
   skills = {},  // Add default value
@@ -328,7 +330,7 @@ const FighterCard = memo(function FighterCard({
     };
   }, [isCrew, vehicleStats, adjustedStats, xp]);
 
-  const isInactive = killed || retired || enslaved || recovery;
+  const isInactive = killed || retired || enslaved || recovery || captured;
 
   // Determine a unique and valid id for the fighter card based on its status.
   // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
@@ -423,6 +425,7 @@ const FighterCard = memo(function FighterCard({
             {enslaved && <GiCrossedChains className="text-sky-200" />}
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
+            {captured && <GiHandcuffs className="text-red-600" />}
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (

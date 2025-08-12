@@ -70,6 +70,7 @@ interface Fighter {
   enslaved?: boolean;
   starved?: boolean;
   recovery?: boolean;
+  captured?: boolean;
   free_skill?: boolean;
   kills: number;
   advancements?: {
@@ -743,6 +744,7 @@ export default function FighterPage({
             enslaved={fighterData.fighter?.enslaved}
             starved={fighterData.fighter?.starved}
             recovery={fighterData.fighter?.recovery}
+            captured={fighterData.fighter?.captured}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
             effects={fighterData.fighter.effects || { 
@@ -900,6 +902,7 @@ export default function FighterPage({
               enslaved: fighterData.fighter.enslaved,
               starved: fighterData.fighter.starved,
               recovery: fighterData.fighter.recovery,
+              captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
               campaigns: fighterData.fighter?.campaigns
             }}
