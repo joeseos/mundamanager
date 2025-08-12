@@ -969,11 +969,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         // Finally by fighter type name
                         return a.fighter_type.localeCompare(b.fighter_type);
                       })
-                      .map((ft) => (
-                        <option key={ft.id} value={ft.id}>
-                          {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})`}
-                        </option>
-                      ))}
+                      .map((ft) => {
+                        const subTypeText = ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : '';
+                        return (
+                          <option key={ft.id} value={ft.id}>
+                            {`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})${subTypeText}`}
+                          </option>
+                        );
+                      })}
                   </select>
 
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -986,7 +989,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           key={ft.id}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                         >
-                          <span>{`${ft.gang_type} - ${ft.fighter_type}`}</span>
+                          <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}

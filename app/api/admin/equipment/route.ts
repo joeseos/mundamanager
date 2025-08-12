@@ -256,7 +256,16 @@ export async function GET(request: Request) {
         // Fetch all fighter types
         const { data: fighterTypes, error: fighterTypesError } = await supabase
           .from('fighter_types')
-          .select('id, fighter_type, gang_type, fighter_class')
+          .select(`
+            id,
+            fighter_type,
+            gang_type,
+            fighter_class,
+            fighter_sub_type_id,
+            fighter_sub_types(
+              sub_type_name
+            )
+          `)
           .order('gang_type')
           .order('fighter_type');
 
