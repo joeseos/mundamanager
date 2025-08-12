@@ -24,7 +24,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
 interface EditFighterStatusParams {
   fighter_id: string;
-  action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'delete';
+  action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
   sell_value?: number;
 }
 
@@ -92,7 +92,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         retired,
         enslaved,
         starved,
-        recovery
+        recovery,
+        captured
       `)
       .eq('id', params.fighter_id)
       .single();
@@ -355,6 +356,28 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           fighter_name: fighter.fighter_name,
           recovery_type: recoveryType
         });
+
+        invalidateFighterData(params.fighter_id, gangId);
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+
+        return {
+          success: true,
+          data: { fighter: updatedFighter }
+        };
+      }
+
+      case 'capture': {
+        const { data: updatedFighter, error: updateError } = await supabase
+          .from('fighters')
+          .update({ 
+            captured: !fighter.captured,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', params.fighter_id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
 
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);

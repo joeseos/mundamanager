@@ -32,6 +32,7 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+  const [isCapturedModalOpen, setIsCapturedModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
@@ -103,10 +104,10 @@ export function InjuriesList({
     
     setSelectedInjury(injury);
 
-    // Check if the injury requires recovery
-    const requiresRecovery = injury.type_specific_data && 
-                            typeof injury.type_specific_data === 'object' && 
-                            injury.type_specific_data.recovery === "true";
+    // Check if the injury requires recovery or captured status
+    const typeSpecificData = injury.type_specific_data && typeof injury.type_specific_data === 'object' ? injury.type_specific_data : {};
+    const requiresRecovery = typeSpecificData.recovery === "true";
+    const requiresCaptured = typeSpecificData.captured === "true";
 
     // If fighter is already in recovery, don't show the recovery modal again
     if (requiresRecovery && !fighterRecovery) {
@@ -114,14 +115,18 @@ export function InjuriesList({
       setIsAddModalOpen(false);
       setIsRecoveryModalOpen(true);
       return false;
+    } else if (requiresCaptured) {
+      // Close the injury selection modal and open the captured confirmation modal
+      setIsAddModalOpen(false);
+      setIsCapturedModalOpen(true);
+      return false;
     } else {
-      // Directly add the injury without asking for recovery
-      // If fighter is already in recovery or injury doesn't require recovery
-      return await proceedWithAddingInjury(false);
+      // Directly add the injury without asking for status changes
+      return await proceedWithAddingInjury(false, false);
     }
   };
 
-  const proceedWithAddingInjury = async (sendToRecovery: boolean = false) => {
+  const proceedWithAddingInjury = async (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
     if (!selectedInjuryId) {
       toast({
         description: "Please select an injury",
@@ -134,21 +139,27 @@ export function InjuriesList({
       const result = await addFighterInjury({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
-        send_to_recovery: sendToRecovery
+        send_to_recovery: sendToRecovery,
+        set_captured: setCaptured
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to add injury');
       }
 
+      const statusMessage = [];
+      if (sendToRecovery) statusMessage.push('fighter sent to recovery');
+      if (setCaptured) statusMessage.push('fighter marked as captured');
+      
       toast({
-        description: `Injury added successfully${sendToRecovery ? ' and fighter sent to recovery' : ''}`,
+        description: `Injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
         variant: "default"
       });
 
       setSelectedInjuryId('');
       setSelectedInjury(null);
       setIsRecoveryModalOpen(false);
+      setIsCapturedModalOpen(false);
       
       // Refresh the page to get updated data
       router.refresh();
@@ -389,13 +400,75 @@ export function InjuriesList({
                 Cancel
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(false)}
+                onClick={() => proceedWithAddingInjury(false, false)}
                 className="px-4 py-2 border rounded hover:bg-gray-100"
               >
                 No
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(true)}
+                onClick={() => proceedWithAddingInjury(true, false)}
+                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCapturedModalOpen && (
+        <div 
+          className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsCapturedModalOpen(false);
+              setSelectedInjuryId('');
+              setSelectedInjury(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
+            <div className="border-b px-[10px] py-2 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Mark fighter as captured?</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsCapturedModalOpen(false);
+                    setSelectedInjuryId('');
+                    setSelectedInjury(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            <div className="px-[10px] py-4">
+              <p>This injury results in the fighter being captured. Do you want to mark the fighter as captured?</p>
+            </div>
+
+            <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsCapturedModalOpen(false);
+                  setSelectedInjuryId('');
+                  setSelectedInjury(null);
+                }}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => proceedWithAddingInjury(false, false)}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                No
+              </button>
+              <button
+                onClick={() => proceedWithAddingInjury(false, true)}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
               >
                 Yes

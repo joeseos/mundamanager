@@ -23,6 +23,7 @@ export interface AddFighterInjuryParams {
   fighter_id: string;
   injury_type_id: string;
   send_to_recovery?: boolean;
+  set_captured?: boolean;
 }
 
 export interface DeleteFighterInjuryParams {
@@ -119,19 +120,23 @@ export async function addFighterInjury(
       console.error('Failed to update rating for injury addition:', e);
     }
     
-    // If recovery is requested, update the fighter's recovery status
+    // Handle status updates from parameters
+    const statusUpdates: Record<string, boolean> = {};
+    if (params.send_to_recovery) statusUpdates.recovery = true;
+    if (params.set_captured) statusUpdates.captured = true;
+
     let recoveryStatus = undefined;
-    if (params.send_to_recovery) {
-      const { error: recoveryError } = await supabase
+    if (Object.keys(statusUpdates).length > 0) {
+      const { error: statusError } = await supabase
         .from('fighters')
-        .update({ recovery: true })
+        .update(statusUpdates)
         .eq('id', params.fighter_id);
 
-      if (recoveryError) {
-        console.error('Error setting recovery status:', recoveryError);
+      if (statusError) {
+        console.error('Error setting fighter status:', statusError);
         // Don't fail the entire operation, just log the error
       } else {
-        recoveryStatus = true;
+        recoveryStatus = statusUpdates.recovery;
       }
     }
 
