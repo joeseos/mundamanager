@@ -10,6 +10,9 @@ export interface FighterType {
   gang_type: string;
   fighter_sub_type: string;
   fighter_sub_type_id?: string;
+  fighter_sub_types?: {
+    sub_type_name: string;
+  } | null;
   alliance_crew_name?: string;
   cost: number;
   movement: number;
