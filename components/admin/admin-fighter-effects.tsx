@@ -10,33 +10,45 @@ import { Badge } from "@/components/ui/badge";
 
 // Mapping of stat_name (database value) to display_name (UI label)
 const STAT_MAPPINGS = [
-  { stat_name: 'attacks', display_name: 'Attacks' },
-  { stat_name: 'ballistic_skill', display_name: 'Ballistic Skill' },
-  { stat_name: 'body_slots', display_name: 'Body Slots' },
-  { stat_name: 'cool', display_name: 'Cool' },
-  { stat_name: 'drive_slots', display_name: 'Drive Slots' },
-  { stat_name: 'engine_slots', display_name: 'Engine Slots' },
-  { stat_name: 'front', display_name: 'Front' },
-  { stat_name: 'handling', display_name: 'Handling' },
-  { stat_name: 'hull_points', display_name: 'Hull Points' },
-  { stat_name: 'initiative', display_name: 'Initiative' },
-  { stat_name: 'intelligence', display_name: 'Intelligence' },
-  { stat_name: 'leadership', display_name: 'Leadership' },
-  { stat_name: 'movement', display_name: 'Movement' },
-  { stat_name: 'rear', display_name: 'Rear' },
-  { stat_name: 'save', display_name: 'Save' },
-  { stat_name: 'side', display_name: 'Side' },
-  { stat_name: 'strength', display_name: 'Strength' },
-  { stat_name: 'toughness', display_name: 'Toughness' },
-  { stat_name: 'weapon_skill', display_name: 'Weapon Skill' },
-  { stat_name: 'willpower', display_name: 'Willpower' },
-  { stat_name: 'wounds', display_name: 'Wounds' }
+  { stat_name: 'attacks', display_name: 'Attacks', short_name: 'A', value_suffix: '' },
+  { stat_name: 'ballistic_skill', display_name: 'Ballistic Skill', short_name: 'BS', value_suffix: '+' },
+  { stat_name: 'body_slots', display_name: 'Body Slots', short_name: 'Body Slots', value_suffix: '' },
+  { stat_name: 'cool', display_name: 'Cool', short_name: 'Cl', value_suffix: '+' },
+  { stat_name: 'drive_slots', display_name: 'Drive Slots', short_name: 'Drive Slots', value_suffix: '' },
+  { stat_name: 'engine_slots', display_name: 'Engine Slots', short_name: 'Engine Slots', value_suffix: '' },
+  { stat_name: 'front', display_name: 'Front', short_name: 'Fr', value_suffix: '' },
+  { stat_name: 'handling', display_name: 'Handling', short_name: 'Hnd', value_suffix: '+' },
+  { stat_name: 'hull_points', display_name: 'Hull Points', short_name: 'HP', value_suffix: '' },
+  { stat_name: 'initiative', display_name: 'Initiative', short_name: 'I', value_suffix: '+' },
+  { stat_name: 'intelligence', display_name: 'Intelligence', short_name: 'Int', value_suffix: '+' },
+  { stat_name: 'leadership', display_name: 'Leadership', short_name: 'Ld', value_suffix: '+' },
+  { stat_name: 'movement', display_name: 'Movement', short_name: 'M', value_suffix: '"' },
+  { stat_name: 'rear', display_name: 'Rear', short_name: 'Rr', value_suffix: '' },
+  { stat_name: 'save', display_name: 'Save', short_name: 'Sv', value_suffix: '+' },
+  { stat_name: 'side', display_name: 'Side', short_name: 'Sd', value_suffix: '' },
+  { stat_name: 'strength', display_name: 'Strength', short_name: 'S', value_suffix: '' },
+  { stat_name: 'toughness', display_name: 'Toughness', short_name: 'T', value_suffix: '' },
+  { stat_name: 'weapon_skill', display_name: 'Weapon Skill', short_name: 'WS', value_suffix: '+' },
+  { stat_name: 'willpower', display_name: 'Willpower', short_name: 'Wil', value_suffix: '+' },
+  { stat_name: 'wounds', display_name: 'Wounds', short_name: 'W', value_suffix: '' }
 ];
 
 // Helper function to get display name from stat name
 const getDisplayName = (stat_name: string): string => {
   const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
   return mapping ? mapping.display_name : stat_name;
+};
+
+// Helper function to get short name from stat name
+const getShortName = (stat_name: string): string => {
+  const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
+  return mapping ? mapping.short_name : stat_name;
+};
+
+// Helper function to get value suffix from stat name
+const getValueSuffix = (stat_name: string): string => {
+  const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
+  return mapping ? mapping.value_suffix : '';
 };
 
 interface FighterEffectTypeModifier {
@@ -408,9 +420,14 @@ export function AdminFighterEffects({
                             <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
                             <span>
                               {modifier.default_numeric_value !== null 
-                                ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value 
+                                ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value
                                 : 'N/A'}
-                            </span>
+                             </span>
+                             {modifier.default_numeric_value !== null && (
+                               <span className="text-sm text-gray-500 ml-2">
+                                 (eg. {getShortName(modifier.stat_name)} 4{getValueSuffix(modifier.stat_name)} → {getShortName(modifier.stat_name)} {4 + modifier.default_numeric_value}{getValueSuffix(modifier.stat_name)})
+                               </span>
+                             )}
                           </div>
                           <Button
                             onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
@@ -533,6 +550,7 @@ export function AdminFighterEffects({
       {showAddModifierDialog && (
         <Modal
           title="Add Modifier"
+          helper="Fields marked with * are required."
           onClose={() => {
             setShowAddModifierDialog(false);
             setNewModifierStatName('');
@@ -544,13 +562,13 @@ export function AdminFighterEffects({
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Stat *</label>
+              <label className="block text-sm font-medium mb-1">Characteristic *</label>
               <select
                 value={newModifierStatName}
                 onChange={(e) => setNewModifierStatName(e.target.value)}
                 className="w-full p-2 border rounded-md"
               >
-                <option value="">Select a stat</option>
+                <option value="">Select a Characteristic</option>
                 {STAT_MAPPINGS.map((stat) => (
                   <option key={stat.stat_name} value={stat.stat_name}>
                     {stat.display_name}
@@ -567,6 +585,11 @@ export function AdminFighterEffects({
                 onChange={(e) => setNewModifierValue(e.target.value)}
                 placeholder="Examples: 1, -1, 2"
               />
+              {newModifierStatName && newModifierValue && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Example: {getShortName(newModifierStatName)} 4{getValueSuffix(newModifierStatName)} → {getShortName(newModifierStatName)} {4 + parseFloat(newModifierValue)}{getValueSuffix(newModifierStatName)}
+                </p>
+              )}
             </div>
           </div>
         </Modal>

@@ -2,9 +2,9 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/utils/supabase/client';
-import { useToast } from '../ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { updateFighterImage } from '@/app/actions/update-fighter-image';
 import Modal from '@/components/modal';
 
