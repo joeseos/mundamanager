@@ -32,7 +32,7 @@ export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  keywords: "Necromunda, gang management, campaign tool, list builder, gang list, yaktribe replacement, Munda Manager",
+  keywords: "Necromunda, gang management, campaign tool, list builder, gang list, gang builder, yaktribe replacement, Munda Manager",
   authors: [{ name: "Munda Manager Team" }],
   creator: "Munda Manager",
   publisher: "Munda Manager",
