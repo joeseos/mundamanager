@@ -2005,21 +2005,31 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       <div className="text-sm font-bold text-gray-700">{category}</div>
 
                       {/* Items under this category */}
-                      {items.map(item => (
-                        <div
-                          key={item!.id}
-                          className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
-                        >
-                          <span>{item!.equipment_name}</span>
-                          <button
-                            type="button"
-                            onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
-                            className="hover:text-red-500 focus:outline-none"
+                      {items.map(item => {
+                        // Check if there's an adjusted cost for this equipment
+                        const adjustedCost = equipmentDiscounts.find(discount => discount.equipment_id === item!.id);
+                        const displayCost = adjustedCost ? adjustedCost.adjusted_cost : item!.cost;
+                        const isAdjusted = !!adjustedCost;
+                        
+                        return (
+                          <div
+                            key={item!.id}
+                            className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
                           >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
+                            <span>{item!.equipment_name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-right ${isAdjusted ? 'font-bold' : ''}`}>{displayCost}</span>
+                              <button
+                                type="button"
+                                onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
+                                className="hover:text-red-500 focus:outline-none"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
