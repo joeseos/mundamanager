@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
+import { invalidateFighterVehicleData, invalidateGangRating, CACHE_TAGS } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 interface DeleteVehicleParams {
@@ -66,6 +67,9 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     if (params.assignedFighterId) {
       invalidateFighterVehicleData(params.assignedFighterId, params.gangId);
     }
+
+    // Always refresh the gang vehicles list (covers assigned and unassigned views)
+    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
 
     return {
       success: true
