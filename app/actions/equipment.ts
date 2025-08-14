@@ -920,6 +920,15 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // deletedBeastIds could be added here if we track which beasts were deleted
     });
     
+    // If the deleted equipment had associated effects, invalidate fighter effects + derived data
+    if ((associatedEffects?.length || 0) > 0) {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
+    }
+    
     return { 
       success: true, 
       data: {
