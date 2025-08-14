@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -187,6 +187,14 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     // Invalidate appropriate caches - moving equipment to stash affects gang overview
     if (equipmentData.fighter_id) {
       invalidateFighterEquipment(equipmentData.fighter_id, gangId);
+      // If there were associated effects removed, also invalidate fighter effects
+      if ((associatedEffects?.length || 0) > 0) {
+        invalidateFighterAdvancement({
+          fighterId: equipmentData.fighter_id,
+          gangId,
+          advancementType: 'effect'
+        });
+      }
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -198,6 +206,14 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       if (!vehicleError && vehicleData?.fighter_id) {
         invalidateFighterEquipment(vehicleData.fighter_id, gangId);
         invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
+        // If there were associated effects removed, also invalidate fighter effects
+        if ((associatedEffects?.length || 0) > 0) {
+          invalidateFighterAdvancement({
+            fighterId: vehicleData.fighter_id,
+            gangId,
+            advancementType: 'effect'
+          });
+        }
       }
       
       // Also invalidate vehicle-specific cache tags

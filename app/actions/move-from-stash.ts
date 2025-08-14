@@ -11,7 +11,8 @@ import {
   addBeastToGangCache,
   invalidateFighterOwnedBeasts,
   invalidateGangStash,
-  invalidateGangRating
+  invalidateGangRating,
+  invalidateFighterAdvancement
 } from '@/utils/cache-tags';
 import { 
   createExoticBeastsForEquipment, 
@@ -470,10 +471,18 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           
           // Add complete beast data to response
           if (completeBeastData.length > 0) {
-            // Invalidate equipment caches for the fighter who received the equipment
-            if (params.fighter_id) {
-              invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
-            }
+    // Invalidate equipment caches for the fighter who received the equipment
+    if (params.fighter_id) {
+      invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
+      // If effects were applied from stash, also invalidate fighter effects
+      if ((appliedEffects?.length || 0) > 0) {
+        invalidateFighterAdvancement({
+          fighterId: params.fighter_id,
+          gangId: stashData.gang_id,
+          advancementType: 'effect'
+        });
+      }
+    }
             
             // Invalidate gang stash since equipment was moved
             invalidateGangStash({
@@ -536,6 +545,14 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Invalidate equipment caches for the fighter who received the equipment
     if (params.fighter_id) {
       invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
+      // If effects were applied from stash, also invalidate fighter effects
+      if ((appliedEffects?.length || 0) > 0) {
+        invalidateFighterAdvancement({
+          fighterId: params.fighter_id,
+          gangId: stashData.gang_id,
+          advancementType: 'effect'
+        });
+      }
     }
     
     // Invalidate gang stash since equipment was moved
