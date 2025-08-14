@@ -61,6 +61,7 @@ interface PurchaseModalProps {
   gangCredits: number;
   onClose: () => void;
   onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean, selectedEffectIds?: string[]) => void;
+  isStashPurchase?: boolean;
 }
 
 interface Category {
@@ -68,7 +69,7 @@ interface Category {
   category_name: string;
 }
 
-function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalProps) {
+function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
@@ -106,6 +107,12 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm }: PurchaseModalP
     }
 
     setCreditError(null);
+    
+    // If buying to stash, skip effect selection entirely
+    if (isStashPurchase) {
+      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, []);
+      return true;
+    }
     
     // Check if this equipment has effects that need selection
     if (!item.is_custom && !showEffectSelection) {
@@ -1133,6 +1140,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => {
                   handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || []);
                 }}
+                isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
               />
             )}
           </div>
@@ -1145,6 +1153,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           gangCredits={gangCredits}
           onClose={() => setBuyModalData(null)}
           onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [])}
+          isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
         />
       )}
       {/* Weapon Profile Tooltip */}

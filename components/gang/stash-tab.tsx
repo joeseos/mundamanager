@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
@@ -23,6 +23,7 @@ import { MdCurrencyExchange } from 'react-icons/md';
 import { LuTrash2 } from 'react-icons/lu';
 import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -69,6 +70,14 @@ export default function GangInventory({
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
   const { toast } = useToast();
   
+  // Effect selection modal state
+  const [effectModalOpen, setEffectModalOpen] = useState(false);
+  const [effectModalTypes, setEffectModalTypes] = useState<any[]>([]);
+  const [effectModalStashIdx, setEffectModalStashIdx] = useState<number | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
+  const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const effectResolveRef = useRef<((ids: string[] | null) => void) | null>(null);
+  
   const isVehicleExclusive = (item: StashItem) => 
     vehicleExclusiveCategories.includes(item.equipment_category || '');
     
@@ -111,6 +120,17 @@ export default function GangInventory({
   const findFighter = (id: string): FighterProps | undefined => 
     fighters.find(f => f.id === id);
 
+  // Prompt user to select effects; returns selected IDs or null on cancel
+  const promptEffectSelection = (equipmentId: string, effectTypes: any[], stashIdx: number) => {
+    setEffectModalTypes(effectTypes);
+    setEffectModalStashIdx(stashIdx);
+    setIsEffectSelectionValid(false);
+    setEffectModalOpen(true);
+    return new Promise<string[] | null>((resolve) => {
+      effectResolveRef.current = resolve;
+    });
+  };
+
   const handleItemToggle = (index: number, checked: boolean) => {
     if (checked) {
       setSelectedItems(prev => [...prev, index]);
@@ -138,13 +158,41 @@ export default function GangInventory({
       for (const itemIndex of selectedItems) {
         const stashItem = stash[itemIndex];
         
+        // Determine if this item has selectable effects (non-fixed) and prompt user if so
+        let selectedEffectIds: string[] | undefined = undefined;
+        if (stashItem.type === 'equipment' && stashItem.equipment_id && !stashItem.custom_equipment_id) {
+          try {
+            const resp = await fetch(`/api/fighter-effects?equipmentId=${stashItem.equipment_id}`);
+            if (resp.ok) {
+              const effectTypes = await resp.json();
+              const hasSelectable = effectTypes?.some((e: any) =>
+                e?.type_specific_data?.effect_selection === 'single_select' ||
+                e?.type_specific_data?.effect_selection === 'multiple_select'
+              );
+              if (hasSelectable) {
+                const chosen = await promptEffectSelection(stashItem.equipment_id, effectTypes, itemIndex);
+                if (chosen && chosen.length > 0) {
+                  selectedEffectIds = chosen;
+                } else {
+                  // User cancelled; skip this item
+                  errorCount++;
+                  continue;
+                }
+              }
+            }
+          } catch (e) {
+            // If effect fetch fails, proceed without selection (fixed effects still apply)
+          }
+        }
+        
         // Use server action instead of direct API call
         const result = await moveEquipmentFromStash({
           stash_id: stashItem.id,
           ...(isVehicleTarget 
             ? { vehicle_id: targetId }
             : { fighter_id: targetId }
-          )
+          ),
+          ...(selectedEffectIds ? { selected_effect_ids: selectedEffectIds } : {})
         });
 
         if (!result.success) {
@@ -758,6 +806,43 @@ export default function GangInventory({
       )}
 
       {/* Sell from stash modal */}
+      {effectModalOpen && effectModalStashIdx !== null && (
+        <Modal
+          title="Equipment Effects"
+          content={
+            <FighterEffectSelection
+              equipmentId={stash[effectModalStashIdx].equipment_id!}
+              effectTypes={effectModalTypes}
+              onSelectionComplete={(ids) => {
+                effectResolveRef.current?.(ids);
+                setEffectModalOpen(false);
+                setEffectModalTypes([]);
+                setEffectModalStashIdx(null);
+              }}
+              onCancel={() => {
+                effectResolveRef.current?.(null);
+                setEffectModalOpen(false);
+                setEffectModalTypes([]);
+                setEffectModalStashIdx(null);
+              }}
+              onValidityChange={setIsEffectSelectionValid}
+              ref={effectSelectionRef}
+            />
+          }
+          onClose={() => {
+            effectResolveRef.current?.(null);
+            setEffectModalOpen(false);
+            setEffectModalTypes([]);
+            setEffectModalStashIdx(null);
+          }}
+          onConfirm={() => {
+            return effectSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Confirm Selection"
+          confirmDisabled={!isEffectSelectionValid}
+          width="lg"
+        />
+      )}
       {sellModalItemIdx !== null && (
         <Modal
           title="Sell Stash Item"

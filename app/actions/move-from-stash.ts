@@ -24,6 +24,7 @@ interface MoveFromStashParams {
   stash_id: string;
   fighter_id?: string;
   vehicle_id?: string;
+  selected_effect_ids?: string[];
 }
 
 interface MoveFromStashResult {
@@ -167,15 +168,40 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           .eq('type_specific_data->>equipment_id', stashData.equipment_id.toString());
 
         if (!effectsError && equipmentEffects && equipmentEffects.length > 0) {
-          // Only auto-apply fixed effects (skip selection-based effects)
+          // 1) Fixed effects (auto-apply only)
           const fixedEffects = (equipmentEffects as any[]).filter(et => {
             const sel = et?.type_specific_data?.effect_selection;
             return sel !== 'single_select' && sel !== 'multiple_select';
           });
 
-          if (fixedEffects.length > 0) {
+          // 2) Selected effects from UI (if any)
+          let selectedEffectTypes: any[] = [];
+          if (params.selected_effect_ids && params.selected_effect_ids.length > 0) {
+            const { data: chosen } = await supabase
+              .from('fighter_effect_types')
+              .select(`
+                id,
+                effect_name,
+                type_specific_data,
+                fighter_effect_type_modifiers (
+                  stat_name,
+                  default_numeric_value
+                )
+              `)
+              .in('id', params.selected_effect_ids);
+            selectedEffectTypes = chosen || [];
+          }
+
+          // 3) Union fixed + selected; dedupe by id keeping first occurrence
+          const toApplyMap = new Map<string, any>();
+          [...fixedEffects, ...selectedEffectTypes].forEach(et => {
+            if (et?.id && !toApplyMap.has(et.id)) toApplyMap.set(et.id, et);
+          });
+          const toApply = Array.from(toApplyMap.values());
+
+          if (toApply.length > 0) {
             // Batch insert effects with fighter_equipment_id set on creation
-            const effectsToInsert = fixedEffects.map(et => ({
+            const effectsToInsert = toApply.map(et => ({
               fighter_id: params.fighter_id || null,
               vehicle_id: params.vehicle_id || null,
               fighter_effect_type_id: et.id,
@@ -197,7 +223,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             if (insertedEffects && insertedEffects.length > 0) {
               // Batch insert all modifiers mapped to inserted effect ids
               const allModifiers: any[] = [];
-              fixedEffects.forEach((et, index) => {
+              toApply.forEach((et, index) => {
                 const effId = insertedEffects[index].id;
                 if (et.fighter_effect_type_modifiers) {
                   et.fighter_effect_type_modifiers.forEach((mod: any) => {
@@ -222,7 +248,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 effectIdToMods.set(m.fighter_effect_id, arr);
               });
 
-              fixedEffects.forEach((et, index) => {
+              toApply.forEach((et, index) => {
                 const inserted = insertedEffects[index];
                 if (inserted) {
                   appliedEffects.push({
@@ -233,7 +259,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 }
               });
 
-              effectsCreditsDelta += fixedEffects.reduce((s, et) => s + (et.type_specific_data?.credits_increase || 0), 0);
+              effectsCreditsDelta += toApply.reduce((s, et) => s + (et.type_specific_data?.credits_increase || 0), 0);
             }
           }
         }
