@@ -383,20 +383,25 @@ export default function FighterPage({
     };
   };
 
-  const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => {
+  const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number, deletedEffects: any[] = []) => {
     setFighterData(prev => {
-      const removed = prev.equipment.find(
-        e => !updatedEquipment.some(ue => ue.fighter_equipment_id === e.fighter_equipment_id)
-      );
       let updatedEffects = prev.fighter?.effects;
-      if (removed?.equipment_effect && updatedEffects) {
-        updatedEffects = {
-          ...updatedEffects,
-          user: updatedEffects.user.filter(
-            effect => effect.id !== removed.equipment_effect?.id
-          )
-        };
+      
+      // Remove deleted effects from fighter effects using server-provided deletedEffects data
+      if (deletedEffects.length > 0 && updatedEffects) {
+        updatedEffects = { ...updatedEffects };
+        
+        // Remove deleted effects from each category
+        Object.keys(updatedEffects).forEach(categoryKey => {
+          const categoryEffects = (updatedEffects as any)[categoryKey];
+          if (Array.isArray(categoryEffects)) {
+            (updatedEffects as any)[categoryKey] = categoryEffects.filter(
+              (effect: any) => !deletedEffects.some((deletedEffect: any) => deletedEffect.id === effect.id)
+            );
+          }
+        });
       }
+      
       return {
         ...prev,
         equipment: updatedEquipment,
@@ -437,7 +442,7 @@ export default function FighterPage({
           ...vehicle,
           effects: updatedVehicleEffects,
           equipment: [...(vehicle.equipment || []), {
-            fighter_equipment_id: boughtEquipment.equipment_id,
+            fighter_equipment_id: boughtEquipment.fighter_equipment_id || boughtEquipment.equipment_id,
             equipment_id: boughtEquipment.equipment_id,
             equipment_name: boughtEquipment.equipment_name,
             equipment_type: boughtEquipment.equipment_type,
@@ -500,9 +505,7 @@ export default function FighterPage({
         equipment: !isVehicleEquipment ? [...prev.equipment, boughtEquipment] : prev.equipment
       };
     });
-    
-    // Refresh the page to get updated data from server
-    router.refresh();
+    // Avoid page-wide refresh; keep optimistic update
   }, [router]);
 
   // Gang fighters are already provided in initialGangFighters, no need to fetch them again
@@ -773,13 +776,40 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
               fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits) => {
-                setFighterData(prev => ({
-                  ...prev,
-                  vehicleEquipment: updatedEquipment,
-                  fighter: prev.fighter ? { ...prev.fighter, credits: newFighterCredits } : null,
-                  gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-                }));
+              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits, deletedEffects = []) => {
+                setFighterData(prev => {
+                  if (!prev.fighter) return prev;
+                  
+                  // Remove deleted effects from vehicle effects if any
+                  let updatedVehicles = prev.fighter.vehicles;
+                  if (deletedEffects.length > 0 && updatedVehicles?.[0]) {
+                    const vehicle = updatedVehicles[0];
+                    let updatedVehicleEffects = { ...vehicle.effects };
+                    
+                    // Remove deleted effects from each category
+                    Object.keys(updatedVehicleEffects).forEach(categoryKey => {
+                      updatedVehicleEffects[categoryKey] = updatedVehicleEffects[categoryKey].filter(
+                        (effect: any) => !deletedEffects.some((deletedEffect: any) => deletedEffect.id === effect.id)
+                      );
+                    });
+                    
+                    updatedVehicles = [{
+                      ...vehicle,
+                      effects: updatedVehicleEffects
+                    }];
+                  }
+                  
+                  return {
+                    ...prev,
+                    vehicleEquipment: updatedEquipment,
+                    fighter: { 
+                      ...prev.fighter, 
+                      credits: newFighterCredits,
+                      vehicles: updatedVehicles
+                    },
+                    gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
+                  };
+                });
               }}
               equipment={fighterData.vehicleEquipment}
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
