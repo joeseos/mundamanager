@@ -645,7 +645,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ))
       };
 
-      console.log('Sending equipment purchase request:', params);
+      
 
       const result = await buyEquipmentForFighter(params);
 
@@ -678,19 +678,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // For gang stash purchases, fighter credits don't change
       const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
       
-      // Log to verify the values being used
-      console.log('Equipment purchase details:', {
-        isGangStashPurchase,
-        manualCost,
-        useBaseCostForRating,
-        baseCost: item.base_cost,
-        adjustedCost: item.adjusted_cost,
-        ratingCost,
-        responseRatingCost: data.rating_cost,
-        equipmentRecord,
-        newFighterCredits,
-        oldFighterCredits: fighterCredits
-      });
+      // Log removed
 
       onEquipmentBought(newFighterCredits, newGangCredits, {
         ...item,
@@ -730,24 +718,24 @@ const ItemModal: React.FC<ItemModalProps> = ({
     
     // If we have cached data for this equipment list type, use it
     if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
-      console.log('Using cached data for unrestricted');
+      
       setAvailableCategories(cachedAllCategories);
       setEquipment(cachedEquipment.all);
       return;
     } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
-      console.log('Using cached data for fighters-list');
+      
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
       return;
     } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
-      console.log('Using cached data for fighters-tradingpost');
+      
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
       return;
     }
 
     // Only fetch if we don't have cached data
-    console.log(`No cached data found for ${equipmentListType}, fetching from API`);
+    
     fetchAllCategories();
   }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
 
