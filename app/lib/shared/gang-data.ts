@@ -24,6 +24,7 @@ export interface GangBasic {
   alliance_id?: string;
   gang_variants?: string[];
   user_id: string;
+  image_url?: string;
 }
 
 export interface GangType {
@@ -145,7 +146,8 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           last_updated,
           alliance_id,
           gang_variants,
-          user_id
+          user_id,
+          image_url
         `)
         .eq('id', gangId)
         .single();

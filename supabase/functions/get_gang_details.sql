@@ -1,3 +1,7 @@
+-- This Code is obsolete. Do not use it or update it.
+-- We now use the library app/lib/shared/gang-data.ts to get the gang details.
+-- This code is kept here for compatibility with the Rule Snatcher Tool.
+
 DROP FUNCTION IF EXISTS public.get_gang_details(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_gang_details(p_gang_id uuid)
