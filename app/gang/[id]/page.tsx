@@ -339,6 +339,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_type: gangBasic.gang_type,
       gang_type_id: gangBasic.gang_type_id,
       gang_type_image_url: gangType.image_url,
+      image_url: gangBasic.image_url,
       gang_colour: gangBasic.gang_colour,
       credits: gangCredits,
       reputation: gangBasic.reputation,
