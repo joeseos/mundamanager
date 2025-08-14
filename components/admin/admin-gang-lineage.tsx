@@ -7,11 +7,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { X, Plus, Trash2 } from "lucide-react";
 import Modal from '@/components/modal';
 
+type LineageType = 'legacy' | 'affiliation';
+
 interface GangLineage {
   id: string;
   name: string;
   fighter_type_id: string;
-  type: string;
+  type: LineageType | string;
   created_at: string;
   updated_at?: string;
   fighter_type_access: string[];
@@ -45,14 +47,15 @@ interface AdminGangLineageModalProps {
 export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageModalProps) {
   const { toast } = useToast();
   
-  // State for gang lineages and fighter types
-  const [gangLineages, setGangLineages] = useState<GangLineage[]>([]);
+  // Split state for gang lineages by type and fighter types
+  const [legacies, setLegacies] = useState<GangLineage[]>([]);
+  const [affiliations, setAffiliations] = useState<GangLineage[]>([]);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   // State for type selection and filtered gang lineages
-  const [selectedType, setSelectedType] = useState<string>('');
+  const [selectedType, setSelectedType] = useState<LineageType | ''>('');
   const [filteredGangLineages, setFilteredGangLineages] = useState<GangLineage[]>([]);
   
   // State for selected gang lineage
@@ -63,7 +66,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [gangLineageName, setGangLineageName] = useState('');
   const [selectedGangTypeId, setSelectedGangTypeId] = useState('');
   const [associatedFighterTypeId, setAssociatedFighterTypeId] = useState('');
-  const [lineageType, setLineageType] = useState('');
+  const [lineageType, setLineageType] = useState<LineageType | ''>('');
   const [fighterTypeAccess, setFighterTypeAccess] = useState<string[]>([]);
   
   // Filtered fighter types based on selected gang type
@@ -80,30 +83,52 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [gangLineageToDelete, setGangLineageToDelete] = useState<string>('');
 
-  // Fetch gang lineages on component mount
-  useEffect(() => {
-    fetchGangLineages();
-    fetchFighterTypes();
-    fetchGangTypes();
-  }, []);
+  const getTypeLabel = (t: LineageType | '') => {
+    if (t === 'legacy') return 'Gang Legacy';
+    if (t === 'affiliation') return 'Gang Affiliation';
+    return 'Gang Legacy or Affiliation';
+  };
 
-  // Filter gang lineages when type changes
+  const getTypeTerm = (t: LineageType | '') => {
+    if (t === 'legacy') return 'gang legacy';
+    if (t === 'affiliation') return 'gang affiliation';
+    return 'gang legacy or affiliation';
+  };
+
+  // Do not fetch fighter/gang types on mount; fetch lazily when editing/creating
+  useEffect(() => {
+    if (showCreateModal || selectedGangLineage) {
+      if (gangTypes.length === 0) fetchGangTypes();
+      if (fighterTypes.length === 0) fetchFighterTypes();
+    }
+  }, [showCreateModal, selectedGangLineage]);
+
+  // Fetch when type changes, and reset selection
   useEffect(() => {
     if (selectedType) {
-      const filtered = gangLineages.filter(lineage => lineage.type === selectedType);
-      setFilteredGangLineages(filtered);
+      fetchLineagesByType(selectedType);
     } else {
       setFilteredGangLineages([]);
     }
-    // Reset gang lineage selection when type changes
     setSelectedGangLineageId('');
     clearForm();
-  }, [selectedType, gangLineages]);
+  }, [selectedType]);
+
+  // Update filtered list when data or type changes (no fetching here)
+  useEffect(() => {
+    if (!selectedType) return;
+    setFilteredGangLineages(selectedType === 'legacy' ? legacies : affiliations);
+  }, [selectedType, legacies, affiliations]);
 
   // Update form when selected gang lineage changes
   useEffect(() => {
     if (selectedGangLineageId) {
-      fetchGangLineageDetails(selectedGangLineageId);
+      const typeForFetch = selectedType || lineageType;
+      if (!typeForFetch) {
+        toast({ description: 'Please select a type first', variant: 'destructive' });
+      } else {
+        fetchGangLineageDetails(selectedGangLineageId, typeForFetch as LineageType);
+      }
     } else {
       clearForm();
     }
@@ -127,13 +152,17 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     }
   }, [selectedGangTypeId, fighterTypes]);
 
-  const fetchGangLineages = async () => {
+  const fetchLineagesByType = async (type: LineageType) => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/gang-lineages');
-      if (!response.ok) throw new Error('Failed to fetch gang lineages');
-      const data = await response.json();
-      setGangLineages(data);
+      const res = await fetch(`/api/admin/gang-lineages?type=${type}`);
+      if (!res.ok) throw new Error('Failed to fetch gang lineages');
+      const data = await res.json();
+      if (type === 'legacy') {
+        setLegacies(data || []);
+      } else {
+        setAffiliations(data || []);
+      }
     } catch (error) {
       console.error('Error fetching gang lineages:', error);
       toast({
@@ -175,12 +204,12 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     }
   };
 
-  const fetchGangLineageDetails = async (gangLineageId: string) => {
+  const fetchGangLineageDetails = async (gangLineageId: string, type: LineageType) => {
     try {
       setIsLoading(true);
       setIsLoadingExistingData(true);
       
-      const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageId}`);
+      const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageId}&type=${type}`);
       if (!response.ok) throw new Error('Failed to fetch gang lineage details');
       const data = await response.json();
       
@@ -258,8 +287,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         variant: "default"
       });
 
-      // Refresh the gang lineages list
-      await fetchGangLineages();
+      // Refresh the current type list if matching
+      if (lineageType && selectedType && lineageType === selectedType) {
+        await fetchLineagesByType(selectedType);
+      }
       clearForm();
       return true;
     } catch (error) {
@@ -285,7 +316,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineage.id}`, {
+      const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineage.id}&type=${selectedGangLineage.type}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -308,8 +339,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         variant: "default"
       });
 
-      // Refresh the gang lineages list
-      await fetchGangLineages();
+      // Refresh current type list
+      if (selectedType) {
+        await fetchLineagesByType(selectedType);
+      }
       
       // Close the modal after successful update
       if (onSubmit) {
@@ -328,11 +361,11 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   };
 
   const handleDeleteGangLineage = async () => {
-    if (!gangLineageToDelete) return false;
+    if (!gangLineageToDelete || !selectedType) return false;
 
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageToDelete}`, {
+      const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageToDelete}&type=${selectedType}`, {
         method: 'DELETE',
       });
 
@@ -346,8 +379,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         variant: "default"
       });
 
-      // Refresh the gang lineages list and clear selection if deleted item was selected
-      await fetchGangLineages();
+      // Refresh current type list and clear selection if deleted item was selected
+      if (selectedType) {
+        await fetchLineagesByType(selectedType);
+      }
       if (selectedGangLineageId === gangLineageToDelete) {
         setSelectedGangLineageId('');
         clearForm();
@@ -403,7 +438,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         </label>
         <select
           value={lineageType}
-          onChange={(e) => setLineageType(e.target.value)}
+          onChange={(e) => setLineageType(e.target.value as LineageType)}
           className="w-full p-2 border rounded-md"
         >
           <option value="">Select type</option>
@@ -414,7 +449,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Gang Lineage Name *
+          {getTypeLabel(lineageType)} Name *
         </label>
         <Input
           type="text"
@@ -575,7 +610,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 </label>
                 <select
                   value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
+                  onChange={(e) => setSelectedType(e.target.value as LineageType | '')}
                   className="w-full p-2 border rounded-md"
                   disabled={isLoading}
                 >
@@ -587,7 +622,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Gang Lineage to Edit
+                  Select Gang Legacy or Affiliation
                 </label>
                 <select
                   value={selectedGangLineageId}
@@ -600,7 +635,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                       ? "Select a type first" 
                       : filteredGangLineages.length === 0 
                         ? "No lineages available" 
-                        : "Select a gang lineage"
+                        : "Select a gang legacy or affiliation"
                     }
                   </option>
                   {filteredGangLineages.map((lineage) => (
@@ -622,7 +657,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   disabled={isLoading}
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Create New Gang Lineage
+                  Create New
                 </Button>
               </div>
             </div>
@@ -631,7 +666,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
             {selectedGangLineage && (
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-semibold">Gang Lineage Details</h4>
+                  <h4 className="text-lg font-semibold">{getTypeLabel(lineageType)} Details</h4>
                   <Button
                     onClick={() => {
                       setGangLineageToDelete(selectedGangLineage.id);
@@ -650,23 +685,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Type *
-                    </label>
-                    <select
-                      value={lineageType}
-                      onChange={(e) => setLineageType(e.target.value)}
-                      className="w-full p-2 border rounded-md"
-                      disabled={isLoading}
-                    >
-                      <option value="">Select type</option>
-                      <option value="legacy">Legacy</option>
-                      <option value="affiliation">Affiliation</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Gang Lineage Name *
+                      {getTypeLabel(lineageType)} Name *
                     </label>
                     <Input
                       type="text"
@@ -725,7 +744,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     Fighter Type Access Rules
                   </label>
                   <p className="text-sm text-gray-500 mb-3">
-                    Select which fighter types can access this gang lineage.
+                    {`Select which fighter types can access this ${getTypeTerm(lineageType)}.`}
                   </p>
 
                   <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -837,7 +856,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       {/* Create Gang Lineage Modal */}
       {showCreateModal && (
         <Modal
-          title="Create New Gang Lineage"
+          title="Create Gang Legacy or Affiliation"
           content={createModalContent}
           onClose={() => {
             setShowCreateModal(false);
