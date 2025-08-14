@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash } from '@/utils/cache-tags';
+import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -186,7 +186,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // Invalidate caches - selling equipment affects gang credits/rating
+    // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
     if (equipmentData.fighter_id) {
       // Use equipment deletion invalidation since selling is essentially deletion with credit refund
       // This ensures both fighter equipment list AND gang credits are properly invalidated
@@ -194,6 +194,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         fighterId: equipmentData.fighter_id,
         gangId: gangId
       });
+      // If the equipment had effects, also invalidate fighter effects + derived data
+      if ((associatedEffects?.length || 0) > 0) {
+        invalidateFighterAdvancement({
+          fighterId: equipmentData.fighter_id,
+          gangId,
+          advancementType: 'effect'
+        });
+      }
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase
@@ -209,6 +217,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           gangId: gangId
         });
         invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
+        // Also invalidate fighter effects if the sold vehicle equipment had effects linked
+        if ((associatedEffects?.length || 0) > 0) {
+          invalidateFighterAdvancement({
+            fighterId: vehicleData.fighter_id,
+            gangId,
+            advancementType: 'effect'
+          });
+        }
       }
       
       // Also invalidate vehicle-specific cache tags

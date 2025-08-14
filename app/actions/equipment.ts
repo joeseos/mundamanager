@@ -8,7 +8,8 @@ import {
   invalidateEquipmentPurchase,
   invalidateEquipmentDeletion,
   invalidateGangStash,
-  invalidateGangRating
+  invalidateGangRating,
+  invalidateFighterAdvancement
 } from '@/utils/cache-tags';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -67,51 +68,57 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
     }
 
-    // Get gang info first
-    const { data: gang, error: gangError } = await supabase
-      .from('gangs')
-      .select('id, credits, gang_type_id, user_id, rating')
-      .eq('id', params.gang_id)
-      .single();
+    // PARALLEL: Gang info, security check, and fighter/vehicle data
+    const [gangResult, profileResult, fighterResult, vehicleResult] = await Promise.all([
+      // Gang info
+      supabase
+        .from('gangs')
+        .select('id, credits, gang_type_id, user_id, rating')
+        .eq('id', params.gang_id)
+        .single(),
+      
+      // Security check profile (for potential admin verification)
+      supabase
+        .from('profiles')
+        .select('user_role')
+        .eq('id', user.id)
+        .single(),
+      
+      // Fighter type ID for discounts (only if needed)
+      (params.fighter_id && !params.buy_for_gang_stash)
+        ? supabase
+            .from('fighters')
+            .select('fighter_type_id')
+            .eq('id', params.fighter_id)
+            .single()
+        : Promise.resolve({ data: null }),
+      
+      // Vehicle assignment check (only if needed)
+      (params.vehicle_id && !params.buy_for_gang_stash)
+        ? supabase
+            .from('vehicles')
+            .select('fighter_id')
+            .eq('id', params.vehicle_id)
+            .single()
+        : Promise.resolve({ data: null })
+    ]);
 
+    const { data: gang, error: gangError } = gangResult;
     if (gangError || !gang) {
       throw new Error('Gang not found');
     }
 
     // Security check
     if (gang.user_id !== user.id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_role')
-        .eq('id', user.id)
-        .single();
-      
+      const { data: profile } = profileResult;
       if (!profile || profile.user_role !== 'admin') {
         throw new Error('Not authorized to access this gang');
       }
     }
 
-    // Get fighter type ID if needed for discounts
-    let fighterTypeId: string | null = null;
-    if (params.fighter_id && !params.buy_for_gang_stash) {
-      const { data: fighter } = await supabase
-        .from('fighters')
-        .select('fighter_type_id')
-        .eq('id', params.fighter_id)
-        .single();
-      fighterTypeId = fighter?.fighter_type_id || null;
-    }
-
-    // If purchasing for vehicle, check if vehicle is assigned to a fighter
-    let vehicleAssignedFighterId: string | null = null;
-    if (params.vehicle_id && !params.buy_for_gang_stash) {
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', params.vehicle_id)
-        .single();
-      vehicleAssignedFighterId = vehicleData?.fighter_id || null;
-    }
+    // Extract parallel query results
+    const fighterTypeId = fighterResult.data?.fighter_type_id || null;
+    const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
 
     // Get equipment details
     let equipmentDetails: any;
@@ -121,32 +128,56 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let customWeaponProfiles: any[] = [];
 
     if (params.equipment_id) {
-      // Get regular equipment with weapon profiles
-      const { data: equipment, error: equipError } = await supabase
-        .from('equipment')
-        .select(`
-          id, 
-          equipment_name, 
-          equipment_type, 
-          cost,
-          weapon_profiles (
-            id,
-            profile_name,
-            range_short,
-            range_long,
-            acc_short,
-            acc_long,
-            strength,
-            ap,
-            damage,
-            ammo,
-            traits,
-            sort_order
-          )
-        `)
-        .eq('id', params.equipment_id)
-        .single();
+      // PARALLEL: Equipment details and discount queries
+      const [equipmentResult, gangDiscountResult, fighterDiscountResult] = await Promise.all([
+        // Equipment with weapon profiles
+        supabase
+          .from('equipment')
+          .select(`
+            id, 
+            equipment_name, 
+            equipment_type, 
+            cost,
+            weapon_profiles (
+              id,
+              profile_name,
+              range_short,
+              range_long,
+              acc_short,
+              acc_long,
+              strength,
+              ap,
+              damage,
+              ammo,
+              traits,
+              sort_order
+            )
+          `)
+          .eq('id', params.equipment_id)
+          .single(),
+        
+        // Gang-level discount
+        supabase
+          .from('equipment_discounts')
+          .select('adjusted_cost')
+          .eq('equipment_id', params.equipment_id)
+          .eq('gang_type_id', gang.gang_type_id)
+          .is('fighter_type_id', null)
+          .single(),
+        
+        // Fighter-type discount (only if not gang stash and has fighter type)
+        (!params.buy_for_gang_stash && fighterTypeId)
+          ? supabase
+              .from('equipment_discounts')
+              .select('adjusted_cost')
+              .eq('equipment_id', params.equipment_id)
+              .eq('fighter_type_id', fighterTypeId)
+              .is('gang_type_id', null)
+              .single()
+          : Promise.resolve({ data: null })
+      ]);
 
+      const { data: equipment, error: equipError } = equipmentResult;
       if (equipError || !equipment) {
         throw new Error('Equipment not found');
       }
@@ -155,62 +186,32 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       baseCost = equipment.cost;
       weaponProfiles = equipment.weapon_profiles || [];
 
-      // Check for equipment discounts
-      let discount = null;
+      // Determine best discount from parallel queries
+      const { data: gangDiscount } = gangDiscountResult;
+      const { data: fighterDiscount } = fighterDiscountResult;
       
+      let discount = null;
       if (params.buy_for_gang_stash) {
-        // For gang stash, only consider gang-level discounts
-        const { data: gangDiscount } = await supabase
-          .from('equipment_discounts')
-          .select('adjusted_cost')
-          .eq('equipment_id', params.equipment_id)
-          .eq('gang_type_id', gang.gang_type_id)
-          .is('fighter_type_id', null)
-          .single();
         discount = gangDiscount;
       } else {
-        // For fighter/vehicle purchases, check both gang and fighter type discounts
-        const { data: gangDiscount } = await supabase
-          .from('equipment_discounts')
-          .select('adjusted_cost')
-          .eq('equipment_id', params.equipment_id)
-          .eq('gang_type_id', gang.gang_type_id)
-          .is('fighter_type_id', null)
-          .single();
-
-        const { data: fighterDiscount } = fighterTypeId ? await supabase
-          .from('equipment_discounts')
-          .select('adjusted_cost')
-          .eq('equipment_id', params.equipment_id)
-          .eq('fighter_type_id', fighterTypeId)
-          .is('gang_type_id', null)
-          .single() : { data: null };
-
         // Use fighter discount if available, otherwise gang discount
         discount = fighterDiscount || gangDiscount;
       }
 
       adjustedCost = discount?.adjusted_cost || equipment.cost;
     } else if (params.custom_equipment_id) {
-      // Get custom equipment with custom weapon profiles
-      const { data: customEquip, error: customError } = await supabase
-        .from('custom_equipment')
-        .select('id, equipment_name, equipment_type, cost')
-        .eq('id', params.custom_equipment_id)
-        .eq('user_id', user.id)
-        .single();
-
-      if (customError || !customEquip) {
-        throw new Error('Custom equipment not found');
-      }
-
-      equipmentDetails = customEquip;
-      baseCost = customEquip.cost;
-      adjustedCost = customEquip.cost;
-
-      // Get custom weapon profiles if it's a weapon
-      if (customEquip.equipment_type === 'weapon') {
-        const { data: profiles } = await supabase
+      // PARALLEL: Custom equipment and profiles
+      const [customEquipResult, profilesResult] = await Promise.all([
+        // Custom equipment details
+        supabase
+          .from('custom_equipment')
+          .select('id, equipment_name, equipment_type, cost')
+          .eq('id', params.custom_equipment_id)
+          .eq('user_id', user.id)
+          .single(),
+        
+        // Custom weapon profiles (fetch even if not weapon to avoid second query)
+        supabase
           .from('custom_weapon_profiles')
           .select(`
             id,
@@ -229,8 +230,21 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           .or(`custom_equipment_id.eq.${params.custom_equipment_id},weapon_group_id.eq.${params.custom_equipment_id}`)
           .eq('user_id', user.id)
           .order('sort_order', { nullsFirst: false })
-          .order('profile_name');
+          .order('profile_name')
+      ]);
 
+      const { data: customEquip, error: customError } = customEquipResult;
+      if (customError || !customEquip) {
+        throw new Error('Custom equipment not found');
+      }
+
+      equipmentDetails = customEquip;
+      baseCost = customEquip.cost;
+      adjustedCost = customEquip.cost;
+
+      // Only use weapon profiles if it's actually a weapon
+      if (customEquip.equipment_type === 'weapon') {
+        const { data: profiles } = profilesResult;
         customWeaponProfiles = profiles || [];
       }
     } else {
@@ -319,97 +333,109 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Handle fighter effects if selected
+    // BATCH: Handle fighter effects with direct database operations
     let appliedEffects: any[] = [];
     
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
-      for (const effectId of params.selected_effect_ids) {
-        try {
-          // Get effect type details (include type_specific_data for credits)
-          const { data: effectType } = await supabase
-            .from('fighter_effect_types')
-            .select(`
+      try {
+        // Get all effect type data in one query
+        const { data: effectTypes } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            fighter_effect_categories (
               id,
-              effect_name,
-              fighter_effect_category_id,
-              type_specific_data,
-              fighter_effect_categories!inner (
-                id,
-                category_name
-              )
-            `)
-            .eq('id', effectId)
-            .single();
+              category_name
+            ),
+            fighter_effect_type_modifiers (
+              stat_name,
+              default_numeric_value
+            )
+          `)
+          .in('id', params.selected_effect_ids);
 
-          if (effectType) {
-            if (params.fighter_id) {
-              // Call add_fighter_effect RPC
-              const { data: effectResult } = await supabase.rpc('add_fighter_effect', {
-                in_fighter_id: params.fighter_id,
-                in_fighter_effect_category_id: effectType.fighter_effect_category_id,
-                in_fighter_effect_type_id: effectType.id,
-                in_user_id: user.id
-              });
+        if (effectTypes && effectTypes.length > 0) {
+          // Batch insert all effects
+          const effectsToInsert = effectTypes.map(effectType => ({
+            fighter_id: params.fighter_id || null,
+            vehicle_id: params.vehicle_id || null,
+            fighter_effect_type_id: effectType.id,
+            effect_name: effectType.effect_name,
+            type_specific_data: effectType.type_specific_data,
+            fighter_equipment_id: newEquipmentId,
+            user_id: user.id
+          }));
 
-              if (effectResult?.id) {
-                // Link effect to equipment
-                await supabase
-                  .from('fighter_effects')
-                  .update({ fighter_equipment_id: newEquipmentId })
-                  .eq('id', effectResult.id);
+          const { data: insertedEffects, error: effectsError } = await supabase
+            .from('fighter_effects')
+            .insert(effectsToInsert)
+            .select('id, fighter_effect_type_id');
 
-                // Get effect modifiers
-                const { data: modifiers } = await supabase
-                  .from('fighter_effect_modifiers')
-                  .select('id, fighter_effect_id, stat_name, numeric_value')
-                  .eq('fighter_effect_id', effectResult.id);
+          if (effectsError) {
+            throw new Error(`Failed to insert effects: ${effectsError.message}`);
+          }
 
-                appliedEffects.push({
-                  id: effectResult.id,
-                  effect_name: effectType.effect_name,
-                  fighter_effect_type_id: effectType.id,
-                  fighter_equipment_id: newEquipmentId,
-                  category_name: (effectType.fighter_effect_categories as any).category_name,
-                  fighter_effect_modifiers: modifiers || []
+          if (insertedEffects && insertedEffects.length > 0) {
+            // Batch insert all modifiers
+            const allModifiers: any[] = [];
+            effectTypes.forEach((effectType, index) => {
+              const effectId = insertedEffects[index].id;
+              if (effectType.fighter_effect_type_modifiers) {
+                effectType.fighter_effect_type_modifiers.forEach(modifier => {
+                  allModifiers.push({
+                    fighter_effect_id: effectId,
+                    stat_name: modifier.stat_name,
+                    numeric_value: modifier.default_numeric_value
+                  });
                 });
-
-                // Rating delta for applied effect on fighter
-                ratingDelta += (effectType.type_specific_data?.credits_increase || 0);
               }
-            } else if (params.vehicle_id) {
-              // Call add_vehicle_effect RPC
-              const { data: effectResult } = await supabase.rpc('add_vehicle_effect', {
-                in_vehicle_id: params.vehicle_id,
-                in_fighter_effect_type_id: effectType.id,
-                in_user_id: user.id,
-                in_fighter_effect_category_id: effectType.fighter_effect_category_id
-              });
+            });
 
-              if (effectResult?.id) {
-                // Link effect to equipment
-                await supabase
-                  .from('fighter_effects')
-                  .update({ fighter_equipment_id: newEquipmentId })
-                  .eq('id', effectResult.id);
+            if (allModifiers.length > 0) {
+              await supabase.from('fighter_effect_modifiers').insert(allModifiers);
+            }
 
+            // Fetch actual inserted modifiers to match RPC response format
+            let actualModifiers: any[] = [];
+            if (allModifiers.length > 0) {
+              const { data } = await supabase
+                .from('fighter_effect_modifiers')
+                .select('id, fighter_effect_id, stat_name, numeric_value')
+                .in('fighter_effect_id', insertedEffects.map(effect => effect.id));
+              actualModifiers = data || [];
+            }
+
+            // Build applied effects response and calculate rating delta
+            effectTypes.forEach((effectType, index) => {
+              const insertedEffect = insertedEffects[index];
+              if (insertedEffect) {
+                // Get modifiers for this specific effect
+                const effectModifiers = actualModifiers?.filter(mod => mod.fighter_effect_id === insertedEffect.id) || [];
+                
                 appliedEffects.push({
-                  id: effectResult.id,
+                  id: insertedEffect.id,
                   effect_name: effectType.effect_name,
-                  fighter_effect_type_id: effectType.id,
-                  fighter_equipment_id: newEquipmentId,
-                  category_name: (effectType.fighter_effect_categories as any).category_name
+                  type_specific_data: effectType.type_specific_data,
+                  created_at: new Date().toISOString(),
+                  category_name: (effectType.fighter_effect_categories as any)?.category_name,
+                  fighter_effect_modifiers: effectModifiers
                 });
 
-                // Rating delta for applied effect on vehicle only if assigned
-                if (vehicleAssignedFighterId) {
-                  ratingDelta += (effectType.type_specific_data?.credits_increase || 0);
+                // Rating delta calculation
+                const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
+                if (params.fighter_id) {
+                  ratingDelta += creditsIncrease;
+                } else if (params.vehicle_id && vehicleAssignedFighterId) {
+                  ratingDelta += creditsIncrease;
                 }
               }
-            }
+            });
           }
-        } catch (effectError) {
-          console.error('Error applying effect:', effectError);
         }
+      } catch (effectError) {
+        console.error('Error applying effects:', effectError);
       }
     }
 
@@ -555,35 +581,63 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Apply rating delta for equipment + effects + beasts
+    // PARALLEL: Rating updates and cache invalidation data fetching
+    const finalOperations = [];
+
+    // Rating update if needed
     if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
-      try {
-        const newRating = Math.max(0, (gang.rating || 0) + ratingDelta + createdBeastsRatingDelta);
-        await supabase
+      const newRating = Math.max(0, (gang.rating || 0) + ratingDelta + createdBeastsRatingDelta);
+      finalOperations.push(
+        supabase
           .from('gangs')
           .update({ rating: newRating })
-          .eq('id', params.gang_id);
+          .eq('id', params.gang_id)
+      );
+    }
+
+    // Vehicle fighter assignment check if needed for cache invalidation
+    if (params.vehicle_id) {
+      finalOperations.push(
+        supabase
+          .from('vehicles')
+          .select('fighter_id')
+          .eq('id', params.vehicle_id)
+          .single()
+      );
+    }
+
+    // Execute final operations in parallel
+    const finalResults = await Promise.all(finalOperations);
+
+    // Handle rating update result
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+      try {
         invalidateGangRating(params.gang_id);
       } catch (e) {
-        console.error('Failed to update gang rating after equipment purchase:', e);
+        console.error('Failed to invalidate gang rating cache:', e);
       }
     }
 
     // Optimized cache invalidation - use granular approach
     if (params.fighter_id) {
-      // Use new granular cache invalidation for fighters
+      // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
       invalidateEquipmentPurchase({
         fighterId: params.fighter_id,
         gangId: params.gang_id,
         createdBeasts: createdBeasts.length > 0 ? createdBeasts : undefined
       });
+      // If effects were applied to the fighter, also invalidate effects + derived data
+      if (appliedEffects.length > 0) {
+        invalidateFighterAdvancement({
+          fighterId: params.fighter_id,
+          gangId: params.gang_id,
+          advancementType: 'effect'
+        });
+      }
     } else if (params.vehicle_id) {
-      // Keep existing logic for vehicles
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', params.vehicle_id)
-        .single();
+      // Use vehicle data from parallel query if available
+      const vehicleDataResult = finalOperations.length > 1 ? finalResults[1] : null;
+      const vehicleData = vehicleDataResult?.data;
       
       if (vehicleData?.fighter_id) {
         invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
@@ -865,6 +919,15 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       gangId: params.gang_id
       // deletedBeastIds could be added here if we track which beasts were deleted
     });
+    
+    // If the deleted equipment had associated effects, invalidate fighter effects + derived data
+    if ((associatedEffects?.length || 0) > 0) {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
+    }
     
     return { 
       success: true, 
