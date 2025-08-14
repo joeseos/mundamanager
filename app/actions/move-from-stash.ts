@@ -158,84 +158,82 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           .select(`
             id,
             effect_name,
-            fighter_effect_category_id,
-            type_specific_data
+            type_specific_data,
+            fighter_effect_type_modifiers (
+              stat_name,
+              default_numeric_value
+            )
           `)
           .eq('type_specific_data->>equipment_id', stashData.equipment_id.toString());
 
         if (!effectsError && equipmentEffects && equipmentEffects.length > 0) {
-          // Apply each effect to the fighter or vehicle
-          for (const effectType of equipmentEffects) {
-            try {
-              if (params.fighter_id) {
-                // Call add_fighter_effect RPC
-                const { data: effectResult } = await supabase.rpc('add_fighter_effect', {
-                  in_fighter_id: params.fighter_id,
-                  in_fighter_effect_category_id: effectType.fighter_effect_category_id,
-                  in_fighter_effect_type_id: effectType.id,
-                  in_user_id: user.id
-                });
+          // Only auto-apply fixed effects (skip selection-based effects)
+          const fixedEffects = (equipmentEffects as any[]).filter(et => {
+            const sel = et?.type_specific_data?.effect_selection;
+            return sel !== 'single_select' && sel !== 'multiple_select';
+          });
 
-                if (effectResult?.id) {
-                  // Link effect to equipment
-                  await supabase
-                    .from('fighter_effects')
-                    .update({ fighter_equipment_id: equipmentData.id })
-                    .eq('id', effectResult.id);
+          if (fixedEffects.length > 0) {
+            // Batch insert effects with fighter_equipment_id set on creation
+            const effectsToInsert = fixedEffects.map(et => ({
+              fighter_id: params.fighter_id || null,
+              vehicle_id: params.vehicle_id || null,
+              fighter_effect_type_id: et.id,
+              effect_name: et.effect_name,
+              type_specific_data: et.type_specific_data,
+              fighter_equipment_id: equipmentData.id,
+              user_id: user.id
+            }));
 
-                  // Get effect modifiers for complete effect data
-                  const { data: modifiers } = await supabase
-                    .from('fighter_effect_modifiers')
-                    .select('id, fighter_effect_id, stat_name, numeric_value')
-                    .eq('fighter_effect_id', effectResult.id);
+            const { data: insertedEffects, error: insertErr } = await supabase
+              .from('fighter_effects')
+              .insert(effectsToInsert)
+              .select('id, fighter_effect_type_id');
 
-                  // Collect complete effect data for frontend
-                  appliedEffects.push({
-                    id: effectResult.id,
-                    effect_name: effectType.effect_name,
-                    fighter_effect_category_id: effectType.fighter_effect_category_id,
-                    fighter_effect_modifiers: modifiers || []
+            if (insertErr) {
+              throw new Error(`Failed to insert effects: ${insertErr.message}`);
+            }
+
+            if (insertedEffects && insertedEffects.length > 0) {
+              // Batch insert all modifiers mapped to inserted effect ids
+              const allModifiers: any[] = [];
+              fixedEffects.forEach((et, index) => {
+                const effId = insertedEffects[index].id;
+                if (et.fighter_effect_type_modifiers) {
+                  et.fighter_effect_type_modifiers.forEach((mod: any) => {
+                    allModifiers.push({
+                      fighter_effect_id: effId,
+                      stat_name: mod.stat_name,
+                      numeric_value: mod.default_numeric_value
+                    });
                   });
-
-                  // Accumulate effect credits delta for rating
-                  effectsCreditsDelta += (effectType.type_specific_data?.credits_increase || 0);
                 }
-              } else if (params.vehicle_id) {
-                // Call add_vehicle_effect RPC
-                const { data: effectResult } = await supabase.rpc('add_vehicle_effect', {
-                  in_vehicle_id: params.vehicle_id,
-                  in_fighter_effect_category_id: effectType.fighter_effect_category_id,
-                  in_fighter_effect_type_id: effectType.id,
-                  in_user_id: user.id
-                });
+              });
 
-                if (effectResult?.id) {
-                  // Link effect to equipment
-                  await supabase
-                    .from('fighter_effects')
-                    .update({ fighter_equipment_id: equipmentData.id })
-                    .eq('id', effectResult.id);
-
-                  // Get effect modifiers for vehicles to prevent NaN errors
-                  const { data: modifiers } = await supabase
-                    .from('fighter_effect_modifiers')
-                    .select('id, fighter_effect_id, stat_name, numeric_value')
-                    .eq('fighter_effect_id', effectResult.id);
-
-                  // Collect complete effect data for frontend
-                  appliedEffects.push({
-                    id: effectResult.id,
-                    effect_name: effectType.effect_name,
-                    fighter_effect_category_id: effectType.fighter_effect_category_id,
-                    fighter_effect_modifiers: modifiers || []
-                  });
-
-                  // Accumulate effect credits delta (will apply to rating if vehicle is assigned below)
-                  effectsCreditsDelta += (effectType.type_specific_data?.credits_increase || 0);
-                }
+              if (allModifiers.length > 0) {
+                await supabase.from('fighter_effect_modifiers').insert(allModifiers);
               }
-            } catch (effectError) {
-              // Silently continue if effect application fails
+
+              // Build appliedEffects response and accumulate rating delta
+              const effectIdToMods = new Map<string, any[]>();
+              allModifiers.forEach(m => {
+                const arr = effectIdToMods.get(m.fighter_effect_id) || [];
+                arr.push({ stat_name: m.stat_name, numeric_value: m.numeric_value });
+                effectIdToMods.set(m.fighter_effect_id, arr);
+              });
+
+              fixedEffects.forEach((et, index) => {
+                const inserted = insertedEffects[index];
+                if (inserted) {
+                  appliedEffects.push({
+                    id: inserted.id,
+                    effect_name: et.effect_name,
+                    fighter_effect_modifiers: effectIdToMods.get(inserted.id) || []
+                  });
+                }
+              });
+
+              effectsCreditsDelta += fixedEffects.reduce((s, et) => s + (et.type_specific_data?.credits_increase || 0), 0);
             }
           }
         }
