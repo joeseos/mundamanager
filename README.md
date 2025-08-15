@@ -1,10 +1,6 @@
 # Munda Manager
 
-A comprehensive gang management tool for Necromunda tabletop game, built with Next.js 15.3.1 and Supabase.
-
-## Overview
-
-Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns with features like:
+A comprehensive gang management tool for Necromunda tabletop game with features like:
 - 🎮 Interactive gang management
 - 👥 Fighter roster tracking
 - 💰 Resource management
@@ -14,12 +10,134 @@ Munda Manager helps you manage your Necromunda gangs, fighters, and campaigns wi
 
 ## Tech Stack
 
-- **Framework:** Next.js 15.3.1 (App Router)
+- **Framework:** Next.js 18+ (App Router)
 - **Database:** PostgreSQL
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui
 - **Type Safety:** TypeScript
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Issues
+
+For bug reports, feature requests, or help, please join our **[Discord Community](https://discord.gg/FrqEWShQd7)**.
+
+## Support
+
+If you enjoy using Munda Manager, consider:
+- Supporting us on [Patreon](https://patreon.com/mundamanager)
+- Buying us a coffee at [Buy Me a Coffee](https://buymeacoffee.com/mundamanager)
+
+For questions about contributing, feel free to ask in our [Discord server](https://discord.gg/FrqEWShQd7).
+
+## How to Contribute as a Developper?
+
+### Practical steps to create a pull request
+
+1. Clone the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Added some amazing feature'`)
+4. Push to the branch (`git push -u origin HEAD`)
+5. Open a Pull Request
+
+### How to Setup your Environment
+
+1. **Prerequisites**
+   - Node.js 18+
+   - Supabase project url and key
+   - Cloudflare Turnstile keys
+
+2. **Environment Setup**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Configure the following variables:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
+   TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
+   NODE_ENV=development
+   ```
+
+3. **Running the environment**
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+4. **Mobile device testing**
+   On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
+   ```bash
+   npm run dev --host
+   ```
+   
+   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
+   http://192.168.1.5:3000
+
+5. **Access to the DB Schema**
+   The Supabase DB schema can be accessed through https://supabase-schema.vercel.app/
+   Use the Supabase URL and the and the anon key to connect to it
+
+
+## Component Architecture
+
+### Page Structure
+```
+GangPage (Server Component)
+└── GangPageContent (Client Component)
+    └── Gang
+        ├── MyFighters
+        │   └── FighterCard
+        │       ├── StatsTable
+        │       └── WeaponTable
+        └── GangStashModal
+```
+
+### Key Components
+
+#### Gang Management
+- `GangPageContent`: Main wrapper for gang management
+- `Gang`: Core gang management component
+- `GangStashModal`: Equipment stash management
+
+#### Fighter Management
+- `MyFighters`: Fighter roster display
+- `FighterCard`: Individual fighter display
+- `WeaponTable`: Equipment and weapons display
+- `FighterStatsTable`: Stats display component
+
+### Error Handling
+- Comprehensive error boundaries
+- Loading states
+- Fallback UI components
+- Type-safe error handling
+
+## Development
+
+### State Management
+- Context-based gang state (`GangsContext`)
+- Local component state for UI
+- Optimistic updates
+- Real-time data synchronization
+
+### Data Flow
+1. Server-side data fetching (RPC calls)
+2. Data processing and transformation
+3. Client-side state management
+4. Real-time updates
+5. Optimistic UI updates
+
+### Best Practices
+- Type safety throughout
+- Component memoization
+- Error boundary implementation
+- Hydration-safe rendering
+- Proper loading states
+
 
 ## Core Features
 
@@ -384,116 +502,4 @@ interface FighterProps {
 }
 ```
 
-## Getting Started
 
-1. **Prerequisites**
-   - Node.js 18+
-   - Supabase project url and key
-   - Cloudflare Turnstile keys
-
-2. **Environment Setup**
-   ```bash
-   cp .env.example .env.local
-   ```
-   Configure the following variables:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
-   TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
-   NODE_ENV=development
-   ```
-
-3. **Running the environment**
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-4. **Mobile device testing**
-   On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
-   ```bash
-   npm run dev --host
-   ```
-   
-   On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
-   http://192.168.1.5:3000
-
-## Component Architecture
-
-### Page Structure
-```
-GangPage (Server Component)
-└── GangPageContent (Client Component)
-    └── Gang
-        ├── MyFighters
-        │   └── FighterCard
-        │       ├── StatsTable
-        │       └── WeaponTable
-        └── GangStashModal
-```
-
-### Key Components
-
-#### Gang Management
-- `GangPageContent`: Main wrapper for gang management
-- `Gang`: Core gang management component
-- `GangStashModal`: Equipment stash management
-
-#### Fighter Management
-- `MyFighters`: Fighter roster display
-- `FighterCard`: Individual fighter display
-- `WeaponTable`: Equipment and weapons display
-- `FighterStatsTable`: Stats display component
-
-### Error Handling
-- Comprehensive error boundaries
-- Loading states
-- Fallback UI components
-- Type-safe error handling
-
-## Development
-
-### State Management
-- Context-based gang state (`GangsContext`)
-- Local component state for UI
-- Optimistic updates
-- Real-time data synchronization
-
-### Data Flow
-1. Server-side data fetching (RPC calls)
-2. Data processing and transformation
-3. Client-side state management
-4. Real-time updates
-5. Optimistic UI updates
-
-### Best Practices
-- Type safety throughout
-- Component memoization
-- Error boundary implementation
-- Hydration-safe rendering
-- Proper loading states
-
-## Issues
-
-For bug reports, feature requests, or help, please join our **[Discord Community](https://discord.gg/FrqEWShQd7)**.
-
-## Support
-
-If you enjoy using Munda Manager, consider:
-- Supporting us on [Patreon](https://patreon.com/mundamanager)
-- Buying us a coffee at [Buy Me a Coffee](https://buymeacoffee.com/mundamanager)
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-For questions about contributing, feel free to ask in our [Discord server](https://discord.gg/FrqEWShQd7).
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
