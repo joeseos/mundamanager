@@ -26,6 +26,8 @@ interface ItemModalProps {
   fighterId: string;
   fighterTypeId: string;
   fighterCredits: number;
+  fighterHasLegacy?: boolean;
+  fighterLegacyName?: string;
   vehicleId?: string;
   vehicleType?: string;
   vehicleTypeId?: string;
@@ -303,6 +305,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterId,
   fighterTypeId,
   fighterCredits,
+  fighterHasLegacy,
+  fighterLegacyName,
   vehicleId,
   vehicleType,
   vehicleTypeId,
@@ -338,6 +342,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [isLoadingAllEquipment, setIsLoadingAllEquipment] = useState(false);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
+  const [includeLegacy, setIncludeLegacy] = useState<boolean>(false);
   const [minCost, setMinCost] = useState(10);
   const [maxCost, setMaxCost] = useState(160);
   const [minAvailability, setMinAvailability] = useState(6);
@@ -417,7 +422,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     fetchVehicleTypeId();
   }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
 
-  const fetchAllCategories = async () => {
+  const fetchAllCategories = async (includeLegacyOverride?: boolean) => {
     if (!session || isLoadingAllEquipment) return;
     
     setIsLoadingAllEquipment(true);
@@ -469,6 +474,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       if (equipmentListType === 'fighters-tradingpost') {
         requestBody.equipment_tradingpost = true;
+      }
+
+      // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
+      const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
+      if (!isVehicleEquipment && fighterId && useLegacy) {
+        requestBody.fighter_id = fighterId;
       }
 
       console.log(`fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`, requestBody);
@@ -845,6 +856,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
+              {!isStashMode && !isVehicleEquipment && fighterHasLegacy && (
+                <label className="flex items-center text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8 gap-2">
+                  <span>Gang Legacy</span>
+                  <Switch
+                    checked={includeLegacy}
+                    onCheckedChange={(checked) => {
+                      setIncludeLegacy(!!checked);
+                      setEquipment({});
+                      // use the new state directly to avoid lag with async setState
+                      fetchAllCategories(!!checked);
+                    }}
+                  />
+                </label>
+              )}
               {!isStashMode && (
                 <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
                   <input

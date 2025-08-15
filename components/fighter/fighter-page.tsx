@@ -1035,6 +1035,8 @@ export default function FighterPage({
                 fighterId={fighterData.fighter.id}
                 fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
                 fighterCredits={fighterData.fighter.credits}
+                fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
+                fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
                 onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
                   handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
                 }
