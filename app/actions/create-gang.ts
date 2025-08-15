@@ -9,13 +9,15 @@ interface CreateGangParams {
   gangTypeId: string;
   gangType: string;
   alignment: string;
+  gangAffiliationId?: string | null;
 }
 
 export async function createGang({ 
   name, 
   gangTypeId,
   gangType,
-  alignment
+  alignment,
+  gangAffiliationId
 }: CreateGangParams) {
   try {
     console.log('Server action: Creating gang:', name);
@@ -34,7 +36,8 @@ export async function createGang({
         user_id: user.id,
         gang_type_id: gangTypeId,
         gang_type: gangType,
-        alignment
+        alignment,
+        gang_affiliation_id: gangAffiliationId || null
       }])
       .select();
     
