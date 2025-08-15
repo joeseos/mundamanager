@@ -10,7 +10,7 @@ A comprehensive gang management tool for Necromunda tabletop game with features 
 
 ## Tech Stack
 
-- **Framework:** Next.js 18+ (App Router)
+- **Framework:** Next.js 15.4.3 (App Router)
 - **Database:** PostgreSQL
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
