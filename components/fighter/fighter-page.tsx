@@ -1001,6 +1001,7 @@ export default function FighterPage({
                     fighter_type_id: values.fighter_type_id,
                     fighter_sub_type: values.fighter_sub_type,
                     fighter_sub_type_id: values.fighter_sub_type_id,
+                    fighter_gang_legacy_id: values.fighter_gang_legacy_id,
                   });
 
                   if (!result.success) {

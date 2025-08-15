@@ -48,6 +48,7 @@ export interface UpdateFighterDetailsParams {
   fighter_sub_type_id?: string | null;
   note?: string;
   note_backstory?: string;
+  fighter_gang_legacy_id?: string | null;
 }
 
 interface EditFighterResult {
@@ -546,6 +547,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
+    if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
 
 
     // Update fighter
