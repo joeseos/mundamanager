@@ -1,0 +1,31 @@
+export const lastingInjuryRank: { [key: string]: number } = {
+  // Lasting Injuries
+  "Bitter Enmity": 1,
+  "Captured": 2,
+  "Convalescence": 3,
+  "Critical Injury": 4,
+  "Enfeebled": 5,
+  "Eye Injury": 6,
+  "Hand Injury": 7,
+  "Head Injury": 8,
+  "Hobbled": 9,
+  "Horrid Scars": 10,
+  "Humiliated": 11,
+  "Impressive Scars": 12,
+  "Lesson Learned": 13,
+  "Memorable Death": 14,
+  "Multiple Injuries": 15,
+  "Old Battle Wound": 16,
+  "Out Cold": 17,
+  "Partially Deafened": 18,
+  "Spinal Injury": 19,
+
+  // Mutations / Festering Injuries
+  "Bestial Senses": 30,
+  "Crooked Body": 31,
+  "Dark Madness": 32,
+  "Disturbing Appendage": 33,
+  "Hungering Pride": 34,
+  "Twisted Flesh": 35,
+  "Warped Limbs": 36,
+};
