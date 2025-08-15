@@ -13,6 +13,7 @@ interface UpdateGangParams {
   alignment?: string;
   gang_colour?: string;
   alliance_id?: string | null;
+  gang_affiliation_id?: string | null;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
   meat?: number;
@@ -38,6 +39,8 @@ interface UpdateGangResult {
     alignment: string;
     alliance_id: string | null;
     alliance_name?: string;
+    gang_affiliation_id: string | null;
+    gang_affiliation_name?: string;
     gang_colour: string;
     last_updated: string;
     gang_variants: Array<{id: string, variant: string}>;
@@ -97,6 +100,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Add alliance_id if provided
     if (params.alliance_id !== undefined) {
       updates.alliance_id = params.alliance_id;
+    }
+
+    // Add gang_affiliation_id if provided
+    if (params.gang_affiliation_id !== undefined) {
+      updates.gang_affiliation_id = params.gang_affiliation_id;
     }
 
     // Handle meat changes
@@ -162,6 +170,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         exploration_points,
         alignment,
         alliance_id,
+        gang_affiliation_id,
         gang_colour,
         last_updated
       `)
@@ -185,6 +194,25 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
+    // Fetch gang affiliation name if gang_affiliation_id was updated
+    let gangAffiliationName: string | null = null;
+    if (params.gang_affiliation_id !== undefined) {
+      if (updatedGang.gang_affiliation_id) {
+        const { data: affiliationData, error: affiliationError } = await supabase
+          .from('gang_affiliation')
+          .select('name')
+          .eq('id', updatedGang.gang_affiliation_id)
+          .single();
+
+        if (!affiliationError && affiliationData) {
+          gangAffiliationName = affiliationData.name;
+        }
+      } else {
+        // If gang_affiliation_id is null, set name to empty
+        gangAffiliationName = '';
+      }
+    }
+
     // Fetch updated gang variants if they were changed
     let gangVariants: Array<{id: string, variant: string}> = [];
     if (params.gang_variants !== undefined && params.gang_variants.length > 0) {
@@ -205,7 +233,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Always invalidate basic gang data if gang settings changed
     if (params.name !== undefined || params.alignment !== undefined || 
-        params.gang_colour !== undefined || params.alliance_id !== undefined) {
+        params.gang_colour !== undefined || params.alliance_id !== undefined ||
+        params.gang_affiliation_id !== undefined) {
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
     }
@@ -258,6 +287,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         alignment: updatedGang.alignment,
         alliance_id: updatedGang.alliance_id,
         alliance_name: allianceName || undefined,
+        gang_affiliation_id: updatedGang.gang_affiliation_id,
+        gang_affiliation_name: gangAffiliationName || undefined,
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
         gang_variants: gangVariants

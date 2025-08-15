@@ -216,6 +216,9 @@ async function processGangData(gangData: any) {
     ...gangData,
     alignment: gangData.alignment,
     alliance_name: gangData.alliance_name || "",
+    gang_affiliation_id: gangData.gang_affiliation_id || null,
+    gang_affiliation_name: gangData.gang_affiliation?.name || "",
+    gang_type_has_affiliation: gangData.gang_types?.affiliation || false,
     fighters: processedFighters,
     campaigns: gangData.campaigns?.map((campaign: any) => ({
       campaign_id: campaign.campaign_id,
@@ -360,6 +363,9 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       alliance_name: alliance?.alliance_name,
       alliance_type: alliance?.alliance_type,
       gang_variants: gangVariants,
+      gang_affiliation_id: gangBasic.gang_affiliation_id,
+      gang_affiliation: gangBasic.gang_affiliation,
+      gang_types: gangBasic.gang_types,
       user_id: gangBasic.user_id,
       username: userProfile?.username
     };

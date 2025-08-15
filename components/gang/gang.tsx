@@ -47,6 +47,9 @@ interface GangProps {
   alignment: string;
   alliance_id: string;
   alliance_name: string;
+  gang_affiliation_id: string | null;
+  gang_affiliation_name: string;
+  gang_type_has_affiliation: boolean;
   created_at: string | Date | null;
   last_updated: string | Date | null;
   initialFighters: FighterProps[];
@@ -95,6 +98,9 @@ export default function Gang({
   alignment: initialAlignment,
   alliance_id: initialAllianceId,
   alliance_name: initialAllianceName,
+  gang_affiliation_id,
+  gang_affiliation_name,
+  gang_type_has_affiliation,
   created_at,
   last_updated: initialLastUpdated,
   initialFighters = [],
@@ -128,6 +134,8 @@ export default function Gang({
   const [alignment, setAlignment] = useState(initialAlignment);
   const [allianceId, setAllianceId] = useState<string | null>(initialAllianceId);
   const [allianceName, setAllianceName] = useState(initialAllianceName);
+  const [gangAffiliationId, setGangAffiliationId] = useState<string | null>(gang_affiliation_id);
+  const [gangAffiliationName, setGangAffiliationName] = useState(gang_affiliation_name);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
@@ -298,6 +306,8 @@ export default function Gang({
       const prevAlignment = alignment;
       const prevAllianceId = allianceId;
       const prevAllianceName = allianceName;
+      const prevGangAffiliationId = gangAffiliationId;
+      const prevGangAffiliationName = gangAffiliationName;
       const prevReputation = reputation;
       const prevMeat = meat;
       const prevScavengingRolls = scavengingRolls;
@@ -315,6 +325,8 @@ export default function Gang({
       setAlignment(updates.alignment);
       setAllianceId(updates.alliance_id);
       setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
+      setGangAffiliationId(updates.gang_affiliation_id);
+      // Gang affiliation name will be updated from server response if needed
       setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
       setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
       setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
@@ -344,6 +356,8 @@ export default function Gang({
         setAlignment(prevAlignment);
         setAllianceId(prevAllianceId);
         setAllianceName(prevAllianceName);
+        setGangAffiliationId(prevGangAffiliationId);
+        setGangAffiliationName(prevGangAffiliationName);
         setReputation(prevReputation);
         setMeat(prevMeat);
         setScavengingRolls(prevScavengingRolls);
@@ -362,6 +376,11 @@ export default function Gang({
         // Update alliance name if alliance was changed
         if (result.data.alliance_name) {
           setAllianceName(result.data.alliance_name);
+        }
+        
+        // Update gang affiliation name if affiliation was changed
+        if (result.data.gang_affiliation_name !== undefined) {
+          setGangAffiliationName(result.data.gang_affiliation_name);
         }
         
         // Update gang variants from server response
@@ -768,6 +787,9 @@ export default function Gang({
             gangColour={gangColour}
             gangVariants={gangVariants}
             availableVariants={availableVariants}
+            gangAffiliationId={gangAffiliationId}
+            gangAffiliationName={gangAffiliationName}
+            gangTypeHasAffiliation={gang_type_has_affiliation}
             campaigns={campaigns}
             onSave={handleGangUpdate}
           />
