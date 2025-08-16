@@ -32,6 +32,7 @@ export interface GangBasic {
   gang_types?: {
     affiliation: boolean;
   } | null;
+  image_url?: string;
 }
 
 export interface GangType {
@@ -162,6 +163,7 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_types!gang_type_id(
             affiliation
           )
+          image_url
         `)
         .eq('id', gangId)
         .single();
