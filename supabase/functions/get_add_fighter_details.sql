@@ -28,7 +28,8 @@ RETURNS TABLE (
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric,
-    sub_type jsonb
+    sub_type jsonb,
+    available_legacies jsonb
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
@@ -612,7 +613,21 @@ BEGIN
                 WHERE fst.id = ft.fighter_sub_type_id
             ),
             '{}'::jsonb
-        ) AS sub_type
+        ) AS sub_type,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fgl.id,
+                        'name', fgl.name
+                    )
+                )
+                FROM fighter_type_gang_legacies ftgl
+                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
+                WHERE ftgl.fighter_type_id = ft.id
+            ),
+            '[]'::jsonb
+        ) AS available_legacies
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     WHERE ft.gang_type_id = p_gang_type_id;

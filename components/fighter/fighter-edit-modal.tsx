@@ -516,6 +516,7 @@ interface EditFighterModalProps {
     gang_variant_name?: string;
     fighter_sub_type?: string;
     fighter_sub_type_id?: string;
+    available_legacies?: Array<{id: string; name: string}>;
   }>;
   onClose: () => void;
   onSubmit: (values: {
@@ -531,6 +532,7 @@ interface EditFighterModalProps {
     stats?: Record<string, number>;
     fighter_sub_type?: string | null;
     fighter_sub_type_id?: string | null;
+    fighter_gang_legacy_id?: string | null;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
 }
@@ -600,6 +602,9 @@ export function EditFighterModal({
   // Add state for available sub-types
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{ value: string; label: string; cost?: number; fighterTypeId?: string }>>([]);
   
+  // Add state for gang legacy
+  const [selectedGangLegacyId, setSelectedGangLegacyId] = useState<string>((fighter as any).fighter_gang_legacy_id || '');
+  const [availableLegacies, setAvailableLegacies] = useState<Array<{ id: string; name: string }>>([]);
   
   // Track if fighter type has been explicitly selected in this session
   const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
@@ -627,8 +632,18 @@ export function EditFighterModal({
           fighter_sub_type_id: type.sub_type?.id || null
         }));
         setFighterTypes(transformedData);
-      } else if (fighterTypes.length === 0) {
-        fetchFighterTypes();
+        
+        // Extract available legacies if they exist in the pre-fetched data
+        if (preFetchedFighterTypes[0]?.available_legacies) {
+          setAvailableLegacies(preFetchedFighterTypes[0].available_legacies);
+        } else {
+          fetchLegacies();
+        }
+      } else {
+        if (fighterTypes.length === 0) {
+          fetchFighterTypes();
+        }
+        fetchLegacies();
       }
     }
   }, [isOpen, preFetchedFighterTypes]);
@@ -684,11 +699,39 @@ export function EditFighterModal({
     }
   };
 
+  const fetchLegacies = async () => {
+    try {
+      // Use the same API endpoint as the fighter-types endpoint to get legacies
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        gang_type_id: gangTypeId,
+        is_gang_addition: 'false'
+      });
+      
+      const response = await fetch(`/api/fighter-types?${params}`);
+      
+      if (!response.ok) {
+        console.error('Failed to fetch legacies');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Extract available legacies from the first fighter type (they should all have the same legacies for the same gang type)
+      if (data.length > 0 && data[0].available_legacies) {
+        setAvailableLegacies(data[0].available_legacies);
+      }
+    } catch (error) {
+      console.error('Error fetching legacies:', error);
+    }
+  };
+
   // Initialize fighter state and sub-types when fighter or fighter types data changes
   useEffect(() => {
     setCurrentFighter(fighter);
     setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || ''); // Pre-select current fighter type
     setSelectedSubTypeId((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
+    setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || ''); // Pre-select current gang legacy
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
   }, [fighter.id, fighterTypes]); // Update when fighter or fighter types data changes
@@ -901,6 +944,11 @@ export function EditFighterModal({
     setSelectedSubTypeId(subTypeId);
   };
 
+  // Add handler for gang legacy change
+  const handleGangLegacyChange = (legacyId: string) => {
+    setSelectedGangLegacyId(legacyId);
+  };
+
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
@@ -1096,7 +1144,8 @@ export function EditFighterModal({
         fighter_type_id: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.id : (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id,
         special_rules: formValues.special_rules,
         fighter_sub_type: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null,
-        fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null
+        fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null,
+        fighter_gang_legacy_id: selectedGangLegacyId || null
       };
       
       await onSubmit(submitData);
@@ -1303,6 +1352,41 @@ export function EditFighterModal({
                 ) : (
                   <div className="mt-1 text-sm text-gray-500">
                     Current: Default
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Gang Legacy Dropdown */}
+            {availableLegacies.length > 0 && (
+              <div>
+                <label htmlFor="fighter_gang_legacy_id" className="block text-sm font-medium mb-1">
+                  Gang Legacy
+                </label>
+                <select
+                  id="fighter_gang_legacy_id"
+                  value={selectedGangLegacyId}
+                  onChange={(e) => handleGangLegacyChange(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">
+                    No Legacy
+                  </option>
+                  {availableLegacies.map((legacy) => (
+                    <option key={legacy.id} value={legacy.id}>
+                      {legacy.name}
+                    </option>
+                  ))}
+                </select>
+                {(fighter as any).fighter_gang_legacy ? (
+                  <div className="mt-1 text-sm text-gray-500">
+                    Current: {typeof (fighter as any).fighter_gang_legacy === 'object' 
+                      ? (fighter as any).fighter_gang_legacy.name
+                      : (fighter as any).fighter_gang_legacy}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-sm text-gray-500">
+                    Current: No Legacy
                   </div>
                 )}
               </div>

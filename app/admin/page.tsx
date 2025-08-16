@@ -244,8 +244,8 @@ export default function AdminPage() {
       icon: Edit
     },
     {
-      title: "Manage Gang Lineages",
-      description: "Manage gang lineages (legacy/affiliation)",
+      title: "Affiliations & Legacies",
+      description: "Manage gang affiliation & legacies",
       action: () => setShowGangLineages(true),
       icon: Users
     }

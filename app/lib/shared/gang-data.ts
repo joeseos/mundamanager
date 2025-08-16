@@ -24,6 +24,14 @@ export interface GangBasic {
   alliance_id?: string;
   gang_variants?: string[];
   user_id: string;
+  gang_affiliation_id?: string | null;
+  gang_affiliation?: {
+    id: string;
+    name: string;
+  } | null;
+  gang_types?: {
+    affiliation: boolean;
+  } | null;
   image_url?: string;
 }
 
@@ -147,6 +155,14 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           alliance_id,
           gang_variants,
           user_id,
+          gang_affiliation_id,
+          gang_affiliation:gang_affiliation_id (
+            id,
+            name
+          ),
+          gang_types!gang_type_id(
+            affiliation
+          )
           image_url
         `)
         .eq('id', gangId)

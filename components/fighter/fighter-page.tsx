@@ -109,6 +109,8 @@ interface Gang {
   credits: number;
   positioning?: Record<number, string>;
   gang_type_id: string;
+  gang_affiliation_id?: string | null;
+  gang_affiliation_name?: string;
   rating?: number;
 }
 
@@ -232,6 +234,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
       gang_type_id: fighterData.gang.gang_type_id,
+      gang_affiliation_id: fighterData.gang.gang_affiliation_id,
+      gang_affiliation_name: fighterData.gang.gang_affiliation_name,
       positioning: fighterData.gang.positioning
     },
     gangFighters: gangFighters
@@ -1002,6 +1006,7 @@ export default function FighterPage({
                     fighter_type_id: values.fighter_type_id,
                     fighter_sub_type: values.fighter_sub_type,
                     fighter_sub_type_id: values.fighter_sub_type_id,
+                    fighter_gang_legacy_id: values.fighter_gang_legacy_id,
                   });
 
                   if (!result.success) {
@@ -1035,7 +1040,10 @@ export default function FighterPage({
                 gangTypeId={fighterData.gang.gang_type_id}
                 fighterId={fighterData.fighter.id}
                 fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                gangAffiliationId={fighterData.gang.gang_affiliation_id}
                 fighterCredits={fighterData.fighter.credits}
+                fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
+                fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
                 onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
                   handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
                 }

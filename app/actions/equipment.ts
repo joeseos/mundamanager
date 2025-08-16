@@ -128,56 +128,32 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let customWeaponProfiles: any[] = [];
 
     if (params.equipment_id) {
-      // PARALLEL: Equipment details and discount queries
-      const [equipmentResult, gangDiscountResult, fighterDiscountResult] = await Promise.all([
-        // Equipment with weapon profiles
-        supabase
-          .from('equipment')
-          .select(`
-            id, 
-            equipment_name, 
-            equipment_type, 
-            cost,
-            weapon_profiles (
-              id,
-              profile_name,
-              range_short,
-              range_long,
-              acc_short,
-              acc_long,
-              strength,
-              ap,
-              damage,
-              ammo,
-              traits,
-              sort_order
-            )
-          `)
-          .eq('id', params.equipment_id)
-          .single(),
-        
-        // Gang-level discount
-        supabase
-          .from('equipment_discounts')
-          .select('adjusted_cost')
-          .eq('equipment_id', params.equipment_id)
-          .eq('gang_type_id', gang.gang_type_id)
-          .is('fighter_type_id', null)
-          .single(),
-        
-        // Fighter-type discount (only if not gang stash and has fighter type)
-        (!params.buy_for_gang_stash && fighterTypeId)
-          ? supabase
-              .from('equipment_discounts')
-              .select('adjusted_cost')
-              .eq('equipment_id', params.equipment_id)
-              .eq('fighter_type_id', fighterTypeId)
-              .is('gang_type_id', null)
-              .single()
-          : Promise.resolve({ data: null })
-      ]);
+      // Fetch Equipment details
+      const { data: equipment, error: equipError } = await supabase
+        .from('equipment')
+        .select(`
+          id,
+          equipment_name,
+          equipment_type,
+          cost,
+          weapon_profiles (
+            id,
+            profile_name,
+            range_short,
+            range_long,
+            acc_short,
+            acc_long,
+            strength,
+            ap,
+            damage,
+            ammo,
+            traits,
+            sort_order
+          )
+        `)
+        .eq('id', params.equipment_id)
+        .single();
 
-      const { data: equipment, error: equipError } = equipmentResult;
       if (equipError || !equipment) {
         throw new Error('Equipment not found');
       }
@@ -186,19 +162,27 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       baseCost = equipment.cost;
       weaponProfiles = equipment.weapon_profiles || [];
 
-      // Determine best discount from parallel queries
-      const { data: gangDiscount } = gangDiscountResult;
-      const { data: fighterDiscount } = fighterDiscountResult;
-      
-      let discount = null;
-      if (params.buy_for_gang_stash) {
-        discount = gangDiscount;
-      } else {
-        // Use fighter discount if available, otherwise gang discount
-        discount = fighterDiscount || gangDiscount;
+      // Resolve adjusted cost using RPC (legacy-aware)
+      const { data: pricedRows, error: priceErr } = await supabase.rpc(
+        'get_equipment_with_discounts',
+        {
+          gang_type_id: gang.gang_type_id,
+          equipment_category: null,
+          fighter_type_id: params.buy_for_gang_stash ? null : fighterTypeId,
+          fighter_type_equipment: params.buy_for_gang_stash ? null : true,
+          equipment_tradingpost: null,
+          fighter_id: params.buy_for_gang_stash ? null : (params.fighter_id ?? null),
+          only_equipment_id: params.equipment_id
+        }
+      );
+
+      if (priceErr) {
+        console.warn('Price resolution via RPC failed; falling back to base cost:', priceErr);
       }
 
-      adjustedCost = discount?.adjusted_cost || equipment.cost;
+      adjustedCost = Array.isArray(pricedRows) && pricedRows[0]?.adjusted_cost != null
+        ? pricedRows[0].adjusted_cost
+        : equipment.cost;
     } else if (params.custom_equipment_id) {
       // PARALLEL: Custom equipment and profiles
       const [customEquipResult, profilesResult] = await Promise.all([

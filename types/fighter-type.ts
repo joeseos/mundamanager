@@ -54,4 +54,5 @@ export interface FighterType {
     sub_type_name: string;
   };
   fighter_sub_type_id?: string;
+  available_legacies?: Array<{id: string, name: string}>;
 } 

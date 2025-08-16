@@ -19,6 +19,7 @@ interface AddFighterParams {
   default_equipment?: SelectedEquipment[];
   user_id?: string;
   use_base_cost_for_rating?: boolean;
+  fighter_gang_legacy_id?: string;
 }
 
 interface FighterStats {
@@ -167,6 +168,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         xp: 0,
         kills: 0,
         special_rules: fighterTypeData.special_rules,
+        fighter_gang_legacy_id: params.fighter_gang_legacy_id || null,
         user_id: gangData.user_id
       })
       .select()

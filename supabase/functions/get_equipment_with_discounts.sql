@@ -1,14 +1,16 @@
--- Drop all versions of the old function (with different parameter combinations)
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
 
--- Create the new function with all parameters including weapon profiles
+-- Create the new function with all parameters including weapon profiles and fighter legacy support
 CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     gang_type_id uuid DEFAULT NULL,
     equipment_category text DEFAULT NULL,
     fighter_type_id uuid DEFAULT NULL,
     fighter_type_equipment boolean DEFAULT NULL,
-    equipment_tradingpost boolean DEFAULT NULL
+    equipment_tradingpost boolean DEFAULT NULL,
+    fighter_id uuid DEFAULT NULL,
+    only_equipment_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -39,16 +41,63 @@ AS $$
         -- Check for gang-specific availability, default to equipment table's availability if none found
         COALESCE(ea.availability, e.availability) as availability,
         e.cost::numeric as base_cost,
-        CASE
-            WHEN ed.discount IS NOT NULL 
-            THEN e.cost::numeric - ed.discount::numeric
-            ELSE e.cost::numeric
-        END as discounted_cost,
-        CASE
-            WHEN ed.adjusted_cost IS NOT NULL
-            THEN ed.adjusted_cost::numeric
-            ELSE e.cost::numeric
-        END as adjusted_cost,
+        -- Best discount among gang-level, fighter_type_id, or legacy fighter_type_id
+        COALESCE(
+          (
+            SELECT GREATEST(0, MAX(ed2.discount::numeric))
+            FROM equipment_discounts ed2
+            WHERE ed2.equipment_id = e.id
+              AND (
+                -- Gang-level browsing: only gang-level discount rows
+                ($3 IS NULL AND ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
+                OR
+                -- Fighter-level browsing: consider gang-level + fighter's type + legacy type
+                ($3 IS NOT NULL AND (
+                  (ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
+                  OR (ed2.fighter_type_id = $3)
+                  OR (legacy.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.affiliation_ft_id)
+                ))
+              )
+          ),
+          0
+        ) as discounted_cost,
+        -- Best effective adjusted price: prefer explicit adjusted_cost (min), else base - max(discount), else base
+        COALESCE(
+          (
+            SELECT MIN(ed3.adjusted_cost::numeric)
+            FROM equipment_discounts ed3
+            WHERE ed3.equipment_id = e.id
+              AND ed3.adjusted_cost IS NOT NULL
+              AND (
+                ($3 IS NULL AND ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
+                OR
+                ($3 IS NOT NULL AND (
+                  (ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
+                  OR (ed3.fighter_type_id = $3)
+                  OR (legacy.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.affiliation_ft_id)
+                ))
+              )
+          ),
+          e.cost::numeric - COALESCE((
+            SELECT GREATEST(0, MAX(ed4.discount::numeric))
+            FROM equipment_discounts ed4
+            WHERE ed4.equipment_id = e.id
+              AND ed4.discount IS NOT NULL
+              AND (
+                ($3 IS NULL AND ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
+                OR
+                ($3 IS NOT NULL AND (
+                  (ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
+                  OR (ed4.fighter_type_id = $3)
+                  OR (legacy.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.affiliation_ft_id)
+                ))
+              )
+          ), 0),
+          e.cost::numeric
+        ) as adjusted_cost,
         e.equipment_category,
         e.equipment_type,
         e.created_at,
@@ -72,7 +121,9 @@ AS $$
                     SELECT 1
                     FROM fighter_equipment_tradingpost fet,
                          jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                    WHERE fet.fighter_type_id = $3
+                    WHERE (fet.fighter_type_id = $3
+                           OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
+                           OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
                     AND equip_id = e.id::text
                 ) OR EXISTS (
                     SELECT 1
@@ -141,28 +192,26 @@ AS $$
             ELSE NULL
         END as vehicle_upgrade_slot
     FROM equipment e
+    -- Resolve legacy fighter type and gang affiliation fighter type (if any) from the provided fighter_id
+    LEFT JOIN LATERAL (
+        SELECT 
+            fgl.fighter_type_id AS legacy_ft_id,
+            ga.fighter_type_id AS affiliation_ft_id
+        FROM fighters f
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN gangs g ON f.gang_id = g.id
+        LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
+        WHERE f.id = $6
+    ) legacy ON TRUE
     -- Join with equipment_availability to get gang-specific availability
     LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
         AND ea.gang_type_id = $1
-    LEFT JOIN equipment_discounts ed ON e.id = ed.equipment_id 
-        AND (
-            -- Gang-level access: only gang-level discounts
-            ($3 IS NULL 
-             AND ed.gang_type_id = $1 
-             AND ed.fighter_type_id IS NULL)
-            OR 
-            -- Fighter-level access: both gang-level and fighter-specific discounts
-            ($3 IS NOT NULL 
-             AND (
-                 (ed.gang_type_id = $1 AND ed.fighter_type_id IS NULL)
-                 OR 
-                 (ed.fighter_type_id = $3)
-             ))
-        )
     LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
         AND ($3 IS NULL 
              OR fte.fighter_type_id = $3
-             OR fte.vehicle_type_id = $3)
+             OR fte.vehicle_type_id = $3
+             OR (legacy.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.legacy_ft_id OR fte.vehicle_type_id = legacy.legacy_ft_id))
+             OR (legacy.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.affiliation_ft_id OR fte.vehicle_type_id = legacy.affiliation_ft_id)))
     WHERE 
         (
             COALESCE(e.core_equipment, false) = false
@@ -175,18 +224,7 @@ AS $$
         AND
         ($2 IS NULL 
          OR trim(both from e.equipment_category) = trim(both from $2))
-        AND
-        (
-            $1 IS NULL
-            OR ed.gang_type_id = $1
-            OR ed.gang_type_id IS NULL
-        )
-        AND
-        (
-            $3 IS NULL
-            OR ed.fighter_type_id = $3
-            OR ed.fighter_type_id IS NULL
-        )
+        AND ($7 IS NULL OR e.id = $7)
         AND
         (
             $4 IS NULL
@@ -217,7 +255,9 @@ AS $$
                             SELECT 1
                             FROM fighter_equipment_tradingpost fet,
                                  jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                            WHERE fet.fighter_type_id = $3
+                            WHERE (fet.fighter_type_id = $3
+                                   OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
+                                   OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
                             AND equip_id = e.id::text
                         ) OR EXISTS (
                             SELECT 1

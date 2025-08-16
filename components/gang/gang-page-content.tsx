@@ -40,6 +40,9 @@ interface GangDataState {
     alignment: string;
     alliance_id: string;
     alliance_name: string;
+    gang_affiliation_id: string | null;
+    gang_affiliation_name: string;
+    gang_type_has_affiliation: boolean;
     created_at: string;
     last_updated: string;
     user_id: string;
