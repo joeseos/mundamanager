@@ -13,7 +13,7 @@ function getTableName(type: LineageType) {
   return type === 'legacy' ? 'fighter_gang_legacy' : 'gang_affiliation';
 }
 
-// Junction table fighter_type_gang_lineage only used for legacy type
+// Junction table fighter_type_gang_legacies only used for legacy type
 // Always uses fighter_gang_legacy_id as the foreign key
 const JUNCTION_FK_COLUMN = 'fighter_gang_legacy_id';
 
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       let fighterTypeAccess: any[] = [];
       if (type === 'legacy') {
         const { data: accessData, error: accessError } = await supabase
-          .from('fighter_type_gang_lineage')
+          .from('fighter_type_gang_legacies')
           .select(`fighter_type_id, ${JUNCTION_FK_COLUMN}`)
           .eq(JUNCTION_FK_COLUMN, id);
 
@@ -121,7 +121,7 @@ export async function GET(request: Request) {
         // Only fetch access rules for legacy type
         rowIds.length && type === 'legacy'
           ? supabase
-              .from('fighter_type_gang_lineage')
+              .from('fighter_type_gang_legacies')
               .select(`fighter_type_id, ${JUNCTION_FK_COLUMN}`)
               .in(JUNCTION_FK_COLUMN, rowIds)
           : Promise.resolve({ data: [] as any[] } as any)
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
       }));
 
       const { error: accessError } = await supabase
-        .from('fighter_type_gang_lineage')
+        .from('fighter_type_gang_legacies')
         .insert(accessRules as any);
 
       if (accessError) throw accessError;
@@ -267,7 +267,7 @@ export async function PUT(request: Request) {
       // Handle access rules only for legacy type
       if (currentType === 'legacy') {
         const { error: deleteAccessError } = await supabase
-          .from('fighter_type_gang_lineage')
+          .from('fighter_type_gang_legacies')
           .delete()
           .eq(JUNCTION_FK_COLUMN, id);
         if (deleteAccessError) throw deleteAccessError;
@@ -278,7 +278,7 @@ export async function PUT(request: Request) {
             fighter_type_id: fighterTypeId
           }));
           const { error: accessError } = await supabase
-            .from('fighter_type_gang_lineage')
+            .from('fighter_type_gang_legacies')
             .insert(accessRules as any);
           if (accessError) throw accessError;
         }
@@ -310,7 +310,7 @@ export async function PUT(request: Request) {
     // Read existing access rules from old type (only if old type is legacy)
     if (currentType === 'legacy') {
       const { data: oldAccessData, error: oldAccessErr } = await supabase
-        .from('fighter_type_gang_lineage')
+        .from('fighter_type_gang_legacies')
         .select(`fighter_type_id, ${JUNCTION_FK_COLUMN}`)
         .eq(JUNCTION_FK_COLUMN, id);
       if (oldAccessErr) throw oldAccessErr;
@@ -318,7 +318,7 @@ export async function PUT(request: Request) {
 
       // Delete old access rules
       const { error: delOldAccessErr } = await supabase
-        .from('fighter_type_gang_lineage')
+        .from('fighter_type_gang_legacies')
         .delete()
         .eq(JUNCTION_FK_COLUMN, id);
       if (delOldAccessErr) throw delOldAccessErr;
@@ -336,7 +336,7 @@ export async function PUT(request: Request) {
           fighter_type_id: fighterTypeId
         }));
         const { error: insNewAccessErr } = await supabase
-          .from('fighter_type_gang_lineage')
+          .from('fighter_type_gang_legacies')
           .insert(rows as any);
         if (insNewAccessErr) throw insNewAccessErr;
       }
@@ -416,7 +416,7 @@ export async function DELETE(request: Request) {
     // Delete fighter type access rules first (only for legacy type)
     if (type === 'legacy') {
       const { error: deleteAccessError } = await supabase
-        .from('fighter_type_gang_lineage')
+        .from('fighter_type_gang_legacies')
         .delete()
         .eq(JUNCTION_FK_COLUMN, id);
 

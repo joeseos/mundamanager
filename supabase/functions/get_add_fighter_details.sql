@@ -622,7 +622,7 @@ BEGIN
                         'name', fgl.name
                     )
                 )
-                FROM fighter_type_gang_lineage ftgl
+                FROM fighter_type_gang_legacies ftgl
                 JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
                 WHERE ftgl.fighter_type_id = ft.id
             ),
