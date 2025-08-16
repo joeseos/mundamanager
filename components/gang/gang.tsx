@@ -37,6 +37,7 @@ interface GangProps {
   gang_type_id: string;
   gang_type?: string;
   gang_type_image_url: string;
+  image_url?: string;
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -88,6 +89,7 @@ export default function Gang({
   gang_type_id,
   gang_type,
   gang_type_image_url,
+  image_url,
   gang_colour: initialGangColour,
   credits: initialCredits, 
   reputation: initialReputation,
@@ -509,9 +511,9 @@ export default function Gang({
         <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Illustration */}
           <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
-            {gang_type_image_url ? (
+            {image_url || gang_type_image_url ? (
               <Image
-                src={gang_type_image_url}
+                src={image_url || gang_type_image_url}
                 alt={name}
                 width={180}
                 height={180}

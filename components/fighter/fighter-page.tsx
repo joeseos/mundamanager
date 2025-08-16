@@ -863,6 +863,7 @@ export default function FighterPage({
             fighterId={fighterData.fighter?.id || ''}
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
+            fighter_class={fighterData.fighter?.fighter_class}
           />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}

@@ -31,9 +31,9 @@ export default function MyGangs({ gangs }: MyGangsProps) {
             <li key={gang.id}>
               <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
-                  {gang.image_url ? (
+                  {gang.image_url || gang.gang_type_image_url ? (
                     <Image
-                      src={gang.image_url}
+                      src={gang.image_url || gang.gang_type_image_url}
                       alt={gang.name}
                       width={60}
                       height={60}

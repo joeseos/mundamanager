@@ -10,6 +10,7 @@ export type Gang = {
   gang_type: string;
   gang_type_id: string;
   image_url: string;
+  gang_type_image_url: string;
   credits: number;
   reputation: number;
   meat: number;
@@ -74,6 +75,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         name,
         gang_type,
         gang_type_id,
+        image_url,
         credits,
         reputation,
         meat,
@@ -162,7 +164,8 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
       name: gang.name,
       gang_type: gang.gang_type,
       gang_type_id: gang.gang_type_id,
-      image_url: gang.gang_types?.image_url || '',
+      image_url: gang.image_url || '',
+      gang_type_image_url: gang.gang_types?.image_url || '',
       credits: gang.credits,
       reputation: gang.reputation,
       meat: gang.meat,

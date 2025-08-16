@@ -13,6 +13,10 @@ export type TableEntry = {
   banned?: string[];
 };
 
+// ============================================================================
+// Lasting Injuries - D66 table and resolver
+// ============================================================================
+
 // D66 table for Lasting Injuries
 export const LASTING_INJURY_TABLE: TableEntry[] = [
   { range: [11, 11], name: 'Lesson Learned' },
@@ -47,6 +51,32 @@ export const resolveInjuryRangeFromUtilByName = (
   return entry?.range;
 };
 
+// ============================================================================
+// Lasting Injuries for Crew - D66 table and resolver
+// ============================================================================
+
+// D66 table for Lasting Injuries for Crew
+export const LASTING_INJURY_CREW_TABLE: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learned' },
+  { range: [12, 26], name: 'Out Cold' },
+  { range: [31, 46], name: 'Convalescence' },
+  { range: [51, 52], name: 'Humiliated' },
+  { range: [53, 54], name: 'Head Injury' },
+  { range: [55, 56], name: 'Eye Injury' },
+  { range: [61, 65], name: 'Critical Injury' },
+  { range: [66, 66], name: 'Memorable Death' },
+];
+
+export const resolveInjuryFromUtilCrew = (roll: number): TableEntry | undefined =>
+  LASTING_INJURY_CREW_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+// Keeping resolve by name for optional diagnostics/UI usage
+export const resolveInjuryRangeFromUtilByNameCrew = (
+  name: string,
+): [number, number] | undefined => {
+  const entry = LASTING_INJURY_CREW_TABLE.find((e) => e.name === name);
+  return entry?.range;
+};
 
 // ============================================================================
 // Vehicle Lasting Damage - D6 table and resolver
