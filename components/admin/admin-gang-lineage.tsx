@@ -499,86 +499,89 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         </select>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Fighter Type Access
-        </label>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Gang Type for Access Rules
-            </label>
-            <select
-              value={accessRuleGangTypeId}
-              onChange={(e) => setAccessRuleGangTypeId(e.target.value)}
-              className="w-full p-2 border rounded-md"
-            >
-              <option value="">Select gang type</option>
-              {gangTypes.map((gangType) => (
-                <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
-                  {gangType.gang_type}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Add Fighter Type Access
-            </label>
-            <select
-              value=""
-              onChange={(e) => {
-                if (e.target.value) {
-                  addFighterTypeAccess(e.target.value);
-                  e.target.value = "";
-                }
-              }}
-              className="w-full p-2 border rounded-md"
-              disabled={!accessRuleGangTypeId}
-            >
-              <option value="">
-                {!accessRuleGangTypeId 
-                  ? "Select a gang type first" 
-                  : "Add fighter type access"
-                }
-              </option>
-              {accessRuleGangTypeId && fighterTypes
-                .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
-                .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
-                .map((fighterType) => (
-                  <option key={fighterType.id} value={fighterType.id}>
-                    {getFighterTypeDisplayName(fighterType)}
+      {/* Fighter Type Access - Only show for legacy type */}
+      {lineageType === 'legacy' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Fighter Type Access
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gang Type for Access Rules
+              </label>
+              <select
+                value={accessRuleGangTypeId}
+                onChange={(e) => setAccessRuleGangTypeId(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select gang type</option>
+                {gangTypes.map((gangType) => (
+                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                    {gangType.gang_type}
                   </option>
                 ))}
-            </select>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Add Fighter Type Access
+              </label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    addFighterTypeAccess(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="w-full p-2 border rounded-md"
+                disabled={!accessRuleGangTypeId}
+              >
+                <option value="">
+                  {!accessRuleGangTypeId 
+                    ? "Select a gang type first" 
+                    : "Add fighter type access"
+                  }
+                </option>
+                {accessRuleGangTypeId && fighterTypes
+                  .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
+                  .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
+                  .map((fighterType) => (
+                    <option key={fighterType.id} value={fighterType.id}>
+                      {getFighterTypeDisplayName(fighterType)}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {fighterTypeAccess.map((fighterTypeId) => {
+              const fighterType = fighterTypes.find(ft => ft.id === fighterTypeId);
+              if (!fighterType) return null;
+
+              return (
+                <div
+                  key={fighterTypeId}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                >
+                  <span>{fighterType.fighter_type}</span>
+                  <span className="text-gray-600">({fighterType.gang_type})</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFighterTypeAccess(fighterTypeId)}
+                    className="hover:text-red-500 focus:outline-none"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          {fighterTypeAccess.map((fighterTypeId) => {
-            const fighterType = fighterTypes.find(ft => ft.id === fighterTypeId);
-            if (!fighterType) return null;
-
-            return (
-              <div
-                key={fighterTypeId}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-              >
-                <span>{fighterType.fighter_type}</span>
-                <span className="text-gray-600">({fighterType.gang_type})</span>
-                <button
-                  type="button"
-                  onClick={() => removeFighterTypeAccess(fighterTypeId)}
-                  className="hover:text-red-500 focus:outline-none"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      )}
     </div>
   );
 
@@ -590,7 +593,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Manage Gang Lineages</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Affiliations & Legacies</h3>
           </div>
           <button
             onClick={onClose}
@@ -622,7 +625,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Gang Legacy or Affiliation
+                  Select Gang Affiliation or Legacy
                 </label>
                 <select
                   value={selectedGangLineageId}
@@ -635,7 +638,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                       ? "Select a type first" 
                       : filteredGangLineages.length === 0 
                         ? "No lineages available" 
-                        : "Select a gang legacy or affiliation"
+                        : "Select a gang affiliation or legacy"
                     }
                   </option>
                   {filteredGangLineages.map((lineage) => (
@@ -738,97 +741,99 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   </div>
                 </div>
 
-                {/* Fighter Type Access Management */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fighter Type Access Rules
-                  </label>
-                  <p className="text-sm text-gray-500 mb-3">
-                    {`Select which fighter types can access this ${getTypeTerm(lineageType)}.`}
-                  </p>
+                {/* Fighter Type Access Management - Only show for legacy type */}
+                {lineageType === 'legacy' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fighter Type Access Rules
+                    </label>
+                    <p className="text-sm text-gray-500 mb-3">
+                      {`Select which fighter types can access this ${getTypeTerm(lineageType)}.`}
+                    </p>
 
-                  <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Gang Type for Access Rules
-                      </label>
-                      <select
-                        value={accessRuleGangTypeId}
-                        onChange={(e) => setAccessRuleGangTypeId(e.target.value)}
-                        className="w-full p-2 border rounded-md"
-                        disabled={isLoading}
-                      >
-                        <option value="">Select gang type</option>
-                        {gangTypes.map((gangType) => (
-                          <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
-                            {gangType.gang_type}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Add Fighter Type Access
-                      </label>
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            addFighterTypeAccess(e.target.value);
-                            e.target.value = "";
-                          }
-                        }}
-                        className="w-full p-2 border rounded-md"
-                        disabled={isLoading || !accessRuleGangTypeId}
-                      >
-                        <option value="">
-                          {!accessRuleGangTypeId 
-                            ? "Select a gang type first" 
-                            : "Add fighter type access"
-                          }
-                        </option>
-                        {accessRuleGangTypeId && fighterTypes
-                          .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
-                          .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
-                          .map((fighterType) => (
-                            <option key={fighterType.id} value={fighterType.id}>
-                              {getFighterTypeDisplayName(fighterType)}
+                    <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Gang Type for Access Rules
+                        </label>
+                        <select
+                          value={accessRuleGangTypeId}
+                          onChange={(e) => setAccessRuleGangTypeId(e.target.value)}
+                          className="w-full p-2 border rounded-md"
+                          disabled={isLoading}
+                        >
+                          <option value="">Select gang type</option>
+                          {gangTypes.map((gangType) => (
+                            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                              {gangType.gang_type}
                             </option>
                           ))}
-                      </select>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Add Fighter Type Access
+                        </label>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              addFighterTypeAccess(e.target.value);
+                              e.target.value = "";
+                            }
+                          }}
+                          className="w-full p-2 border rounded-md"
+                          disabled={isLoading || !accessRuleGangTypeId}
+                        >
+                          <option value="">
+                            {!accessRuleGangTypeId 
+                              ? "Select a gang type first" 
+                              : "Add fighter type access"
+                            }
+                          </option>
+                          {accessRuleGangTypeId && fighterTypes
+                            .filter(ft => ft.gang_type_id === accessRuleGangTypeId && !fighterTypeAccess.includes(ft.id))
+                            .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
+                            .map((fighterType) => (
+                              <option key={fighterType.id} value={fighterType.id}>
+                                {getFighterTypeDisplayName(fighterType)}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {fighterTypeAccess.length === 0 ? (
+                        <p className="text-gray-500 text-sm italic">No fighter types have access to this lineage yet.</p>
+                      ) : (
+                        fighterTypeAccess.map((fighterTypeId) => {
+                          const fighterType = fighterTypes.find(ft => ft.id === fighterTypeId);
+                          if (!fighterType) return null;
+
+                          return (
+                            <div
+                              key={fighterTypeId}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                            >
+                              <span>{fighterType.fighter_type}</span>
+                              <span className="text-gray-600">({fighterType.gang_type})</span>
+                              <button
+                                type="button"
+                                onClick={() => removeFighterTypeAccess(fighterTypeId)}
+                                className="hover:text-red-500 focus:outline-none"
+                                disabled={isLoading}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {fighterTypeAccess.length === 0 ? (
-                      <p className="text-gray-500 text-sm italic">No fighter types have access to this lineage yet.</p>
-                    ) : (
-                      fighterTypeAccess.map((fighterTypeId) => {
-                        const fighterType = fighterTypes.find(ft => ft.id === fighterTypeId);
-                        if (!fighterType) return null;
-
-                        return (
-                          <div
-                            key={fighterTypeId}
-                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
-                          >
-                            <span>{fighterType.fighter_type}</span>
-                            <span className="text-gray-600">({fighterType.gang_type})</span>
-                            <button
-                              type="button"
-                              onClick={() => removeFighterTypeAccess(fighterTypeId)}
-                              className="hover:text-red-500 focus:outline-none"
-                              disabled={isLoading}
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+                )}
 
               </div>
             )}
@@ -848,7 +853,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
             disabled={isLoading || !selectedGangLineage || !gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType}
             className="bg-black hover:bg-gray-800 text-white disabled:bg-gray-400 disabled:text-gray-600"
           >
-            {isLoading ? 'Updating...' : 'Update Gang Lineage'}
+            {isLoading ? 'Updating...' : 'Update'}
           </Button>
         </div>
       </div>
@@ -856,7 +861,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       {/* Create Gang Lineage Modal */}
       {showCreateModal && (
         <Modal
-          title="Create Gang Legacy or Affiliation"
+          title="Create Gang Affiliation or Legacy"
           content={createModalContent}
           onClose={() => {
             setShowCreateModal(false);
