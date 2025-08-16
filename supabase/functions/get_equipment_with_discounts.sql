@@ -1,5 +1,6 @@
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
 
 -- Create the new function with all parameters including weapon profiles and fighter legacy support
 CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
@@ -55,6 +56,7 @@ AS $$
                   (ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
                   OR (ed2.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.affiliation_ft_id)
                 ))
               )
           ),
@@ -74,6 +76,7 @@ AS $$
                   (ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
                   OR (ed3.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.affiliation_ft_id)
                 ))
               )
           ),
@@ -89,6 +92,7 @@ AS $$
                   (ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
                   OR (ed4.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.legacy_ft_id)
+                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.affiliation_ft_id)
                 ))
               )
           ), 0),
@@ -118,7 +122,8 @@ AS $$
                     FROM fighter_equipment_tradingpost fet,
                          jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
                     WHERE (fet.fighter_type_id = $3
-                           OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id))
+                           OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
+                           OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
                     AND equip_id = e.id::text
                 ) OR EXISTS (
                     SELECT 1
@@ -187,11 +192,15 @@ AS $$
             ELSE NULL
         END as vehicle_upgrade_slot
     FROM equipment e
-    -- Resolve legacy fighter type (if any) from the provided fighter_id
+    -- Resolve legacy fighter type and gang affiliation fighter type (if any) from the provided fighter_id
     LEFT JOIN LATERAL (
-        SELECT fgl.fighter_type_id AS legacy_ft_id
+        SELECT 
+            fgl.fighter_type_id AS legacy_ft_id,
+            ga.fighter_type_id AS affiliation_ft_id
         FROM fighters f
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN gangs g ON f.gang_id = g.id
+        LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
         WHERE f.id = $6
     ) legacy ON TRUE
     -- Join with equipment_availability to get gang-specific availability
@@ -201,7 +210,8 @@ AS $$
         AND ($3 IS NULL 
              OR fte.fighter_type_id = $3
              OR fte.vehicle_type_id = $3
-             OR (legacy.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.legacy_ft_id OR fte.vehicle_type_id = legacy.legacy_ft_id)))
+             OR (legacy.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.legacy_ft_id OR fte.vehicle_type_id = legacy.legacy_ft_id))
+             OR (legacy.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.affiliation_ft_id OR fte.vehicle_type_id = legacy.affiliation_ft_id)))
     WHERE 
         (
             COALESCE(e.core_equipment, false) = false
@@ -246,7 +256,8 @@ AS $$
                             FROM fighter_equipment_tradingpost fet,
                                  jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
                             WHERE (fet.fighter_type_id = $3
-                                   OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id))
+                                   OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
+                                   OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
                             AND equip_id = e.id::text
                         ) OR EXISTS (
                             SELECT 1

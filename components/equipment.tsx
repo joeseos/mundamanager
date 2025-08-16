@@ -25,6 +25,7 @@ interface ItemModalProps {
   gangTypeId: string;
   fighterId: string;
   fighterTypeId: string;
+  gangAffiliationId?: string | null;
   fighterCredits: number;
   fighterHasLegacy?: boolean;
   fighterLegacyName?: string;
@@ -304,6 +305,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   gangTypeId,
   fighterId,
   fighterTypeId,
+  gangAffiliationId,
   fighterCredits,
   fighterHasLegacy,
   fighterLegacyName,
@@ -477,8 +479,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
+      // Pass fighter_id if: legacy toggle enabled OR gang has affiliation
       const useLegacy = includeLegacyOverride !== undefined ? includeLegacyOverride : includeLegacy;
-      if (!isVehicleEquipment && fighterId && useLegacy) {
+      const hasGangAffiliation = Boolean(gangAffiliationId);
+      if (!isVehicleEquipment && fighterId && (useLegacy || hasGangAffiliation)) {
         requestBody.fighter_id = fighterId;
       }
 
@@ -732,8 +736,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session || isLoadingAllEquipment) return;
 
     // Check cache first before making any API calls
-    const cacheKey = equipmentListType === 'unrestricted' ? 'all' : equipmentListType === 'fighters-tradingpost' ? 'tradingpost' : 'fighter';
-    
     // If we have cached data for this equipment list type, use it
     if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
       
