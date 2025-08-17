@@ -191,10 +191,17 @@ export default function Gang({
   // Calculate the total value of the Stash
   const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
 
+  // Filter out killed, enslaved, or retired fighters for gang size and composition
+  const activeFighters = useMemo(() => {
+    return fighters.filter(fighter => 
+      !fighter.killed && !fighter.enslaved && !fighter.retired && !fighter.captured
+    );
+  }, [fighters]);
+
   // Fighters composition for tooltip: group by fighter_type and fighter_class
   const fighterTypeClassCounts = useMemo(() => {
     const counts = new Map<string, { label: string; count: number; classKey: string }>();
-    for (const fighter of fighters) {
+    for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const classLabel = fighter.fighter_class || 'Unknown Class';
       const key = `${typeLabel} (${classLabel})`;
@@ -212,7 +219,7 @@ export default function Gang({
       if (rankA !== rankB) return rankA - rankB;
       return a.label.localeCompare(b.label);
     });
-  }, [fighters]);
+  }, [activeFighters]);
 
   const escapeHtml = (unsafe: string): string =>
     unsafe
@@ -734,7 +741,7 @@ export default function Gang({
                     data-tooltip-html={fightersTooltipHtml}
                   >
                     <span className="text-gray-600">Gang Size:</span>
-                    <span className="font-semibold">{fighters.length}</span>
+                    <span className="font-semibold">{activeFighters.length}</span>
                   </div>
                 </div>
 
