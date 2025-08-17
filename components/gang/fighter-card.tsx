@@ -418,8 +418,8 @@ const FighterCard = memo(function FighterCard({
             </div>
           </div>
         </div>
-        <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-8px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}>
-          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+        <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-gray-600" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
