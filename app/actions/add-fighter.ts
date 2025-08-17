@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
+import { createExoticBeastsForEquipment } from '@/app/lib/exotic-beasts';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -66,6 +67,47 @@ interface AddFighterResult {
       skill_name: string;
     }>;
     special_rules?: string[];
+    created_beasts?: Array<{
+      id: string;
+      fighter_name: string;
+      fighter_type: string;
+      fighter_class: string;
+      fighter_type_id: string;
+      credits: number;
+      equipment_source: string;
+      created_at: string;
+      owner: {
+        id: string;
+        fighter_name: string;
+      };
+      movement: number;
+      weapon_skill: number;
+      ballistic_skill: number;
+      strength: number;
+      toughness: number;
+      wounds: number;
+      initiative: number;
+      attacks: number;
+      leadership: number;
+      cool: number;
+      willpower: number;
+      intelligence: number;
+      xp: number;
+      kills: number;
+      special_rules: string[];
+      equipment: Array<{
+        fighter_equipment_id: string;
+        equipment_id: string;
+        equipment_name: string;
+        equipment_type: string;
+        cost: number;
+        weapon_profiles?: any[];
+      }>;
+      skills: Array<{
+        skill_id: string;
+        skill_name: string;
+      }>;
+    }>;
   };
   error?: string;
 }
@@ -180,6 +222,19 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     const fighterId = insertedFighter.id;
 
+    // Get default skills from fighter_defaults table
+    const { data: fighterDefaultsData } = await supabase
+      .from('fighter_defaults')
+      .select(`
+        skill_id,
+        skills!skill_id(
+          id,
+          name
+        )
+      `)
+      .eq('fighter_type_id', params.fighter_type_id)
+      .not('skill_id', 'is', null);
+
     // Prepare equipment insertions
     const equipmentInserts: Array<{
       fighter_id: string;
@@ -222,19 +277,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       });
     }
 
-    // Get default skills from fighter_defaults table
-    const { data: fighterDefaultsData } = await supabase
-      .from('fighter_defaults')
-      .select(`
-        skill_id,
-        skills!skill_id(
-          id,
-          name
-        )
-      `)
-      .eq('fighter_type_id', params.fighter_type_id)
-      .not('skill_id', 'is', null);
-
     // Execute equipment and skills insertion in parallel
     const insertPromises: Promise<any>[] = [];
 
@@ -254,6 +296,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 id,
                 equipment_name,
                 equipment_type,
+                equipment_category_id,
                 cost
               )
             `)
@@ -306,6 +349,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let insertedSkills: any[] = [];
     let gangUpdateError: any = null;
 
+    // Collect exotic beast data for cache invalidation after main fighter processing
+    let allCreatedBeasts: any[] = [];
+    let totalBeastsRatingDelta = 0;
+
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
         const { type, result: queryResult } = result.value;
@@ -327,6 +374,47 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   .select('*')
                   .in('weapon_id', weaponIds);
                 weaponProfiles = profilesData || [];
+              }
+
+              // Check for exotic beast equipment and create beasts
+              const exoticBeastCategoryId = '6b5eabd8-0865-439c-98bb-09bd78f0fbac';
+              const exoticBeastEquipment = insertedEquipment.filter((item: any) => 
+                (item.equipment as any)?.equipment_category_id === exoticBeastCategoryId
+              );
+
+              // Create exotic beasts for equipment that grants them
+              let createdBeasts: any[] = [];
+              let createdBeastsRatingDelta = 0;
+              
+              if (exoticBeastEquipment.length > 0) {
+                for (const equipmentItem of exoticBeastEquipment) {
+                  try {
+                    const beastResult = await createExoticBeastsForEquipment({
+                      equipmentId: equipmentItem.equipment_id,
+                      ownerFighterId: fighterId,
+                      ownerFighterName: insertedFighter.fighter_name,
+                      gangId: params.gang_id,
+                      userId: effectiveUserId,
+                      fighterEquipmentId: equipmentItem.id
+                    });
+
+                    if (beastResult.success && beastResult.createdBeasts.length > 0) {
+                      createdBeasts.push(...beastResult.createdBeasts);
+                      
+                      // Collect beast data for later processing
+                      allCreatedBeasts.push(...beastResult.createdBeasts);
+                      
+                      // Calculate rating delta for created beasts
+                      for (const beast of beastResult.createdBeasts) {
+                        createdBeastsRatingDelta += beast.credits || 0;
+                      }
+                      totalBeastsRatingDelta += createdBeastsRatingDelta;
+                    }
+                  } catch (beastError) {
+                    console.error('Error creating exotic beast for equipment:', equipmentItem.equipment_id, beastError);
+                  }
+                }
+
               }
 
               equipmentWithProfiles = insertedEquipment.map((item: any) => ({
@@ -373,7 +461,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         .eq('id', params.gang_id)
         .single();
       const currentRating = (ratingRow?.rating ?? 0) as number;
-      const newRating = Math.max(0, currentRating + ratingCost);
+      const newRating = Math.max(0, currentRating + ratingCost + totalBeastsRatingDelta);
       await supabase
         .from('gangs')
         .update({ rating: newRating, last_updated: new Date().toISOString() })
@@ -389,6 +477,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       gangId: params.gang_id,
       userId: effectiveUserId
     });
+
 
     return {
       success: true,
@@ -424,7 +513,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           skill_id: skill.skill_id,
           skill_name: (skill.skills as any)?.name || ''
         })),
-        special_rules: fighterTypeData.special_rules
+        special_rules: fighterTypeData.special_rules,
+        created_beasts: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined
       }
     };
 

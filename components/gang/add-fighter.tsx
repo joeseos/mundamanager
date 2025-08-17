@@ -848,6 +848,7 @@ export default function AddFighter({
         cost: item.cost || 0,
         quantity: 1
       })) || [];
+      
 
       // Use the new server action instead of direct SQL function call
       const result = await addFighterToGang({
@@ -973,10 +974,118 @@ export default function AddFighter({
       };
 
       onFighterAdded(newFighter, gangCreditsCost);
+
+      // Process created exotic beasts
+      if (result.data?.created_beasts && result.data.created_beasts.length > 0) {
+        result.data.created_beasts.forEach(beast => {
+          const beastFighter = {
+            id: beast.id,
+            fighter_name: beast.fighter_name,
+            fighter_type: beast.fighter_type,
+            fighter_class: beast.fighter_class,
+            fighter_type_id: beast.fighter_type_id,
+            credits: beast.credits,
+            owner_name: beast.owner?.fighter_name,
+            // Use actual beast stats from database
+            movement: beast.movement,
+            weapon_skill: beast.weapon_skill,
+            ballistic_skill: beast.ballistic_skill,
+            strength: beast.strength,
+            toughness: beast.toughness,
+            wounds: beast.wounds,
+            initiative: beast.initiative,
+            attacks: beast.attacks,
+            leadership: beast.leadership,
+            cool: beast.cool,
+            willpower: beast.willpower,
+            intelligence: beast.intelligence,
+            xp: beast.xp,
+            kills: beast.kills,
+            // Process equipment
+            weapons: beast.equipment
+              .filter((item: any) => item.equipment_type === 'weapon')
+              .map((item: any) => ({
+                weapon_name: item.equipment_name,
+                weapon_id: item.equipment_id,
+                cost: item.cost,
+                fighter_weapon_id: item.fighter_equipment_id,
+                weapon_profiles: item.weapon_profiles || []
+              })),
+            wargear: beast.equipment
+              .filter((item: any) => item.equipment_type === 'wargear')
+              .map((item: any) => ({
+                wargear_name: item.equipment_name,
+                wargear_id: item.equipment_id,
+                cost: item.cost,
+                fighter_weapon_id: item.fighter_equipment_id
+              })),
+            special_rules: beast.special_rules || [],
+            // Process skills
+            skills: beast.skills ? beast.skills.reduce((acc: any, skill: any) => {
+              acc[skill.skill_name] = {
+                id: skill.skill_id,
+                credits_increase: 0,
+                xp_cost: 0,
+                is_advance: false,
+                acquired_at: new Date().toISOString(),
+                fighter_injury_id: null
+              };
+              return acc;
+            }, {}) : {},
+            advancements: {
+              characteristics: {},
+              skills: {}
+            },
+            injuries: [],
+            free_skill: false,
+            effects: {
+              injuries: [],
+              advancements: [],
+              bionics: [],
+              cyberteknika: [],
+              'gene-smithing': [],
+              'rig-glitches': [],
+              augmentations: [],
+              equipment: [],
+              user: []
+            },
+            base_stats: {
+              movement: beast.movement,
+              weapon_skill: beast.weapon_skill,
+              ballistic_skill: beast.ballistic_skill,
+              strength: beast.strength,
+              toughness: beast.toughness,
+              wounds: beast.wounds,
+              initiative: beast.initiative,
+              attacks: beast.attacks,
+              leadership: beast.leadership,
+              cool: beast.cool,
+              willpower: beast.willpower,
+              intelligence: beast.intelligence
+            },
+            current_stats: {
+              movement: beast.movement,
+              weapon_skill: beast.weapon_skill,
+              ballistic_skill: beast.ballistic_skill,
+              strength: beast.strength,
+              toughness: beast.toughness,
+              wounds: beast.wounds,
+              initiative: beast.initiative,
+              attacks: beast.attacks,
+              leadership: beast.leadership,
+              cool: beast.cool,
+              willpower: beast.willpower,
+              intelligence: beast.intelligence
+            }
+          };
+          onFighterAdded(beastFighter, 0); // 0 cost since already paid
+        });
+      }
+      
       closeModal();
 
       toast({
-        description: `${fighterName} added successfully`,
+        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
         variant: "default"
       });
 
