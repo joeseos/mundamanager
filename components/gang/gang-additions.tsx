@@ -449,11 +449,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
     if (!selectedType?.equipment_selection) return null;
 
-    console.log('Original equipment_selection:', selectedType.equipment_selection);
-
     // Normalize equipment_selection to UI format
     const normalizedSelection = normalizeEquipmentSelection(selectedType.equipment_selection);
-    console.log('Normalized equipment_selection:', normalizedSelection);
 
     // Group equipment options by selection category
     const allCategories = Object.entries(normalizedSelection);
@@ -947,9 +944,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       // Parse the fighter cost, defaulting to 0 if it's empty or NaN
       const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
       
-      // Debug log to verify equipment data and costs are being sent
-      console.log('Sending equipment data:', selectedEquipment);
-      console.log('Entered cost:', parsedCost);
 
       // Prepare default equipment from the selected gang addition type
       const gangAdditionTypeForEquipment = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
@@ -958,6 +952,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         cost: item.cost || 0,
         quantity: 1
       })) || [];
+      
 
       // Use the server action instead of direct RPC call
       const result = await addFighterToGang({
@@ -1081,10 +1076,118 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       } as FighterProps;
 
       onFighterAdded(newFighter, actualCost);
+
+      // Process created exotic beasts
+      if (result.data?.created_beasts && result.data.created_beasts.length > 0) {
+        result.data.created_beasts.forEach(beast => {
+          const beastFighter = {
+            id: beast.id,
+            fighter_name: beast.fighter_name,
+            fighter_type: beast.fighter_type,
+            fighter_class: beast.fighter_class,
+            fighter_type_id: beast.fighter_type_id,
+            credits: beast.credits,
+            owner_name: beast.owner?.fighter_name,
+            // Use actual beast stats from database
+            movement: beast.movement,
+            weapon_skill: beast.weapon_skill,
+            ballistic_skill: beast.ballistic_skill,
+            strength: beast.strength,
+            toughness: beast.toughness,
+            wounds: beast.wounds,
+            initiative: beast.initiative,
+            attacks: beast.attacks,
+            leadership: beast.leadership,
+            cool: beast.cool,
+            willpower: beast.willpower,
+            intelligence: beast.intelligence,
+            xp: beast.xp,
+            kills: beast.kills,
+            // Process equipment
+            weapons: beast.equipment
+              .filter((item: any) => item.equipment_type === 'weapon')
+              .map((item: any) => ({
+                weapon_name: item.equipment_name,
+                weapon_id: item.equipment_id,
+                cost: item.cost,
+                fighter_weapon_id: item.fighter_equipment_id,
+                weapon_profiles: item.weapon_profiles || []
+              })),
+            wargear: beast.equipment
+              .filter((item: any) => item.equipment_type === 'wargear')
+              .map((item: any) => ({
+                wargear_name: item.equipment_name,
+                wargear_id: item.equipment_id,
+                cost: item.cost,
+                fighter_weapon_id: item.fighter_equipment_id
+              })),
+            special_rules: beast.special_rules || [],
+            // Process skills
+            skills: beast.skills ? beast.skills.reduce((acc: FighterSkills, skill: any) => {
+              acc[skill.skill_name] = {
+                id: skill.skill_id,
+                credits_increase: 0,
+                xp_cost: 0,
+                is_advance: false,
+                acquired_at: new Date().toISOString(),
+                fighter_injury_id: null
+              };
+              return acc;
+            }, {}) : {},
+            advancements: {
+              characteristics: {},
+              skills: {}
+            },
+            injuries: [],
+            free_skill: false,
+            effects: {
+              injuries: [] as FighterEffect[],
+              advancements: [] as FighterEffect[],
+              bionics: [] as FighterEffect[],
+              cyberteknika: [] as FighterEffect[],
+              'gene-smithing': [] as FighterEffect[],
+              'rig-glitches': [] as FighterEffect[],
+              augmentations: [] as FighterEffect[],
+              equipment: [] as FighterEffect[],
+              user: [] as FighterEffect[]
+            },
+            base_stats: {
+              movement: beast.movement,
+              weapon_skill: beast.weapon_skill,
+              ballistic_skill: beast.ballistic_skill,
+              strength: beast.strength,
+              toughness: beast.toughness,
+              wounds: beast.wounds,
+              initiative: beast.initiative,
+              attacks: beast.attacks,
+              leadership: beast.leadership,
+              cool: beast.cool,
+              willpower: beast.willpower,
+              intelligence: beast.intelligence
+            },
+            current_stats: {
+              movement: beast.movement,
+              weapon_skill: beast.weapon_skill,
+              ballistic_skill: beast.ballistic_skill,
+              strength: beast.strength,
+              toughness: beast.toughness,
+              wounds: beast.wounds,
+              initiative: beast.initiative,
+              attacks: beast.attacks,
+              leadership: beast.leadership,
+              cool: beast.cool,
+              willpower: beast.willpower,
+              intelligence: beast.intelligence
+            }
+          } as FighterProps;
+          onFighterAdded(beastFighter, 0); // 0 cost since already paid
+        });
+      }
+      
       closeModal();
 
       toast({
-        description: `${fighterName} added successfully`,
+        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
         variant: "default"
       });
 
