@@ -17,8 +17,7 @@ export interface BattleParticipant {
  * Type definition for territory claim
  */
 export interface TerritoryClaimRequest {
-  territory_id?: string;
-  custom_territory_id?: string;
+  campaign_territory_id: string;
   is_custom?: boolean;
 }
 
@@ -91,20 +90,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       for (const territory of claimed_territories) {
         console.log('🎯 Processing territory claim:', territory);
         
-        let updateQuery = supabase
+        const { data, error } = await supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
+          .eq('id', territory.campaign_territory_id)
           .eq('campaign_id', campaignId);
 
-        if (territory.is_custom && territory.custom_territory_id) {
-          console.log('🎨 Updating custom territory:', territory.custom_territory_id);
-          updateQuery = updateQuery.eq('custom_territory_id', territory.custom_territory_id);
-        } else if (territory.territory_id) {
-          console.log('🏛️ Updating regular territory:', territory.territory_id);
-          updateQuery = updateQuery.eq('territory_id', territory.territory_id);
-        }
-
-        const { data, error } = await updateQuery;
         console.log('📊 Territory update result:', { data, error });
         
         if (error) {
@@ -163,23 +154,14 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         if (claimed_territories.length > 0 && winner_id && winner) {
           console.log('Logging territory claims...');
           for (const territory of claimed_territories) {
-            // Get territory name
-            let territoryName = '';
-            if (territory.is_custom && territory.custom_territory_id) {
-              const { data: customTerritory } = await supabase
-                .from('custom_territories')
-                .select('name')
-                .eq('id', territory.custom_territory_id)
-                .single();
-              territoryName = customTerritory?.name || 'Unknown Custom Territory';
-            } else if (territory.territory_id) {
-              const { data: regularTerritory } = await supabase
-                .from('territories')
-                .select('name')
-                .eq('id', territory.territory_id)
-                .single();
-              territoryName = regularTerritory?.name || 'Unknown Territory';
-            }
+            // Get territory name from campaign_territories table
+            const { data: campaignTerritory } = await supabase
+              .from('campaign_territories')
+              .select('territory_name')
+              .eq('id', territory.campaign_territory_id)
+              .single();
+
+            const territoryName = campaignTerritory?.territory_name || 'Unknown Territory';
 
             if (territoryName) {
               const territoryLog = await logTerritoryClaimed({
@@ -281,18 +263,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // Process territory claims if any
     if (claimed_territories.length > 0 && winner_id) {
       for (const territory of claimed_territories) {
-        let updateQuery = supabase
+        await supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
+          .eq('id', territory.campaign_territory_id)
           .eq('campaign_id', campaignId);
-
-        if (territory.is_custom && territory.custom_territory_id) {
-          updateQuery = updateQuery.eq('custom_territory_id', territory.custom_territory_id);
-        } else if (territory.territory_id) {
-          updateQuery = updateQuery.eq('territory_id', territory.territory_id);
-        }
-
-        await updateQuery;
       }
     }
 
@@ -343,23 +318,14 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         // 🎯 Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
           for (const territory of claimed_territories) {
-            // Get territory name
-            let territoryName = '';
-            if (territory.is_custom && territory.custom_territory_id) {
-              const { data: customTerritory } = await supabase
-                .from('custom_territories')
-                .select('name')
-                .eq('id', territory.custom_territory_id)
-                .single();
-              territoryName = customTerritory?.name || 'Unknown Custom Territory';
-            } else if (territory.territory_id) {
-              const { data: regularTerritory } = await supabase
-                .from('territories')
-                .select('name')
-                .eq('id', territory.territory_id)
-                .single();
-              territoryName = regularTerritory?.name || 'Unknown Territory';
-            }
+            // Get territory name from campaign_territories table
+            const { data: campaignTerritory } = await supabase
+              .from('campaign_territories')
+              .select('territory_name')
+              .eq('id', territory.campaign_territory_id)
+              .single();
+
+            const territoryName = campaignTerritory?.territory_name || 'Unknown Territory';
 
             if (territoryName) {
               await logTerritoryClaimed({
