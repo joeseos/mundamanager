@@ -726,6 +726,7 @@ export default function FighterPage({
             name={fighterData.fighter?.fighter_name || ''}
             type={fighterData.fighter?.fighter_type?.fighter_type || ''}
             sub_type={fighterData.fighter?.fighter_sub_type}
+            label={fighterData.fighter?.label}
             alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
             credits={fighterData.fighter?.credits || 0}
             movement={fighterData.fighter?.movement || 0}

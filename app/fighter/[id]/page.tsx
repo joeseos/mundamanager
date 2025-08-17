@@ -210,6 +210,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       fighter: {
         ...fighterBasic,
         credits: totalCost,
+        alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
         fighter_type: {
           id: fighterTypeData?.data?.id || '',
           fighter_type: fighterTypeData?.data?.fighter_type || 'Unknown',
