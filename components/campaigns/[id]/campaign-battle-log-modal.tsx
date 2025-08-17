@@ -474,21 +474,11 @@ const CampaignBattleLogModal = ({
                 territory_id: territory?.territory_id
               });
               
-              if (territory?.is_custom) {
-                const claimData = {
-                  custom_territory_id: territory.custom_territory_id || territory.id,
-                  is_custom: true
-                };
-                console.log('🎨 Claiming custom territory:', claimData);
-                return claimData;
-              } else {
-                const claimData = {
-                  territory_id: territory?.territory_id || territory?.id || selectedTerritory,
-                  is_custom: false
-                };
-                console.log('🏛️ Claiming regular territory:', claimData);
-                return claimData;
-              }
+              const claimData = {
+                campaign_territory_id: selectedTerritory
+              };
+              console.log('🎯 Claiming territory:', claimData);
+              return claimData;
             })()] 
           : []
       };
