@@ -69,6 +69,19 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
 
     const cleanupOnError = async (err: Error) => {
       try {
+        // Clean up any copied images
+        const { data: files } = await supabase.storage
+          .from('users-images')
+          .list(`gangs/${newGangId}/fighters/`);
+        
+        if (files && files.length > 0) {
+          const filesToRemove = files.map(file => `gangs/${newGangId}/fighters/${file.name}`);
+          await supabase.storage
+            .from('users-images')
+            .remove(filesToRemove);
+        }
+      } catch (_) {}
+      try {
         // Delete effect modifiers for effects tied to new fighters or vehicles
         const { data: newEffects } = await supabase
           .from('fighter_effects')
@@ -345,7 +358,48 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       }
     }
 
-    // 10) Invalidate caches for the new gang
+    // 10) Copy fighter images
+    try {
+      // List all fighter images from the source gang
+      const { data: sourceFiles } = await supabase.storage
+        .from('users-images')
+        .list(`gangs/${params.sourceGangId}/fighters/`);
+      
+      if (sourceFiles && sourceFiles.length > 0) {
+        for (const file of sourceFiles) {
+          try {
+            // Download the source image
+            const { data: imageData, error: downloadError } = await supabase.storage
+              .from('users-images')
+              .download(`gangs/${params.sourceGangId}/fighters/${file.name}`);
+            
+            if (downloadError || !imageData) {
+              console.warn(`Failed to download image ${file.name}:`, downloadError);
+              continue;
+            }
+
+            // Upload to the new gang's location
+            const { error: uploadError } = await supabase.storage
+              .from('users-images')
+              .upload(`gangs/${newGangId}/fighters/${file.name}`, imageData, {
+                contentType: 'image/webp',
+                cacheControl: 'no-cache'
+              });
+
+            if (uploadError) {
+              console.warn(`Failed to upload image ${file.name} to new gang:`, uploadError);
+            }
+          } catch (imageError) {
+            console.warn(`Error copying image ${file.name}:`, imageError);
+          }
+        }
+      }
+    } catch (storageError) {
+      // Log the error but don't fail the gang copy
+      console.error('Error copying fighter images:', storageError);
+    }
+
+    // 11) Invalidate caches for the new gang
     invalidateGangCreation({ gangId: newGangId, userId: user.id });
 
     return { success: true, newGangId };
