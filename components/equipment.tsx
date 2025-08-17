@@ -940,7 +940,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             
             <div className="mt-4 flex flex-col md:flex-row gap-4 md:gap-6 px-4">
               <RangeSlider
-                label="Cost Range"
+                label="Cost"
                 value={costRange}
                 onValueChange={setCostRange}
                 min={minCost}
@@ -949,16 +949,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 className="flex-1"
               />
               
-              <RangeSlider
-                label="Availability Range"
-                value={availabilityRange}
-                onValueChange={setAvailabilityRange}
-                min={minAvailability}
-                max={maxAvailability}
-                step={1}
-                formatValue={(val) => `${val}`}
-                className="flex-1"
-              />
+              {equipmentListType !== 'fighters-list' && (
+                <RangeSlider
+                  label="Availability"
+                  value={availabilityRange}
+                  onValueChange={setAvailabilityRange}
+                  min={minAvailability}
+                  max={maxAvailability}
+                  step={1}
+                  formatValue={(val) => `${val}`}
+                  className="flex-1"
+                />
+              )}
             </div>
           </div>
 
@@ -1128,9 +1130,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
-                                      <span className="text-[10px] font-medium">{item.availability}</span>
-                                    </div>
+                                    {equipmentListType !== 'fighters-list' && (
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                        <span className="text-[10px] font-medium">{item.availability}</span>
+                                      </div>
+                                    )}
                                     <Button
                                       onClick={(e) => {
                                         e.stopPropagation();

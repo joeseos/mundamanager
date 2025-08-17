@@ -38,7 +38,7 @@ export function RangeSlider({
         min={min}
         max={max}
         step={step}
-        minStepsBetweenThumbs={1}
+        minStepsBetweenThumbs={0}
       >
         <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-gray-400">
           <SliderPrimitive.Range className="absolute h-full bg-black" />
