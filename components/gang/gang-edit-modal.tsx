@@ -27,6 +27,7 @@ interface GangUpdates {
   exploration_points_operation: 'add' | 'subtract';
   gang_variants: string[];
   gang_colour: string;
+  gang_affiliation_id: string | null;
 }
 
 interface Campaign {
@@ -54,6 +55,9 @@ interface GangEditModalProps {
   gangColour: string;
   gangVariants: Array<{id: string, variant: string}>;
   availableVariants: Array<{id: string, variant: string}>;
+  gangAffiliationId: string | null;
+  gangAffiliationName: string;
+  gangTypeHasAffiliation: boolean;
   
   // Campaign features
   campaigns?: Campaign[];
@@ -89,6 +93,9 @@ export default function GangEditModal({
   gangColour,
   gangVariants,
   availableVariants,
+  gangAffiliationId,
+  gangAffiliationName,
+  gangTypeHasAffiliation,
   campaigns,
   onSave
 }: GangEditModalProps) {
@@ -106,10 +113,15 @@ export default function GangEditModal({
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(gangVariants.length > 0);
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants);
+  const [editedGangAffiliationId, setEditedGangAffiliationId] = useState(gangAffiliationId || '');
   
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
+  
+  // Gang affiliation management state
+  const [affiliationList, setAffiliationList] = useState<Array<{id: string, name: string}>>([]);
+  const [affiliationListLoaded, setAffiliationListLoaded] = useState(false);
   
   
   // Colour picker modal state
@@ -129,8 +141,9 @@ export default function GangEditModal({
       setEditedGangColour(gangColour);
       setEditedGangIsVariant(gangVariants.length > 0);
       setEditedGangVariants([...gangVariants]);
+      setEditedGangAffiliationId(gangAffiliationId || '');
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants]);
+  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants, gangAffiliationId]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -150,6 +163,28 @@ export default function GangEditModal({
     }
   };
 
+  const fetchAffiliations = async () => {
+    if (affiliationListLoaded) return;
+    
+    try {
+      const response = await fetch('/api/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      const data = await response.json();
+      
+      // Extract all available affiliations from the first gang type that has them
+      const gangTypeWithAffiliations = data.find((type: any) => type.available_affiliations && type.available_affiliations.length > 0);
+      if (gangTypeWithAffiliations) {
+        setAffiliationList(gangTypeWithAffiliations.available_affiliations);
+      }
+      setAffiliationListLoaded(true);
+    } catch (error) {
+      console.error('Error fetching affiliations:', error);
+      toast({
+        description: 'Failed to load affiliations',
+        variant: "destructive"
+      });
+    }
+  };
 
   const syncGangVariantsWithAlignment = (newAlignment: string) => {
     const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
@@ -191,6 +226,7 @@ export default function GangEditModal({
         exploration_points_operation: explorationPointsDifference >= 0 ? 'add' : 'subtract',
         gang_variants: editedGangVariants.map(v => v.id),
         gang_colour: editedGangColour,
+        gang_affiliation_id: editedGangAffiliationId === '' ? null : editedGangAffiliationId,
       };
 
       const success = await onSave(updates);
@@ -394,6 +430,36 @@ export default function GangEditModal({
           )}
         </select>
       </div>
+
+      {/* Gang Affiliation Section - Only show if gang type supports affiliations */}
+      {gangTypeHasAffiliation && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Gang Affiliation</p>
+          <select
+            value={editedGangAffiliationId || ""}
+            onChange={(e) => setEditedGangAffiliationId(e.target.value)}
+            onFocus={fetchAffiliations}
+            className="w-full p-2 border rounded-md"
+          >
+            {/* Default "None" option */}
+            <option value="">None</option>
+
+            {/* Display affiliations after they are loaded */}
+            {affiliationListLoaded ? (
+              affiliationList.map((affiliation) => (
+                <option key={affiliation.id} value={affiliation.id}>
+                  {affiliation.name}
+                </option>
+              ))
+            ) : (
+              <>
+                {gangAffiliationId && <option value={gangAffiliationId}>{gangAffiliationName}</option>}
+                <option value="" disabled>Loading Affiliations...</option>
+              </>
+            )}
+          </select>
+        </div>
+      )}
 
       <div className="mt-4">
         <div className="flex items-center space-x-2">

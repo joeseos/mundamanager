@@ -32,6 +32,11 @@ type GangType = {
   gang_type: string;
   alignment: string;
   image_url?: string;
+  affiliation: boolean;
+  available_affiliations: Array<{
+    id: string;
+    name: string;
+  }>;
 };
 
 interface CreateGangModalProps {
@@ -72,6 +77,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
+  const [selectedAffiliation, setSelectedAffiliation] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
@@ -82,28 +88,28 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       if (gangTypes.length === 0 && !isLoadingGangTypes) {
         setIsLoadingGangTypes(true);
         try {
-          const supabase = createClient();
-          
-          // Also fetch gang type images
-          const { data: gangTypesData, error: gangTypesError } = await supabase
-            .from('gang_types')
-            .select('gang_type_id, gang_type, alignment, image_url')
-            .eq('is_hidden', false)
-            .order('gang_type');
-          
-          if (gangTypesError) {
-            throw gangTypesError;
+          const response = await fetch('/api/gang-types');
+          if (!response.ok) {
+            throw new Error('Failed to fetch gang types');
           }
+          
+          const gangTypesData = await response.json();
+          
+          // Filter out hidden gang types if needed
+          const visibleGangTypes = gangTypesData.filter((type: GangType) => {
+            // Add logic to filter hidden types if the API doesn't handle this
+            return true; // For now, assume API handles filtering
+          });
           
           // Create a map of gang_type_id to image_url
           const imageMap: Record<string, string> = {};
-          gangTypesData.forEach(type => {
+          visibleGangTypes.forEach((type: GangType) => {
             if (type.image_url) {
               imageMap[type.gang_type_id] = type.image_url;
             }
           });
           setGangTypeImages(imageMap);
-          setGangTypes(gangTypesData);
+          setGangTypes(visibleGangTypes);
         } catch (err) {
           console.error('Error fetching gang types:', err);
           setError('Failed to load gang types. Please try again.');
@@ -116,6 +122,26 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchGangTypes();
   }, []);
 
+  // Clear affiliation when gang type changes
+  useEffect(() => {
+    setSelectedAffiliation("");
+  }, [gangType]);
+
+  // Helper function to check if form is valid
+  const isFormValid = () => {
+    if (!gangName.trim() || !gangType || isLoading) {
+      return false;
+    }
+    
+    // Check if affiliation is required and selected
+    const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
+    if (selectedGangType?.affiliation && !selectedAffiliation) {
+      return false;
+    }
+    
+    return true;
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
@@ -123,13 +149,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         
         // If we're in an input field and the form isn't valid, let the default behavior happen
         if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') 
-            && (!gangName.trim() || !gangType || isLoading)) {
+            && !isFormValid()) {
           return;
         }
         
         event.preventDefault();
         // If form is valid, create the gang
-        if (gangName.trim() && gangType && !isLoading) {
+        if (isFormValid()) {
           handleCreateGang();
         }
       } else if (event.key === 'Escape') {
@@ -139,7 +165,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, gangName, gangType, isLoading]);
+  }, [onClose, gangName, gangType, selectedAffiliation, isLoading, gangTypes]);
 
   const handleCreateGang = async () => {
     if (gangName && gangType) {
@@ -158,7 +184,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           name: gangName,
           gangTypeId: gangType,
           gangType: selectedGangType.gang_type,
-          alignment: selectedGangType.alignment
+          alignment: selectedGangType.alignment,
+          gangAffiliationId: selectedAffiliation || null
         });
 
         if (!result.success) {
@@ -170,6 +197,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Reset form and close modal first for better UX
         setGangName("")
         setGangType("")
+        setSelectedAffiliation("")
         onClose()
         
         // Check if we're currently on the gangs tab, if not redirect to it
@@ -269,6 +297,32 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               ))}
             </select>
           </div>
+          
+          {/* Conditional Affiliation Dropdown - moved to be right after Gang Type */}
+          {(() => {
+            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
+            return selectedGangType?.affiliation ? (
+              <div>
+                <label htmlFor="gang-affiliation" className="block text-sm font-medium text-gray-700 mb-1">
+                  Gang Affiliation *
+                </label>
+                <select
+                  id="gang-affiliation"
+                  value={selectedAffiliation}
+                  onChange={(e) => setSelectedAffiliation(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select gang affiliation</option>
+                  {selectedGangType.available_affiliations.map((affiliation) => (
+                    <option key={affiliation.id} value={affiliation.id}>
+                      {affiliation.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null;
+          })()}
+          
           <div>
             <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
               Gang Name *
@@ -281,11 +335,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               onChange={(e) => setGangName(e.target.value)}
             />
           </div>
+          
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <SubmitButton 
             onClick={handleCreateGang} 
             className="w-full" 
-            disabled={isLoading || !gangName.trim() || !gangType}
+            disabled={!isFormValid()}
             pendingText="Creating..."
           >
             Create Gang

@@ -224,6 +224,7 @@ export default function AddFighter({
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
+  const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
   
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<Array<{
@@ -282,7 +283,8 @@ export default function AddFighter({
         alliance_crew_name: type.alliance_crew_name || '',
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
-        fighter_sub_type_id: type.sub_type?.id
+        fighter_sub_type_id: type.sub_type?.id,
+        available_legacies: type.available_legacies || []
       }));
       
       setFighterTypes(transformedData);
@@ -325,6 +327,7 @@ export default function AddFighter({
     const typeId = e.target.value;
     setSelectedFighterTypeId(typeId);
     setSelectedSubTypeId(''); // Reset sub-type selection
+    setSelectedLegacyId(''); // Reset legacy selection
     setSelectedEquipmentIds([]); // Reset equipment selections when type changes
     setSelectedEquipment([]); // Reset equipment with costs
     
@@ -364,6 +367,7 @@ export default function AddFighter({
   const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const subTypeId = e.target.value;
     setSelectedSubTypeId(subTypeId);
+    setSelectedLegacyId(''); // Reset legacy selection
     setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
     setSelectedEquipment([]); // Reset equipment with costs
     
@@ -854,7 +858,8 @@ export default function AddFighter({
         selected_equipment: selectedEquipment,
         default_equipment: defaultEquipment,
         user_id: user.id,
-        use_base_cost_for_rating: useBaseCostForRating
+        use_base_cost_for_rating: useBaseCostForRating,
+        fighter_gang_legacy_id: selectedLegacyId || undefined
       });
 
       if (!result.success) {
@@ -992,6 +997,7 @@ export default function AddFighter({
     setFighterCost('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);  // Reset equipment with costs
+    setSelectedLegacyId(''); // Reset legacy selection
     setUseBaseCostForRating(true);
     setFetchError(null);
     setFighterTypes([]); // Reset fighter types
@@ -1129,6 +1135,34 @@ export default function AddFighter({
           </select>
         </div>
       )}
+
+      {/* Gang Legacy Selection */}
+      {(() => {
+        // Get the current fighter type (sub-type if selected, otherwise main type)
+        const currentFighterTypeId = selectedSubTypeId || selectedFighterTypeId;
+        const currentFighterType = fighterTypes.find(t => t.id === currentFighterTypeId);
+        const availableLegacies = currentFighterType?.available_legacies || [];
+        
+        return availableLegacies.length > 0 ? (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Gang Legacy
+            </label>
+            <select
+              value={selectedLegacyId}
+              onChange={(e) => setSelectedLegacyId(e.target.value)}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">No Legacy</option>
+              {availableLegacies.map((legacy) => (
+                <option key={legacy.id} value={legacy.id}>
+                  {legacy.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null;
+      })()}
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">

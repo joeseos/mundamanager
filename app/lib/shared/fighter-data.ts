@@ -31,6 +31,12 @@ export interface FighterBasic {
   fighter_class_id?: string;
   fighter_type?: string;
   fighter_type_id: string;
+  fighter_gang_legacy_id?: string | null;
+  fighter_gang_legacy?: {
+    id: string;
+    fighter_type_id: string;
+    name?: string;
+  } | null;
   fighter_sub_type_id?: string;
   killed?: boolean;
   starved?: boolean;
@@ -135,6 +141,12 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           fighter_class_id,
           fighter_type,
           fighter_type_id,
+          fighter_gang_legacy_id,
+          fighter_gang_legacy:fighter_gang_legacy_id (
+            id,
+            fighter_type_id,
+            name
+          ),
           fighter_sub_type_id,
           killed,
           starved,
