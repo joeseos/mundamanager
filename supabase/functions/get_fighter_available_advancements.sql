@@ -26,9 +26,9 @@ BEGIN
   END IF;
   
   -- Determine if the fighter uses flat costs based on fighter_class
-  -- Only Gangers and Exotic Beasts use flat costs
+  -- Gangers, Exotic Beasts, Juves, and Prospects use flat costs
   v_uses_flat_cost := 
-    v_fighter_class IN ('Ganger', 'Exotic Beast');
+    v_fighter_class IN ('Ganger', 'Exotic Beast', 'Juve', 'Prospect');
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
