@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
 import { AuthApiError } from '@supabase/supabase-js';
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 
 export default function PasswordChange() {
   const [isEditing, setIsEditing] = useState(false);

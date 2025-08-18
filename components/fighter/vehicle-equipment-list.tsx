@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
-import Modal from '../ui/modal';
+import Modal from '../modal';
 import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';

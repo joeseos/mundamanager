@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Modal from "../ui/modal"
+import Modal from "../modal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImInfo } from "react-icons/im"

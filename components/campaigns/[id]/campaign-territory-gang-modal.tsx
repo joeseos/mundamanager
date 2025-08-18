@@ -1,6 +1,6 @@
 'use client'
 
-import Modal from "@/components/ui/modal"
+import Modal from "@/components/modal"
 import { useState, useEffect } from "react"
 import { createClient } from "@/utils/supabase/client"
 import Link from 'next/link'

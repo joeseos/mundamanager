@@ -8,7 +8,7 @@ import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-
 import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
 import { deleteBattleLog } from "@/app/lib/campaigns/[id]/battle-logs";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 import { LuTrash2 } from "react-icons/lu";
 
 interface Member {

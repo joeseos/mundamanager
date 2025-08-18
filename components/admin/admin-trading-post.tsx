@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 
 interface TradingPostType {
   id: string;

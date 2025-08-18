@@ -5,7 +5,7 @@ import { CircleAlert, Info, TriangleAlert, UserPlus, Check, X } from 'lucide-rea
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
-import Modal from '@/components/ui/modal';
+import Modal from '@/components/modal';
 import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { LuTrash2 } from "react-icons/lu";

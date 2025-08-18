@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Modal from "@/components/ui/modal"
+import Modal from "@/components/modal"
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface TerritoryEditModalProps {
