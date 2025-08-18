@@ -37,25 +37,20 @@ export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
             <li key={campaign.campaign_member_id}>
               <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
-                  {campaign.image_url ? (
+                  {campaign.image_url || campaign.campaign_type_image_url ? (
                     <Image
-                      src={campaign.image_url}
+                      src={campaign.image_url || campaign.campaign_type_image_url}
                       alt={campaign.campaign_name}
                       width={60}
                       height={60}
-                      className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90 bg-gray-200"
+                      className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
                       priority={false}
                       onError={handleImageError}
                     />
                   ) : (
-                    <Image
-                      src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1735682275/IMG_6113_odsp7l.jpg"
-                      alt="Default Campaign"
-                      width={60}
-                      height={60}
-                      className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90 bg-gray-200"
-                      priority={false}
-                    />
+                    <div className="absolute w-[60px] h-[60px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
+                      {campaign.campaign_name.charAt(0)}
+                    </div>
                   )}
                   <Image
                     src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
