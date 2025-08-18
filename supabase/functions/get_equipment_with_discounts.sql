@@ -224,7 +224,7 @@ AS $$
         AND
         ($2 IS NULL 
          OR trim(both from e.equipment_category) = trim(both from $2))
-        AND ($7 IS NULL OR e.id = $7)
+        AND (only_equipment_id IS NULL OR e.id = only_equipment_id)
         AND
         (
             $4 IS NULL
@@ -320,4 +320,5 @@ AS $$
         ce.user_id = auth.uid() -- Only show user's own custom equipment
         AND ($2 IS NULL 
          OR trim(both from ce.equipment_category) = trim(both from $2))
+        AND (only_equipment_id IS NULL OR ce.id = only_equipment_id)
 $$;
