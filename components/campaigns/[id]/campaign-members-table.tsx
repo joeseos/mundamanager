@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
-import Modal from "@/components/ui/modal"
+import Modal from "@/components/modal"
 import Link from 'next/link'
 import { 
   addGangToCampaign, 

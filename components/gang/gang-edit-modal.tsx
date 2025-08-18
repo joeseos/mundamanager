@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import Modal from '@/components/ui/modal';
+import Modal from '@/components/modal';
 import DeleteGangButton from "./delete-gang-button";
 import { useToast } from "@/components/ui/use-toast";
 import { HexColorPicker } from "react-colorful";

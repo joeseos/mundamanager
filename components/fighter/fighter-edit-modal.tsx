@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";

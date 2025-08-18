@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X } from "lucide-react";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 import { Badge } from "@/components/ui/badge";
 
 // Mapping of stat_name (database value) to display_name (UI label)

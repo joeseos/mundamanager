@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { ChevronRight, X } from "lucide-react";

@@ -9,7 +9,7 @@ import { GiAncientRuins } from "react-icons/gi";
 import { IoHome } from "react-icons/io5";
 import { Tooltip } from "react-tooltip";
 import Link from "next/link";
-import Modal from "@/components/ui/modal";
+import Modal from "@/components/modal";
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
 import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
 import { 

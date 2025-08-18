@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
-import Modal from '@/components/ui/modal'
+import Modal from '@/components/modal'
 import { deleteFriend } from '@/app/actions/friends'
 import { X } from 'lucide-react'
 import { useTransition, useOptimistic } from 'react'

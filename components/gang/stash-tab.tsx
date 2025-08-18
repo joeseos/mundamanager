@@ -13,7 +13,7 @@ import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment';
-import Modal from '@/components/ui/modal';
+import Modal from '@/components/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';

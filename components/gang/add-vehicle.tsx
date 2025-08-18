@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
-import Modal from '@/components/ui/modal';
+import Modal from '@/components/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
