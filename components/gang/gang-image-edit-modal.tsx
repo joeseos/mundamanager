@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { updateGangImage } from '@/app/actions/update-gang-image';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 
 interface GangImageEditModalProps {
   isOpen: boolean;

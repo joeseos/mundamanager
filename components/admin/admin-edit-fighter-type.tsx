@@ -12,7 +12,7 @@ import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { AdminFighterTradingPost } from "@/components/admin/admin-fighter-trading-post";
 
 interface FighterSubType {

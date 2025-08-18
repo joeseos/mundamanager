@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { X, Plus, Trash2 } from "lucide-react";
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 
 type LineageType = 'legacy' | 'affiliation';
 
