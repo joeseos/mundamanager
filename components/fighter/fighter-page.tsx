@@ -6,7 +6,7 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
 import { Equipment } from '@/types/equipment';

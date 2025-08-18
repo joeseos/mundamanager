@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 
 interface PrintModalProps {
   gangId: string;

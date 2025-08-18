@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { deleteGang } from '@/app/actions/delete-gang';
 
