@@ -11,6 +11,7 @@ import {
   invalidateGangRating,
   invalidateFighterAdvancement
 } from '@/utils/cache-tags';
+import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -305,6 +306,21 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     if (updateError) {
       throw new Error(`Failed to update gang credits: ${updateError.message}`);
+    }
+
+    // Log equipment action
+    try {
+      await logEquipmentAction({
+        gang_id: params.gang_id,
+        fighter_id: params.fighter_id,
+        vehicle_id: params.vehicle_id,
+        equipment_name: equipmentDetails.equipment_name,
+        purchase_cost: ratingCost,
+        action_type: 'purchased',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment action:', logError);
     }
 
     // Initialize rating delta
@@ -854,6 +870,28 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    // Log equipment deletion
+    try {
+      const equipmentData = equipmentBefore.equipment as any;
+      const customEquipmentData = equipmentBefore.custom_equipment as any;
+      const equipmentName = equipmentData?.equipment_name || 
+                           customEquipmentData?.equipment_name || 
+                           'Unknown Equipment';
+
+
+      await logEquipmentAction({
+        gang_id: params.gang_id,
+        fighter_id: equipmentBefore.fighter_id,
+        vehicle_id: equipmentBefore.vehicle_id,
+        equipment_name: equipmentName,
+        purchase_cost: equipmentBefore.purchase_cost || 0,
+        action_type: 'sold'
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment deletion:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Update rating if needed

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { logEquipmentAction } from './logs/equipment-logs';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -220,6 +221,39 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       invalidateVehicleData(equipmentData.vehicle_id);
     }
     
+    // Log equipment moved to stash
+    try {
+      // Get equipment name for logging
+      let equipmentName = 'Unknown Equipment';
+      if (equipmentData.equipment_id) {
+        const { data: equipment } = await supabase
+          .from('equipment')
+          .select('equipment_name')
+          .eq('id', equipmentData.equipment_id)
+          .single();
+        if (equipment) equipmentName = equipment.equipment_name;
+      } else if (equipmentData.custom_equipment_id) {
+        const { data: customEquipment } = await supabase
+          .from('custom_equipment')
+          .select('equipment_name')
+          .eq('id', equipmentData.custom_equipment_id)
+          .single();
+        if (customEquipment) equipmentName = customEquipment.equipment_name;
+      }
+
+      await logEquipmentAction({
+        gang_id: gangId,
+        fighter_id: equipmentData.fighter_id || undefined,
+        vehicle_id: equipmentData.vehicle_id || undefined,
+        equipment_name: equipmentName,
+        purchase_cost: equipmentData.purchase_cost || 0,
+        action_type: 'moved_to_stash',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment moved to stash:', logError);
+    }
+
     // Always invalidate gang overview to refresh stash display
     invalidateGangFinancials(gangId);
     

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { logEquipmentAction } from './logs/equipment-logs';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -122,6 +123,24 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Determine sell value (manual or default to purchase cost)
     const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;
 
+    // Get equipment name for logging before deletion
+    let equipmentName = 'Unknown Equipment';
+    if (equipmentData.equipment_id) {
+      const { data: equipment } = await supabase
+        .from('equipment')
+        .select('equipment_name')
+        .eq('id', equipmentData.equipment_id)
+        .single();
+      if (equipment) equipmentName = equipment.equipment_name;
+    } else if (equipmentData.custom_equipment_id) {
+      const { data: customEquipment } = await supabase
+        .from('custom_equipment')
+        .select('equipment_name')
+        .eq('id', equipmentData.custom_equipment_id)
+        .single();
+      if (customEquipment) equipmentName = customEquipment.equipment_name;
+    }
+
     // Find associated effects before deletion
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
@@ -136,6 +155,22 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    // Log equipment sale
+    try {
+      await logEquipmentAction({
+        gang_id: gangId,
+        fighter_id: equipmentData.fighter_id,
+        vehicle_id: equipmentData.vehicle_id,
+        equipment_name: equipmentName,
+        purchase_cost: sellValue,
+        action_type: 'sold',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment sale:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Update gang credits - get current credits and update manually

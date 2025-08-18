@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface AddVehicleDamageParams {
   vehicleId: string;
@@ -63,6 +64,20 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
       }
     } catch (e) {
       console.error('Failed to update rating for vehicle damage:', e);
+    }
+
+    // Log vehicle damage action
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: params.vehicleId,
+        fighter_id: params.fighterId,
+        damage_name: params.damageName,
+        action_type: 'vehicle_damage_added',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle damage action:', logError);
     }
 
     // Invalidate cache for the fighter and gang

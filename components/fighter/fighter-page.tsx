@@ -892,6 +892,7 @@ export default function FighterPage({
               }}
               fighterId={fighterData.fighter?.id || ''}
               vehicleId={vehicle.id}
+              gangId={fighterData.gang?.id || ''}
               vehicle={vehicle}
               gangCredits={fighterData.gang?.credits || 0}
               onGangCreditsUpdate={(newCredits) => {

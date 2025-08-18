@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface RemoveVehicleDamageParams {
   damageId: string;
@@ -22,10 +23,10 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Lookup vehicle assignment and effect credits before delete
+    // Lookup effect data and effect namebefore delete
     const { data: effectRow } = await supabase
       .from('fighter_effects')
-      .select('vehicle_id, type_specific_data')
+      .select('vehicle_id, type_specific_data, effect_name')
       .eq('id', params.damageId)
       .single();
 
@@ -67,6 +68,20 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
       }
     } catch (e) {
       console.error('Failed to update rating after removing vehicle damage:', e);
+    }
+
+    // Log vehicle damage removal
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: effectRow?.vehicle_id || '',
+        fighter_id: params.fighterId,
+        damage_name: effectRow?.effect_name || 'Unknown damage',
+        action_type: 'vehicle_damage_removed',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle damage removal:', logError);
     }
 
     // Invalidate cache for the fighter and gang
