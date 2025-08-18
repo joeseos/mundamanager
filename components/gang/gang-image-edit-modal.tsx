@@ -5,14 +5,13 @@ import Cropper from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { updateFighterImage } from '@/app/actions/update-fighter-image';
+import { updateGangImage } from '@/app/actions/update-gang-image';
 import Modal from '@/components/modal';
 
-interface FighterImageEditModalProps {
+interface GangImageEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentImageUrl?: string;
-  fighterId: string;
   gangId: string;
   onImageUpdate: (newImageUrl: string) => void;
 }
@@ -24,11 +23,10 @@ interface CropArea {
   height: number;
 }
 
-export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
+export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   isOpen,
   onClose,
   currentImageUrl,
-  fighterId,
   gangId,
   onImageUpdate,
 }) => {
@@ -215,8 +213,8 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       
       // Create the file path with timestamp to avoid cache issues
       const timestamp = Date.now();
-      const fileName = `${fighterId}_${timestamp}.webp`;
-      const filePath = `gangs/${gangId}/fighters/${fileName}`;
+      const fileName = `${gangId}_${timestamp}.webp`;
+      const filePath = `gangs/${gangId}/${fileName}`;
       
       const { data, error } = await supabase.storage
         .from('users-images')
@@ -230,19 +228,19 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         throw error;
       }
 
-      // Clean up old images for this fighter
+      // Clean up old images for this gang
       const { data: files } = await supabase.storage
         .from('users-images')
-        .list(`gangs/${gangId}/fighters/`);
+        .list(`gangs/${gangId}/`);
       
       const filesToRemove: string[] = [];
       
       if (files) {
-        // Find all files that start with the fighter ID (excluding the new one we just uploaded)
+        // Find all files that start with the gang ID (excluding the new one we just uploaded)
         files.forEach(file => {
-          if ((file.name.startsWith(`${fighterId}_`) || file.name === `${fighterId}.webp`) && 
+          if ((file.name.startsWith(`${gangId}_`) || file.name === `${gangId}.webp`) && 
               file.name !== fileName) {
-            filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
+            filesToRemove.push(`gangs/${gangId}/${file.name}`);
           }
         });
       }
@@ -260,10 +258,10 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         .getPublicUrl(filePath);
 
       // Update the database using server action (includes cache invalidation)
-      const updateResult = await updateFighterImage(fighterId, gangId, urlData.publicUrl);
+      const updateResult = await updateGangImage(gangId, urlData.publicUrl);
       
       if (!updateResult.success) {
-        throw new Error(updateResult.error || 'Failed to update fighter image');
+        throw new Error(updateResult.error || 'Failed to update gang image');
       }
 
       // Update the UI
@@ -271,7 +269,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       
       toast({
         title: "Success",
-        description: "Fighter image updated successfully",
+        description: "Gang image updated successfully",
       });
 
       return true;
@@ -295,21 +293,21 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       const supabase = createClient();
       
       // Remove from storage if exists (try both old and new filename patterns)
-      const oldFileName = `${fighterId}.webp`;
-      const oldFilePath = `gangs/${gangId}/fighters/${oldFileName}`;
+      const oldFileName = `${gangId}.webp`;
+      const oldFilePath = `gangs/${gangId}/${oldFileName}`;
       
-      // List files in the fighters directory to find the actual filename
+      // List files in the gang directory to find the actual filename
       const { data: files } = await supabase.storage
         .from('users-images')
-        .list(`gangs/${gangId}/fighters/`);
+        .list(`gangs/${gangId}/`);
       
       const filesToRemove: string[] = [];
       
       if (files) {
-        // Find all files that start with the fighter ID
+        // Find all files that start with the gang ID
         files.forEach(file => {
-          if (file.name.startsWith(`${fighterId}_`) || file.name === `${fighterId}.webp`) {
-            filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
+          if (file.name.startsWith(`${gangId}_`) || file.name === `${gangId}.webp`) {
+            filesToRemove.push(`gangs/${gangId}/${file.name}`);
           }
         });
       }
@@ -322,10 +320,10 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       }
 
       // Update database using server action (includes cache invalidation)
-      const updateResult = await updateFighterImage(fighterId, gangId, null);
+      const updateResult = await updateGangImage(gangId, null);
       
       if (!updateResult.success) {
-        throw new Error(updateResult.error || 'Failed to remove fighter image');
+        throw new Error(updateResult.error || 'Failed to remove gang image');
       }
 
       // Update the UI
@@ -333,7 +331,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       
       toast({
         title: "Success",
-        description: "Fighter image removed successfully",
+        description: "Gang image removed successfully",
       });
 
       return true;
@@ -355,7 +353,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
 
   return (
     <Modal
-      title="Edit Fighter Image"
+      title="Edit Gang Image"
       onClose={onClose}
       onConfirm={handleSave}
       confirmText={isUploading ? (isRemoving ? 'Removing Image...' : 'Uploading...') : 'Upload Image'}
@@ -369,7 +367,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
             <div className="flex items-center justify-center space-x-4">
               <img
                 src={currentImageUrl}
-                alt="Current fighter"
+                alt="Current gang"
                 className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
               />
               <Button

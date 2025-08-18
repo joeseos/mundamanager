@@ -29,6 +29,7 @@ import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { GangImageEditModal } from './gang-image-edit-modal';
 
 
 interface GangProps {
@@ -149,6 +150,8 @@ export default function Gang({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
 
@@ -467,6 +470,16 @@ export default function Gang({
     }
   };
 
+  const handleGangImageClick = () => {
+    if (userPermissions?.canEdit) {
+      setShowImageModal(true);
+    }
+  };
+
+  const handleGangImageUpdate = (newImageUrl: string) => {
+    setCurrentGangImageUrl(newImageUrl);
+  };
+
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
     try {
       const result = await updateGangPositioning({
@@ -516,33 +529,42 @@ export default function Gang({
     >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
-          {/* Left Section: Illustration */}
+          {/* Left Section: Gang Image */}
           <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
-            {image_url || gang_type_image_url ? (
+            <div 
+              className={`absolute rounded-full z-10 w-[180px] h-[180px] mt-1 overflow-hidden`}
+            >
+              {currentGangImageUrl || gang_type_image_url ? (
+                <Image
+                  src={currentGangImageUrl || gang_type_image_url}
+                  alt={name}
+                  width={180}
+                  height={180}
+                  className="rounded-full object-cover w-full h-full"
+                  priority={false}
+                  quality={100}
+                  onError={handleImageError}
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-gray-200 flex items-center justify-center">
+                  {name.charAt(0)}
+                </div>
+              )}
+            </div>
+            <div 
+              className={`absolute z-20 w-[250px] h-[250px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+              onClick={handleGangImageClick}
+            >
               <Image
-                src={image_url || gang_type_image_url}
-                alt={name}
-                width={180}
-                height={180}
-                className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
-                priority={false}
+                src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                alt="Cogwheel"
+                width={250}
+                height={250}
+                className="w-full h-full"
+                priority
                 quality={100}
-                onError={handleImageError}
               />
-            ) : (
-              <div className="absolute w-[180px] h-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
-                {name.charAt(0)}
-              </div>
-            )}
-            <Image
-              src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
-              alt="Cogwheel"
-              width={250}
-              height={250}
-              className="absolute z-20 w-[250px] h-auto"
-              priority
-              quality={100}
-            />
+            </div>
           </div>
 
           {/* Right Section: Content */}
@@ -847,6 +869,13 @@ export default function Gang({
             currentName={name}
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
+          />
+          <GangImageEditModal
+            isOpen={showImageModal}
+            onClose={() => setShowImageModal(false)}
+            currentImageUrl={currentGangImageUrl}
+            gangId={id}
+            onImageUpdate={handleGangImageUpdate}
           />
           <Tooltip
             id="gang-composition-tooltip"
