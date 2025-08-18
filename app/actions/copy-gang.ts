@@ -51,6 +51,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         note: sourceGang.note,
         note_backstory: sourceGang.note_backstory,
         positioning: sourceGang.positioning ?? null,
+        image_url: sourceGang.image_url || null,
         rating: sourceGang.rating ?? 0,
         last_updated: new Date().toISOString(),
       })
@@ -69,13 +70,13 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
 
     const cleanupOnError = async (err: Error) => {
       try {
-        // Clean up any copied images
+        // Clean up any copied images (both gang and fighter images)
         const { data: files } = await supabase.storage
           .from('users-images')
-          .list(`gangs/${newGangId}/fighters/`);
+          .list(`gangs/${newGangId}/`);
         
         if (files && files.length > 0) {
-          const filesToRemove = files.map(file => `gangs/${newGangId}/fighters/${file.name}`);
+          const filesToRemove = files.map(file => `gangs/${newGangId}/${file.name}`);
           await supabase.storage
             .from('users-images')
             .remove(filesToRemove);
@@ -358,7 +359,47 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       }
     }
 
-    // 10) Copy fighter images
+    // 10) Copy gang image
+    try {
+      // Check if source gang has a custom image
+      if (sourceGang.image_url && sourceGang.image_url.includes('users-images')) {
+        // Extract the filename from the source gang's image URL
+        const urlParts = sourceGang.image_url.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        
+        if (fileName && (fileName.startsWith(`${params.sourceGangId}_`) || fileName === `${params.sourceGangId}.webp`)) {
+          try {
+            // Download the source gang image
+            const { data: imageData, error: downloadError } = await supabase.storage
+              .from('users-images')
+              .download(`gangs/${params.sourceGangId}/${fileName}`);
+            
+            if (downloadError || !imageData) {
+              console.warn(`Failed to download gang image ${fileName}:`, downloadError);
+            } else {
+              // Upload to the new gang's location
+              const { error: uploadError } = await supabase.storage
+                .from('users-images')
+                .upload(`gangs/${newGangId}/${fileName}`, imageData, {
+                  contentType: 'image/webp',
+                  cacheControl: 'no-cache'
+                });
+
+              if (uploadError) {
+                console.warn(`Failed to upload gang image ${fileName} to new gang:`, uploadError);
+              }
+            }
+          } catch (imageError) {
+            console.warn(`Error copying gang image ${fileName}:`, imageError);
+          }
+        }
+      }
+    } catch (storageError) {
+      // Log the error but don't fail the gang copy
+      console.error('Error copying gang image:', storageError);
+    }
+
+    // 11) Copy fighter images
     try {
       // List all fighter images from the source gang
       const { data: sourceFiles } = await supabase.storage
@@ -399,7 +440,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       console.error('Error copying fighter images:', storageError);
     }
 
-    // 11) Invalidate caches for the new gang
+    // 12) Invalidate caches for the new gang
     invalidateGangCreation({ gangId: newGangId, userId: user.id });
 
     return { success: true, newGangId };

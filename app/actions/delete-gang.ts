@@ -33,36 +33,47 @@ export async function deleteGang(gangId: string) {
       throw deleteError;
     }
 
-    // Clean up all fighter images for this gang
+    // Clean up all images for this gang (both gang image and fighter images)
     try {
-      // List all files in the gang's fighters directory
-      const { data: files } = await supabase.storage
-        .from('users-images')
-        .list(`gangs/${gangId}/fighters/`);
-      
       const filesToRemove: string[] = [];
-      
-      if (files && files.length > 0) {
-        // Add all files in the gang's fighters directory to removal list
-        files.forEach(file => {
-          filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
-        });
-        
-        // Remove all fighter images for this gang
+
+      // 1) Remove any files directly under gangs/{gangId}/ (e.g., gang image)
+      try {
+        const { data: gangRootFiles } = await supabase.storage
+          .from('users-images')
+          .list(`gangs/${gangId}/`);
+        if (gangRootFiles && gangRootFiles.length > 0) {
+          gangRootFiles.forEach(file => {
+            // Skip directory markers; list returns only files at this level
+            if (file.name) filesToRemove.push(`gangs/${gangId}/${file.name}`);
+          });
+        }
+      } catch (e) {
+        console.log('Note: failed listing gang root files for deletion', e);
+      }
+
+      // 2) Remove any files under gangs/{gangId}/fighters/
+      try {
+        const { data: fighterFiles } = await supabase.storage
+          .from('users-images')
+          .list(`gangs/${gangId}/fighters/`);
+        if (fighterFiles && fighterFiles.length > 0) {
+          fighterFiles.forEach(file => {
+            if (file.name) filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
+          });
+        }
+      } catch (e) {
+        console.log('Note: failed listing fighter files for deletion', e);
+      }
+
+      // 3) Remove accumulated files (if any)
+      if (filesToRemove.length > 0) {
         await supabase.storage
           .from('users-images')
           .remove(filesToRemove);
       }
 
-      // Try to remove the entire gang folder (this might not work if folder is empty)
-      try {
-        await supabase.storage
-          .from('users-images')
-          .remove([`gangs/${gangId}/`]);
-      } catch (folderError) {
-        // Folder removal might fail if it's empty or doesn't exist, which is fine
-        console.log('Gang folder removal note:', folderError);
-      }
+      // Supabase folders are virtual; once files are gone, the folder disappears in UI
     } catch (storageError) {
       // Log the error but don't fail the gang deletion
       console.error('Error cleaning up gang images:', storageError);
