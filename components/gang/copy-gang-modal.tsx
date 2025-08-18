@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { copyGang } from '@/app/actions/copy-gang';
 import { useRouter } from 'next/navigation';

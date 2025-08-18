@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomTerritory } from '@/app/lib/customise/custom-territories';
 import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
 import { Edit } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
-import Modal from '../modal';
+import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';

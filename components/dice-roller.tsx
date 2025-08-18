@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 
 type Result<T> = { roll: number; item: T };
 
