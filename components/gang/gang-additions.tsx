@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
 import { useToast } from "@/components/ui/use-toast";
 import { gangAdditionRank } from "@/utils/gangAdditionRank";

@@ -12,7 +12,7 @@ import { AdminEditEquipmentModal } from "@/components/admin/admin-edit-equipment
 import { AdminCreateSkillModal } from "@/components/admin/admin-create-skill";
 import { AdminEditSkillModal } from "@/components/admin/admin-edit-skill";
 import { AdminGangLineageModal } from "@/components/admin/admin-gang-lineage";
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastProvider } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';

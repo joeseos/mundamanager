@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useRouter } from 'next/navigation';

@@ -6,7 +6,7 @@ import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
 import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/customise/custom-equipment';
 import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
 import { Edit } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';

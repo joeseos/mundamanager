@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Equipment } from '@/types/equipment';
-import Modal from '@/components/modal';
+import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface EquipmentWithId extends Equipment {

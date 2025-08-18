@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { Plus, Minus } from "lucide-react";
 
 interface XpCase {

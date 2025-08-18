@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import Modal from "@/components/modal";
+import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills } from '@/types/fighter';
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
