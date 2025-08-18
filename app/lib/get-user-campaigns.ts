@@ -13,6 +13,7 @@ export type Campaign = {
   role?: string;
   status?: string;
   image_url: string;
+  campaign_type_image_url: string;
   user_gangs?: { id: string; name: string }[];
 };
 
@@ -63,7 +64,7 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
     const campaignTypeIds = Array.from(new Set(campaigns.map(c => c.campaign_type_id)));
     const { data: campaignTypes, error: typesError } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name')
+      .select('id, campaign_type_name, image_url')
       .in('id', campaignTypeIds);
 
     if (typesError) {
@@ -88,7 +89,8 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
         updated_at: campaign.updated_at,
         role: memberData?.role || '',
         status: memberData?.status || '',
-        image_url: campaign.image_url || ''
+        image_url: campaign.image_url || '',
+        campaign_type_image_url: typeData?.image_url || ''
       };
     }) as Campaign[];
 
