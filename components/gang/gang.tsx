@@ -550,15 +550,15 @@ export default function Gang({
 			      <div className={`absolute z-20 size-[200px] md:size-[250px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
 			        onClick={handleGangImageClick}
 			      >
-                    <Image
-                      src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
-                      alt="Cogwheel"
-                      width={250}
-                      height={250}
-                      className="absolute z-20"
-                      priority
-                      quality={100}
-                    />
+              <Image
+                src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                alt="Cogwheel"
+                width={250}
+                height={250}
+                className="absolute z-20"
+                priority
+                quality={100}
+              />
 			      </div>
           </div>
 
