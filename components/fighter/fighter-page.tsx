@@ -231,6 +231,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   return {
     fighter: {
       ...fighterData.fighter,
+      // Use totalCost if available, otherwise fall back to original credits
+      credits: fighterData.totalCost ?? fighterData.fighter.credits,
       fighter_class: fighterData.fighter.fighter_class,
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
@@ -653,7 +655,7 @@ export default function FighterPage({
   const transformedFighterData = {
     fighter: {
       ...fighterBasic,
-      credits: totalCost || (fighterBasic?.credits ?? initialData?.totalCost ?? 0),
+      credits: totalCost ?? initialData?.totalCost ?? fighterBasic?.credits ?? 0,
       alliance_crew_name: effectiveFighterType?.alliance_crew_name,
       fighter_type: {
         id: effectiveFighterType?.id || '',
