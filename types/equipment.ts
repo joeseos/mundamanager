@@ -20,7 +20,8 @@ export interface Equipment {
   equipment_id: string;
   equipment_name: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
-  cost: number;
+  cost: number; // Deprecated: use purchase_cost instead
+  purchase_cost: number;
   base_cost?: number;
   discounted_cost?: number;
   adjusted_cost?: number;

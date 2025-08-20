@@ -149,8 +149,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         equipment_id: item.equipment_id || item.custom_equipment_id || '',
         equipment_name: item.equipment_name,
         equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
-        cost: item.purchase_cost,
-        base_cost: item.original_cost || item.purchase_cost,
+        cost: item.purchase_cost, // Deprecated: for backward compatibility
+        purchase_cost: Number(item.purchase_cost) || 0,
+        base_cost: Number(item.original_cost) || Number(item.purchase_cost) || 0,
         weapon_profiles: item.weapon_profiles || [],
         core_equipment: false,
         is_master_crafted: item.is_master_crafted || false

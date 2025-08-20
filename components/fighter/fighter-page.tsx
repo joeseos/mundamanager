@@ -206,7 +206,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       ? `${item.equipment_name} (Master-crafted)`
       : item.equipment_name,
     equipment_type: item.equipment_type,
-    cost: item.purchase_cost,
+    cost: item.purchase_cost, // Deprecated: for backward compatibility
+    purchase_cost: Number(item.purchase_cost) || 0,
     base_cost: item.original_cost,
     weapon_profiles: item.weapon_profiles,
     core_equipment: item.core_equipment,
@@ -221,7 +222,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       ? `${item.equipment_name} (Master-crafted)`
       : item.equipment_name,
     equipment_type: item.equipment_type,
-    cost: item.purchase_cost,
+    cost: item.purchase_cost, // Deprecated: for backward compatibility
+    purchase_cost: Number(item.purchase_cost) || 0,
     base_cost: item.original_cost,
     core_equipment: false,
     vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
@@ -572,7 +574,8 @@ export default function FighterPage({
             equipment_id: boughtEquipment.equipment_id,
             equipment_name: boughtEquipment.equipment_name,
             equipment_type: boughtEquipment.equipment_type,
-            cost: boughtEquipment.cost,
+            cost: boughtEquipment.cost, // Deprecated: for backward compatibility
+            purchase_cost: boughtEquipment.purchase_cost || boughtEquipment.cost || 0,
             base_cost: boughtEquipment.cost,
             weapon_profiles: boughtEquipment.weapon_profiles || undefined
           }]

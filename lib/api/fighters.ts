@@ -48,7 +48,8 @@ export const fightersApi = {
       equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
       equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
       equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-      purchase_cost: item.purchase_cost || 0,
+      cost: Number(item.purchase_cost) || 0, // Deprecated: for backward compatibility
+      purchase_cost: Number(item.purchase_cost) || 0,
       original_cost: item.original_cost,
       is_master_crafted: item.is_master_crafted || false,
       weapon_profiles: [] // Will be populated separately if needed
