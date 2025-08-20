@@ -111,7 +111,8 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_meat,
       has_exploration_points,
       has_scavenging_rolls,
-      note
+      note,
+      image_url
     `)
     .eq('id', campaignId)
     .single();
@@ -119,21 +120,26 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
   if (campaignError) throw campaignError;
 
   let campaignTypeName = '';
+  let campaignTypeImageUrl = '';
   if (campaign.campaign_type_id) {
     const { data: campaignType, error: typeError } = await supabase
       .from('campaign_types')
-      .select('campaign_type_name')
+      .select('campaign_type_name, image_url')
       .eq('id', campaign.campaign_type_id)
       .single();
 
     if (!typeError && campaignType) {
       campaignTypeName = campaignType.campaign_type_name;
+      campaignTypeImageUrl = campaignType.image_url || '';
     }
   }
 
   return {
     ...campaign,
-    campaign_types: campaignTypeName ? { campaign_type_name: campaignTypeName } : null
+    campaign_types: campaignTypeName ? { 
+      campaign_type_name: campaignTypeName,
+      image_url: campaignTypeImageUrl
+    } : null
   };
 }
 
