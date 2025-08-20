@@ -9,12 +9,15 @@ import DiceRoller from '@/components/dice-roller';
 import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
+import { addVehicleDamage } from '@/app/actions/add-vehicle-damage';
+import { removeVehicleDamage } from '@/app/actions/remove-vehicle-damage';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
   vehicleId: string;
+  gangId: string;
   vehicle: any; // Pass the full vehicle object for cost calculation
   gangCredits?: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
@@ -26,6 +29,7 @@ export function VehicleDamagesList({
   onDamageUpdate,
   fighterId,
   vehicleId,
+  gangId,
   vehicle,
   gangCredits,
   onGangCreditsUpdate,
@@ -94,26 +98,26 @@ export function VehicleDamagesList({
     }
 
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        throw new Error('No authenticated user');
+      // Find the selected damage name for logging
+      const selectedDamage = availableDamages.find(d => d.id === selectedDamageId);
+      const damageName = selectedDamage?.effect_name || 'Unknown damage';
+      
+      const result = await addVehicleDamage({
+        vehicleId,
+        fighterId,
+        gangId,
+        damageId: selectedDamageId,
+        damageName
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add vehicle damage');
       }
-      
-      const { data, error } = await supabase
-        .rpc('add_vehicle_effect', {
-          in_vehicle_id: vehicleId,
-          in_fighter_effect_type_id: selectedDamageId,
-          in_user_id: session.user.id,
-          in_fighter_effect_category_id: VEHICLE_DAMAGE_CATEGORY_ID
-        });
-      
-      if (error) throw error;
 
-      // The database function returns JSON data with the complete damage information
-      const damageData = data;
+      // The server action returns JSON data with the complete damage information
+      const damageData = result.data;
       
-      // Create the new damage object using the data returned from the database
+      // Create the new damage object using the data returned from the server action
       const newDamage: FighterEffect = {
         id: damageData.id,
         effect_name: damageData.effect_name,
@@ -156,13 +160,16 @@ export function VehicleDamagesList({
     
     try {
       setIsDeleting(damageId);
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('fighter_effects')
-        .delete()
-        .eq('id', damageId);
-        
-      if (error) throw error;
+      
+      const result = await removeVehicleDamage({
+        damageId,
+        fighterId,
+        gangId
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to remove vehicle damage');
+      }
       
       // Optimistic update: Remove the damage from the list
       const updatedDamages = damages.filter(d => d.id !== damageId);

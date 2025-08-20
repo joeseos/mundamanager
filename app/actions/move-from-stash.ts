@@ -19,6 +19,7 @@ import {
   invalidateCacheForBeastCreation,
   type CreatedBeast 
 } from '@/app/lib/exotic-beasts';
+import { logEquipmentAction } from './logs/equipment-logs';
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -590,6 +591,39 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       affectedBeastIds.forEach(beastId => {
         addBeastToGangCache(beastId, stashData.gang_id);
       });
+    }
+
+    // Log equipment moved from stash
+    try {
+      // Get equipment name for logging
+      let equipmentName = 'Unknown Equipment';
+      if (stashData.equipment_id) {
+        const { data: equipment } = await supabase
+          .from('equipment')
+          .select('equipment_name')
+          .eq('id', stashData.equipment_id)
+          .single();
+        if (equipment) equipmentName = equipment.equipment_name;
+      } else if (stashData.custom_equipment_id) {
+        const { data: customEquipment } = await supabase
+          .from('custom_equipment')
+          .select('equipment_name')
+          .eq('id', stashData.custom_equipment_id)
+          .single();
+        if (customEquipment) equipmentName = customEquipment.equipment_name;
+      }
+
+      await logEquipmentAction({
+        gang_id: stashData.gang_id,
+        fighter_id: params.fighter_id,
+        vehicle_id: params.vehicle_id,
+        equipment_name: equipmentName,
+        purchase_cost: stashData.purchase_cost || 0,
+        action_type: 'moved_from_stash',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment moved from stash:', logError);
     }
 
     // Get updated gang rating after the equipment move (if not already calculated above)
