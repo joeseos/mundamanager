@@ -2,8 +2,22 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
-import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { 
+  getFighterBasic, 
+  getFighterEquipment, 
+  getFighterSkills,
+  getFighterEffects,
+  getFighterVehicles,
+  getFighterTotalCost 
+} from "@/app/lib/shared/fighter-data";
+import { 
+  getGangBasic, 
+  getGangCredits, 
+  getGangPositioning, 
+  getGangFightersList 
+} from "@/app/lib/shared/gang-data";
+import { InitialFighterData } from "@/lib/types/initial-data";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -21,260 +35,178 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     redirect("/sign-in");
   }
 
+  // Check if fighter exists (minimal server-side check)
+  const { data: fighterExists } = await supabase
+    .from('fighters')
+    .select('id, gang_id')
+    .eq('id', id)
+    .single();
+
+  if (!fighterExists) {
+    redirect("/");
+  }
+
+  // Get permissions
+  const permissionService = new PermissionService();
+  const userPermissions = await permissionService.getFighterPermissions(user.id, id);
+
+  if (!userPermissions?.canView) {
+    redirect("/");
+  }
+
+  // Fetch all initial data in parallel for fast SSR
   try {
-    // Fetch fighter data using granular shared functions
-    const {
-      getFighterBasic,
-      getFighterEquipment,
-      getFighterSkills,
-      getFighterEffects,
-      getFighterVehicles,
-      getFighterTotalCost
-    } = await import('@/app/lib/shared/fighter-data');
-
-    const {
-      getGangBasic,
-      getGangPositioning,
-      getGangCredits
-    } = await import('@/app/lib/shared/gang-data');
-
-    // Fetch basic fighter data first to check if fighter exists
-    const fighterBasic = await getFighterBasic(id, supabase);
-    
-    if (!fighterBasic) {
-      redirect("/");
-    }
-
-    // Fetch gang basic data, positioning, and credits
-    const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
-      getGangBasic(fighterBasic.gang_id, supabase),
-      getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase)
-    ]);
-
-    // Fetch all fighter-related data in parallel using granular functions
     const [
+      fighter,
+      gang,
       equipment,
       skills,
       effects,
       vehicles,
-      totalCost
+      totalCost,
+      gangCredits,
+      gangPositioning,
+      gangFighters
     ] = await Promise.all([
+      getFighterBasic(id, supabase),
+      getGangBasic(fighterExists.gang_id, supabase),
       getFighterEquipment(id, supabase),
       getFighterSkills(id, supabase),
       getFighterEffects(id, supabase),
       getFighterVehicles(id, supabase),
-      getFighterTotalCost(id, supabase)
+      getFighterTotalCost(id, supabase),
+      getGangCredits(fighterExists.gang_id, supabase),
+      getGangPositioning(fighterExists.gang_id, supabase),
+      getGangFightersList(fighterExists.gang_id, supabase)
     ]);
 
-    // Get fighter type and sub-type info (these are fighter-specific queries)
+    // Get fighter type and sub-type data in parallel
     const [fighterTypeData, fighterSubTypeData] = await Promise.all([
       supabase
         .from('fighter_types')
         .select('id, fighter_type, alliance_crew_name')
-        .eq('id', fighterBasic.fighter_type_id)
+        .eq('id', fighter.fighter_type_id)
         .single(),
-      fighterBasic.fighter_sub_type_id ? 
+      fighter.fighter_sub_type_id ? 
         supabase
           .from('fighter_sub_types')
           .select('id, sub_type_name')
-          .eq('id', fighterBasic.fighter_sub_type_id)
+          .eq('id', fighter.fighter_sub_type_id)
           .single() : 
         Promise.resolve({ data: null, error: null })
     ]);
 
-    // Get fighter campaigns (fighter-specific)
-    const { data: campaignData, error: campaignError } = await supabase
-      .from('fighters')
-      .select(`
-        gang:gang_id (
-          campaign_gangs (
-            role,
-            status,
-            invited_at,
-            joined_at,
-            invited_by,
-            campaign:campaign_id (
-              id,
-              campaign_name,
-              has_meat,
-              has_exploration_points,
-              has_scavenging_rolls
-            )
+    // Get campaigns and owned beasts
+    const [campaignData, ownedBeastsData] = await Promise.all([
+      supabase
+        .from('campaign_gangs')
+        .select(`
+          campaign:campaign_id (
+            id,
+            campaign_name
           )
-        )
-      `)
-      .eq('id', id)
-      .single();
-
-    const campaigns: any[] = [];
-    if (!campaignError && campaignData) {
-      const campaignGangs = (campaignData.gang as any)?.campaign_gangs || [];
-      campaignGangs.forEach((cg: any) => {
-        if (cg.campaign) {
-          campaigns.push({
-            campaign_id: cg.campaign.id,
-            campaign_name: cg.campaign.campaign_name,
-            role: cg.role,
-            status: cg.status,
-            invited_at: cg.invited_at,
-            joined_at: cg.joined_at,
-            invited_by: cg.invited_by,
-            has_meat: cg.campaign.has_meat,
-            has_exploration_points: cg.campaign.has_exploration_points,
-            has_scavenging_rolls: cg.campaign.has_scavenging_rolls,
-          });
-        }
-      });
-    }
-
-    // Get fighter's owned exotic beasts (fighter-specific)
-    const { data: beastData, error: beastError } = await supabase
-      .from('fighter_exotic_beasts')
-      .select(`
-        fighter_pet_id,
-        fighter_equipment_id,
-        fighter_equipment!fighter_equipment_id (
-          equipment!equipment_id (
-            equipment_name
-          ),
-          custom_equipment!custom_equipment_id (
-            equipment_name
-          )
-        )
-      `)
-      .eq('fighter_owner_id', id);
-
-    const ownedBeasts: any[] = [];
-    if (!beastError && beastData) {
-      const beastIds = beastData.map(beast => beast.fighter_pet_id).filter(Boolean);
-      
-      if (beastIds.length > 0) {
-        const { data: beastFighters, error: beastFighterError } = await supabase
-          .from('fighters')
-          .select(`
+        `)
+        .eq('gang_id', fighterExists.gang_id),
+      supabase
+        .from('fighter_exotic_beasts')
+        .select(`
+          id,
+          fighter_pet:fighter_pet_id (
             id,
             fighter_name,
             fighter_type,
-            fighter_class,
-            credits,
-            created_at,
-            retired
-          `)
-          .in('id', beastIds);
+            fighter_class
+          )
+        `)
+        .eq('fighter_owner_id', id)
+    ]);
 
-        if (!beastFighterError && beastFighters) {
-          beastData.forEach((beastOwnership: any) => {
-            const beast = beastFighters.find(f => f.id === beastOwnership.fighter_pet_id);
-            const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
-            
-            if (beast) {
-              ownedBeasts.push({
-                id: beast.id,
-                fighter_name: beast.fighter_name,
-                fighter_type: beast.fighter_type,
-                fighter_class: beast.fighter_class,
-                credits: beast.credits,
-                equipment_source: 'Granted by equipment',
-                equipment_name: equipment?.equipment_name || 'Unknown Equipment',
-                created_at: beast.created_at,
-                retired: beast.retired || false
-              });
-            }
-          });
-        }
-      }
-    }
-
-    // Check if this fighter is owned by another fighter
+    // Get owner name if this fighter is a pet
     let ownerName: string | undefined;
-    if (fighterBasic.fighter_pet_id) {
+    if (fighter.fighter_pet_id) {
       const { data: ownershipData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
-          fighter_owner_id,
           fighters!fighter_owner_id (
             fighter_name
           )
         `)
-        .eq('id', fighterBasic.fighter_pet_id)
+        .eq('id', fighter.fighter_pet_id)
         .single();
-      
-      if (ownershipData) {
-        ownerName = (ownershipData.fighters as any)?.fighter_name;
-      }
+
+      ownerName = (ownershipData?.fighters as any)?.fighter_name;
     }
 
-    // Assemble the fighter data structure
-    const fighterData = {
-      fighter: {
-        ...fighterBasic,
-        credits: totalCost,
-        alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
-        fighter_type: {
-          id: fighterTypeData?.data?.id || '',
-          fighter_type: fighterTypeData?.data?.fighter_type || 'Unknown',
-          alliance_crew_name: fighterTypeData?.data?.alliance_crew_name
-        },
-        fighter_sub_type: fighterSubTypeData?.data ? {
-          id: fighterSubTypeData.data.id,
-          sub_type_name: fighterSubTypeData.data.sub_type_name,
-          fighter_sub_type: fighterSubTypeData.data.sub_type_name
-        } : undefined,
-        skills,
-        effects,
-        vehicles,
-        campaigns,
-        owned_beasts: ownedBeasts,
-        owner_name: ownerName,
-      },
-      gang: {
-        id: gangBasic.id,
+    const initialData: InitialFighterData = {
+      fighter,
+      gang: { 
+        ...gang, 
         credits: gangCredits,
-        gang_type_id: gangBasic.gang_type_id,
-        gang_affiliation_id: gangBasic.gang_affiliation_id,
-        gang_affiliation_name: gangBasic.gang_affiliation?.name,
-        positioning: gangPositioning,
-        gang_variants: [] as any[] // Will be populated below if needed
+        gang_affiliation_name: gang.gang_affiliation?.name 
       },
-      equipment,
+      equipment: equipment?.map(item => ({
+        fighter_equipment_id: item.fighter_equipment_id,
+        equipment_id: item.equipment_id || item.custom_equipment_id || '',
+        equipment_name: item.equipment_name,
+        equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
+        cost: item.purchase_cost,
+        base_cost: item.original_cost || item.purchase_cost,
+        weapon_profiles: item.weapon_profiles || [],
+        core_equipment: false,
+        is_master_crafted: item.is_master_crafted || false
+      })) || [],
+      skills: skills || {},
+      effects: {
+        injuries: effects?.injuries || [],
+        advancements: effects?.advancements || [],
+        bionics: effects?.bionics || [],
+        cyberteknika: effects?.cyberteknika || [],
+        'gene-smithing': effects?.['gene-smithing'] || [],
+        'rig-glitches': effects?.['rig-glitches'] || [],
+        augmentations: effects?.augmentations || [],
+        equipment: effects?.equipment || [],
+        user: effects?.user || []
+      },
+      vehicles: vehicles || [],
+      totalCost: totalCost || fighter.credits,
+      fighterType: fighterTypeData?.data ? {
+        id: fighterTypeData.data.id,
+        fighter_type: fighterTypeData.data.fighter_type,
+        alliance_crew_name: fighterTypeData.data.alliance_crew_name
+      } : undefined,
+      fighterSubType: fighterSubTypeData?.data ? {
+        id: fighterSubTypeData.data.id,
+        sub_type_name: fighterSubTypeData.data.sub_type_name
+      } : undefined,
+      campaigns: campaignData?.data?.map((cg: any) => cg.campaign).filter(Boolean) || [],
+      ownedBeasts: ownedBeastsData?.data?.map((ob: any) => ob.fighter_pet).filter(Boolean) || [],
+      ownerName,
+      gangFighters: gangFighters?.map(gf => ({
+        id: gf.id,
+        fighter_name: gf.fighter_name,
+        fighter_type: gf.fighter_type,
+        xp: gf.xp
+      })) || [],
+      gangPositioning: gangPositioning || {}
     };
 
-    // Get gang variants if they exist
-    if (gangBasic.gang_variants && gangBasic.gang_variants.length > 0) {
-      const { data: variants } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', gangBasic.gang_variants);
-      
-      if (variants) {
-        fighterData.gang.gang_variants = variants.map((v: any) => ({
-          id: v.id,
-          variant: v.variant
-        }));
-      }
-    }
-
-
-    // Use centralized permission service to get user permissions
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
-
-    // Fetch gang fighters for the dropdown using cached function
-    const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
-
-    // Pass fighter data and user permissions to client component
     return (
-      <FighterPageComponent
-        initialFighterData={fighterData}
-        initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
+      <FighterPageComponent 
         fighterId={id}
+        userId={user.id}
+        userPermissions={userPermissions}
+        initialData={initialData}
       />
     );
-
   } catch (error) {
-    console.error('Error in fighter page:', error);
-    redirect("/");
+    console.error('Error fetching initial fighter data:', error);
+    // Fallback to client-side loading if server-side fetch fails
+    return (
+      <FighterPageComponent 
+        fighterId={id}
+        userId={user.id}
+        userPermissions={userPermissions}
+      />
+    );
   }
 }

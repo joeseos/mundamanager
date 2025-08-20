@@ -11,6 +11,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import ClientToaster from "@/components/ui/client-toaster";
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import SettingsModal from "@/components/settings-modal";
+import { QueryProvider } from "@/lib/providers";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -162,20 +163,22 @@ export default async function RootLayout({
           </div>
         </header>
         {breadcrumb}
-        <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
-          <div className="flex-1 w-full flex flex-col items-center">
-            {!hasEnvVars && (
-              <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
-                <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-                  <EnvVarWarning />
-                </div>
-              </nav>
-            )}
-            <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
-              {children}
+        <QueryProvider>
+          <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
+            <div className="flex-1 w-full flex flex-col items-center">
+              {!hasEnvVars && (
+                <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
+                  <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
+                    <EnvVarWarning />
+                  </div>
+                </nav>
+              )}
+              <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
+                {children}
+              </div>
             </div>
-          </div>
-        </main>
+          </main>
+        </QueryProvider>
         <ClientToaster />
       </body>
     </html>

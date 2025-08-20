@@ -14,6 +14,7 @@ interface FighterNotesProps {
   onNoteUpdate?: (updatedNote: string) => void;
   onNoteBackstoryUpdate?: (updatedNoteBackstory: string) => void;
   userPermissions: UserPermissions;
+  detailsMutation?: any; // TanStack Query mutation for optimistic updates
 }
 
 interface NoteEditorProps {
@@ -172,7 +173,8 @@ export function FighterNotes({
   initialNoteBackstory = '',
   onNoteUpdate, 
   onNoteBackstoryUpdate, 
-  userPermissions 
+  userPermissions,
+  detailsMutation
 }: FighterNotesProps) {
   const [note, setNote] = useState(initialNote || '');
   const [noteBackstory, setNoteBackstory] = useState(initialNoteBackstory || '');
@@ -189,35 +191,73 @@ export function FighterNotes({
   const handleNoteSave = async () => {
     const cleanNote = note.trim() === '' ? '' : note;
     
-    const result = await updateFighterDetails({
-      fighter_id: fighterId,
-      note: cleanNote
-    });
+    if (detailsMutation) {
+      // Use optimistic updates if mutation is provided
+      return new Promise<void>((resolve, reject) => {
+        detailsMutation.mutate({
+          fighter_id: fighterId,
+          note: cleanNote
+        }, {
+          onSuccess: () => {
+            onNoteUpdate?.(note);
+            resolve();
+          },
+          onError: (error: Error) => {
+            reject(error);
+          }
+        });
+      });
+    } else {
+      // Fallback to direct API call
+      const result = await updateFighterDetails({
+        fighter_id: fighterId,
+        note: cleanNote
+      });
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update notes');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update notes');
+      }
+
+      onNoteUpdate?.(note);
     }
-
-    onNoteUpdate?.(note);
   };
 
   const handleNoteBackstorySave = async () => {
     const cleanNoteBackstory = noteBackstory.trim() === '' ? '' : noteBackstory;
     
-    const result = await updateFighterDetails({
-      fighter_id: fighterId,
-      note_backstory: cleanNoteBackstory
-    });
+    if (detailsMutation) {
+      // Use optimistic updates if mutation is provided
+      return new Promise<void>((resolve, reject) => {
+        detailsMutation.mutate({
+          fighter_id: fighterId,
+          note_backstory: cleanNoteBackstory
+        }, {
+          onSuccess: () => {
+            onNoteBackstoryUpdate?.(noteBackstory);
+            resolve();
+          },
+          onError: (error: Error) => {
+            reject(error);
+          }
+        });
+      });
+    } else {
+      // Fallback to direct API call
+      const result = await updateFighterDetails({
+        fighter_id: fighterId,
+        note_backstory: cleanNoteBackstory
+      });
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update backstory notes');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update backstory notes');
+      }
+
+      onNoteBackstoryUpdate?.(noteBackstory);
     }
-
-    onNoteBackstoryUpdate?.(noteBackstory);
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
+    <div className="container max-w-5xl w-full space-y-4 mx-auto mt-6">
       <NoteEditor
         title="Fighter Notes"
         content={note}
