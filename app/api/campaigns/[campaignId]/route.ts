@@ -45,6 +45,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaign_name: campaignBasic.campaign_name,
       campaign_type_id: campaignBasic.campaign_type_id,
       campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
+      campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
+      image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
       created_at: campaignBasic.created_at,
