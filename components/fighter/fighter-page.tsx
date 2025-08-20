@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
+import { useQueryClient } from '@tanstack/react-query';
 import ItemModal from "@/components/equipment";
 import { Equipment } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
@@ -21,19 +22,35 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
+import { useUpdateFighterXp, useUpdateFighterDetails } from "@/lib/mutations/fighters";
 import { FighterActions } from "@/components/fighter/fighter-actions";
+import { InitialFighterData } from '@/lib/types/initial-data';
+import { 
+  useGetFighter, 
+  useGetFighterEquipment, 
+  useGetFighterSkills,
+  useGetFighterEffects,
+  useGetFighterVehicles,
+  useGetFighterTotalCost,
+  useGetFighterType,
+  useGetFighterSubType,
+  useGetFighterCampaigns,
+  useGetFighterOwnedBeasts,
+  useGetFighterOwnerName
+} from '@/lib/queries/fighters';
+import { 
+  useGetGang, 
+  useGetGangCredits, 
+  useGetGangPositioning, 
+  useGetGangFighters 
+} from '@/lib/queries/gangs';
+import { queryKeys } from '@/lib/queries/keys';
 
 interface FighterPageProps {
-  initialFighterData: any;
-  initialGangFighters: Array<{
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    xp: number | null;
-  }>;
-  userPermissions: UserPermissions;
   fighterId: string;
+  userId: string;
+  userPermissions: UserPermissions;
+  initialData?: InitialFighterData;
 }
 
 interface Fighter {
@@ -151,6 +168,17 @@ interface EditState {
 
 // Helper function to transform fighter data
 const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
+  // Safety check for null fighter data
+  if (!fighterData.fighter) {
+    return {
+      fighter: null,
+      equipment: [],
+      vehicleEquipment: [],
+      gang: null,
+      gangFighters: []
+    };
+  }
+
   // Transform skills
   const transformedSkills: FighterSkills = {};
   if (Array.isArray(fighterData.fighter.skills)) {
@@ -243,16 +271,52 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 };
 
 export default function FighterPage({ 
-  initialFighterData, 
-  initialGangFighters, 
-  userPermissions, 
-  fighterId
+  fighterId,
+  userId,
+  userPermissions,
+  initialData
 }: FighterPageProps) {
-  // Transform initial data and set up state
-  const [fighterData, setFighterData] = useState<FighterPageState>(() => 
-    transformFighterData(initialFighterData, initialGangFighters)
-  );
-
+  // ALL HOOKS MUST BE AT THE VERY TOP - NO EXCEPTIONS!
+  // useState hooks - initialize with SSR data if available
+  const [fighterData, setFighterData] = useState<FighterPageState>(() => {
+    if (initialData) {
+      // Create the transformed data structure that transformFighterData expects
+      const transformedData = {
+        fighter: {
+          ...initialData.fighter,
+          skills: initialData.skills,
+          effects: initialData.effects,
+          fighter_type: initialData.fighterType ? {
+            id: initialData.fighterType.id,
+            fighter_type: initialData.fighterType.fighter_type,
+            alliance_crew_name: initialData.fighterType.alliance_crew_name
+          } : undefined,
+          fighter_sub_type: initialData.fighterSubType ? {
+            id: initialData.fighterSubType.id,
+            fighter_sub_type: initialData.fighterSubType.sub_type_name
+          } : undefined
+        },
+        gang: initialData.gang,
+        equipment: initialData.equipment,
+        vehicles: initialData.vehicles,
+        totalCost: initialData.totalCost,
+        fighterType: initialData.fighterType,
+        fighterSubType: initialData.fighterSubType,
+        campaigns: initialData.campaigns,
+        ownedBeasts: initialData.ownedBeasts,
+        ownerName: initialData.ownerName
+      };
+      return transformFighterData(transformedData, initialData.gangFighters || []);
+    }
+    return {
+      fighter: null,
+      equipment: [],
+      vehicleEquipment: [],
+      gang: null,
+      gangFighters: []
+    };
+  });
+  
   const [uiState, setUiState] = useState<UIState>({
     isLoading: false,
     error: null,
@@ -273,12 +337,124 @@ export default function FighterPage({
     xpAmount: '',
     xpError: ''
   });
-
-  const router = useRouter();
-  const { toast } = useToast();
+  
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
 
+  // Other hooks
+  const router = useRouter();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // TanStack Query hooks for data fetching with SSR hydration - ALL hooks must be called unconditionally
+  const { data: fighterBasic, isLoading: fighterLoading, error: fighterError } = useGetFighter(
+    fighterId, 
+    { initialData: initialData?.fighter, staleTime: 1000 * 60 * 10 }
+  );
+  
+  // Mutation hooks for optimistic updates
+  const xpMutation = useUpdateFighterXp(fighterId);
+  const detailsMutation = useUpdateFighterDetails(fighterId);
+  const { data: equipment, isLoading: equipmentLoading } = useGetFighterEquipment(
+    fighterId,
+    { initialData: initialData?.equipment, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: skills, isLoading: skillsLoading } = useGetFighterSkills(
+    fighterId,
+    { initialData: initialData?.skills, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: effects, isLoading: effectsLoading } = useGetFighterEffects(
+    fighterId,
+    { initialData: initialData?.effects, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: vehicles, isLoading: vehiclesLoading } = useGetFighterVehicles(
+    fighterId,
+    { initialData: initialData?.vehicles, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: totalCost, isLoading: costLoading } = useGetFighterTotalCost(
+    fighterId,
+    { initialData: initialData?.totalCost, staleTime: 1000 * 60 * 10 }
+  );
+  
+  // Gang data with SSR hydration - use placeholder IDs to ensure hooks are always called
+  const gangId = fighterBasic?.gang_id || initialData?.gang?.id || 'placeholder';
+  const { data: gang, isLoading: gangLoading } = useGetGang(
+    gangId,
+    { initialData: initialData?.gang, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: gangCredits, isLoading: creditsLoading } = useGetGangCredits(
+    gangId,
+    { initialData: initialData?.gang?.credits, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: gangPositioning, isLoading: positioningLoading } = useGetGangPositioning(
+    gangId,
+    { initialData: initialData?.gangPositioning, staleTime: 1000 * 60 * 10 }
+  );
+  const { data: gangFighters, isLoading: gangFightersLoading } = useGetGangFighters(
+    gangId,
+    { initialData: initialData?.gangFighters, staleTime: 1000 * 60 * 10 }
+  );
+  
+  // Reference data with SSR hydration - use placeholder IDs to ensure hooks are always called
+  const fighterTypeId = fighterBasic?.fighter_type_id || initialData?.fighter?.fighter_type_id || 'placeholder';
+  const fighterSubTypeId = fighterBasic?.fighter_sub_type_id || initialData?.fighter?.fighter_sub_type_id || 'placeholder';
+  const { data: fighterType } = useGetFighterType(fighterTypeId, { 
+    initialData: initialData?.fighterType,
+    staleTime: 1000 * 60 * 60,
+    enabled: !initialData && fighterTypeId !== 'placeholder'
+  });
+  const { data: fighterSubType } = useGetFighterSubType(fighterSubTypeId, { 
+    initialData: initialData?.fighterSubType,
+    staleTime: 1000 * 60 * 60,
+    enabled: !initialData && fighterSubTypeId !== 'placeholder'
+  });
+  
+  // Additional fighter data with SSR hydration - disable when we have SSR data
+  const { data: campaigns } = useGetFighterCampaigns(fighterId, { 
+    initialData: initialData?.campaigns,
+    staleTime: 1000 * 60 * 10,
+    enabled: !initialData
+  });
+  const { data: ownedBeasts } = useGetFighterOwnedBeasts(fighterId, { 
+    initialData: initialData?.ownedBeasts,
+    staleTime: 1000 * 60 * 10,
+    enabled: !initialData
+  });
+  const fighterPetId = fighterBasic?.fighter_pet_id || initialData?.fighter?.fighter_pet_id || 'placeholder';
+  const { data: ownerName } = useGetFighterOwnerName(fighterPetId, { 
+    initialData: initialData?.ownerName,
+    staleTime: 1000 * 60 * 10,
+    enabled: !initialData && fighterPetId !== 'placeholder'
+  });
+
+  // Override with SSR data when available
+  const effectiveFighterType = initialData?.fighterType || fighterType;
+  const effectiveFighterSubType = initialData?.fighterSubType || fighterSubType;
+  const effectiveCampaigns = initialData?.campaigns || campaigns;
+  const effectiveOwnedBeasts = initialData?.ownedBeasts || ownedBeasts;
+  const effectiveOwnerName = initialData?.ownerName || ownerName;
+
+  // ALL useCallback and useEffect hooks must be here at the top!
+  
+  // Legacy helper function - keeping for components that haven't been migrated to optimistic updates yet
+  // TODO: Remove once all components use mutation hooks
+  const invalidateFighterData = useCallback(() => {
+    // Invalidate all fighter-related queries
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+    
+    // Also invalidate gang data since fighter actions can affect gang credits/fighters
+    if (gangId && gangId !== 'placeholder') {
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.fighters(gangId) });
+    }
+  }, [queryClient, fighterId, gangId]);
+  
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
     try {
@@ -330,62 +506,6 @@ export default function FighterPage({
       setIsFetchingGangCredits(false);
     }
   }, [toast]);
-
-  // Sync local state with props when they change (after router.refresh())
-  useEffect(() => {
-    setFighterData(transformFighterData(initialFighterData, initialGangFighters));
-    
-    // Update edit state
-    setEditState(prev => ({
-      ...prev,
-      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0)
-    }));
-  }, [initialFighterData, initialGangFighters]);
-
-  // Add conditional rendering based on permissions
-  const canShowEditButtons = userPermissions.canEdit;
-
-  // Helper function to convert Fighter to FighterProps for EditFighterModal
-  const convertToFighterProps = (fighter: Fighter): any => {
-    return {
-      ...fighter,
-      base_stats: {
-        movement: fighter.movement,
-        weapon_skill: fighter.weapon_skill,
-        ballistic_skill: fighter.ballistic_skill,
-        strength: fighter.strength,
-        toughness: fighter.toughness,
-        wounds: fighter.wounds,
-        initiative: fighter.initiative,
-        attacks: fighter.attacks,
-        leadership: fighter.leadership,
-        cool: fighter.cool,
-        willpower: fighter.willpower,
-        intelligence: fighter.intelligence,
-      },
-      current_stats: {
-        movement: fighter.movement,
-        weapon_skill: fighter.weapon_skill,
-        ballistic_skill: fighter.ballistic_skill,
-        strength: fighter.strength,
-        toughness: fighter.toughness,
-        wounds: fighter.wounds,
-        initiative: fighter.initiative,
-        attacks: fighter.attacks,
-        leadership: fighter.leadership,
-        cool: fighter.cool,
-        willpower: fighter.willpower,
-        intelligence: fighter.intelligence,
-      },
-      total_xp: fighter.total_xp,
-      weapons: [],
-      wargear: [],
-      advancements: {
-        characteristics: {},
-        skills: {}
-      }
-    };
-  };
 
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number, deletedEffects: any[] = []) => {
     setFighterData(prev => {
@@ -512,12 +632,6 @@ export default function FighterPage({
     // Avoid page-wide refresh; keep optimistic update
   }, [router]);
 
-  // Gang fighters are already provided in initialGangFighters, no need to fetch them again
-
-  const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    router.push(`/fighter/${e.target.value}`);
-  };
-
   const handleNameUpdate = useCallback((newName: string) => {
     setFighterData(prev => ({
       ...prev,
@@ -525,174 +639,176 @@ export default function FighterPage({
     }));
   }, []);
 
-  const handleAddXp = async () => {
-    if (!/^-?\d+$/.test(editState.xpAmount)) {
+  // Update edit state when fighter data changes
+  useEffect(() => {
+    if (fighterBasic) {
       setEditState(prev => ({
         ...prev,
-        xpError: 'Please enter a valid integer'
+        costAdjustment: String(fighterBasic.cost_adjustment || 0)
       }));
-      return false;
     }
+  }, [fighterBasic]);
 
-    const amount = parseInt(editState.xpAmount || '0');
+  // Transform data to match component's expected format (with SSR hydration support)
+  const transformedFighterData = {
+    fighter: {
+      ...fighterBasic,
+      credits: totalCost || (fighterBasic?.credits ?? initialData?.totalCost ?? 0),
+      alliance_crew_name: effectiveFighterType?.alliance_crew_name,
+      fighter_type: {
+        id: effectiveFighterType?.id || '',
+        fighter_type: effectiveFighterType?.fighter_type || 'Unknown',
+        alliance_crew_name: effectiveFighterType?.alliance_crew_name
+      },
+      fighter_sub_type: effectiveFighterSubType ? {
+        id: effectiveFighterSubType.id,
+        sub_type_name: effectiveFighterSubType.sub_type_name || (effectiveFighterSubType as any).fighter_sub_type,
+        fighter_sub_type: effectiveFighterSubType.sub_type_name || (effectiveFighterSubType as any).fighter_sub_type
+      } : undefined,
+      skills: skills || {},
+      effects: effects || {
+        injuries: [],
+        advancements: [],
+        bionics: [],
+        cyberteknika: [],
+        'gene-smithing': [],
+        'rig-glitches': [],
+        augmentations: [],
+        equipment: [],
+        user: []
+      },
+      vehicles: vehicles || [],
+      campaigns: effectiveCampaigns || [],
+      owned_beasts: effectiveOwnedBeasts || [],
+      owner_name: effectiveOwnerName,
+    },
+    gang: gang ? {
+      id: gang.id,
+      credits: gangCredits || initialData?.gang?.credits || 0,
+      gang_type_id: gang.gang_type_id || initialData?.gang?.gang_type_id,
+      gang_affiliation_id: gang.gang_affiliation_id || initialData?.gang?.gang_affiliation_id,
+      gang_affiliation_name: (gang.gang_affiliation as any)?.name || initialData?.gang?.gang_affiliation_name,
+      positioning: gangPositioning || initialData?.gangPositioning || {},
+    } : initialData?.gang ? {
+      id: initialData.gang.id,
+      credits: initialData.gang.credits,
+      gang_type_id: initialData.gang.gang_type_id,
+      gang_affiliation_id: initialData.gang.gang_affiliation_id,
+      gang_affiliation_name: initialData.gang.gang_affiliation_name,
+      positioning: initialData.gangPositioning || {},
+    } : null,
+    equipment: equipment || [],
+  };
 
-    if (isNaN(amount) || !Number.isInteger(Number(amount))) {
-      setEditState(prev => ({
-        ...prev,
-        xpError: 'Please enter a valid integer'
-      }));
-      return false;
+  // Update state when data changes (SSR or client-side)
+  useEffect(() => {
+    // Always use transformed data when available
+    if (transformedFighterData.fighter && transformedFighterData.gang) {
+      setFighterData(transformFighterData(transformedFighterData, gangFighters || []));
     }
+  }, [initialData, fighterBasic, gang, equipment, skills, effects, vehicles, totalCost, gangCredits, gangPositioning, gangFighters, effectiveFighterType, effectiveFighterSubType, effectiveCampaigns, effectiveOwnedBeasts, effectiveOwnerName]);
 
-    setEditState(prev => ({
-      ...prev,
-      xpError: ''
-    }));
+  // Check for loading states - show loading only if we don't have data from any source
+  const isLoading = (
+    fighterLoading || equipmentLoading || skillsLoading || effectsLoading || 
+    vehiclesLoading || costLoading || gangLoading || creditsLoading
+  ) && !fighterBasic;
 
-    // Store original state for potential rollback
-    const originalFighterData = {
-      fighter: fighterData.fighter,
-      gangFighters: fighterData.gangFighters
+  // Handle error states
+  if (fighterError) {
+    return <div>Error loading fighter: {fighterError.message}</div>;
+  }
+
+  // Handle loading state (only show if no SSR data)
+  if (isLoading) {
+    return <div>Loading fighter data...</div>;
+  }
+
+
+  // Only show "Fighter not found" if we have no data and queries have finished
+  if (!fighterBasic && !fighterLoading && !initialData) {
+    return <div>Fighter not found</div>;
+  }
+  
+  // Handle gang data - with SSR we should always have gang data
+  if (!initialData && !gang && gangId === 'placeholder') {
+    return <div>Loading fighter data...</div>;
+  }
+
+
+  // Add conditional rendering based on permissions
+  const canShowEditButtons = userPermissions.canEdit;
+
+  // Helper function to convert Fighter to FighterProps for EditFighterModal
+  const convertToFighterProps = (fighter: Fighter): any => {
+    return {
+      ...fighter,
+      base_stats: {
+        movement: fighter.movement,
+        weapon_skill: fighter.weapon_skill,
+        ballistic_skill: fighter.ballistic_skill,
+        strength: fighter.strength,
+        toughness: fighter.toughness,
+        wounds: fighter.wounds,
+        initiative: fighter.initiative,
+        attacks: fighter.attacks,
+        leadership: fighter.leadership,
+        cool: fighter.cool,
+        willpower: fighter.willpower,
+        intelligence: fighter.intelligence,
+      },
+      current_stats: {
+        movement: fighter.movement,
+        weapon_skill: fighter.weapon_skill,
+        ballistic_skill: fighter.ballistic_skill,
+        strength: fighter.strength,
+        toughness: fighter.toughness,
+        wounds: fighter.wounds,
+        initiative: fighter.initiative,
+        attacks: fighter.attacks,
+        leadership: fighter.leadership,
+        cool: fighter.cool,
+        willpower: fighter.willpower,
+        intelligence: fighter.intelligence,
+      },
+      total_xp: fighter.total_xp,
+      weapons: [],
+      wargear: [],
+      advancements: {
+        characteristics: {},
+        skills: {}
+      }
     };
+  };
 
-    // Calculate optimistic values
-    const optimisticXp = (fighterData.fighter?.xp || 0) + amount;
-    const optimisticTotalXp = (fighterData.fighter?.total_xp || 0) + amount;
-
-    // OPTIMISTIC UPDATES - Update UI immediately
-    setFighterData(prev => ({
-      ...prev,
-      fighter: prev.fighter ? {
-        ...prev.fighter,
-        xp: optimisticXp,
-        total_xp: optimisticTotalXp
-      } : null,
-      // Update gang fighters list for dropdown
-      gangFighters: prev.gangFighters.map(fighter => 
-        fighter.id === fighterId 
-          ? { ...fighter, xp: optimisticXp }
-          : fighter
-      )
-    }));
-
-    try {
-      const result = await updateFighterXp({
-        fighter_id: fighterId,
-        xp_to_add: amount
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add XP');
-      }
-
-      // Server confirmation - sync with actual values if different
-      const serverXp = result.data?.xp || optimisticXp;
-      const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
-      
-      // Only update if server values differ from optimistic
-      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp) {
-        setFighterData(prev => ({
-          ...prev,
-          fighter: prev.fighter ? {
-            ...prev.fighter,
-            xp: serverXp,
-            total_xp: serverTotalXp
-          } : null,
-          gangFighters: prev.gangFighters.map(fighter => 
-            fighter.id === fighterId 
-              ? { ...fighter, xp: serverXp }
-              : fighter
-          )
-        }));
-      }
-
-      toast({
-        description: `Successfully added ${amount} XP`,
-        variant: "default"
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error adding XP:', error);
-      
-      // ROLLBACK optimistic updates on error
-      setFighterData(prev => ({
-        ...prev,
-        fighter: originalFighterData.fighter,
-        gangFighters: originalFighterData.gangFighters
-      }));
-
-      setEditState(prev => ({
-        ...prev,
-        xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
-      }));
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add XP',
-        variant: "destructive"
-      });
-      return false;
+  const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const fighterId = e.target.value;
+    if (fighterId === 'none') {
+      router.push('/');
+    } else {
+      router.push(`/fighter/${fighterId}`);
     }
   };
 
-  // Update modal handlers
-  const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
-    // If opening the Add Equipment modal, fetch latest credits first
-    if ((modalName === 'addWeapon' || modalName === 'addVehicleEquipment') && value && fighterData.gang?.id) {
-      fetchLatestGangCredits(fighterData.gang.id).then(() => {
-        setUiState(prev => ({
-          ...prev,
-          modals: {
-            ...prev.modals,
-            [modalName]: value
-          }
-        }));
-      });
-      return;
-    }
-    
-    // If opening the Edit Fighter modal, fetch fighter types first
-    if (modalName === 'editFighter' && value && fighterData.gang?.id && fighterData.gang?.gang_type_id) {
-      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id).then(() => {
-        setUiState(prev => ({
-          ...prev,
-          modals: {
-            ...prev.modals,
-            [modalName]: value
-          }
-        }));
-      });
-      return;
-    }
-    
-    setUiState(prev => ({
-      ...prev,
-      modals: {
-        ...prev.modals,
-        [modalName]: value
-      }
-    }));
-  };
+  // All handlers already defined above, starting rendering logic
 
   if (uiState.isLoading) return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          Loading...
-        </div>
-      </div>
-    </main>
+    <div className="flex justify-center items-center h-screen">
+      <div className="text-lg">Loading...</div>
+    </div>
   );
 
-  if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          Error: {uiState.error || 'Data not found'}
-        </div>
+
+  // Only show error if we have a real error OR no data from any source after loading is complete
+  if (uiState.error || (!fighterBasic && !initialData && !isLoading)) return (
+    <div className="flex justify-center items-center h-screen">
+      <div className="text-lg text-red-500">
+        {uiState.error || 'Fighter not found'}
       </div>
-    </main>
+    </div>
   );
 
+  // Get the first vehicle if available for display
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
   return (
@@ -714,13 +830,14 @@ export default function FighterPage({
                 const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
                 return posA - posB;
               })
-              .map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.fighter_name} - {f.fighter_type} {f.xp !== undefined ? `(${f.xp} XP)` : ''}
+              .map((gangFighter) => (
+                <option key={gangFighter.id} value={gangFighter.id}>
+                  {gangFighter.fighter_name} {gangFighter.fighter_type && `(${gangFighter.fighter_type})`}
                 </option>
               ))}
             </select>
           </div>
+          
           <FighterDetailsCard
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
@@ -745,8 +862,8 @@ export default function FighterPage({
             total_xp={fighterData.fighter?.total_xp || 0}
             advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
             onNameUpdate={handleNameUpdate}
-            onAddXp={() => handleModalToggle('addXp', true)}
-            onEdit={canShowEditButtons ? () => handleModalToggle('editFighter', true) : undefined}
+            onAddXp={() => setUiState(prev => ({...prev, modals: {...prev.modals, addXp: true}}))}
+            onEdit={canShowEditButtons ? () => setUiState(prev => ({...prev, modals: {...prev.modals, editFighter: true}})) : undefined}
             killed={fighterData.fighter?.killed}
             retired={fighterData.fighter?.retired}
             enslaved={fighterData.fighter?.enslaved}
@@ -755,333 +872,302 @@ export default function FighterPage({
             captured={fighterData.fighter?.captured}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter.effects || { 
+            effects={fighterData.fighter?.effects || { 
               injuries: [], 
               advancements: [], 
               bionics: [], 
               cyberteknika: [], 
-              'gene-smithing': [], 
-              'rig-glitches': [], 
-              augmentations: [], 
-              equipment: [], 
-              user: [] 
+              'gene-smithing': [],
+              'rig-glitches': [],
+              augmentations: [],
+              equipment: [],
+              user: []
             }}
-            vehicles={fighterData.fighter?.vehicles}
-            gangId={fighterData.gang?.id}
-            vehicleEquipment={fighterData.vehicleEquipment}
-            userPermissions={userPermissions}
-            owner_name={initialFighterData.fighter?.owner_name}
+            owner_name={fighterData.fighter?.owner_name}
             image_url={fighterData.fighter?.image_url}
+            userPermissions={userPermissions}
+          />
+
+          {/* Equipment Section */}
+          <WeaponList
+            equipment={fighterData.equipment}
+            fighterId={fighterData.fighter?.id || ''}
+            gangId={fighterData.gang?.id || ''}
+            gangCredits={fighterData.gang?.credits || 0}
+            fighterCredits={fighterData.fighter?.credits || 0}
+            userPermissions={userPermissions}
+            onEquipmentUpdate={handleEquipmentUpdate}
+            onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: true}}))}
+          />
+
+          {/* Skills Section */}
+          <SkillsList
+            skills={fighterData.fighter?.skills || {}}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterXp={fighterData.fighter?.xp || 0}
+            free_skill={fighterData.fighter?.free_skill}
+            userPermissions={userPermissions}
+            onSkillAdded={() => {
+              // Invalidate fighter data when skill is added
+              invalidateFighterData();
+            }}
+            onSkillDeleted={() => {
+              // Invalidate fighter data when skill is deleted  
+              invalidateFighterData();
+            }}
+          />
+
+          {/* Advancements Section */}
+          <AdvancementsList
+            fighterXp={fighterData.fighter?.xp || 0}
+            fighterId={fighterData.fighter?.id || ''}
+            advancements={fighterData.fighter?.effects?.advancements || []}
+            skills={fighterData.fighter?.skills || {}}
+            userPermissions={userPermissions}
+            onAdvancementAdded={() => {
+              // Invalidate fighter data when advancement is added
+              invalidateFighterData();
+            }}
+            onAdvancementDeleted={() => {
+              // Invalidate fighter data when advancement is deleted
+              invalidateFighterData();
+            }}
+            onDeleteAdvancement={async (advancementId: string) => {
+              // Invalidate fighter data when advancement is deleted
+              invalidateFighterData();
+            }}
+          />
+
+          {/* Injuries Section */}
+          <InjuriesList
+            injuries={fighterData.fighter?.effects?.injuries || []}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterRecovery={fighterData.fighter?.recovery || false}
+            fighter_class={fighterData.fighter?.fighter_class}
+            userPermissions={userPermissions}
+            onInjuryUpdate={() => {
+              // Invalidate fighter data when injury is updated
+              invalidateFighterData();
+            }}
+          />
+
+          {/* Notes and Backstory Section */}
+          <FighterNotes
+            fighterId={fighterData.fighter?.id || ''}
+            initialNote={fighterData.fighter?.note || ''}
+            initialNoteBackstory={fighterData.fighter?.note_backstory || ''}
+            userPermissions={userPermissions}
+            detailsMutation={detailsMutation}
+            onNoteUpdate={() => {
+              // No longer need to invalidate - optimistic updates handle this
+            }}
+            onNoteBackstoryUpdate={() => {
+              // No longer need to invalidate - optimistic updates handle this
+            }}
+          />
+
+          {/* Fighter Actions Section */}
+          <FighterActions
+            fighter={{
+              id: fighterData.fighter?.id || '',
+              fighter_name: fighterData.fighter?.fighter_name || '',
+              killed: fighterData.fighter?.killed,
+              retired: fighterData.fighter?.retired,
+              enslaved: fighterData.fighter?.enslaved,
+              starved: fighterData.fighter?.starved,
+              recovery: fighterData.fighter?.recovery,
+              captured: fighterData.fighter?.captured,
+              credits: fighterData.fighter?.credits || 0,
+              campaigns: fighterData.fighter?.campaigns || []
+            }}
+            gang={{
+              id: fighterData.gang?.id || ''
+            }}
+            fighterId={fighterData.fighter?.id || ''}
+            userPermissions={userPermissions}
+            onFighterUpdate={() => {
+              // Invalidate fighter data when fighter status is updated
+              invalidateFighterData();
+            }}
           />
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleEquipmentList
-              fighterId={fighterId}
+              fighterId={fighterData.fighter?.id || ''}
               gangId={fighterData.gang?.id || ''}
               gangCredits={fighterData.gang?.credits || 0}
               fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits, deletedEffects = []) => {
-                setFighterData(prev => {
-                  if (!prev.fighter) return prev;
-                  
-                  // Remove deleted effects from vehicle effects if any
-                  let updatedVehicles = prev.fighter.vehicles;
-                  if (deletedEffects.length > 0 && updatedVehicles?.[0]) {
-                    const vehicle = updatedVehicles[0];
-                    let updatedVehicleEffects = { ...vehicle.effects };
-                    
-                    // Remove deleted effects from each category
-                    Object.keys(updatedVehicleEffects).forEach(categoryKey => {
-                      updatedVehicleEffects[categoryKey] = updatedVehicleEffects[categoryKey].filter(
-                        (effect: any) => !deletedEffects.some((deletedEffect: any) => deletedEffect.id === effect.id)
-                      );
-                    });
-                    
-                    updatedVehicles = [{
-                      ...vehicle,
-                      effects: updatedVehicleEffects
-                    }];
-                  }
-                  
-                  return {
-                    ...prev,
-                    vehicleEquipment: updatedEquipment,
-                    fighter: { 
-                      ...prev.fighter, 
-                      credits: newFighterCredits,
-                      vehicles: updatedVehicles
-                    },
-                    gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-                  };
-                });
-              }}
-              equipment={fighterData.vehicleEquipment}
-              onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
-              userPermissions={userPermissions}
-              vehicleEffects={vehicle.effects}
-            />
-          )}
-
-          <WeaponList
-            fighterId={fighterId}
-            gangId={fighterData.gang?.id || ''}
-            gangCredits={fighterData.gang?.credits || 0}
-            fighterCredits={fighterData.fighter?.credits || 0}
-            onEquipmentUpdate={handleEquipmentUpdate}
-            equipment={fighterData.equipment}
-            onAddEquipment={() => handleModalToggle('addWeapon', true)}
-            userPermissions={userPermissions}
-          />
-
-          <SkillsList
-            key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-            skills={fighterData.fighter?.skills || {}}
-            onSkillDeleted={() => router.refresh()}
-            fighterId={fighterData.fighter?.id || ''}
-            fighterXp={fighterData.fighter?.xp || 0}
-            onSkillAdded={() => router.refresh()}
-            free_skill={fighterData.fighter?.free_skill}
-            userPermissions={userPermissions}
-          />
-
-          <AdvancementsList
-            key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-            fighterXp={fighterData.fighter?.xp || 0}
-            fighterId={fighterData.fighter?.id || ''}
-            advancements={fighterData.fighter?.effects?.advancements || []}
-            skills={fighterData.fighter?.skills || {}}
-            onDeleteAdvancement={async () => {
-              // Trigger server component re-execution to get fresh data
-              router.refresh();
-            }}
-            onAdvancementAdded={() => router.refresh()}
-            userPermissions={userPermissions}
-          />
-
-          <InjuriesList
-            injuries={fighterData.fighter?.effects?.injuries || []}
-            fighterId={fighterData.fighter?.id || ''}
-            fighterRecovery={fighterData.fighter?.recovery}
-            userPermissions={userPermissions}
-            fighter_class={fighterData.fighter?.fighter_class}
-          />
-
-          {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
-          {vehicle && (
-            <VehicleDamagesList
-              damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
-              onDamageUpdate={(updatedDamages) => {
-                setFighterData(prev => ({
-                  ...prev,
-                  fighter: prev.fighter ? {
-                    ...prev.fighter,
-                    vehicles: prev.fighter.vehicles?.map(v => 
-                      v.id === vehicle.id 
-                        ? { 
-                            ...v, 
-                            effects: { 
-                              ...v.effects, 
-                              "lasting damages": updatedDamages 
-                            } 
-                          }
-                        : v
-                    )
-                  } : null
-                }));
-              }}
-              fighterId={fighterData.fighter?.id || ''}
-              vehicleId={vehicle.id}
-              vehicle={vehicle}
-              gangCredits={fighterData.gang?.credits || 0}
-              onGangCreditsUpdate={(newCredits) => {
-                setFighterData(prev => ({
-                  ...prev,
-                  gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
-                }));
-              }}
+              onEquipmentUpdate={handleEquipmentUpdate}
+              onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addVehicleEquipment: true}}))}
               userPermissions={userPermissions}
             />
-          )}
-
-          {/* Notes Section */}
-          <div className="mt-6">
-            {fighterData.fighter && (
-              <FighterNotes
-                fighterId={fighterData.fighter.id}
-                initialNote={fighterData.fighter.note}
-                initialNoteBackstory={fighterData.fighter.note_backstory}
-                onNoteUpdate={(updatedNote) => {
-                  setFighterData(prev => ({
-                    ...prev,
-                    fighter: prev.fighter ? { ...prev.fighter, note: updatedNote } : null
-                  }));
-                }}
-                onNoteBackstoryUpdate={(updatedNoteBackstory) => {
-                  setFighterData(prev => ({
-                    ...prev,
-                    fighter: prev.fighter ? { ...prev.fighter, note_backstory: updatedNoteBackstory } : null
-                  }));
-                }}
-                userPermissions={userPermissions}
-              />
-            )}
-          </div>
-
-          {/* Action buttons */}
-          <FighterActions
-            fighter={{
-              id: fighterData.fighter.id,
-              fighter_name: fighterData.fighter.fighter_name,
-              killed: fighterData.fighter.killed,
-              retired: fighterData.fighter.retired,
-              enslaved: fighterData.fighter.enslaved,
-              starved: fighterData.fighter.starved,
-              recovery: fighterData.fighter.recovery,
-              captured: fighterData.fighter.captured,
-              credits: fighterData.fighter.credits || 0,
-              campaigns: fighterData.fighter?.campaigns
-            }}
-            gang={{ id: fighterData.gang?.id || '' }}
-            fighterId={fighterId}
-            userPermissions={userPermissions}
-            onFighterUpdate={() => router.refresh()}
-          />
-
-
-          {uiState.modals.addXp && fighterData.fighter && (
-            <FighterXpModal
-              isOpen={uiState.modals.addXp}
-              fighterId={fighterId}
-              currentXp={fighterData.fighter.xp ?? 0}
-              onClose={() => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: '',
-                  xpError: ''
-                }));
-                handleModalToggle('addXp', false);
-              }}
-              onConfirm={handleAddXp}
-              xpAmountState={{
-                xpAmount: editState.xpAmount,
-                xpError: editState.xpError
-              }}
-              onXpAmountChange={(value) => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: value,
-                  xpError: ''
-                }));
-              }}
-            />
-          )}
-
-          {uiState.modals.editFighter && fighterData.fighter && (
-            <EditFighterModal
-              fighter={convertToFighterProps(fighterData.fighter)}
-              isOpen={uiState.modals.editFighter}
-              initialValues={{
-                name: fighterData.fighter.fighter_name,
-                label: fighterData.fighter.label || '',
-                kills: fighterData.fighter.kills || 0,
-                costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
-              }}
-              gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.gang?.gang_type_id || ''}
-              preFetchedFighterTypes={preFetchedFighterTypes}
-              onClose={() => handleModalToggle('editFighter', false)}
-              onSubmit={async (values) => {
-                try {
-                  // Use server action instead of direct API call
-                  const result = await updateFighterDetails({
-                    fighter_id: fighterId,
-                    fighter_name: values.name,
-                    label: values.label,
-                    kills: values.kills,
-                    cost_adjustment: parseInt(values.costAdjustment) || 0,
-                    special_rules: values.special_rules,
-                    fighter_class: values.fighter_class,
-                    fighter_class_id: values.fighter_class_id,
-                    fighter_type: values.fighter_type,
-                    fighter_type_id: values.fighter_type_id,
-                    fighter_sub_type: values.fighter_sub_type,
-                    fighter_sub_type_id: values.fighter_sub_type_id,
-                    fighter_gang_legacy_id: values.fighter_gang_legacy_id,
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter');
-                  }
-
-                  // Refresh fighter data after successful update
-                  router.refresh();
-                  return true;
-                } catch (error) {
-                  console.error('Error updating fighter:', error);
-                  return false;
-                }
-              }}
-            />
-          )}
-
-          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
-            isFetchingGangCredits ? (
-              <Modal
-                title="Loading..."
-                content={<div>Fetching latest gang credits...</div>}
-                onClose={() => handleModalToggle('addWeapon', false)}
-              />
-            ) : (
-              <ItemModal
-                title="Add Equipment"
-                onClose={() => handleModalToggle('addWeapon', false)}
-                gangCredits={fighterData.gang.credits}
-                gangId={fighterData.gang.id}
-                gangTypeId={fighterData.gang.gang_type_id}
-                fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-                gangAffiliationId={fighterData.gang.gang_affiliation_id}
-                fighterCredits={fighterData.fighter.credits}
-                fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
-                fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
-                }
-              />
-            )
-          )}
-
-          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
-            isFetchingGangCredits ? (
-              <Modal
-                title="Loading..."
-                content={<div>Fetching latest gang credits...</div>}
-                onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              />
-            ) : (
-              <ItemModal
-                title="Add Vehicle Equipment"
-                onClose={() => handleModalToggle('addVehicleEquipment', false)}
-                gangCredits={fighterData.gang.credits}
-                gangId={fighterData.gang.id}
-                gangTypeId={fighterData.gang.gang_type_id}
-                fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-                fighterCredits={fighterData.fighter.credits}
-                vehicleId={vehicle.id}
-                vehicleType={vehicle.vehicle_type}
-                vehicleTypeId={vehicle.vehicle_type_id}
-                isVehicleEquipment={true}
-                allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
-                }
-              />
-            )
           )}
         </div>
+
+        {/* Modals */}
+        {uiState.modals.addXp && (
+          <FighterXpModal
+            isOpen={uiState.modals.addXp}
+            fighterId={fighterData.fighter?.id || ''}
+            currentXp={fighterData.fighter?.xp || 0}
+            onClose={() => setUiState(prev => ({...prev, modals: {...prev.modals, addXp: false}}))}
+            onConfirm={() => {
+              const xpValue = parseInt(editState.xpAmount);
+              if (isNaN(xpValue) || xpValue === 0) {
+                return Promise.resolve(false);
+              }
+
+              return new Promise<boolean>((resolve) => {
+                xpMutation.mutate({
+                  fighter_id: fighterData.fighter?.id || '',
+                  xp_to_add: xpValue
+                }, {
+                  onSuccess: () => {
+                    toast({
+                      description: `XP ${xpValue > 0 ? 'added' : 'subtracted'} successfully`,
+                      variant: "default"
+                    });
+                    
+                    // Reset XP amount and close modal
+                    setEditState(prev => ({...prev, xpAmount: '', xpError: ''}));
+                    setUiState(prev => ({...prev, modals: {...prev.modals, addXp: false}}));
+                    resolve(true);
+                  },
+                  onError: (error) => {
+                    console.error('Error updating XP:', error);
+                    toast({
+                      description: error instanceof Error ? error.message : 'Failed to update XP',
+                      variant: "destructive"
+                    });
+                    resolve(false);
+                  }
+                });
+              });
+            }}
+            xpAmountState={{
+              xpAmount: editState.xpAmount,
+              xpError: editState.xpError
+            }}
+            onXpAmountChange={(value) => {
+              const numValue = parseInt(value);
+              let error = '';
+              
+              if (value !== '' && (isNaN(numValue) || numValue === 0)) {
+                error = 'Please enter a valid number (not zero)';
+              }
+              
+              setEditState(prev => ({
+                ...prev,
+                xpAmount: value,
+                xpError: error
+              }));
+            }}
+            isLoading={xpMutation.isPending}
+          />
+        )}
+
+        {uiState.modals.addWeapon && (
+          <ItemModal
+            title="Add Equipment"
+            onClose={() => setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: false}}))}
+            gangCredits={fighterData.gang?.credits || 0}
+            gangId={fighterData.gang?.id || ''}
+            gangTypeId={fighterData.gang?.gang_type_id || ''}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+            gangAffiliationId={fighterData.gang?.gang_affiliation_id}
+            fighterCredits={fighterData.fighter?.credits || 0}
+            fighterHasLegacy={Boolean(fighterData.gang?.gang_affiliation_id)}
+            fighterLegacyName={fighterData.gang?.gang_affiliation_name}
+            onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
+              handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false);
+              setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: false}}));
+            }}
+          />
+        )}
+
+        {uiState.modals.addVehicleEquipment && vehicle && (
+          <ItemModal
+            title="Add Vehicle Equipment"
+            onClose={() => setUiState(prev => ({...prev, modals: {...prev.modals, addVehicleEquipment: false}}))}
+            gangCredits={fighterData.gang?.credits || 0}
+            gangId={fighterData.gang?.id || ''}
+            gangTypeId={fighterData.gang?.gang_type_id || ''}
+            fighterId={fighterData.fighter?.id || ''}
+            fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+            gangAffiliationId={fighterData.gang?.gang_affiliation_id}
+            fighterCredits={fighterData.fighter?.credits || 0}
+            vehicleId={vehicle.id}
+            vehicleType={vehicle.vehicle_type}
+            vehicleTypeId={vehicle.vehicle_type_id}
+            isVehicleEquipment={true}
+            allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+            onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
+              handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true);
+              setUiState(prev => ({...prev, modals: {...prev.modals, addVehicleEquipment: false}}));
+            }}
+          />
+        )}
+
+        {uiState.modals.editFighter && (
+          <EditFighterModal
+            fighter={convertToFighterProps(fighterData.fighter!)}
+            isOpen={uiState.modals.editFighter}
+            initialValues={{
+              name: fighterData.fighter?.fighter_name || '',
+              label: fighterData.fighter?.label || '',
+              kills: fighterData.fighter?.kills || 0,
+              costAdjustment: editState.costAdjustment
+            }}
+            gangId={fighterData.gang?.id || ''}
+            gangTypeId={fighterData.gang?.gang_type_id || ''}
+            preFetchedFighterTypes={preFetchedFighterTypes}
+            onClose={() => setUiState(prev => ({...prev, modals: {...prev.modals, editFighter: false}}))}
+            onSubmit={(values) => {
+              return new Promise<boolean>((resolve) => {
+                detailsMutation.mutate({
+                  fighter_id: fighterData.fighter?.id || '',
+                  fighter_name: values.name,
+                  label: values.label,
+                  kills: values.kills,
+                  cost_adjustment: parseInt(values.costAdjustment) || 0,
+                  fighter_class: values.fighter_class,
+                  fighter_class_id: values.fighter_class_id,
+                  fighter_type: values.fighter_type,
+                  fighter_type_id: values.fighter_type_id,
+                  special_rules: values.special_rules,
+                  fighter_sub_type: values.fighter_sub_type,
+                  fighter_sub_type_id: values.fighter_sub_type_id,
+                  fighter_gang_legacy_id: values.fighter_gang_legacy_id
+                }, {
+                  onSuccess: () => {
+                    toast({
+                      description: 'Fighter updated successfully',
+                      variant: "default"
+                    });
+                    
+                    setUiState(prev => ({...prev, modals: {...prev.modals, editFighter: false}}));
+                    resolve(true);
+                  },
+                  onError: (error) => {
+                    console.error('Error updating fighter:', error);
+                    toast({
+                      description: error instanceof Error ? error.message : 'Failed to update fighter',
+                      variant: "destructive"
+                    });
+                    resolve(false);
+                  }
+                });
+              });
+            }}
+            onStatsUpdate={() => {
+              // Stats are updated optimistically within the EditFighterModal
+              // No additional action needed here
+            }}
+          />
+        )}
       </div>
     </main>
   );
-} 
+}

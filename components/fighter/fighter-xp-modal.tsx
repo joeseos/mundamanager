@@ -24,6 +24,7 @@ interface FighterXpModalProps {
     xpError: string;
   };
   onXpAmountChange: (value: string) => void;
+  isLoading?: boolean;
 }
 
 export function FighterXpModal({
@@ -33,7 +34,8 @@ export function FighterXpModal({
   onClose,
   onConfirm,
   xpAmountState,
-  onXpAmountChange
+  onXpAmountChange,
+  isLoading = false
 }: FighterXpModalProps) {
   // Define XP "events" for the checkbox list
   const xpCountCases: XpCase[] = [
@@ -239,8 +241,8 @@ export function FighterXpModal({
       }
       onClose={handleModalClose}
       onConfirm={onConfirm}
-      confirmText={parseInt(xpAmountState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
-      confirmDisabled={!xpAmountState.xpAmount || !isValidXpInput(xpAmountState.xpAmount)}
+      confirmText={isLoading ? 'Updating...' : (parseInt(xpAmountState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP')}
+      confirmDisabled={!xpAmountState.xpAmount || !isValidXpInput(xpAmountState.xpAmount) || isLoading}
     />
   );
 } 

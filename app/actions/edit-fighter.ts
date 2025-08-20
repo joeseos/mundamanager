@@ -1,14 +1,12 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
-import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
-// Helper function to invalidate owner's cache when beast fighter is updated
-async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+// Helper function for beast ownership tracking (cache invalidation removed - handled by TanStack Query)
+async function checkBeastOwnership(fighterId: string, supabase: any) {
   // Check if this fighter is an exotic beast owned by another fighter
   const { data: ownerData } = await supabase
     .from('fighter_exotic_beasts')
@@ -16,10 +14,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .eq('fighter_pet_id', fighterId)
     .single();
     
-  if (ownerData) {
-    // Invalidate the owner's cache since their total cost changed
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
-  }
+  return ownerData?.fighter_owner_id || null;
 }
 
 interface EditFighterStatusParams {
@@ -122,7 +117,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       if (!delta) return;
       const newRating = Math.max(0, (gang.rating || 0) + delta);
       await supabase.from('gangs').update({ rating: newRating, last_updated: new Date().toISOString() }).eq('id', gangId);
-      invalidateGangRating(gangId);
+      // Cache invalidation removed - handled by TanStack Query mutations
     };
 
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
@@ -155,8 +150,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -181,8 +175,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -225,9 +218,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (gangUpdateError) throw gangUpdateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
-        invalidateGangCredits(gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -255,8 +246,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         const delta = +(await getEffectiveCost());
         await adjustRating(delta);
 
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -305,8 +295,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           if (updateError) throw updateError;
 
-          invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          // Cache invalidation removed - handled by TanStack Query mutations
 
           return {
             success: true,
@@ -326,8 +315,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           if (updateError) throw updateError;
 
-          invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          // Cache invalidation removed - handled by TanStack Query mutations
 
           return {
             success: true,
@@ -358,8 +346,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           recovery_type: recoveryType
         });
 
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -380,8 +367,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -432,8 +418,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // Cache invalidation removed - handled by TanStack Query mutations
 
         return {
           success: true,
@@ -486,10 +471,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     if (updateError) throw updateError;
 
-    // Invalidate cache - surgical XP-only invalidation
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    // Cache invalidation removed - handled by TanStack Query mutations
 
     return {
       success: true,
@@ -575,24 +557,14 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .from('gangs')
             .update({ rating: Math.max(0, currentRating + delta) })
             .eq('id', fighter.gang_id);
-          invalidateGangRating(fighter.gang_id);
+          // Cache invalidation removed - handled by TanStack Query mutations
         } catch (e) {
           console.error('Failed to update rating after cost_adjustment change:', e);
         }
       }
     }
 
-    // Invalidate cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
-    
-    // Additional cache invalidation for notes
-    if (params.note !== undefined || params.note_backstory !== undefined) {
-      // Invalidate fighter basic data (includes notes)
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-      // Invalidate composite gang data that includes fighter information
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
-    }
+    // Cache invalidation removed - handled by TanStack Query mutations
 
     return {
       success: true,
