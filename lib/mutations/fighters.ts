@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateFighterXp, updateFighterDetails } from '@/app/actions/edit-fighter';
+import { updateFighterXp } from '@/app/actions/edit-fighter';
 import { addSkillAdvancement, deleteAdvancement } from '@/app/actions/fighter-advancement';
 import { queryKeys } from '@/lib/queries/keys';
 import { createClient } from '@/utils/supabase/client';
@@ -31,7 +31,7 @@ export const useUpdateFighterXp = (fighterId: string) => {
       // Return a context object with the snapshotted value
       return { previousFighter };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousFighter) {
         queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
@@ -44,15 +44,130 @@ export const useUpdateFighterXp = (fighterId: string) => {
   });
 };
 
-// Fighter Details Mutation with Optimistic Updates
+// Fighter Details Mutation with Optimistic Updates (Client-side only, no Server Actions)
 export const useUpdateFighterDetails = (fighterId: string) => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: updateFighterDetails,
+    mutationFn: async (params: {
+      fighter_id: string;
+      fighter_name?: string;
+      label?: string;
+      kills?: number;
+      cost_adjustment?: number;
+      special_rules?: string[];
+      fighter_class?: string;
+      fighter_class_id?: string;
+      fighter_type?: string;
+      fighter_type_id?: string;
+      fighter_sub_type?: string | null;
+      fighter_sub_type_id?: string | null;
+      note?: string;
+      note_backstory?: string;
+      fighter_gang_legacy_id?: string | null;
+    }) => {
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      
+      // Client-side authentication check
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('Not authenticated');
+      }
+
+      // OPTIMIZATION: Get current fighter data to compare values for change detection
+      const { data: currentFighter, error: currentFighterError } = await supabase
+        .from('fighters')
+        .select('cost_adjustment, fighter_type_id, fighter_sub_type_id, gang_id')
+        .eq('id', params.fighter_id)
+        .single();
+
+      if (currentFighterError) {
+        throw new Error(`Failed to get current fighter data: ${currentFighterError.message}`);
+      }
+
+      // Build update object with only provided fields
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
+      if (params.label !== undefined) updateData.label = params.label;
+      if (params.kills !== undefined) updateData.kills = params.kills;
+      if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
+      if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
+      if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
+      if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
+      if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
+      if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
+      if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
+      if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
+      if (params.note !== undefined) updateData.note = params.note;
+      if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
+      if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
+
+      // Update fighter using direct Supabase client
+      const { data: updatedFighter, error: updateError } = await supabase
+        .from('fighters')
+        .update(updateData)
+        .eq('id', params.fighter_id)
+        .select('id, fighter_name, label, kills, cost_adjustment')
+        .single();
+
+      if (updateError) throw updateError;
+
+      // OPTIMIZATION: Only handle rating updates if cost_adjustment actually changed (value comparison)
+      // Handle string/number conversion from database
+      const currentCostAdjustment = Number(currentFighter.cost_adjustment) || 0;
+      const newCostAdjustment = Number(params.cost_adjustment) || 0;
+      const costAdjustmentChanged = params.cost_adjustment !== undefined && 
+        newCostAdjustment !== currentCostAdjustment;
+      
+      if (costAdjustmentChanged) {
+        try {
+          // Get gang data for rating update (we already have fighter status from currentFighter check)
+          const { data: gangData } = await supabase
+            .from('gangs')
+            .select('rating')
+            .eq('id', currentFighter.gang_id)
+            .single();
+
+          if (gangData) {
+            const delta = newCostAdjustment - currentCostAdjustment;
+            
+            if (delta !== 0) {
+              const newRating = Math.max(0, (gangData.rating || 0) + delta);
+              await supabase
+                .from('gangs')
+                .update({ rating: newRating })
+                .eq('id', currentFighter.gang_id);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to update rating after cost_adjustment change:', e);
+          // Don't throw - this is a non-critical update
+        }
+      } else if (params.cost_adjustment !== undefined) {
+      }
+
+      return {
+        success: true,
+        data: { 
+          fighter: updatedFighter
+        },
+        // Pass change detection data to onSettled
+        changedValues: {
+          costAdjustmentChanged,
+          fighterTypeChanged: params.fighter_type_id !== undefined && 
+            params.fighter_type_id !== currentFighter.fighter_type_id,
+          subTypeChanged: params.fighter_sub_type_id !== undefined && 
+            params.fighter_sub_type_id !== currentFighter.fighter_sub_type_id
+        }
+      };
+    },
     onMutate: async (variables) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      // Cancel any outgoing refetches - only for basic fighter data
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId), exact: true });
       
       // Snapshot the previous value
       const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
@@ -74,22 +189,71 @@ export const useUpdateFighterDetails = (fighterId: string) => {
               ? { ...old.fighter_type, fighter_type: variables.fighter_type }
               : variables.fighter_type 
           }),
+          ...(variables.fighter_type_id !== undefined && { 
+            fighter_type: typeof old.fighter_type === 'object' 
+              ? { ...old.fighter_type, fighter_type_id: variables.fighter_type_id }
+              : { fighter_type: old.fighter_type || variables.fighter_type || '', fighter_type_id: variables.fighter_type_id }
+          }),
           ...(variables.fighter_class !== undefined && { fighter_class: variables.fighter_class }),
-          ...(variables.special_rules !== undefined && { special_rules: variables.special_rules })
+          ...(variables.fighter_class_id !== undefined && { fighter_class_id: variables.fighter_class_id }),
+          ...(variables.special_rules !== undefined && { special_rules: variables.special_rules }),
+          // OPTIMIZED: Simplified sub-type optimistic updates
+          ...(variables.fighter_sub_type_id !== undefined && {
+            fighter_sub_type: variables.fighter_sub_type_id ? {
+              fighter_sub_type: variables.fighter_sub_type || old.fighter_sub_type?.fighter_sub_type || '',
+              fighter_sub_type_id: variables.fighter_sub_type_id
+            } : null,
+            fighter_sub_type_id: variables.fighter_sub_type_id
+          }),
+          // Handle standalone sub-type name updates (less common)
+          ...(variables.fighter_sub_type !== undefined && variables.fighter_sub_type_id === undefined && {
+            fighter_sub_type: variables.fighter_sub_type ? {
+              ...old.fighter_sub_type,
+              fighter_sub_type: variables.fighter_sub_type
+            } : null
+          }),
+          // Add gang legacy optimistic update
+          ...(variables.fighter_gang_legacy_id !== undefined && { 
+            fighter_gang_legacy_id: variables.fighter_gang_legacy_id,
+            fighter_gang_legacy: variables.fighter_gang_legacy_id ? 
+              (old.fighter_gang_legacy || { id: variables.fighter_gang_legacy_id }) : null
+          })
         };
       });
       
-      return { previousFighter };
+      return { previousFighter, variables };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       if (context?.previousFighter) {
         queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
       }
     },
-    onSettled: () => {
-      // Invalidate and refetch fighter data and potentially gang data if type/cost changed
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+    onSettled: (data, _error, _variables) => {
+      // OPTIMIZED: Use actual value changes instead of field presence
+      const changedValues = data?.changedValues;
+      
+      // Always invalidate basic fighter data with exact matching to prevent cascading
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.fighters.detail(fighterId), 
+        exact: true 
+      });
+      
+      // CRITICAL: Only invalidate total cost if values that actually affect cost changed
+      // This prevents the cascade of equipment/skills/effects/vehicles queries
+      const needsCostRefetch = changedValues?.costAdjustmentChanged || changedValues?.fighterTypeChanged;
+      
+      if (needsCostRefetch) {
+        queryClient.invalidateQueries({ 
+          queryKey: queryKeys.fighters.totalCost(fighterId),
+          exact: true 
+        });
+      } else {
+        // Sub-type only changes don't affect base fighter cost calculation
+        // This prevents the cascade of 5+ additional API calls
+      }
+      
+      // CRITICAL: Don't invalidate equipment, skills, effects, or vehicles for basic detail changes
+      // These are separate concerns and don't need to refetch when fighter details change
     }
   });
 };
@@ -113,7 +277,7 @@ export const useAddFighterSkill = (fighterId: string) => {
       
       return { previousSkills };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // Restore previous state on error
       if (context?.previousSkills) {
         queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
@@ -615,6 +779,72 @@ export const useDeleteFighterEquipment = (fighterId: string, gangId: string) => 
       if (result.success && result.data?.updatedFighterTotalCost !== null) {
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), result.data.updatedFighterTotalCost);
       }
+    }
+  });
+};
+
+// Fighter Stats Update Mutation
+export const useUpdateFighterStats = (fighterId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ fighter_id, stats }: { fighter_id: string; stats: Record<string, number> }) => {
+      const response = await fetch('/api/fighters/effects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fighter_id,
+          stats
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save stat changes');
+      }
+
+      return response.json();
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches for fighter effects
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      
+      // Snapshot the previous effects
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      
+      // Optimistically update the user effects
+      queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+        if (!old) return old;
+        
+        // Create new user effects based on the stats changes
+        const newUserEffects = Object.entries(variables.stats).map(([statName, value]) => ({
+          id: `temp-${statName}-${Date.now()}`, // Temporary ID
+          effect_name: 'User Adjustment',
+          effect_type: 'user',
+          fighter_effect_modifiers: [{
+            stat_name: statName,
+            numeric_value: value
+          }]
+        }));
+        
+        return {
+          ...old,
+          user: newUserEffects
+        };
+      });
+      
+      return { previousEffects };
+    },
+    onError: (_error, _variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+    },
+    onSettled: () => {
+      // Invalidate effects to get fresh data from server
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
     }
   });
 };

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Minus, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { useUpdateFighterStats, useUpdateFighterDetails } from '@/lib/mutations/fighters';
+import { useGetFighterTypes, useGetGangLegacies } from '@/lib/queries/fighters';
 
 // Define constants outside the component to prevent recreation on each render
 
@@ -562,23 +564,21 @@ export function EditFighterModal({
     stats: {} as Record<string, number>
   });
   
-  // Add state for fighter types
-  const [fighterTypes, setFighterTypes] = useState<Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    gang_type_id: string;
-    total_cost: number;
-    typeClassKey?: string;
-    is_gang_variant?: boolean;
-    gang_variant_name?: string;
-    fighter_sub_type?: string;
-    fighter_sub_type_id?: string;
-  }>>([]);
-  const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
-  const [fighterTypesError, setFighterTypesError] = useState<string | null>(null);
+  // Use TanStack Query for fighter types and legacies
+  const {
+    data: fighterTypes = [],
+    isLoading: isLoadingFighterTypes,
+    error: fighterTypesError
+  } = useGetFighterTypes(gangId, gangTypeId, {
+    enabled: isOpen && !!gangId && !!gangTypeId && !preFetchedFighterTypes?.length
+  });
+
+  const {
+    data: availableLegacies = [],
+    isLoading: isLoadingLegacies
+  } = useGetGangLegacies(gangId, gangTypeId, {
+    enabled: isOpen && !!gangId && !!gangTypeId && !preFetchedFighterTypes?.[0]?.available_legacies?.length
+  });
 
   
   // Add state for new special rule input
@@ -590,8 +590,6 @@ export function EditFighterModal({
   // State for showing the stats modal
   const [showStatsModal, setShowStatsModal] = useState(false);
   
-  // State for tracking if stats are being saved
-  const [isSavingStats, setIsSavingStats] = useState(false);
 
   // Add state for temporary selected fighter type - pre-select current type
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState<string>((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || '');
@@ -604,74 +602,18 @@ export function EditFighterModal({
   
   // Add state for gang legacy
   const [selectedGangLegacyId, setSelectedGangLegacyId] = useState<string>((fighter as any).fighter_gang_legacy_id || '');
-  const [availableLegacies, setAvailableLegacies] = useState<Array<{ id: string; name: string }>>([]);
   
   // Track if fighter type has been explicitly selected in this session
   const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
 
-  // Use pre-fetched fighter types or fetch them when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (preFetchedFighterTypes && preFetchedFighterTypes.length > 0) {
-        // Transform pre-fetched data to match the expected format
-        const transformedData = preFetchedFighterTypes.map((type: any) => ({
-          id: type.id,
-          fighter_type: type.fighter_type,
-          fighter_class: type.fighter_class,
-          fighter_class_id: type.fighter_class_id,
-          special_rules: type.special_rules || [],
-          gang_type_id: type.gang_type_id,
-          total_cost: type.total_cost,
-          typeClassKey: type.typeClassKey,
-          is_gang_variant: type.is_gang_variant,
-          gang_variant_name: type.gang_variant_name,
-          // Preserve the sub_type JSONB field from the API response
-          sub_type: type.sub_type || {},
-          // Also extract sub-type data for compatibility (if needed elsewhere)
-          fighter_sub_type: type.sub_type?.sub_type_name || null,
-          fighter_sub_type_id: type.sub_type?.id || null
-        }));
-        setFighterTypes(transformedData);
-        
-        // Extract available legacies if they exist in the pre-fetched data
-        if (preFetchedFighterTypes[0]?.available_legacies) {
-          setAvailableLegacies(preFetchedFighterTypes[0].available_legacies);
-        } else {
-          fetchLegacies();
-        }
-      } else {
-        if (fighterTypes.length === 0) {
-          fetchFighterTypes();
-        }
-        fetchLegacies();
-      }
-    }
-  }, [isOpen, preFetchedFighterTypes]);
+  // Add TanStack mutations
+  const updateStatsMutation = useUpdateFighterStats(fighter.id);
+  const updateDetailsMutation = useUpdateFighterDetails(fighter.id);
 
-  const fetchFighterTypes = async () => {
-    try {
-      setIsLoadingFighterTypes(true);
-      setFighterTypesError(null);
-      
-      console.log('EditFighterModal: Fetching fighter types for gang ID:', gangId);
-      
-      // Build query parameters
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        gang_type_id: gangTypeId,
-        is_gang_addition: 'false'
-      });
-      
-      const response = await fetch(`/api/fighter-types?${params}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch fighter types');
-      }
-      
-      const data = await response.json();
-      
-      // Transform the API response to match the expected FighterType interface
-      const transformedData = data.map((type: any) => ({
+  // Process pre-fetched data or use TanStack queries
+  const processedFighterTypes = useMemo(() => {
+    if (preFetchedFighterTypes && preFetchedFighterTypes.length > 0) {
+      return preFetchedFighterTypes.map((type: any) => ({
         id: type.id,
         fighter_type: type.fighter_type,
         fighter_class: type.fighter_class,
@@ -688,43 +630,18 @@ export function EditFighterModal({
         fighter_sub_type: type.sub_type?.sub_type_name || null,
         fighter_sub_type_id: type.sub_type?.id || null
       }));
-      
-      console.log('EditFighterModal: Fetched fighter types:', transformedData.length);
-      setFighterTypes(transformedData);
-    } catch (error) {
-      console.error('Error fetching fighter types:', error);
-      setFighterTypesError(error instanceof Error ? error.message : 'Failed to fetch fighter types');
-    } finally {
-      setIsLoadingFighterTypes(false);
     }
-  };
+    return fighterTypes;
+  }, [preFetchedFighterTypes, fighterTypes]);
 
-  const fetchLegacies = async () => {
-    try {
-      // Use the same API endpoint as the fighter-types endpoint to get legacies
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        gang_type_id: gangTypeId,
-        is_gang_addition: 'false'
-      });
-      
-      const response = await fetch(`/api/fighter-types?${params}`);
-      
-      if (!response.ok) {
-        console.error('Failed to fetch legacies');
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Extract available legacies from the first fighter type (they should all have the same legacies for the same gang type)
-      if (data.length > 0 && data[0].available_legacies) {
-        setAvailableLegacies(data[0].available_legacies);
-      }
-    } catch (error) {
-      console.error('Error fetching legacies:', error);
+  // Process available legacies from pre-fetched data or TanStack query
+  const processedLegacies = useMemo(() => {
+    if (preFetchedFighterTypes?.[0]?.available_legacies) {
+      return preFetchedFighterTypes[0].available_legacies;
     }
-  };
+    return availableLegacies;
+  }, [preFetchedFighterTypes, availableLegacies]);
+
 
   // Initialize fighter state and sub-types when fighter or fighter types data changes
   useEffect(() => {
@@ -734,19 +651,19 @@ export function EditFighterModal({
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || ''); // Pre-select current gang legacy
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
-  }, [fighter.id, fighterTypes]); // Update when fighter or fighter types data changes
+  }, [fighter.id, processedFighterTypes]); // Update when fighter or processed fighter types data changes
 
   // Pre-populate current fighter type and sub-type when fighter types are loaded
   useEffect(() => {
-    if (fighterTypes.length > 0 && !hasExplicitlySelectedType) {
+    if (processedFighterTypes.length > 0 && !hasExplicitlySelectedType) {
       // Find the current fighter type
       const currentFighterTypeId = (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id;
       if (currentFighterTypeId) {
-        const currentType = fighterTypes.find(ft => ft.id === currentFighterTypeId);
+        const currentType = processedFighterTypes.find(ft => ft.id === currentFighterTypeId);
         if (currentType) {
           // Find the fighter type that would actually appear in the dropdown
           // The dropdown uses complex logic to select the "preferred" version for each type+class combo
-          const allVariantsOfType = fighterTypes.filter(ft => 
+          const allVariantsOfType = processedFighterTypes.filter(ft => 
             ft.fighter_type === currentType.fighter_type && 
             ft.fighter_class === currentType.fighter_class
           );
@@ -775,7 +692,7 @@ export function EditFighterModal({
           }));
 
           // Check for sub-types in the same way as the main logic
-          const fighterTypeGroup = fighterTypes.filter(t => 
+          const fighterTypeGroup = processedFighterTypes.filter(t => 
             t.fighter_type === currentType.fighter_type && 
             t.fighter_class === currentType.fighter_class
           );
@@ -822,7 +739,7 @@ export function EditFighterModal({
           // Set current sub-type if fighter has one
           if (fighter.fighter_sub_type?.fighter_sub_type_id) {
             // Find the fighter type that matches this sub-type ID
-            const matchingFighterType = fighterTypes.find(ft => 
+            const matchingFighterType = processedFighterTypes.find(ft => 
               ft.fighter_sub_type_id === fighter.fighter_sub_type?.fighter_sub_type_id
             );
             
@@ -836,7 +753,7 @@ export function EditFighterModal({
         }
       }
     }
-  }, [fighterTypes, fighter, hasExplicitlySelectedType]);
+  }, [processedFighterTypes, fighter, hasExplicitlySelectedType]);
 
   const handleChange = (field: string, value: any) => {
     setFormValues(prev => ({
@@ -853,7 +770,7 @@ export function EditFighterModal({
     setHasExplicitlySelectedType(true);
     
     // Find the selected fighter type
-    const selectedType = fighterTypes.find((ft: any) => ft.id === fighterTypeId);
+    const selectedType = processedFighterTypes.find((ft: any) => ft.id === fighterTypeId);
     
     if (selectedType) {
       // Update form values with selected type
@@ -865,7 +782,7 @@ export function EditFighterModal({
       }));
       
       // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
-      const fighterTypeGroup = fighterTypes.filter(t => 
+      const fighterTypeGroup = processedFighterTypes.filter(t => 
         t.fighter_type === selectedType.fighter_type &&
         t.fighter_class === selectedType.fighter_class
       );
@@ -980,80 +897,53 @@ export function EditFighterModal({
       return;
     }
     
-    try {
-      setIsSavingStats(true);
-      
-      // Make a clean copy of the fighter BEFORE any adjustments
-      const cleanFighter = { ...currentFighter };
-      
-      // Send the update to the server with the correct sign (positive or negative)
-      const response = await fetch('/api/fighters/effects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    return new Promise<void>((resolve, reject) => {
+      updateStatsMutation.mutate({
+        fighter_id: fighter.id,
+        stats
+      }, {
+        onSuccess: (result) => {
+          // Update local fighter state with server data
+          const updatedFighter = {
+            ...currentFighter,
+            effects: {
+              ...currentFighter.effects,
+              user: result.effects || []
+            }
+          };
+          
+          setCurrentFighter(updatedFighter);
+          
+          // Notify parent component
+          if (onStatsUpdate) {
+            onStatsUpdate(updatedFighter);
+          }
+          
+          toast({
+            description: "Fighter characteristics updated successfully",
+            variant: "default",
+          });
+          
+          setShowStatsModal(false);
+          resolve();
         },
-        body: JSON.stringify({
-          fighter_id: fighter.id,
-          stats // This should already include negative values when decreasing
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save stat changes');
-      }
-      
-      // Process the server response
-      const result = await response.json();
-      
-      // Update with the actual server data including any new effects
-      const serverUpdatedFighter = {
-        ...cleanFighter, // Use the clean fighter as the base
-        effects: {
-          ...cleanFighter.effects,
-          injuries: cleanFighter.effects?.injuries || [],
-          advancements: cleanFighter.effects?.advancements || [],
-          bionics: cleanFighter.effects?.bionics || [],
-          cyberteknika: cleanFighter.effects?.cyberteknika || [],
-          user: result.effects || []
+        onError: (error) => {
+          toast({
+            description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
+            variant: "destructive",
+          });
+          reject(error);
         }
-      };
-      
-      // Update local state with server data
-      setCurrentFighter(serverUpdatedFighter);
-      
-      // Notify parent component with the fully updated fighter
-      if (onStatsUpdate) {
-        onStatsUpdate(serverUpdatedFighter);
-      }
-      
-      // Show success toast message with proper formatting
-      toast({
-        description: "Fighter characteristics updated successfully",
-        variant: "default",
       });
-      
-      // Close the modal only after successful update
-      setShowStatsModal(false);
-      
-    } catch (error) {
-      console.error('Error saving stats:', error);
-      
-      // Show error toast message with proper formatting
-      toast({
-        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingStats(false);
-    }
+    });
   };
 
   // Update the handleConfirm function
   const handleConfirm = async () => {
-    try {
+    return new Promise<boolean>((resolve, reject) => {
       // Get the selected fighter type details - use existing if not explicitly changed
       let selectedFighterType = selectedFighterTypeId ? 
-        fighterTypes.find((ft: any) => ft.id === selectedFighterTypeId) : 
+        processedFighterTypes.find((ft: any) => ft.id === selectedFighterTypeId) : 
         null;
       
       // Get the selected sub-type details (without affecting fighter type)
@@ -1090,7 +980,7 @@ export function EditFighterModal({
         // User explicitly selected a new fighter type
         if (selectedSubType && selectedSubType.fighter_sub_type !== 'Default' && selectedSubType.fighterTypeId) {
           // User also selected a sub-type - use the fighter type that contains that sub-type
-          const fighterTypeWithSubType = fighterTypes.find(ft => ft.id === selectedSubType!.fighterTypeId);
+          const fighterTypeWithSubType = processedFighterTypes.find(ft => ft.id === selectedSubType!.fighterTypeId);
           if (fighterTypeWithSubType) {
             fighterTypeToUse = fighterTypeWithSubType;
             shouldUpdateFighterType = true;
@@ -1109,11 +999,11 @@ export function EditFighterModal({
           const currentFighterType = (fighter.fighter_type as any)?.fighter_type || fighter.fighter_type;
           const currentFighterClass = (fighter.fighter_class as any)?.class_name || fighter.fighter_class;
           
-          const availableFighterTypes = fighterTypes.filter(ft => 
+          const availableFighterTypes = processedFighterTypes.filter(ft => 
             ft.fighter_type === currentFighterType && ft.fighter_class === currentFighterClass
           );
           
-          const fighterTypeWithSubType = fighterTypes.find(ft => 
+          const fighterTypeWithSubType = processedFighterTypes.find(ft => 
             ft.fighter_sub_type_id === selectedSubType!.id &&
             ft.fighter_type === currentFighterType &&
             ft.fighter_class === currentFighterClass
@@ -1124,7 +1014,7 @@ export function EditFighterModal({
           }
         } else if (selectedSubType.fighter_sub_type === 'Default' && selectedSubType.fighterTypeId) {
           // User selected Default - use the fighter type ID from the Default option
-          const defaultFighterType = fighterTypes.find(ft => ft.id === selectedSubType!.fighterTypeId);
+          const defaultFighterType = processedFighterTypes.find(ft => ft.id === selectedSubType!.fighterTypeId);
           if (defaultFighterType) {
             fighterTypeToUse = defaultFighterType;
             shouldUpdateFighterType = true;
@@ -1147,22 +1037,29 @@ export function EditFighterModal({
         fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null,
         fighter_gang_legacy_id: selectedGangLegacyId || null
       };
-      
-      await onSubmit(submitData);
-      toast({
-        description: 'Fighter updated successfully',
-        variant: "default"
+
+      // Use the existing onSubmit function instead of TanStack mutation
+      // since this involves complex fighter type logic that the parent handles
+      onSubmit(submitData).then(success => {
+        if (success) {
+          toast({
+            description: 'Fighter updated successfully',
+            variant: "default"
+          });
+          onClose();
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      }).catch(error => {
+        console.error('Error updating fighter:', error);
+        toast({
+          description: 'Failed to update fighter',
+          variant: "destructive"
+        });
+        reject(error);
       });
-      onClose();
-      return true;
-    } catch (error) {
-      console.error('Error updating fighter:', error);
-      toast({
-        description: 'Failed to update fighter',
-        variant: "destructive"
-      });
-      return false;
-    }
+    });
   };
 
   // Don't render if modal isn't open
@@ -1241,16 +1138,16 @@ export function EditFighterModal({
                 value={selectedFighterTypeId}
                 onChange={(e) => handleFighterTypeChange(e.target.value)}
                 className="w-full p-2 border rounded-md"
-                disabled={false}
+                disabled={isLoadingFighterTypes}
               >
                 <option value="">
-                  Select a fighter type
+                  {isLoadingFighterTypes ? 'Loading fighter types...' : 'Select a fighter type'}
                 </option>
                 {(() => {
                   // Create a map to group fighters by type+class and find default version for each
                   const typeClassMap = new Map();
                   
-                  fighterTypes.forEach(fighter => {
+                  processedFighterTypes.forEach(fighter => {
                     const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
                     
                     if (!typeClassMap.has(key)) {
@@ -1358,7 +1255,7 @@ export function EditFighterModal({
             )}
             
             {/* Gang Legacy Dropdown */}
-            {availableLegacies.length > 0 && (
+            {processedLegacies.length > 0 && (
               <div>
                 <label htmlFor="fighter_gang_legacy_id" className="block text-sm font-medium mb-1">
                   Gang Legacy
@@ -1372,7 +1269,7 @@ export function EditFighterModal({
                   <option value="">
                     No Legacy
                   </option>
-                  {availableLegacies.map((legacy) => (
+                  {processedLegacies.map((legacy) => (
                     <option key={legacy.id} value={legacy.id}>
                       {legacy.name}
                     </option>
@@ -1462,7 +1359,7 @@ export function EditFighterModal({
           onClose={() => setShowStatsModal(false)} 
           fighter={currentFighter}
           onUpdateStats={handleUpdateStats}
-          isSaving={isSavingStats}
+          isSaving={updateStatsMutation.isPending}
         />
       )}
     </>

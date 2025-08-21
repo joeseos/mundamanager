@@ -140,3 +140,68 @@ export const useGetFighterOwnerName = (
     ...options
   });
 };
+
+// Fighter Types Query
+export const useGetFighterTypes = (
+  gangId: string,
+  gangTypeId: string,
+  options?: Partial<UseQueryOptions<any[], Error, any[], readonly string[]>>
+) => {
+  return useQuery({
+    queryKey: ['fighter-types', gangId, gangTypeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        gang_type_id: gangTypeId,
+        is_gang_addition: 'false'
+      });
+      
+      const response = await fetch(`/api/fighter-types?${params}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch fighter types');
+      }
+      
+      return response.json();
+    },
+    enabled: !!gangId && !!gangTypeId,
+    staleTime: 1000 * 60 * 30, // 30 minutes (reference data)
+    ...options
+  });
+};
+
+// Gang Legacies Query
+export const useGetGangLegacies = (
+  gangId: string,
+  gangTypeId: string,
+  options?: Partial<UseQueryOptions<any[], Error, any[], readonly string[]>>
+) => {
+  return useQuery({
+    queryKey: ['gang-legacies', gangId, gangTypeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        gang_type_id: gangTypeId,
+        is_gang_addition: 'false'
+      });
+      
+      const response = await fetch(`/api/fighter-types?${params}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch legacies');
+      }
+      
+      const data = await response.json();
+      
+      // Extract available legacies from the first fighter type
+      if (data.length > 0 && data[0].available_legacies) {
+        return data[0].available_legacies;
+      }
+      
+      return [];
+    },
+    enabled: !!gangId && !!gangTypeId,
+    staleTime: 1000 * 60 * 30, // 30 minutes (reference data)
+    ...options
+  });
+};

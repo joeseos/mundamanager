@@ -38,6 +38,7 @@ export interface FighterBasic {
     name?: string;
   } | null;
   fighter_sub_type_id?: string;
+  fighter_sub_type?: string;
   killed?: boolean;
   starved?: boolean;
   retired?: boolean;
@@ -148,6 +149,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
             name
           ),
           fighter_sub_type_id,
+          fighter_sub_type,
           killed,
           starved,
           retired,

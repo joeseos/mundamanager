@@ -40,10 +40,29 @@ export interface Database {
           id: string
           fighter_name: string
           fighter_type_id: string
+          fighter_sub_type_id: string | null
+          fighter_sub_type: string | null
           gang_id: string
+          fighter_class: string | null
           credits: number
           xp: number | null
           total_xp: number | null
+          movement: number | null
+          weapon_skill: number | null
+          ballistic_skill: number | null
+          strength: number | null
+          toughness: number | null
+          wounds: number | null
+          initiative: number | null
+          attacks: number | null
+          leadership: number | null
+          cool: number | null
+          willpower: number | null
+          intelligence: number | null
+          cost_adjustment: number | null
+          fighter_type: string | null
+          fighter_pet_id: string | null
+          retired: boolean | null
           created_at: string
           updated_at: string | null
         }
@@ -51,10 +70,29 @@ export interface Database {
           id?: string
           fighter_name: string
           fighter_type_id: string
+          fighter_sub_type_id?: string | null
+          fighter_sub_type?: string | null
           gang_id: string
+          fighter_class?: string | null
           credits?: number
           xp?: number | null
           total_xp?: number | null
+          movement?: number | null
+          weapon_skill?: number | null
+          ballistic_skill?: number | null
+          strength?: number | null
+          toughness?: number | null
+          wounds?: number | null
+          initiative?: number | null
+          attacks?: number | null
+          leadership?: number | null
+          cool?: number | null
+          willpower?: number | null
+          intelligence?: number | null
+          cost_adjustment?: number | null
+          fighter_type?: string | null
+          fighter_pet_id?: string | null
+          retired?: boolean | null
           created_at?: string
           updated_at?: string | null
         }
@@ -62,10 +100,29 @@ export interface Database {
           id?: string
           fighter_name?: string
           fighter_type_id?: string
+          fighter_sub_type_id?: string | null
+          fighter_sub_type?: string | null
           gang_id?: string
+          fighter_class?: string | null
           credits?: number
           xp?: number | null
           total_xp?: number | null
+          movement?: number | null
+          weapon_skill?: number | null
+          ballistic_skill?: number | null
+          strength?: number | null
+          toughness?: number | null
+          wounds?: number | null
+          initiative?: number | null
+          attacks?: number | null
+          leadership?: number | null
+          cool?: number | null
+          willpower?: number | null
+          intelligence?: number | null
+          cost_adjustment?: number | null
+          fighter_type?: string | null
+          fighter_pet_id?: string | null
+          retired?: boolean | null
           created_at?: string
           updated_at?: string | null
         }

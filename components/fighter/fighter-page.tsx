@@ -6,7 +6,6 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { useQueryClient } from '@tanstack/react-query';
 import ItemModal from "@/components/equipment";
@@ -19,7 +18,6 @@ import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { Vehicle } from '@/types/fighter';
-import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { useUpdateFighterXp, useUpdateFighterDetails } from "@/lib/mutations/fighters";
@@ -33,7 +31,6 @@ import {
   useGetFighterVehicles,
   useGetFighterTotalCost,
   useGetFighterType,
-  useGetFighterSubType,
   useGetFighterCampaigns,
   useGetFighterOwnedBeasts,
   useGetFighterOwnerName
@@ -242,7 +239,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       },
       fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
         fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
-        fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
+        fighter_sub_type_id: fighterData.fighter.fighter_sub_type.fighter_sub_type_id || 
+                            fighterData.fighter.fighter_sub_type.id
       } : undefined,
       base_credits: fighterData.fighter.credits - (fighterData.fighter.cost_adjustment || 0),
       gang_id: fighterData.gang.id,
@@ -351,67 +349,102 @@ export default function FighterPage({
   const queryClient = useQueryClient();
 
   // TanStack Query hooks for data fetching with SSR hydration - ALL hooks must be called unconditionally
+  
   const { data: fighterBasic, isLoading: fighterLoading, error: fighterError } = useGetFighter(
     fighterId, 
-    { initialData: initialData?.fighter, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.fighter, 
+      staleTime: 1000 * 60 * 5 // 5 minutes - proper SSR hydration
+    }
   );
   
   // Mutation hooks for optimistic updates
   const xpMutation = useUpdateFighterXp(fighterId);
   const detailsMutation = useUpdateFighterDetails(fighterId);
+  
   const { data: equipment, isLoading: equipmentLoading } = useGetFighterEquipment(
     fighterId,
-    { initialData: initialData?.equipment, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.equipment, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: skills, isLoading: skillsLoading } = useGetFighterSkills(
     fighterId,
-    { initialData: initialData?.skills, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.skills, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: effects, isLoading: effectsLoading } = useGetFighterEffects(
     fighterId,
-    { initialData: initialData?.effects, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.effects, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: vehicles, isLoading: vehiclesLoading } = useGetFighterVehicles(
     fighterId,
-    { initialData: initialData?.vehicles, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.vehicles, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: totalCost, isLoading: costLoading } = useGetFighterTotalCost(
     fighterId,
-    { initialData: initialData?.totalCost, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.totalCost, 
+      staleTime: 1000 * 60 * 10
+    }
   );
   
   // Gang data with SSR hydration - use placeholder IDs to ensure hooks are always called
   const gangId = fighterBasic?.gang_id || initialData?.gang?.id || 'placeholder';
+  
   const { data: gang, isLoading: gangLoading } = useGetGang(
     gangId,
-    { initialData: initialData?.gang, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.gang, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: gangCredits, isLoading: creditsLoading } = useGetGangCredits(
     gangId,
-    { initialData: initialData?.gang?.credits, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.gang?.credits, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: gangPositioning, isLoading: positioningLoading } = useGetGangPositioning(
     gangId,
-    { initialData: initialData?.gangPositioning, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.gangPositioning, 
+      staleTime: 1000 * 60 * 10
+    }
   );
+  
   const { data: gangFighters, isLoading: gangFightersLoading } = useGetGangFighters(
     gangId,
-    { initialData: initialData?.gangFighters, staleTime: 1000 * 60 * 10 }
+    { 
+      initialData: initialData?.gangFighters, 
+      staleTime: 1000 * 60 * 10
+    }
   );
   
   // Reference data with SSR hydration - use placeholder IDs to ensure hooks are always called
   const fighterTypeId = fighterBasic?.fighter_type_id || initialData?.fighter?.fighter_type_id || 'placeholder';
-  const fighterSubTypeId = fighterBasic?.fighter_sub_type_id || initialData?.fighter?.fighter_sub_type_id || 'placeholder';
   const { data: fighterType } = useGetFighterType(fighterTypeId, { 
     initialData: initialData?.fighterType,
     staleTime: 1000 * 60 * 60,
     enabled: !initialData && fighterTypeId !== 'placeholder'
   });
-  const { data: fighterSubType } = useGetFighterSubType(fighterSubTypeId, { 
-    initialData: initialData?.fighterSubType,
-    staleTime: 1000 * 60 * 60,
-    enabled: !initialData && fighterSubTypeId !== 'placeholder'
-  });
+  // Note: fighterSubType is now redundant - sub-type data comes directly from fighterBasic
   
   // Additional fighter data with SSR hydration - disable when we have SSR data
   const { data: campaigns } = useGetFighterCampaigns(fighterId, { 
@@ -433,7 +466,6 @@ export default function FighterPage({
 
   // Override with SSR data when available
   const effectiveFighterType = initialData?.fighterType || fighterType;
-  const effectiveFighterSubType = initialData?.fighterSubType || fighterSubType;
   const effectiveCampaigns = initialData?.campaigns || campaigns;
   const effectiveOwnedBeasts = initialData?.ownedBeasts || ownedBeasts;
   const effectiveOwnerName = initialData?.ownerName || ownerName;
@@ -665,11 +697,40 @@ export default function FighterPage({
         fighter_type: effectiveFighterType?.fighter_type || 'Unknown',
         alliance_crew_name: effectiveFighterType?.alliance_crew_name
       },
-      fighter_sub_type: effectiveFighterSubType ? {
-        id: effectiveFighterSubType.id,
-        sub_type_name: effectiveFighterSubType.sub_type_name || (effectiveFighterSubType as any).fighter_sub_type,
-        fighter_sub_type: effectiveFighterSubType.sub_type_name || (effectiveFighterSubType as any).fighter_sub_type
-      } : undefined,
+      fighter_sub_type: (() => {
+        // If fighterBasic data exists, use it (including explicit null values)
+        if (fighterBasic) {
+          // Handle optimistic update structure (fighter_sub_type is an object)
+          if (fighterBasic.fighter_sub_type && typeof fighterBasic.fighter_sub_type === 'object') {
+            return {
+              id: fighterBasic.fighter_sub_type.fighter_sub_type_id || fighterBasic.fighter_sub_type_id || '',
+              sub_type_name: fighterBasic.fighter_sub_type.fighter_sub_type || '',
+              fighter_sub_type: fighterBasic.fighter_sub_type.fighter_sub_type || ''
+            };
+          }
+          // Handle server data structure (fighter_sub_type is string, separate fighter_sub_type_id)
+          else if (fighterBasic.fighter_sub_type || fighterBasic.fighter_sub_type_id) {
+            return {
+              id: fighterBasic.fighter_sub_type_id || '',
+              sub_type_name: fighterBasic.fighter_sub_type || '',
+              fighter_sub_type: fighterBasic.fighter_sub_type || ''
+            };
+          }
+          // If fighterBasic exists but both sub-type fields are null/undefined, return undefined (no sub-type)
+          else {
+            return undefined;
+          }
+        }
+        // Only fallback to SSR data when fighterBasic hasn't loaded yet
+        else if (initialData?.fighterSubType) {
+          return {
+            id: initialData.fighterSubType.id,
+            sub_type_name: initialData.fighterSubType.sub_type_name || (initialData.fighterSubType as any).fighter_sub_type,
+            fighter_sub_type: initialData.fighterSubType.sub_type_name || (initialData.fighterSubType as any).fighter_sub_type
+          };
+        }
+        return undefined;
+      })(),
       skills: skills || {},
       effects: effects || {
         injuries: [],
@@ -705,13 +766,24 @@ export default function FighterPage({
     equipment: equipment || [],
   };
 
-  // Update state when data changes (SSR or client-side)
+  // Update state when core data changes (SSR or client-side)
+  // OPTIMIZED: Reduced dependency array to prevent cascading re-renders
   useEffect(() => {
-    // Always use transformed data when available
     if (transformedFighterData.fighter && transformedFighterData.gang) {
-      setFighterData(transformFighterData(transformedFighterData, gangFighters || []));
+      const result = transformFighterData(transformedFighterData, gangFighters || []);
+      setFighterData(result);
     }
-  }, [initialData, fighterBasic, gang, equipment, skills, effects, vehicles, totalCost, gangCredits, gangPositioning, gangFighters, effectiveFighterType, effectiveFighterSubType, effectiveCampaigns, effectiveOwnedBeasts, effectiveOwnerName]);
+  }, [
+    // Only depend on core data that actually changes the fighter structure
+    fighterBasic?.id,
+    fighterBasic?.fighter_name,
+    fighterBasic?.fighter_type_id,
+    fighterBasic?.fighter_sub_type_id,
+    gang?.id,
+    totalCost,
+    // Don't include equipment, skills, effects, vehicles in dependencies
+    // as they're handled separately and shouldn't trigger full re-renders
+  ]);
 
   // Check for loading states - show loading only if we don't have data from any source
   const isLoading = (
