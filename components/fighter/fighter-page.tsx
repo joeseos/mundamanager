@@ -813,6 +813,7 @@ export default function FighterPage({
     fighterBasic?.kills, // Include kills for optimistic updates
     fighterBasic?.label, // Include label for optimistic updates
     fighterBasic?.cost_adjustment, // Include cost_adjustment for optimistic updates
+    fighterBasic?.special_rules, // Include special_rules for optimistic updates
     gang?.id,
     totalCost,
     // Don't include equipment, skills, effects, vehicles in dependencies
