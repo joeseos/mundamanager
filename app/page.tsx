@@ -3,16 +3,14 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import MyGangs from '@/components/my-gangs';
-import MyCampaigns from '@/components/my-campaigns';
 import { CreateGangButton } from '@/components/create-gang-modal';
 import { CreateCampaignButton } from '@/components/create-campaign';
-import CreateCampaign from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { GrHelpBook } from "react-icons/gr";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -50,6 +48,10 @@ export default async function Home() {
             </p>
             <div>
               <div className="flex gap-2">
+                <a href="https://tinyurl.com/how-to-use-mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+                  <GrHelpBook className="mr-2 h-4 w-4" />
+                  Quick Start Guide
+                </a>
                 <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
                   <FaDiscord className="mr-2 h-4 w-4" />
                   Discord
