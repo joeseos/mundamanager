@@ -101,33 +101,27 @@ export const useAddFighterSkill = (fighterId: string) => {
   return useMutation({
     mutationFn: addSkillAdvancement,
     onMutate: async (variables) => {
-      // Cancel queries for skills and fighter details
+      // Cancel queries for skills only - don't touch fighter detail
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       
       // Snapshot previous values
       const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
-      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
       
       // Note: We can't easily do optimistic update for skills since we don't know the skill name
       // without making an additional API call. We'll let the onSettled handle the refresh.
       // This still provides fast feedback through the loading state.
       
-      return { previousSkills, previousFighter };
+      return { previousSkills };
     },
     onError: (err, variables, context) => {
       // Restore previous state on error
       if (context?.previousSkills) {
         queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
       }
-      if (context?.previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
-      }
     },
     onSettled: () => {
-      // Refetch skills and fighter data
+      // Only invalidate skills - no need to invalidate entire fighter detail
       queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
     }
   });
 };
@@ -139,18 +133,14 @@ export const useDeleteFighterAdvancement = (fighterId: string) => {
   return useMutation({
     mutationFn: deleteAdvancement,
     onMutate: async (variables) => {
-      // Cancel queries
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-      
-      // Snapshot previous values
-      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
-      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
-      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
-      
-      // Optimistically remove the item from skills if it's a skill deletion
+      // Only cancel and handle queries relevant to the advancement type
       if (variables.advancement_type === 'skill') {
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+        
+        // Snapshot previous skills
+        const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+        
+        // Optimistically remove the skill
         queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: any) => {
           if (!old || typeof old !== 'object') return old;
           
@@ -163,27 +153,32 @@ export const useDeleteFighterAdvancement = (fighterId: string) => {
           });
           return updatedSkills;
         });
+        
+        return { previousSkills, advancementType: 'skill' };
+      } else {
+        // For non-skill advancements (characteristics, etc.), handle effects
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+        
+        const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+        
+        return { previousEffects, advancementType: 'other' };
       }
-      
-      return { previousSkills, previousEffects, previousFighter };
     },
-    onError: (err, variables, context) => {
-      // Restore previous states on error
-      if (context?.previousSkills) {
+    onError: (_err, _variables, context) => {
+      // Restore previous states based on advancement type
+      if (context?.advancementType === 'skill' && context?.previousSkills) {
         queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
-      }
-      if (context?.previousEffects) {
+      } else if (context?.advancementType === 'other' && context?.previousEffects) {
         queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
       }
-      if (context?.previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
-      }
     },
-    onSettled: () => {
-      // Refetch all relevant data
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+    onSettled: (_data, _error, variables) => {
+      // Only invalidate what's relevant to the advancement type
+      if (variables.advancement_type === 'skill') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      }
     }
   });
 };

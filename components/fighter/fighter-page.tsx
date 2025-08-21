@@ -905,17 +905,8 @@ export default function FighterPage({
           <SkillsList
             skills={fighterData.fighter?.skills || {}}
             fighterId={fighterData.fighter?.id || ''}
-            fighterXp={fighterData.fighter?.xp || 0}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
-            onSkillAdded={() => {
-              // Invalidate fighter data when skill is added
-              invalidateFighterData();
-            }}
-            onSkillDeleted={() => {
-              // Invalidate fighter data when skill is deleted  
-              invalidateFighterData();
-            }}
           />
 
           {/* Advancements Section */}
