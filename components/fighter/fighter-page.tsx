@@ -895,13 +895,9 @@ export default function FighterPage({
 
           {/* Equipment Section */}
           <WeaponList
-            equipment={fighterData.equipment}
             fighterId={fighterData.fighter?.id || ''}
             gangId={fighterData.gang?.id || ''}
-            gangCredits={fighterData.gang?.credits || 0}
-            fighterCredits={fighterData.fighter?.credits || 0}
             userPermissions={userPermissions}
-            onEquipmentUpdate={handleEquipmentUpdate}
             onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: true}}))}
           />
 

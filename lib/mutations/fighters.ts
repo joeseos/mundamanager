@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateFighterXp, updateFighterDetails } from '@/app/actions/edit-fighter';
 import { addSkillAdvancement, deleteAdvancement } from '@/app/actions/fighter-advancement';
 import { queryKeys } from '@/lib/queries/keys';
+import { createClient } from '@/utils/supabase/client';
+import { Equipment } from '@/types/equipment';
 
 // Fighter XP Mutation with Optimistic Updates
 export const useUpdateFighterXp = (fighterId: string) => {
@@ -247,6 +249,219 @@ export const useUpdateFighterStatus = (fighterId: string) => {
       // Refetch fighter and gang data (status changes can affect gang)
       queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       // Note: We'd need gangId here to invalidate gang data, can be added as parameter
+    }
+  });
+};
+
+// Equipment Selling Mutation with Optimistic Updates
+export const useSellFighterEquipment = (fighterId: string, gangId: string) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: { fighter_equipment_id: string; manual_cost?: number }) => {
+      const supabase = createClient();
+      
+      // Client-side authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('Not authenticated');
+      }
+      
+      // Get the equipment data first
+      const { data: equipmentData, error: equipmentError } = await supabase
+        .from('fighter_equipment')
+        .select(`
+          id,
+          fighter_id,
+          vehicle_id,
+          equipment_id,
+          custom_equipment_id,
+          purchase_cost
+        `)
+        .eq('id', params.fighter_equipment_id)
+        .single();
+
+      if (equipmentError || !equipmentData) {
+        throw new Error(`Fighter equipment with ID ${params.fighter_equipment_id} not found`);
+      }
+
+      // Verify this equipment belongs to the specified fighter
+      if (equipmentData.fighter_id !== fighterId) {
+        throw new Error('Equipment does not belong to this fighter');
+      }
+
+      // Determine sell value (manual or default to purchase cost)
+      const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;
+
+      // Get current gang data and verify permissions
+      const { data: currentGang, error: getCurrentError } = await supabase
+        .from('gangs')
+        .select('credits, rating, user_id')
+        .eq('id', gangId)
+        .single();
+        
+      if (getCurrentError || !currentGang) {
+        throw new Error('Failed to get current gang data');
+      }
+      
+      // Check if user owns this gang
+      if (currentGang.user_id !== user.id) {
+        throw new Error('Permission denied: You do not own this gang');
+      }
+
+      // Find associated effects before deletion
+      const { data: associatedEffects } = await supabase
+        .from('fighter_effects')
+        .select('id, type_specific_data')
+        .eq('fighter_equipment_id', params.fighter_equipment_id);
+
+      // Delete equipment first
+      const { error: deleteError } = await supabase
+        .from('fighter_equipment')
+        .delete()
+        .eq('id', params.fighter_equipment_id);
+
+      if (deleteError) {
+        throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+      }
+
+      // Update gang credits
+      const newCredits = currentGang.credits + sellValue;
+      const { data: updatedGang, error: updateError } = await supabase
+        .from('gangs')
+        .update({ credits: newCredits })
+        .eq('id', gangId)
+        .select('id, credits')
+        .single();
+        
+      if (updateError || !updatedGang) {
+        throw new Error(`Failed to update gang credits: ${updateError?.message}`);
+      }
+
+      // Calculate rating delta: subtract purchase_cost and associated effects credits
+      let ratingDelta = 0;
+      if (equipmentData.fighter_id) {
+        ratingDelta -= (equipmentData.purchase_cost || 0);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => 
+          s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
+      }
+
+      // Update gang rating if needed
+      if (ratingDelta !== 0) {
+        const newRating = Math.max(0, currentGang.rating + ratingDelta);
+        await supabase
+          .from('gangs')
+          .update({ rating: newRating })
+          .eq('id', gangId);
+      }
+
+      return {
+        gang: {
+          id: updatedGang.id,
+          credits: updatedGang.credits
+        },
+        equipment_sold: {
+          id: equipmentData.id,
+          fighter_id: equipmentData.fighter_id,
+          vehicle_id: equipmentData.vehicle_id,
+          equipment_id: equipmentData.equipment_id,
+          custom_equipment_id: equipmentData.custom_equipment_id,
+          sell_value: sellValue
+        },
+        rating_delta: ratingDelta
+      };
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (prevents race conditions)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousEquipment = queryClient.getQueryData<Equipment[]>(queryKeys.fighters.equipment(fighterId));
+      const previousTotalCost = queryClient.getQueryData<number>(queryKeys.fighters.totalCost(fighterId));
+      const previousGang = queryClient.getQueryData(queryKeys.gangs.detail(gangId));
+      const previousGangCredits = queryClient.getQueryData<number>(queryKeys.gangs.credits(gangId));
+      
+      // Find the equipment being sold
+      const equipmentToSell = previousEquipment?.find(
+        item => item.fighter_equipment_id === variables.fighter_equipment_id
+      );
+      
+      if (equipmentToSell && previousEquipment) {
+        // Calculate sell value
+        const sellValue = variables.manual_cost ?? equipmentToSell.purchase_cost ?? 0;
+        
+        // Optimistically remove equipment from equipment list
+        const updatedEquipment = previousEquipment.filter(
+          item => item.fighter_equipment_id !== variables.fighter_equipment_id
+        );
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), updatedEquipment);
+        
+        // Optimistically update fighter's total cost (decrease by equipment's purchase cost)
+        if (previousTotalCost !== undefined) {
+          const equipmentCost = equipmentToSell.purchase_cost ?? 0;
+          const newTotalCost = previousTotalCost - equipmentCost;
+          queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), newTotalCost);
+        }
+        
+        // Optimistically update gang credits in both caches
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            credits: (old.credits || 0) + sellValue
+          };
+        });
+        
+        // Also update the specific credits cache used by useGetGangCredits
+        const currentCredits = queryClient.getQueryData<number>(queryKeys.gangs.credits(gangId)) || 0;
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), currentCredits + sellValue);
+      }
+      
+      return { 
+        previousEquipment, 
+        previousTotalCost,
+        previousGang, 
+        previousGangCredits,
+        equipmentToSell
+      };
+    },
+    onError: (error, variables, context) => {
+      // Comprehensive rollback of all optimistic updates on error
+      console.error('Equipment sale failed, rolling back optimistic updates:', error);
+      
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      if (context?.previousGang) {
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), context.previousGang);
+      }
+      if (context?.previousGangCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousGangCredits);
+      }
+    },
+    onSuccess: (result) => {
+      // Server confirmed deletion - now safe to invalidate related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
+      // Update both gang credits caches with server-confirmed value
+      queryClient.setQueryData(queryKeys.gangs.detail(gangId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          credits: result.gang.credits
+        };
+      });
+      
+      // CRITICAL: Also update the specific credits cache used by useGetGangCredits
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), result.gang.credits);
     }
   });
 };

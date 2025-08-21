@@ -128,15 +128,92 @@ export const fightersApi = {
   
   getTotalCost: async (fighterId: string) => {
     const supabase = createClient();
-    // Simple fallback - just return the fighter's base credits for now
-    const { data, error } = await supabase
-      .from('fighters')
-      .select('credits')
-      .eq('id', fighterId)
-      .single();
     
-    if (error) throw error;
-    return data?.credits || 0;
+    // Get all cost components in parallel
+    const [fighterResult, equipmentResult, skillsResult, effectsResult, vehiclesResult] = await Promise.all([
+      supabase
+        .from('fighters')
+        .select('credits, fighter_pet_id')
+        .eq('id', fighterId)
+        .single(),
+      supabase
+        .from('fighter_equipment')
+        .select('purchase_cost')
+        .eq('fighter_id', fighterId),
+      supabase
+        .from('fighter_skills')
+        .select('credits_increase')
+        .eq('fighter_id', fighterId),
+      supabase
+        .from('fighter_effects')
+        .select('type_specific_data')
+        .eq('fighter_id', fighterId),
+      supabase
+        .from('vehicles')
+        .select('id, cost')
+        .eq('fighter_id', fighterId)
+    ]);
+
+    if (fighterResult.error) throw fighterResult.error;
+    const fighter = fighterResult.data;
+
+    // Check if this fighter is owned by another fighter (exotic beast)
+    let isOwnedBeast = false;
+    if (fighter.fighter_pet_id) {
+      const { data: ownershipData } = await supabase
+        .from('fighter_exotic_beasts')
+        .select('fighter_owner_id')
+        .eq('id', fighter.fighter_pet_id)
+        .single();
+      isOwnedBeast = !!ownershipData;
+    }
+
+    // If this fighter is owned by another fighter, always show 0 cost
+    if (isOwnedBeast) {
+      return 0;
+    }
+
+    // Calculate vehicle costs separately (like server-side does)
+    let vehicleCost = 0;
+    const vehicles = vehiclesResult.data || [];
+    
+    if (vehicles.length > 0) {
+      // Get vehicle equipment and effects for all vehicles in parallel
+      const vehicleDataPromises = vehicles.map(async (vehicle: any) => {
+        const [vehicleEquipmentResult, vehicleEffectsResult] = await Promise.all([
+          supabase
+            .from('fighter_equipment')
+            .select('purchase_cost')
+            .eq('vehicle_id', vehicle.id),
+          supabase
+            .from('fighter_effects')
+            .select('type_specific_data')
+            .eq('vehicle_id', vehicle.id)
+        ]);
+
+        return {
+          baseCost: vehicle.cost || 0,
+          equipmentCost: (vehicleEquipmentResult.data || []).reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0),
+          effectsCost: (vehicleEffectsResult.data || []).reduce((sum: number, effect: any) => {
+            return sum + (effect.type_specific_data?.credits_increase || 0);
+          }, 0)
+        };
+      });
+
+      const vehicleData = await Promise.all(vehicleDataPromises);
+      vehicleCost = vehicleData.reduce((sum, vehicle) => {
+        return sum + vehicle.baseCost + vehicle.equipmentCost + vehicle.effectsCost;
+      }, 0);
+    }
+
+    // Calculate total cost
+    const equipmentCost = (equipmentResult.data || []).reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
+    const skillsCost = (skillsResult.data || []).reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);
+    const effectsCost = (effectsResult.data || []).reduce((sum, effect) => {
+      return sum + (effect.type_specific_data?.credits_increase || 0);
+    }, 0);
+
+    return (fighter.credits || 0) + equipmentCost + skillsCost + effectsCost + vehicleCost;
   },
   
   // Additional fighter-specific data

@@ -5,7 +5,8 @@ import { useToast } from "@/components/ui/use-toast";
 import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { useSellFighterEquipment } from '@/lib/mutations/fighters';
+import { useGetFighterEquipment } from '@/lib/queries/fighters';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,6 @@ import { rollD6 } from '@/utils/dice';
 interface WeaponListProps {
   fighterId: string;
   gangId: string;
-  gangCredits: number;
-  fighterCredits: number;
-  onEquipmentUpdate: (updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => void;
-  equipment?: Equipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
 }
@@ -93,15 +90,15 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
 export function WeaponList({ 
   fighterId, 
   gangId, 
-  gangCredits, 
-  fighterCredits, 
-  onEquipmentUpdate,
-  equipment = [],
   onAddEquipment,
   userPermissions
 }: WeaponListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  
+  // TanStack Query hooks
+  const { data: equipment = [], isLoading: equipmentLoading } = useGetFighterEquipment(fighterId);
+  const sellEquipmentMutation = useSellFighterEquipment(fighterId, gangId);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
@@ -126,11 +123,7 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to delete equipment');
       }
       
-      const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      // Use purchase_cost for calculating credit adjustments as this is what affects the rating
-      const newFighterCredits = fighterCredits - (equipmentToDelete.purchase_cost ?? 0);
-      
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
+      // TanStack Query will handle cache invalidation automatically
       
       toast({
         description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
@@ -148,46 +141,38 @@ export function WeaponList({
     }
   };
 
-  const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
-    try {
-      const equipmentToSell = equipment.find(
-        item => item.fighter_equipment_id === fighterEquipmentId
-      );
-      if (!equipmentToSell) return;
+  const handleSellEquipment = async (fighterEquipmentId: string, _equipmentId: string, manualCost: number) => {
+    const equipmentToSell = equipment.find(
+      item => item.fighter_equipment_id === fighterEquipmentId
+    );
+    if (!equipmentToSell) return;
 
-      const result = await sellEquipmentFromFighter({
+    sellEquipmentMutation.mutate(
+      {
         fighter_equipment_id: fighterEquipmentId,
         manual_cost: manualCost
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to sell equipment');
+      },
+      {
+        onSuccess: () => {
+          // TanStack Query mutation handles optimistic updates and cache invalidation
+          toast({
+            title: "Success",
+            description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
+          });
+          setSellModalData(null);
+        },
+        onError: (error) => {
+          console.error('Error selling equipment:', error);
+          
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to sell equipment",
+            variant: "destructive",
+          });
+          setSellModalData(null);
+        }
       }
-
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const newGangCredits = result.data?.gang.credits || gangCredits;
-      // When selling, we need to subtract the rating cost (purchase_cost) from fighter's credits
-      const newFighterCredits = fighterCredits - equipmentToSell.purchase_cost;
-
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
-      
-      toast({
-        title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
-      });
-    } catch (error) {
-      console.error('Error selling equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-      setSellModalData(null);
-    }
+    );
   };
 
   const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
@@ -214,14 +199,7 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to move equipment to stash');
       }
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      
-      // Adjust fighter credits using the purchase_cost (rating value)
-      const newFighterCredits = fighterCredits - (equipmentToStash.purchase_cost ?? 0);
-
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
+      // TanStack Query will handle cache invalidation automatically
       
       toast({
         title: "Success",
@@ -276,7 +254,7 @@ export function WeaponList({
                     setStashModalData(equipment);
                   }
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Store in Stash"
               >
@@ -291,7 +269,7 @@ export function WeaponList({
                     setSellModalData(equipment);
                   }
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Sell"
               >
@@ -305,7 +283,7 @@ export function WeaponList({
                   equipmentId: item.equipment_id,
                   name: item.equipment_name
                 })}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Delete"
               >
@@ -318,7 +296,7 @@ export function WeaponList({
     </tr>
   );
 
-  if (isLoading) {
+  if (isLoading || equipmentLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 bg-gray-200 animate-pulse rounded" />
