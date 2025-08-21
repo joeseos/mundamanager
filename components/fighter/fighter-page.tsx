@@ -810,6 +810,7 @@ export default function FighterPage({
     fighterBasic?.fighter_name,
     fighterBasic?.fighter_type_id,
     fighterBasic?.fighter_sub_type_id,
+    fighterBasic?.kills, // Include kills for optimistic updates
     gang?.id,
     totalCost,
     // Don't include equipment, skills, effects, vehicles in dependencies
