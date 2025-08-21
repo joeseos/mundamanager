@@ -448,8 +448,8 @@ export default function CampaignPageContent({
                  </Button>
                </div>
 
-              <div className="text-gray-600 text-sm mb-1">
-                <div className="flex flex-wrap gap-2">
+              <div className="text-gray-600 text-sm mb-4">
+                <div className="flex flex-wrap gap-2 mb-1">
                   <div className="flex items-center gap-1">
                     Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
                   </div>
@@ -458,11 +458,6 @@ export default function CampaignPageContent({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-1">
-                    Owner: <Badge variant="secondary">
-                      {campaignData.members.find(member => member.role === 'OWNER')?.username || 'Unknown'}
-                    </Badge>
-                  </div>
                   {(() => {
                     const owner = campaignData.members.find(member => member.role === 'OWNER')?.username;
                     const arbitrators = campaignData.members.filter(member => member.role === 'ARBITRATOR');
@@ -477,9 +472,9 @@ export default function CampaignPageContent({
                     
                     return uniqueArbitrators.length > 0 ? (
                       <div className="flex items-center gap-1">
-                        Arbitrators: 
+                        {uniqueArbitrators.length === 1 ? 'Arbitrator: ' : 'Arbitrators: '}
                         {uniqueArbitrators.map((username, index) => (
-                          <Badge key={index} variant="secondary">
+                          <Badge key={index} variant={username === owner ? 'outline' : 'secondary'}>
                             {username}
                           </Badge>
                         ))}
