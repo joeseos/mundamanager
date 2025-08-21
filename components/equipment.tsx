@@ -520,6 +520,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           equipment_id: item.id,
           fighter_equipment_id: '',
           cost: item.adjusted_cost,
+          purchase_cost: item.adjusted_cost,
           base_cost: item.base_cost,
           adjusted_cost: item.adjusted_cost,
           equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',

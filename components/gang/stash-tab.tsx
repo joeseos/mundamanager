@@ -222,6 +222,7 @@ export default function GangInventory({
               equipment_name: stashItem.equipment_name || '',
               equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
               cost: stashItem.cost || 0,
+              purchase_cost: stashItem.cost || 0,
               core_equipment: false,
               is_master_crafted: false,
               master_crafted: false,
