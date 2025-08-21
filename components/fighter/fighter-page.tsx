@@ -691,12 +691,43 @@ export default function FighterPage({
     fighter: {
       ...fighterBasic,
       credits: totalCost ?? initialData?.totalCost ?? fighterBasic?.credits ?? 0,
-      alliance_crew_name: effectiveFighterType?.alliance_crew_name,
-      fighter_type: {
-        id: effectiveFighterType?.id || '',
-        fighter_type: effectiveFighterType?.fighter_type || 'Unknown',
-        alliance_crew_name: effectiveFighterType?.alliance_crew_name
-      },
+      fighter_type: (() => {
+        // If fighterBasic data exists, use it (including explicit null values)
+        if (fighterBasic) {
+          // Handle optimistic update structure (fighter_type is an object)
+          if (fighterBasic.fighter_type && typeof fighterBasic.fighter_type === 'object') {
+            return {
+              id: fighterBasic.fighter_type.fighter_type_id || fighterBasic.fighter_type_id || '',
+              fighter_type: fighterBasic.fighter_type.fighter_type || 'Unknown'
+            };
+          }
+          // Handle server data structure (fighter_type is string, separate fighter_type_id)
+          else if (fighterBasic.fighter_type || fighterBasic.fighter_type_id) {
+            return {
+              id: fighterBasic.fighter_type_id || '',
+              fighter_type: fighterBasic.fighter_type || 'Unknown'
+            };
+          }
+          // If fighterBasic exists but both fighter_type fields are null/undefined, return undefined (no fighter type)
+          else {
+            return {
+              id: '',
+              fighter_type: 'Unknown'
+            };
+          }
+        }
+        // Only fallback to SSR data when fighterBasic hasn't loaded yet
+        else if (initialData?.fighterType) {
+          return {
+            id: initialData.fighterType.id,
+            fighter_type: initialData.fighterType.fighter_type
+          };
+        }
+        return {
+          id: '',
+          fighter_type: 'Unknown'
+        };
+      })(),
       fighter_sub_type: (() => {
         // If fighterBasic data exists, use it (including explicit null values)
         if (fighterBasic) {
