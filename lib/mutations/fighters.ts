@@ -271,9 +271,26 @@ export const useAddFighterSkill = (fighterId: string) => {
       // Snapshot previous values
       const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
       
-      // Note: We can't easily do optimistic update for skills since we don't know the skill name
-      // without making an additional API call. We'll let the onSettled handle the refresh.
-      // This still provides fast feedback through the loading state.
+      // Optimistic update with skill name if provided
+      if (variables.skill_name) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: any) => {
+          if (!old || typeof old !== 'object') return old;
+          
+          // Add the new skill optimistically
+          const updatedSkills = { ...old };
+          updatedSkills[variables.skill_name!] = {
+            id: `temp-${Date.now()}`, // Temporary ID
+            xp_cost: variables.xp_cost,
+            credits_increase: variables.credits_increase,
+            acquired_at: new Date().toISOString(),
+            is_advance: variables.is_advance ?? false,
+            fighter_injury_id: null,
+            injury_name: null
+          };
+          
+          return updatedSkills;
+        });
+      }
       
       return { previousSkills };
     },

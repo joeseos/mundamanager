@@ -36,6 +36,7 @@ export interface AddCharacteristicAdvancementParams {
 export interface AddSkillAdvancementParams {
   fighter_id: string;
   skill_id: string;
+  skill_name?: string; // Optional for optimistic updates
   xp_cost: number;
   credits_increase: number;
   is_advance?: boolean;

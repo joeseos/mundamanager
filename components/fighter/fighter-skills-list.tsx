@@ -164,10 +164,15 @@ export function SkillModal({ fighterId, onClose, onSkillAdded }: SkillModalProps
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
 
+    // Get the selected skill's name for optimistic updates
+    const selectedSkillData = skillsData?.skills.find(s => s.skill_id === selectedSkill);
+    const skillName = selectedSkillData?.skill_name || '';
+
     return new Promise<boolean>((resolve) => {
       addSkillMutation.mutate({
         fighter_id: fighterId,
         skill_id: selectedSkill,
+        skill_name: skillName, // Pass skill name for optimistic updates
         xp_cost: 0,
         credits_increase: 0,
         is_advance: false

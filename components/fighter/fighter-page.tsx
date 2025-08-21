@@ -691,6 +691,7 @@ export default function FighterPage({
     fighter: {
       ...fighterBasic,
       credits: totalCost ?? initialData?.totalCost ?? fighterBasic?.credits ?? 0,
+      skills: skills ?? initialData?.skills ?? {}, // Include skills for optimistic updates
       fighter_type: (() => {
         // If fighterBasic data exists, use it (including explicit null values)
         if (fighterBasic) {
@@ -762,7 +763,6 @@ export default function FighterPage({
         }
         return undefined;
       })(),
-      skills: skills || {},
       effects: effects || {
         injuries: [],
         advancements: [],
@@ -816,7 +816,8 @@ export default function FighterPage({
     fighterBasic?.special_rules, // Include special_rules for optimistic updates
     gang?.id,
     totalCost,
-    // Don't include equipment, skills, effects, vehicles in dependencies
+    skills, // Include skills for optimistic updates
+    // Don't include equipment, effects, vehicles in dependencies
     // as they're handled separately and shouldn't trigger full re-renders
   ]);
 
