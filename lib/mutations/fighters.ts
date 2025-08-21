@@ -465,3 +465,161 @@ export const useSellFighterEquipment = (fighterId: string, gangId: string) => {
     }
   });
 };
+
+// Equipment Move to Stash Mutation with Optimistic Updates
+export const useMoveEquipmentToStash = (fighterId: string, gangId: string) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: { fighter_equipment_id: string }) => {
+      // Import the action dynamically to avoid circular dependencies
+      const { moveEquipmentToStash } = await import('@/app/actions/move-to-stash');
+      return moveEquipmentToStash(params);
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (prevents race conditions)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousEquipment = queryClient.getQueryData<Equipment[]>(queryKeys.fighters.equipment(fighterId));
+      const previousTotalCost = queryClient.getQueryData<number>(queryKeys.fighters.totalCost(fighterId));
+      const previousGang = queryClient.getQueryData(queryKeys.gangs.detail(gangId));
+      
+      // Find the equipment being moved to stash
+      const equipmentToMove = previousEquipment?.find(
+        item => item.fighter_equipment_id === variables.fighter_equipment_id
+      );
+      
+      if (equipmentToMove && previousEquipment) {
+        // Optimistically remove equipment from equipment list
+        const updatedEquipment = previousEquipment.filter(
+          item => item.fighter_equipment_id !== variables.fighter_equipment_id
+        );
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), updatedEquipment);
+        
+        // Optimistically update fighter's total cost (decrease by equipment's purchase cost)
+        if (previousTotalCost !== undefined) {
+          const equipmentCost = equipmentToMove.purchase_cost ?? 0;
+          const newTotalCost = previousTotalCost - equipmentCost;
+          queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), newTotalCost);
+        }
+        
+        // Note: We don't optimistically update gang stash here since that would require 
+        // knowing the current stash state. The server response will trigger cache invalidation.
+      }
+      
+      return { 
+        previousEquipment, 
+        previousTotalCost,
+        previousGang,
+        equipmentToMove
+      };
+    },
+    onError: (error, variables, context) => {
+      // Comprehensive rollback of all optimistic updates on error
+      console.error('Move to stash failed, rolling back optimistic updates:', error);
+      
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      if (context?.previousGang) {
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), context.previousGang);
+      }
+    },
+    onSuccess: (result) => {
+      // Server confirmed move - now safe to invalidate related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
+      // Invalidate gang stash to show the newly added equipment
+      queryClient.invalidateQueries({ queryKey: ['gang-stash', gangId] });
+      
+      // Also invalidate gang detail to refresh stash display
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+    }
+  });
+};
+
+// Equipment Delete Mutation with Optimistic Updates
+export const useDeleteFighterEquipment = (fighterId: string, gangId: string) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: { fighter_equipment_id: string; equipment_id: string }) => {
+      // Import the action dynamically to avoid circular dependencies
+      const { deleteEquipmentFromFighter } = await import('@/app/actions/equipment');
+      return deleteEquipmentFromFighter({
+        fighter_equipment_id: params.fighter_equipment_id,
+        gang_id: gangId,
+        fighter_id: fighterId
+      });
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (prevents race conditions)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousEquipment = queryClient.getQueryData<Equipment[]>(queryKeys.fighters.equipment(fighterId));
+      const previousTotalCost = queryClient.getQueryData<number>(queryKeys.fighters.totalCost(fighterId));
+      const previousGang = queryClient.getQueryData(queryKeys.gangs.detail(gangId));
+      
+      // Find the equipment being deleted
+      const equipmentToDelete = previousEquipment?.find(
+        item => item.fighter_equipment_id === variables.fighter_equipment_id
+      );
+      
+      if (equipmentToDelete && previousEquipment) {
+        // Optimistically remove equipment from equipment list
+        const updatedEquipment = previousEquipment.filter(
+          item => item.fighter_equipment_id !== variables.fighter_equipment_id
+        );
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), updatedEquipment);
+        
+        // Optimistically update fighter's total cost (decrease by equipment's purchase cost)
+        if (previousTotalCost !== undefined) {
+          const equipmentCost = equipmentToDelete.purchase_cost ?? 0;
+          const newTotalCost = previousTotalCost - equipmentCost;
+          queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), newTotalCost);
+        }
+      }
+      
+      return { 
+        previousEquipment, 
+        previousTotalCost,
+        previousGang,
+        equipmentToDelete
+      };
+    },
+    onError: (error, variables, context) => {
+      // Comprehensive rollback of all optimistic updates on error
+      console.error('Equipment delete failed, rolling back optimistic updates:', error);
+      
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      if (context?.previousGang) {
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), context.previousGang);
+      }
+    },
+    onSuccess: (result) => {
+      // Server confirmed deletion - now safe to invalidate related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
+      // If the server returned an updated fighter total cost, use it
+      if (result.success && result.data?.updatedFighterTotalCost !== null) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), result.data.updatedFighterTotalCost);
+      }
+    }
+  });
+};

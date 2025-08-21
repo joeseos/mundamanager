@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { useSellFighterEquipment } from '@/lib/mutations/fighters';
+import { useSellFighterEquipment, useMoveEquipmentToStash, useDeleteFighterEquipment } from '@/lib/mutations/fighters';
 import { useGetFighterEquipment } from '@/lib/queries/fighters';
-import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -93,52 +91,48 @@ export function WeaponList({
   onAddEquipment,
   userPermissions
 }: WeaponListProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
   // TanStack Query hooks
   const { data: equipment = [], isLoading: equipmentLoading } = useGetFighterEquipment(fighterId);
   const sellEquipmentMutation = useSellFighterEquipment(fighterId, gangId);
+  const moveToStashMutation = useMoveEquipmentToStash(fighterId, gangId);
+  const deleteEquipmentMutation = useDeleteFighterEquipment(fighterId, gangId);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      // Find the equipment cost before deleting
-      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToDelete) {
-        throw new Error('Equipment not found');
-      }
+    const equipmentToDelete = equipment.find(
+      item => item.fighter_equipment_id === fighterEquipmentId
+    );
+    if (!equipmentToDelete) return;
 
-      // Use server action instead of direct API call
-      const result = await deleteEquipmentFromFighter({
+    deleteEquipmentMutation.mutate(
+      {
         fighter_equipment_id: fighterEquipmentId,
-        gang_id: gangId,
-        fighter_id: fighterId
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete equipment');
+        equipment_id: equipmentId
+      },
+      {
+        onSuccess: () => {
+          // TanStack Query mutation handles optimistic updates and cache invalidation
+          toast({
+            description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
+            variant: "default"
+          });
+          setDeleteModalData(null);
+        },
+        onError: (error) => {
+          console.error('Error deleting equipment:', error);
+          
+          toast({
+            description: 'Failed to delete equipment. Please try again.',
+            variant: "destructive"
+          });
+          setDeleteModalData(null);
+        }
       }
-      
-      // TanStack Query will handle cache invalidation automatically
-      
-      toast({
-        description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
-        variant: "default"
-      });
-      setDeleteModalData(null);
-    } catch (error) {
-      console.error('Error deleting equipment:', error);
-      toast({
-        description: 'Failed to delete equipment. Please try again.',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    );
   };
 
   const handleSellEquipment = async (fighterEquipmentId: string, _equipmentId: string, manualCost: number) => {
@@ -175,47 +169,37 @@ export function WeaponList({
     );
   };
 
-  const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      // Find the equipment cost before moving to stash
-      const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToStash) {
-        throw new Error('Equipment not found');
-      }
+  const handleStashEquipment = async (fighterEquipmentId: string, _equipmentId: string) => {
+    const equipmentToStash = equipment.find(
+      item => item.fighter_equipment_id === fighterEquipmentId
+    );
+    if (!equipmentToStash) return;
 
-      // Use server action instead of direct API call
-      console.log('Moving equipment to stash:', { 
-        fighterEquipmentId, 
-        equipmentId, 
-        equipmentToStash: equipmentToStash 
-      });
-      
-      const result = await moveEquipmentToStash({
+    moveToStashMutation.mutate(
+      {
         fighter_equipment_id: fighterEquipmentId
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to move equipment to stash');
+      },
+      {
+        onSuccess: () => {
+          // TanStack Query mutation handles optimistic updates and cache invalidation
+          toast({
+            title: "Success",
+            description: `${equipmentToStash.equipment_name} moved to gang stash`,
+          });
+          setStashModalData(null);
+        },
+        onError: (error) => {
+          console.error('Error moving equipment to stash:', error);
+          
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to move equipment to stash",
+            variant: "destructive",
+          });
+          setStashModalData(null);
+        }
       }
-
-      // TanStack Query will handle cache invalidation automatically
-      
-      toast({
-        title: "Success",
-        description: `${equipmentToStash.equipment_name} moved to gang stash`,
-      });
-    } catch (error) {
-      console.error('Error moving equipment to stash:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-      setStashModalData(null);
-    }
+    );
   };
 
   // Sort equipment: core equipment first, then by name
@@ -254,7 +238,7 @@ export function WeaponList({
                     setStashModalData(equipment);
                   }
                 }}
-                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
+                disabled={sellEquipmentMutation.isPending || moveToStashMutation.isPending || deleteEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Store in Stash"
               >
@@ -269,7 +253,7 @@ export function WeaponList({
                     setSellModalData(equipment);
                   }
                 }}
-                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
+                disabled={sellEquipmentMutation.isPending || moveToStashMutation.isPending || deleteEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Sell"
               >
@@ -283,7 +267,7 @@ export function WeaponList({
                   equipmentId: item.equipment_id,
                   name: item.equipment_name
                 })}
-                disabled={isLoading || sellEquipmentMutation.isPending || !userPermissions.canEdit}
+                disabled={sellEquipmentMutation.isPending || moveToStashMutation.isPending || deleteEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Delete"
               >
@@ -296,7 +280,7 @@ export function WeaponList({
     </tr>
   );
 
-  if (isLoading || equipmentLoading) {
+  if (equipmentLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 bg-gray-200 animate-pulse rounded" />
@@ -317,7 +301,7 @@ export function WeaponList({
           <Button 
             onClick={onAddEquipment}
             className="bg-black hover:bg-gray-800 text-white"
-            disabled={isLoading || !userPermissions.canEdit}
+            disabled={!userPermissions.canEdit}
           >
             Add
           </Button>
