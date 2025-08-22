@@ -932,188 +932,190 @@ export default function FighterPage({
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
-        <div className="bg-white shadow-md rounded-lg p-4">
-          <div className="mb-4">
-            <select
-              value={fighterId}
-              onChange={handleFighterChange}
-              className="w-full p-2 border rounded"
-            >
-            {[...fighterData.gangFighters]
-              .sort((a, b) => {
-                const positioning = fighterData.gang?.positioning || {};
-                const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-                const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-                const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-                const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-                return posA - posB;
-              })
-              .map((gangFighter) => (
-                <option key={gangFighter.id} value={gangFighter.id}>
-                  {gangFighter.fighter_name} {gangFighter.fighter_type && `(${gangFighter.fighter_type})`}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <FighterDetailsCard
-            id={fighterData.fighter?.id || ''}
-            name={fighterData.fighter?.fighter_name || ''}
-            type={fighterData.fighter?.fighter_type?.fighter_type || ''}
-            sub_type={fighterData.fighter?.fighter_sub_type}
-            label={fighterData.fighter?.label}
-            alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
-            credits={fighterData.fighter?.credits || 0}
-            movement={fighterData.fighter?.movement || 0}
-            weapon_skill={fighterData.fighter?.weapon_skill || 0}
-            ballistic_skill={fighterData.fighter?.ballistic_skill || 0}
-            strength={fighterData.fighter?.strength || 0}
-            toughness={fighterData.fighter?.toughness || 0}
-            wounds={fighterData.fighter?.wounds || 0}
-            initiative={fighterData.fighter?.initiative || 0}
-            attacks={fighterData.fighter?.attacks || 0}
-            leadership={fighterData.fighter?.leadership || 0}
-            cool={fighterData.fighter?.cool || 0}
-            willpower={fighterData.fighter?.willpower || 0}
-            intelligence={fighterData.fighter?.intelligence || 0}
-            xp={fighterData.fighter?.xp || 0}
-            total_xp={fighterData.fighter?.total_xp || 0}
-            advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
-            onNameUpdate={handleNameUpdate}
-            onAddXp={() => setUiState(prev => ({...prev, modals: {...prev.modals, addXp: true}}))}
-            onEdit={canShowEditButtons ? () => setUiState(prev => ({...prev, modals: {...prev.modals, editFighter: true}})) : undefined}
-            killed={fighterData.fighter?.killed}
-            retired={fighterData.fighter?.retired}
-            enslaved={fighterData.fighter?.enslaved}
-            starved={fighterData.fighter?.starved}
-            recovery={fighterData.fighter?.recovery}
-            captured={fighterData.fighter?.captured}
-            fighter_class={fighterData.fighter?.fighter_class}
-            kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter?.effects || { 
-              injuries: [], 
-              advancements: [], 
-              bionics: [], 
-              cyberteknika: [], 
-              'gene-smithing': [],
-              'rig-glitches': [],
-              augmentations: [],
-              equipment: [],
-              user: []
-            }}
-            owner_name={fighterData.fighter?.owner_name}
-            image_url={fighterData.fighter?.image_url}
-            userPermissions={userPermissions}
-          />
-
-          {/* Equipment Section */}
-          <WeaponList
-            fighterId={fighterData.fighter?.id || ''}
-            gangId={fighterData.gang?.id || ''}
-            userPermissions={userPermissions}
-            onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: true}}))}
-          />
-
-          {/* Skills Section */}
-          <SkillsList
-            skills={fighterData.fighter?.skills || {}}
-            fighterId={fighterData.fighter?.id || ''}
-            free_skill={fighterData.fighter?.free_skill}
-            userPermissions={userPermissions}
-          />
-
-          {/* Advancements Section */}
-          <AdvancementsList
-            fighterXp={fighterData.fighter?.xp || 0}
-            fighterId={fighterData.fighter?.id || ''}
-            advancements={fighterData.fighter?.effects?.advancements || []}
-            skills={fighterData.fighter?.skills || {}}
-            userPermissions={userPermissions}
-            onAdvancementAdded={() => {
-              // Invalidate fighter data when advancement is added
-              invalidateFighterData();
-            }}
-            onAdvancementDeleted={() => {
-              // Invalidate fighter data when advancement is deleted
-              invalidateFighterData();
-            }}
-            onDeleteAdvancement={async (advancementId: string) => {
-              // Invalidate fighter data when advancement is deleted
-              invalidateFighterData();
-            }}
-          />
-
-          {/* Injuries Section */}
-          <InjuriesList
-            injuries={fighterData.fighter?.effects?.injuries || []}
-            fighterId={fighterData.fighter?.id || ''}
-            fighterRecovery={fighterData.fighter?.recovery || false}
-            fighter_class={fighterData.fighter?.fighter_class}
-            userPermissions={userPermissions}
-            onInjuryUpdate={() => {
-              // Invalidate fighter data when injury is updated
-              invalidateFighterData();
-            }}
-          />
-
-          {/* Notes and Backstory Section */}
-          <FighterNotes
-            fighterId={fighterData.fighter?.id || ''}
-            initialNote={fighterData.fighter?.note || ''}
-            initialNoteBackstory={fighterData.fighter?.note_backstory || ''}
-            userPermissions={userPermissions}
-            detailsMutation={detailsMutation}
-            onNoteUpdate={() => {
-              // No longer need to invalidate - optimistic updates handle this
-            }}
-            onNoteBackstoryUpdate={() => {
-              // No longer need to invalidate - optimistic updates handle this
-            }}
-          />
-
-          {/* Fighter Actions Section */}
-          <FighterActions
-            fighter={{
-              id: fighterData.fighter?.id || '',
-              fighter_name: fighterData.fighter?.fighter_name || '',
-              killed: fighterData.fighter?.killed,
-              retired: fighterData.fighter?.retired,
-              enslaved: fighterData.fighter?.enslaved,
-              starved: fighterData.fighter?.starved,
-              recovery: fighterData.fighter?.recovery,
-              captured: fighterData.fighter?.captured,
-              credits: fighterData.fighter?.credits || 0,
-              campaigns: fighterData.fighter?.campaigns || []
-            }}
-            gang={{
-              id: fighterData.gang?.id || '',
-              rating: gang?.rating,
-              credits: fighterData.gang?.credits || 0,
-              meat: (gang as any)?.meat
-            }}
-            fighterId={fighterData.fighter?.id || ''}
-            totalCost={totalCost || 0}
-            userPermissions={userPermissions}
-            onFighterUpdate={() => {
-              // Invalidate fighter data when fighter status is updated
-              invalidateFighterData();
-            }}
-          />
-
-          {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
-          {vehicle && (
-            <VehicleEquipmentList
-              fighterId={fighterData.fighter?.id || ''}
-              gangId={fighterData.gang?.id || ''}
-              gangCredits={fighterData.gang?.credits || 0}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={handleEquipmentUpdate}
-              onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addVehicleEquipment: true}}))}
+    <>
+      <main className="flex min-h-screen flex-col items-center">
+        <div className="container mx-auto max-w-4xl w-full space-y-4">
+          <div className="bg-white shadow-md rounded-lg p-4">
+            <div className="mb-4">
+              <select
+                value={fighterId}
+                onChange={handleFighterChange}
+                className="w-full p-2 border rounded"
+              >
+              {[...fighterData.gangFighters]
+                .sort((a, b) => {
+                  const positioning = fighterData.gang?.positioning || {};
+                  const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+                  const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+                  const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+                  const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+                  return posA - posB;
+                })
+                .map((gangFighter) => (
+                  <option key={gangFighter.id} value={gangFighter.id}>
+                    {gangFighter.fighter_name} {gangFighter.fighter_type && `(${gangFighter.fighter_type})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <FighterDetailsCard
+              id={fighterData.fighter?.id || ''}
+              name={fighterData.fighter?.fighter_name || ''}
+              type={fighterData.fighter?.fighter_type?.fighter_type || ''}
+              sub_type={fighterData.fighter?.fighter_sub_type}
+              label={fighterData.fighter?.label}
+              alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
+              credits={fighterData.fighter?.credits || 0}
+              movement={fighterData.fighter?.movement || 0}
+              weapon_skill={fighterData.fighter?.weapon_skill || 0}
+              ballistic_skill={fighterData.fighter?.ballistic_skill || 0}
+              strength={fighterData.fighter?.strength || 0}
+              toughness={fighterData.fighter?.toughness || 0}
+              wounds={fighterData.fighter?.wounds || 0}
+              initiative={fighterData.fighter?.initiative || 0}
+              attacks={fighterData.fighter?.attacks || 0}
+              leadership={fighterData.fighter?.leadership || 0}
+              cool={fighterData.fighter?.cool || 0}
+              willpower={fighterData.fighter?.willpower || 0}
+              intelligence={fighterData.fighter?.intelligence || 0}
+              xp={fighterData.fighter?.xp || 0}
+              total_xp={fighterData.fighter?.total_xp || 0}
+              advancements={fighterData.fighter?.advancements || { characteristics: {}, skills: {} }}
+              onNameUpdate={handleNameUpdate}
+              onAddXp={() => setUiState(prev => ({...prev, modals: {...prev.modals, addXp: true}}))}
+              onEdit={canShowEditButtons ? () => setUiState(prev => ({...prev, modals: {...prev.modals, editFighter: true}})) : undefined}
+              killed={fighterData.fighter?.killed}
+              retired={fighterData.fighter?.retired}
+              enslaved={fighterData.fighter?.enslaved}
+              starved={fighterData.fighter?.starved}
+              recovery={fighterData.fighter?.recovery}
+              captured={fighterData.fighter?.captured}
+              fighter_class={fighterData.fighter?.fighter_class}
+              kills={fighterData.fighter?.kills || 0}
+              effects={fighterData.fighter?.effects || { 
+                injuries: [], 
+                advancements: [], 
+                bionics: [], 
+                cyberteknika: [], 
+                'gene-smithing': [],
+                'rig-glitches': [],
+                augmentations: [],
+                equipment: [],
+                user: []
+              }}
+              owner_name={fighterData.fighter?.owner_name}
+              image_url={fighterData.fighter?.image_url}
               userPermissions={userPermissions}
             />
-          )}
+
+            {/* Equipment Section */}
+            <WeaponList
+              fighterId={fighterData.fighter?.id || ''}
+              gangId={fighterData.gang?.id || ''}
+              userPermissions={userPermissions}
+              onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addWeapon: true}}))}
+            />
+
+            {/* Skills Section */}
+            <SkillsList
+              skills={fighterData.fighter?.skills || {}}
+              fighterId={fighterData.fighter?.id || ''}
+              free_skill={fighterData.fighter?.free_skill}
+              userPermissions={userPermissions}
+            />
+
+            {/* Advancements Section */}
+            <AdvancementsList
+              fighterXp={fighterData.fighter?.xp || 0}
+              fighterId={fighterData.fighter?.id || ''}
+              advancements={fighterData.fighter?.effects?.advancements || []}
+              skills={fighterData.fighter?.skills || {}}
+              userPermissions={userPermissions}
+              onAdvancementAdded={() => {
+                // Invalidate fighter data when advancement is added
+                invalidateFighterData();
+              }}
+              onAdvancementDeleted={() => {
+                // Invalidate fighter data when advancement is deleted
+                invalidateFighterData();
+              }}
+              onDeleteAdvancement={async (advancementId: string) => {
+                // Invalidate fighter data when advancement is deleted
+                invalidateFighterData();
+              }}
+            />
+
+            {/* Injuries Section */}
+            <InjuriesList
+              injuries={fighterData.fighter?.effects?.injuries || []}
+              fighterId={fighterData.fighter?.id || ''}
+              fighterRecovery={fighterData.fighter?.recovery || false}
+              fighter_class={fighterData.fighter?.fighter_class}
+              userPermissions={userPermissions}
+              onInjuryUpdate={() => {
+                // Invalidate fighter data when injury is updated
+                invalidateFighterData();
+              }}
+            />
+
+            {/* Notes and Backstory Section */}
+            <FighterNotes
+              fighterId={fighterData.fighter?.id || ''}
+              initialNote={fighterData.fighter?.note || ''}
+              initialNoteBackstory={fighterData.fighter?.note_backstory || ''}
+              userPermissions={userPermissions}
+              detailsMutation={detailsMutation}
+              onNoteUpdate={() => {
+                // No longer need to invalidate - optimistic updates handle this
+              }}
+              onNoteBackstoryUpdate={() => {
+                // No longer need to invalidate - optimistic updates handle this
+              }}
+            />
+
+            {/* Fighter Actions Section */}
+            <FighterActions
+              fighter={{
+                id: fighterData.fighter?.id || '',
+                fighter_name: fighterData.fighter?.fighter_name || '',
+                killed: fighterData.fighter?.killed,
+                retired: fighterData.fighter?.retired,
+                enslaved: fighterData.fighter?.enslaved,
+                starved: fighterData.fighter?.starved,
+                recovery: fighterData.fighter?.recovery,
+                captured: fighterData.fighter?.captured,
+                credits: fighterData.fighter?.credits || 0,
+                campaigns: fighterData.fighter?.campaigns || []
+              }}
+              gang={{
+                id: fighterData.gang?.id || '',
+                rating: gang?.rating,
+                credits: fighterData.gang?.credits || 0,
+                meat: (gang as any)?.meat
+              }}
+              fighterId={fighterData.fighter?.id || ''}
+              totalCost={totalCost || 0}
+              userPermissions={userPermissions}
+              onFighterUpdate={() => {
+                // Invalidate fighter data when fighter status is updated
+                invalidateFighterData();
+              }}
+            />
+
+            {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
+            {vehicle && (
+              <VehicleEquipmentList
+                fighterId={fighterData.fighter?.id || ''}
+                gangId={fighterData.gang?.id || ''}
+                gangCredits={fighterData.gang?.credits || 0}
+                fighterCredits={fighterData.fighter?.credits || 0}
+                onEquipmentUpdate={handleEquipmentUpdate}
+                onAddEquipment={() => setUiState(prev => ({...prev, modals: {...prev.modals, addVehicleEquipment: true}}))}
+                userPermissions={userPermissions}
+              />
+            )}
+          </div>
         </div>
 
         {/* Modals */}
@@ -1278,7 +1280,7 @@ export default function FighterPage({
             }}
           />
         )}
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
