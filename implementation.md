@@ -1012,6 +1012,120 @@ export const useGetFighterEquipment = (
 6. **Reduce Server Cache**: Gradually replace `unstable_cache` with client queries
 7. **Expand SSR**: Apply SSR pattern to other critical pages (gang page, dashboard)
 
+## Key Learnings from Implementation
+
+### 1. Query Key Structure Best Practice
+**Critical Discovery**: Query key hierarchy determines invalidation cascades.
+
+**Problem**: Using `['fighters', 'detail', 'fighter-id']` caused unintended cascade invalidation when updating fighter details.
+
+**Solution**: Restructured to `['fighters', 'fighter-id', 'detail']` placing the entity ID before the data type.
+
+```tsx
+// ❌ Problematic structure (causes cascades)
+fighters: {
+  detail: (id: string) => ['fighters', 'detail', id] as const,
+  equipment: (id: string) => ['fighters', 'detail', id, 'equipment'] as const,
+}
+
+// ✅ Correct structure (prevents cascades)
+fighters: {
+  detail: (id: string) => ['fighters', id, 'detail'] as const,
+  equipment: (id: string) => ['fighters', id, 'equipment'] as const,
+}
+```
+
+**Impact**: Reduced API calls from 14+ to optimal 3 calls when updating fighter sub-types.
+
+### 2. TanStack Query Patterns (Following Official Examples)
+**Key Pattern**: Follow TanStack's official mutation examples for optimistic updates and invalidation.
+
+```tsx
+export const useUpdateFighterStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params) => {
+      // Direct Supabase client call, not server action
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      // ... mutation logic
+    },
+    onSuccess: () => {
+      // Precise invalidation with exact: true
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.fighters.detail(params.fighter_id),
+        exact: true 
+      });
+    }
+  });
+};
+```
+
+**Best Practices Learned**:
+- Use direct API calls in mutations, not Server Actions
+- Implement optimistic updates for primary data
+- Use precise invalidation with `exact: true` parameter
+- Pass data as parameters rather than querying cache in mutations
+
+### 3. Authentication Strategy (Server-Side Only Approach)
+**Discovery**: Client-side authentication checks create unnecessary API calls.
+
+**Problem**: Using `supabase.auth.getUser()` in client components added extra requests.
+
+**Solution**: Rely entirely on server-side authentication and Supabase RLS.
+
+```tsx
+// ❌ Avoid client-side auth checks
+const { data: { user } } = await supabase.auth.getUser();
+
+// ✅ Server-side authentication only
+// Authentication handled by:
+// 1. Server-side JWT validation in page.tsx
+// 2. Supabase RLS policies on database calls
+// 3. User permissions passed as props
+```
+
+**Impact**: Eliminated redundant authentication API calls while maintaining security through RLS.
+
+### 4. Optimistic Updates Strategy (Primary Data Focus)
+**Pattern**: Implement optimistic updates for user-initiated changes to primary data.
+
+```tsx
+onMutate: async (variables) => {
+  // Cancel outgoing refetches
+  await queryClient.cancelQueries({ 
+    queryKey: queryKeys.fighters.detail(variables.fighter_id) 
+  });
+  
+  // Snapshot for rollback
+  const previousData = queryClient.getQueryData(
+    queryKeys.fighters.detail(variables.fighter_id)
+  );
+  
+  // Optimistic update
+  queryClient.setQueryData(
+    queryKeys.fighters.detail(variables.fighter_id),
+    (old) => ({ ...old, ...variables.updates })
+  );
+  
+  return { previousData };
+},
+onError: (error, variables, context) => {
+  // Rollback on error
+  if (context?.previousData) {
+    queryClient.setQueryData(
+      queryKeys.fighters.detail(variables.fighter_id),
+      context.previousData
+    );
+  }
+}
+```
+
+**Key Insights**:
+- Focus optimistic updates on primary user data (fighter details, skills)
+- Let computed values (total cost, gang rating) update via invalidation
+- Always implement proper rollback in onError
+
 ## Benefits Expected
 
 - **Better UX**: Optimistic updates, instant loading states, fast first paint
