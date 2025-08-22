@@ -6,18 +6,17 @@ export const queryKeys = {
     all: ['fighters'] as const,
     lists: () => [...queryKeys.fighters.all, 'list'] as const,
     list: (gangId: string) => [...queryKeys.fighters.lists(), { gangId }] as const,
-    details: () => [...queryKeys.fighters.all, 'detail'] as const,
-    detail: (id: string) => [...queryKeys.fighters.details(), id] as const,
     
-    // Specific fighter data (enables granular invalidation)
-    equipment: (id: string) => [...queryKeys.fighters.detail(id), 'equipment'] as const,
-    skills: (id: string) => [...queryKeys.fighters.detail(id), 'skills'] as const,
-    effects: (id: string) => [...queryKeys.fighters.detail(id), 'effects'] as const,
-    vehicles: (id: string) => [...queryKeys.fighters.detail(id), 'vehicles'] as const,
+    // Fighter-specific data (fighter-id first, then data type)
+    detail: (id: string) => ['fighters', id, 'detail'] as const,
+    equipment: (id: string) => ['fighters', id, 'equipment'] as const,
+    skills: (id: string) => ['fighters', id, 'skills'] as const,
+    effects: (id: string) => ['fighters', id, 'effects'] as const,
+    vehicles: (id: string) => ['fighters', id, 'vehicles'] as const,
     
-    // Computed values (separate caching, easy invalidation)
-    totalCost: (id: string) => [...queryKeys.fighters.detail(id), 'total-cost'] as const,
-    beastCosts: (id: string) => [...queryKeys.fighters.detail(id), 'beast-costs'] as const,
+    // Computed values (fighter-id first)
+    totalCost: (id: string) => ['fighters', id, 'total-cost'] as const,
+    beastCosts: (id: string) => ['fighters', id, 'beast-costs'] as const,
   },
   
   // =============================================================================

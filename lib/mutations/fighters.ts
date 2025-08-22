@@ -69,11 +69,7 @@ export const useUpdateFighterDetails = (fighterId: string) => {
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
       
-      // Client-side authentication check
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
+      // Server-side authentication handled by Supabase RLS and JWT validation
 
       // OPTIMIZATION: Get current fighter data to compare values for change detection
       const { data: currentFighter, error: currentFighterError } = await supabase
@@ -167,7 +163,7 @@ export const useUpdateFighterDetails = (fighterId: string) => {
     },
     onMutate: async (variables) => {
       // Cancel any outgoing refetches - only for basic fighter data
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId), exact: true });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       
       // Snapshot the previous value
       const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
@@ -232,28 +228,15 @@ export const useUpdateFighterDetails = (fighterId: string) => {
       // OPTIMIZED: Use actual value changes instead of field presence
       const changedValues = data?.changedValues;
       
-      // Always invalidate basic fighter data with exact matching to prevent cascading
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.fighters.detail(fighterId), 
-        exact: true 
-      });
+      // With new key structure, no cascade issues - can invalidate cleanly
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       
-      // CRITICAL: Only invalidate total cost if values that actually affect cost changed
-      // This prevents the cascade of equipment/skills/effects/vehicles queries
+      // Only invalidate total cost if values that actually affect cost changed
       const needsCostRefetch = changedValues?.costAdjustmentChanged || changedValues?.fighterTypeChanged;
       
       if (needsCostRefetch) {
-        queryClient.invalidateQueries({ 
-          queryKey: queryKeys.fighters.totalCost(fighterId),
-          exact: true 
-        });
-      } else {
-        // Sub-type only changes don't affect base fighter cost calculation
-        // This prevents the cascade of 5+ additional API calls
+        queryClient.invalidateQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
       }
-      
-      // CRITICAL: Don't invalidate equipment, skills, effects, or vehicles for basic detail changes
-      // These are separate concerns and don't need to refetch when fighter details change
     }
   });
 };
@@ -364,70 +347,6 @@ export const useDeleteFighterAdvancement = (fighterId: string) => {
   });
 };
 
-// Fighter Status Mutation (kill, retire, etc.)
-export const useUpdateFighterStatus = (fighterId: string) => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (params: { fighter_id: string; action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number }) => {
-      // Import the action dynamically to avoid circular dependencies
-      const { editFighterStatus } = await import('@/app/actions/edit-fighter');
-      return editFighterStatus(params);
-    },
-    onMutate: async (variables) => {
-      // Cancel queries
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-      
-      // Snapshot previous value
-      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
-      
-      // Optimistically update fighter status based on action
-      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => {
-        if (!old) return old;
-        
-        const updated = { ...old };
-        
-        switch (variables.action) {
-          case 'kill':
-            updated.killed = !old.killed;
-            break;
-          case 'retire':
-            updated.retired = !old.retired;
-            break;
-          case 'sell':
-            updated.enslaved = true;
-            break;
-          case 'rescue':
-            updated.enslaved = false;
-            break;
-          case 'starve':
-            updated.starved = !old.starved;
-            break;
-          case 'recover':
-            updated.recovery = !old.recovery;
-            break;
-          case 'capture':
-            updated.captured = !old.captured;
-            break;
-        }
-        
-        return updated;
-      });
-      
-      return { previousFighter };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
-      }
-    },
-    onSettled: () => {
-      // Refetch fighter and gang data (status changes can affect gang)
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-      // Note: We'd need gangId here to invalidate gang data, can be added as parameter
-    }
-  });
-};
 
 // Equipment Selling Mutation with Optimistic Updates
 export const useSellFighterEquipment = (fighterId: string, gangId: string) => {
@@ -862,6 +781,368 @@ export const useUpdateFighterStats = (fighterId: string) => {
     onSettled: () => {
       // Invalidate effects to get fresh data from server
       queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+    }
+  });
+};
+
+// Fighter Status Update Mutation (kill, retire, enslave, etc.)
+export const useUpdateFighterStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      fighter_id: string;
+      action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
+      sell_value?: number;
+      // Use existing fighter data from props instead of cache queries
+      fighter: {
+        killed?: boolean;
+        retired?: boolean;
+        enslaved?: boolean;
+        starved?: boolean;
+        recovery?: boolean;
+        captured?: boolean;
+        gang_id: string;
+      };
+      gang: {
+        rating?: number;
+        credits?: number;
+        meat?: number;
+      };
+      totalCost: number;
+    }) => {
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      
+      // Server-side authentication handled by Supabase RLS and JWT validation
+
+      // Helper to adjust gang rating based on fighter cost
+      const adjustRating = async (gangId: string, currentRating: number, delta: number) => {
+        if (!delta) return;
+        const newRating = Math.max(0, currentRating + delta);
+        await supabase
+          .from('gangs')
+          .update({ rating: newRating, last_updated: new Date().toISOString() })
+          .eq('id', gangId);
+      };
+
+      // Handle different actions
+      switch (params.action) {
+        case 'kill': {
+          const willBeKilled = !params.fighter.killed;
+          const delta = willBeKilled ? -params.totalCost : +params.totalCost; // Subtract cost when killing, add when resurrecting
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              killed: willBeKilled,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          
+          // Update gang rating if needed
+          if (delta !== 0) {
+            await adjustRating(params.fighter.gang_id, params.gang.rating || 0, delta);
+          }
+          return {
+            success: true,
+            data: { fighter: updatedFighter },
+            statusField: 'killed' as const,
+            newValue: willBeKilled
+          };
+        }
+
+        case 'retire': {
+          const willBeRetired = !params.fighter.retired;
+          const delta = willBeRetired ? -params.totalCost : +params.totalCost; // Subtract cost when retiring, add when unretiring
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              retired: willBeRetired,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          
+          // Update gang rating if needed
+          if (delta !== 0) {
+            await adjustRating(params.fighter.gang_id, params.gang.rating || 0, delta);
+          }
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter },
+            statusField: 'retired' as const,
+            newValue: willBeRetired
+          };
+        }
+
+        case 'sell': {
+          if (params.sell_value === undefined || params.sell_value < 0) {
+            throw new Error('Invalid sell value provided');
+          }
+
+          const delta = -params.totalCost; // Subtract cost when selling (fighter becomes enslaved)
+
+          const { data: updatedFighter, error: fighterUpdateError } = await supabase
+            .from('fighters')
+            .update({ 
+              enslaved: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (fighterUpdateError) throw fighterUpdateError;
+
+          // Update gang credits
+          const { data: updatedGang, error: gangUpdateError } = await supabase
+            .from('gangs')
+            .update({ 
+              credits: (params.gang.credits || 0) + params.sell_value,
+              last_updated: new Date().toISOString()
+            })
+            .eq('id', params.fighter.gang_id)
+            .select('id, credits')
+            .single();
+
+          if (gangUpdateError) throw gangUpdateError;
+          
+          // Update gang rating if needed
+          if (delta !== 0) {
+            await adjustRating(params.fighter.gang_id, params.gang.rating || 0, delta);
+          }
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter, gang: updatedGang },
+            statusField: 'enslaved' as const,
+            newValue: true,
+            creditsChange: params.sell_value
+          };
+        }
+
+        case 'rescue': {
+          const delta = +params.totalCost; // Add cost back when rescuing (fighter becomes active)
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              enslaved: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          
+          // Update gang rating if needed
+          if (delta !== 0) {
+            await adjustRating(params.fighter.gang_id, params.gang.rating || 0, delta);
+          }
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter },
+            statusField: 'enslaved' as const,
+            newValue: false
+          };
+        }
+
+        case 'starve': {
+          if (params.fighter.starved) {
+            // Feeding - need meat
+            if ((params.gang.meat ?? 0) < 1) {
+              throw new Error('Not enough meat to feed fighter');
+            }
+
+            const { error: meatUpdateError } = await supabase
+              .from('gangs')
+              .update({ meat: (params.gang.meat || 0) - 1, last_updated: new Date().toISOString() })
+              .eq('id', params.fighter.gang_id);
+
+            if (meatUpdateError) throw meatUpdateError;
+
+            const { data: updatedFighter, error: updateError } = await supabase
+              .from('fighters')
+              .update({ 
+                starved: false,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', params.fighter_id)
+              .select()
+              .single();
+
+            if (updateError) throw updateError;
+
+            return {
+              success: true,
+              data: { fighter: updatedFighter },
+              statusField: 'starved' as const,
+              newValue: false,
+              meatConsumed: 1
+            };
+          } else {
+            // Starving
+            const { data: updatedFighter, error: updateError } = await supabase
+              .from('fighters')
+              .update({ 
+                starved: true,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', params.fighter_id)
+              .select()
+              .single();
+
+            if (updateError) throw updateError;
+
+            return {
+              success: true,
+              data: { fighter: updatedFighter },
+              statusField: 'starved' as const,
+              newValue: true
+            };
+          }
+        }
+
+        case 'recover': {
+          const willBeInRecovery = !params.fighter.recovery;
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              recovery: willBeInRecovery,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter },
+            statusField: 'recovery' as const,
+            newValue: willBeInRecovery
+          };
+        }
+
+        case 'capture': {
+          const willBeCaptured = !params.fighter.captured;
+          const delta = willBeCaptured ? -params.totalCost : +params.totalCost; // Subtract cost when capturing, add when rescuing
+
+          const { data: updatedFighter, error: updateError } = await supabase
+            .from('fighters')
+            .update({ 
+              captured: willBeCaptured,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          
+          // Update gang rating if needed
+          if (delta !== 0) {
+            await adjustRating(params.fighter.gang_id, params.gang.rating || 0, delta);
+          }
+
+          return {
+            success: true,
+            data: { fighter: updatedFighter },
+            statusField: 'captured' as const,
+            newValue: willBeCaptured
+          };
+        }
+
+        case 'delete': {
+          // Delete fighter completely
+          const { error: deleteError } = await supabase
+            .from('fighters')
+            .delete()
+            .eq('id', params.fighter_id);
+
+          if (deleteError) throw deleteError;
+
+          return {
+            success: true,
+            data: { deleted: true },
+            redirectTo: `/gang/${params.fighter.gang_id}`
+          };
+        }
+
+        default:
+          throw new Error('Invalid action specified');
+      }
+    },
+    
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(variables.fighter_id) });
+      
+      // Snapshot the previous value
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(variables.fighter_id));
+      
+      // Optimistically update to the new value
+      queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), (old: any) => {
+        if (!old) return old;
+        
+        const optimisticUpdate = { ...old };
+        
+        switch (variables.action) {
+          case 'kill':
+            optimisticUpdate.killed = !old.killed;
+            break;
+          case 'retire':
+            optimisticUpdate.retired = !old.retired;
+            break;
+          case 'sell':
+            optimisticUpdate.enslaved = true;
+            break;
+          case 'rescue':
+            optimisticUpdate.enslaved = false;
+            break;
+          case 'starve':
+            optimisticUpdate.starved = !old.starved;
+            break;
+          case 'recover':
+            optimisticUpdate.recovery = !old.recovery;
+            break;
+          case 'capture':
+            optimisticUpdate.captured = !old.captured;
+            break;
+        }
+        
+        return optimisticUpdate;
+      });
+      
+      // Return a context object with the snapshotted value
+      return { previousFighter };
+    },
+    
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), context.previousFighter);
+      }
+    },
+    
+    onSettled: (data, error, variables) => {
+      // Always refetch after error or success  
+      // With new key structure ['fighters', 'fighter-id', 'detail'], no cascade issues!
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(variables.fighter_id) });
     }
   });
 };

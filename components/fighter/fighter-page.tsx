@@ -814,6 +814,13 @@ export default function FighterPage({
     fighterBasic?.label, // Include label for optimistic updates
     fighterBasic?.cost_adjustment, // Include cost_adjustment for optimistic updates
     fighterBasic?.special_rules, // Include special_rules for optimistic updates
+    // Include all status fields for optimistic updates
+    fighterBasic?.killed, // Include killed for optimistic updates
+    fighterBasic?.retired, // Include retired for optimistic updates
+    fighterBasic?.enslaved, // Include enslaved for optimistic updates
+    fighterBasic?.starved, // Include starved for optimistic updates
+    fighterBasic?.recovery, // Include recovery for optimistic updates
+    fighterBasic?.captured, // Include captured for optimistic updates
     gang?.id,
     totalCost,
     skills, // Include skills for optimistic updates
@@ -1081,9 +1088,13 @@ export default function FighterPage({
               campaigns: fighterData.fighter?.campaigns || []
             }}
             gang={{
-              id: fighterData.gang?.id || ''
+              id: fighterData.gang?.id || '',
+              rating: gang?.rating,
+              credits: fighterData.gang?.credits || 0,
+              meat: (gang as any)?.meat
             }}
             fighterId={fighterData.fighter?.id || ''}
+            totalCost={totalCost || 0}
             userPermissions={userPermissions}
             onFighterUpdate={() => {
               // Invalidate fighter data when fighter status is updated
