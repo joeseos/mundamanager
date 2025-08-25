@@ -103,6 +103,38 @@ export async function deleteCampaign(campaignId: string) {
 
     if (error) throw error;
 
+    // Clean up all images for this campaign
+    try {
+      const filesToRemove: string[] = [];
+
+      // Remove any files directly under campaigns/{campaignId}/ (campaign images)
+      try {
+        const { data: campaignFiles } = await supabase.storage
+          .from('users-images')
+          .list(`campaigns/${campaignId}/`);
+        if (campaignFiles && campaignFiles.length > 0) {
+          campaignFiles.forEach(file => {
+            // Skip directory markers; list returns only files at this level
+            if (file.name) filesToRemove.push(`campaigns/${campaignId}/${file.name}`);
+          });
+        }
+      } catch (e) {
+        console.log('Note: failed listing campaign files for deletion', e);
+      }
+
+      // Remove accumulated files (if any)
+      if (filesToRemove.length > 0) {
+        await supabase.storage
+          .from('users-images')
+          .remove(filesToRemove);
+      }
+
+      // Supabase folders are virtual; once files are gone, the folder disappears in UI
+    } catch (storageError) {
+      // Log the error but don't fail the campaign deletion
+      console.error('Error cleaning up campaign images:', storageError);
+    }
+
     // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
