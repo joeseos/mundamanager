@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
 import Image from 'next/image';
+import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -162,6 +163,7 @@ export default function CampaignPageContent({
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const [isPending, startTransition] = useTransition();
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -310,6 +312,8 @@ export default function CampaignPageContent({
     e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
   };
 
+  const canEditImage = !!(permissions?.isOwner || permissions?.isArbitrator || permissions?.isAdmin);
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
@@ -397,15 +401,22 @@ export default function CampaignPageContent({
                   <FiMap className="size-[80px] text-gray-600" />
                 </div>
               )}
-              <Image
-                src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
-                alt="Cogwheel"
-                width={250}
-                height={250}
-                className="absolute z-20 w-[250px] h-auto"
-                priority
-                quality={100}
-              />
+              {canEditImage && (
+                <div
+                  className={`absolute z-20 w-[250px] h-[250px] cursor-pointer hover:opacity-80 transition-opacity`}
+                  onClick={() => setShowImageModal(true)}
+                >
+                  <Image
+                    src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                    alt="Cogwheel"
+                    width={250}
+                    height={250}
+                    className="absolute z-20 w-[250px] h-auto"
+                    priority
+                    quality={100}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right Section: Content */}
@@ -728,6 +739,14 @@ export default function CampaignPageContent({
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+        />
+
+        <CampaignImageEditModal
+          isOpen={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          currentImageUrl={campaignData.image_url || ''}
+          campaignId={campaignData.id}
+          onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
         />
 
       </div>

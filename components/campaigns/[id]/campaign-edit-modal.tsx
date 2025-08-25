@@ -92,7 +92,7 @@ export default function CampaignEditModal({
         description: "Campaign deleted successfully"
       });
 
-      router.push('/campaigns');
+      router.push('/?tab=campaigns');
       return true;
     } catch (error) {
       console.error('Error deleting campaign:', error);
