@@ -37,6 +37,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.4.10",
     "geist": "^1.2.1",
+    "heic2any": "^0.0.4",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.436.0",
     "next": "15.4.3",
