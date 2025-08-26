@@ -36,8 +36,22 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const supportedMimeTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/heic',
+    'image/heif',
+    'image/avif',
+    'image/svg+xml',
+  ]);
+
+  const supportedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.avif', '.svg']);
 
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: CropArea) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -51,20 +65,66 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
       setCroppedAreaPixels(null);
       setIsUploading(false);
       setIsRemoving(false);
+      setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [isOpen]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate extension/MIME type first
+      const lowerName = file.name.toLowerCase();
+      const hasSupportedExt = Array.from(supportedExtensions).some((ext) => lowerName.endsWith(ext));
+      const hasSupportedMime = supportedMimeTypes.has(file.type);
+      if (!hasSupportedExt && !hasSupportedMime) {
+        toast({
+          title: 'Unsupported file type',
+          description: 'Please select a JPG, JPEG, PNG, WEBP, GIF, HEIC, or HEIF image.',
+          variant: 'destructive',
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
       if (file.size > 10 * 1024 * 1024) {
         toast({ title: 'File too large', description: 'Please select an image smaller than 10MB', variant: 'destructive' });
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => setImage(reader.result as string);
-      reader.readAsDataURL(file);
+
+      try {
+        setIsProcessing(true);
+        let processedFile = file;
+        
+        // Convert HEIC files to PNG
+        if (file.type === 'image/heic' || file.type === 'image/heif' || lowerName.endsWith('.heic') || lowerName.endsWith('.heif')) {
+          const heic2any = (await import('heic2any')).default;
+          const convertedBlob = await heic2any({
+            blob: file,
+            toType: 'image/png',
+            quality: 1
+          });
+          
+          // Create a new file object with the converted blob
+          processedFile = new File([convertedBlob], lowerName.replace(/\.(heic|heif)$/i, '.png'), {
+            type: 'image/png',
+            lastModified: file.lastModified
+          });
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => setImage(reader.result as string);
+        reader.readAsDataURL(processedFile);
+      } catch (error) {
+        console.error('Error processing image:', error);
+        toast({ 
+          title: 'File processing failed', 
+          description: 'Failed to process the image. Please try a different file.', 
+          variant: 'destructive' 
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -200,7 +260,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
       onClose={onClose}
       onConfirm={isRemoving ? handleRemoveImage : handleSave}
       confirmText={isRemoving ? 'Removing image...' : (isUploading ? 'Uploading...' : 'Upload Image')}
-      confirmDisabled={isUploading || isRemoving || (!image && !currentImageUrl)}
+      confirmDisabled={isUploading || isRemoving || isProcessing || (!image && !currentImageUrl)}
       width="2xl"
     >
       <div className="space-y-4">
@@ -213,8 +273,13 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
           </div>
         )}
         <div className="mb-4">
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="w-full">Replace with New Image</Button>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,.heic,.heif,.avif,.svg" onChange={handleFileSelect} className="hidden" />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isProcessing} className="w-full">
+            {isProcessing ? 'Processing image...' : 'Replace with New Image'}
+          </Button>
+          <p className="mt-2 text-xs text-gray-500 text-center">
+            Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB
+          </p>
         </div>
         {image && (
           <div className="mb-4">

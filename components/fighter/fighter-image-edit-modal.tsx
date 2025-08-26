@@ -38,8 +38,22 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const supportedMimeTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/heic',
+    'image/heif',
+    'image/avif',
+    'image/svg+xml',
+  ]);
+
+  const supportedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.avif', '.svg']);
 
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: CropArea) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -54,6 +68,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       setCroppedAreaPixels(null);
       setIsUploading(false);
       setIsRemoving(false);
+      setIsProcessing(false);
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -61,9 +76,21 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
     }
   }, [isOpen]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const lowerName = file.name.toLowerCase();
+      const hasSupportedExt = Array.from(supportedExtensions).some((ext) => lowerName.endsWith(ext));
+      const hasSupportedMime = supportedMimeTypes.has(file.type);
+      if (!hasSupportedExt && !hasSupportedMime) {
+        toast({
+          title: 'Unsupported file type',
+          description: 'Please select a JPG, PNG, WEBP, GIF, AVIF, SVG, or HEIC image.',
+          variant: 'destructive',
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         toast({
           title: "File too large",
@@ -72,12 +99,34 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
         });
         return;
       }
+      try {
+        setIsProcessing(true);
+        let processedFile = file;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+        // Convert HEIC files to PNG
+        if (file.type === 'image/heic' || file.type === 'image/heif' || lowerName.endsWith('.heic') || lowerName.endsWith('.heif')) {
+          const heic2any = (await import('heic2any')).default;
+          const convertedBlob = await heic2any({
+            blob: file,
+            toType: 'image/png',
+            quality: 1
+          });
+
+          // Create a new file object with the converted blob
+          processedFile = new File([convertedBlob], lowerName.replace(/\.(heic|heif)$/i, '.png'), {
+            type: 'image/png',
+            lastModified: file.lastModified
+          });
+        }
+        const reader = new FileReader();
+        reader.onload = () => setImage(reader.result as string);
+        reader.readAsDataURL(processedFile);
+      } catch (error) {
+        console.error('Error processing image:', error);
+        toast({ title: 'File processing failed', description: 'Failed to process the image. Please try a different file.', variant: 'destructive' });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -359,7 +408,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       onClose={onClose}
       onConfirm={handleSave}
       confirmText={isUploading ? (isRemoving ? 'Removing Image...' : 'Uploading...') : 'Upload Image'}
-      confirmDisabled={!image || !croppedAreaPixels || isUploading}
+      confirmDisabled={!image || !croppedAreaPixels || isUploading || isProcessing}
       width="2xl"
     >
       <div className="space-y-4">
@@ -388,18 +437,19 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,.heic,.heif,.avif,.svg"
             onChange={handleFileSelect}
             className="hidden"
           />
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            disabled={isUploading || isProcessing}
             className="w-full"
           >
-            Replace with New Image
+            {isProcessing ? 'Processing image...' : 'Replace with New Image'}
           </Button>
+          <p className="mt-2 text-xs text-gray-500 text-center">Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB</p>
         </div>
 
         {/* Crop area */}
