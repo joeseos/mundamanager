@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
-import { createClient } from "@/utils/supabase/server";
+import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
   console.log("Middleware called for path:", request.nextUrl.pathname);
@@ -11,15 +11,34 @@ export async function middleware(request: NextRequest) {
   ];
 
   // Only update session for non-skip paths
-  const res = skipSessionPaths.includes(request.nextUrl.pathname)
+  let res = skipSessionPaths.includes(request.nextUrl.pathname)
     ? NextResponse.next()
     : await updateSession(request);
 
-  // Check if the user is authenticated using claims (no network call)
-  const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  const userId = (claims as any)?.claims?.sub as string | undefined;
+  // Create a Supabase client bound to the incoming request/response (Edge-safe)
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          // reflect cookie changes on the request and response
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set({ name, value, ...options });
+            res = NextResponse.next({ request: { headers: request.headers } });
+            res.cookies.set({ name, value, ...options });
+          });
+        },
+      },
+    }
+  );
 
+  // Lightweight check for an authenticated user
+  const { data: userResult } = await supabase.auth.getUser();
+  const userId = userResult?.user?.id;
   console.log("User authenticated:", !!userId);
 
   // List of paths that don't require authentication
@@ -73,21 +92,6 @@ export async function middleware(request: NextRequest) {
   }
 
   console.log("Continuing to requested page");
-
-  // Inside the middleware function, after checking user authentication
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', userId)
-      .single();
-
-    if (!profile || profile.user_role !== 'admin') {
-      console.log('Access denied to admin area');
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-  }
 
   return res;
 }
