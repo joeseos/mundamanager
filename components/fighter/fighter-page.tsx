@@ -21,7 +21,7 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXp, updateFighterDetails } from "@/app/actions/edit-fighter";
+import { updateFighterXp, updateFighterXpWithOoa, updateFighterDetails } from "@/app/actions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 
 interface FighterPageProps {
@@ -525,7 +525,7 @@ export default function FighterPage({
     }));
   }, []);
 
-  const handleAddXp = async () => {
+  const handleAddXp = async (ooaCount?: number) => {
     if (!/^-?\d+$/.test(editState.xpAmount)) {
       setEditState(prev => ({
         ...prev,
@@ -558,6 +558,7 @@ export default function FighterPage({
     // Calculate optimistic values
     const optimisticXp = (fighterData.fighter?.xp || 0) + amount;
     const optimisticTotalXp = (fighterData.fighter?.total_xp || 0) + amount;
+    const optimisticKills = (fighterData.fighter?.kills || 0) + (ooaCount || 0);
 
     // OPTIMISTIC UPDATES - Update UI immediately
     setFighterData(prev => ({
@@ -565,20 +566,22 @@ export default function FighterPage({
       fighter: prev.fighter ? {
         ...prev.fighter,
         xp: optimisticXp,
-        total_xp: optimisticTotalXp
+        total_xp: optimisticTotalXp,
+        kills: optimisticKills
       } : null,
       // Update gang fighters list for dropdown
       gangFighters: prev.gangFighters.map(fighter => 
         fighter.id === fighterId 
-          ? { ...fighter, xp: optimisticXp }
+          ? { ...fighter, xp: optimisticXp, kills: optimisticKills }
           : fighter
       )
     }));
 
     try {
-      const result = await updateFighterXp({
+      const result = await updateFighterXpWithOoa({
         fighter_id: fighterId,
-        xp_to_add: amount
+        xp_to_add: amount,
+        ooa_count: ooaCount
       });
 
       if (!result.success) {
@@ -588,26 +591,34 @@ export default function FighterPage({
       // Server confirmation - sync with actual values if different
       const serverXp = result.data?.xp || optimisticXp;
       const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
+      const serverKills = result.data?.kills || optimisticKills;
       
       // Only update if server values differ from optimistic
-      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp) {
+      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp || serverKills !== optimisticKills) {
         setFighterData(prev => ({
           ...prev,
           fighter: prev.fighter ? {
             ...prev.fighter,
             xp: serverXp,
-            total_xp: serverTotalXp
+            total_xp: serverTotalXp,
+            kills: serverKills
           } : null,
           gangFighters: prev.gangFighters.map(fighter => 
             fighter.id === fighterId 
-              ? { ...fighter, xp: serverXp }
+              ? { ...fighter, xp: serverXp, kills: serverKills }
               : fighter
           )
         }));
       }
 
+      // Create success message
+      let successMessage = `Successfully added ${amount} XP`;
+      if (ooaCount && ooaCount > 0) {
+        successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
+      }
+
       toast({
-        description: `Successfully added ${amount} XP`,
+        description: successMessage,
         variant: "default"
       });
 
