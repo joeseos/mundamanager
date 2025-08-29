@@ -11,6 +11,7 @@ interface XpCase {
   id: string;
   label: string;
   xp: number;
+  onSelectText?: (count: number) => string;
 }
 
 interface FighterXpModalProps {
@@ -18,7 +19,7 @@ interface FighterXpModalProps {
   fighterId: string;
   currentXp: number;
   onClose: () => void;
-  onConfirm: () => Promise<boolean>;
+  onConfirm: (ooaCount?: number) => Promise<boolean>;
   xpAmountState: {
     xpAmount: string;
     xpError: string;
@@ -38,15 +39,15 @@ export function FighterXpModal({
   // Define XP "events" for the checkbox list
   const xpCountCases: XpCase[] = [
     { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
-    { id: 'outOfAction', label: 'Cause OOA', xp: 2 },
+    { id: 'outOfAction', label: 'Cause OOA', xp: 2, onSelectText: (count) => `⚠️ Adds ${count} to the OOA count` },
     { id: 'leaderChampionBonus', label: 'Leader/Champion', xp: 1 },
     { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2 },
+    { id: 'rally', label: 'Successful Rally', xp: 1 },
+    { id: 'assistance', label: 'Provide Assistance', xp: 1 },
   ];
 
   const xpCheckboxCases: XpCase[] = [
     { id: 'battleParticipation', label: 'Battle Participation', xp: 1 },
-    { id: 'rally', label: 'Successful Rally', xp: 1 },
-    { id: 'assistance', label: 'Provide Assistance', xp: 1 },
   ];
 
   // Track which of these XP events are checked
@@ -167,6 +168,9 @@ export function FighterXpModal({
               <div key={xpCase.id} className="flex items-center justify-between">
                 <label className="text-sm text-gray-800">
                   {xpCase.label} (+{xpCase.xp} XP each)
+                  {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
+                    <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
+                  )}
                 </label>
                 <div className="flex items-center space-x-2">
                   <Button
@@ -190,7 +194,7 @@ export function FighterXpModal({
               </div>
             ))}
 
-            {/* Separator after the first three */}
+            {/* Separator after the first cases */}
             <hr className="my-2 border-gray-300" />
 
             {/* Single XP Checkboxes */}
@@ -238,7 +242,7 @@ export function FighterXpModal({
         </div>
       }
       onClose={handleModalClose}
-      onConfirm={onConfirm}
+      onConfirm={() => onConfirm(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmountState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
       confirmDisabled={!xpAmountState.xpAmount || !isValidXpInput(xpAmountState.xpAmount)}
     />
