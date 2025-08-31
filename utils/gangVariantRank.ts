@@ -5,7 +5,7 @@ export const gangVariantRank: { [key: string]: number } = {
   "skirmish": 4,
   //
   //"outlaw": 11,
-  "chaos corrupted": 11,
-  "genestealer infected": 12,
-  "malstrain corrupted": 13,
+  "chaos corrupted": 12,
+  "genestealer infected": 13,
+  "malstrain corrupted": 14,
 };
