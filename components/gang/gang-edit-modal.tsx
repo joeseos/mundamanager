@@ -474,10 +474,10 @@ export default function GangEditModal({
         </div>
 
         {editedGangIsVariant && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
+          <div className="grid grid-cols-2 gap-4 ">
             {/* Unaffiliated variants */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1">Unaffiliated</h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
                   .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
@@ -514,7 +514,7 @@ export default function GangEditModal({
 
             {/* Outlaw/Corrupted variants*/}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
                   .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)

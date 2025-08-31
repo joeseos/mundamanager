@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
 import { useToast } from "@/components/ui/use-toast"
 import { gangListRank } from "@/utils/gangListRank"
+import { gangVariantRank } from "@/utils/gangVariantRank"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
@@ -37,6 +40,11 @@ type GangType = {
     id: string;
     name: string;
   }>;
+};
+
+type GangVariant = {
+  id: string;
+  variant: string;
 };
 
 interface CreateGangModalProps {
@@ -78,10 +86,17 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
   const [selectedAffiliation, setSelectedAffiliation] = useState("")
+  const [credits, setCredits] = useState("1000")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
   const [gangTypeImages, setGangTypeImages] = useState<Record<string, string>>({});
+  
+  // Gang variants state
+  const [availableVariants, setAvailableVariants] = useState<GangVariant[]>([]);
+  const [isLoadingVariants, setIsLoadingVariants] = useState(false);
+  const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
+  const [showVariants, setShowVariants] = useState(false);
 
   useEffect(() => {
     const fetchGangTypes = async () => {
@@ -122,10 +137,47 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchGangTypes();
   }, []);
 
+  // Fetch gang variants when modal opens
+  useEffect(() => {
+    const fetchVariants = async () => {
+      if (availableVariants.length === 0 && !isLoadingVariants) {
+        setIsLoadingVariants(true);
+        try {
+          const response = await fetch('/api/gang_variant_types');
+          if (!response.ok) {
+            throw new Error('Failed to fetch gang variants');
+          }
+          const variantsData = await response.json();
+          setAvailableVariants(variantsData);
+        } catch (err) {
+          console.error('Error fetching gang variants:', err);
+          // Don't show error toast for variants, just log it
+        } finally {
+          setIsLoadingVariants(false);
+        }
+      }
+    };
+
+    fetchVariants();
+  }, []);
+
   // Clear affiliation when gang type changes
   useEffect(() => {
     setSelectedAffiliation("");
   }, [gangType]);
+
+  // Update credits when Wasteland variant is selected/deselected
+  useEffect(() => {
+    const wastelandVariant = selectedVariants.find(v => v.variant === 'Wasteland');
+    if (wastelandVariant) {
+      setCredits("1400");
+    } else {
+      // Only reset to 1000 if it was previously set to 1400 due to Wasteland
+      if (credits === "1400") {
+        setCredits("1000");
+      }
+    }
+  }, [selectedVariants]);
 
   // Helper function to check if form is valid
   const isFormValid = () => {
@@ -136,6 +188,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     // Check if affiliation is required and selected
     const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
     if (selectedGangType?.affiliation && !selectedAffiliation) {
+      return false;
+    }
+    
+    // Check if credits is a valid number
+    const creditsNum = parseInt(credits);
+    if (isNaN(creditsNum) || creditsNum < 0) {
       return false;
     }
     
@@ -165,7 +223,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, gangName, gangType, selectedAffiliation, isLoading, gangTypes]);
+  }, [onClose, gangName, gangType, selectedAffiliation, credits, isLoading, gangTypes]);
 
   const handleCreateGang = async () => {
     if (gangName && gangType) {
@@ -185,7 +243,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           gangTypeId: gangType,
           gangType: selectedGangType.gang_type,
           alignment: selectedGangType.alignment,
-          gangAffiliationId: selectedAffiliation || null
+          gangAffiliationId: selectedAffiliation || null,
+          credits: parseInt(credits),
+          gangVariants: selectedVariants.map(v => v.id)
         });
 
         if (!result.success) {
@@ -198,6 +258,9 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setGangName("")
         setGangType("")
         setSelectedAffiliation("")
+        setCredits("1000")
+        setSelectedVariants([])
+        setShowVariants(false)
         onClose()
         
         // Check if we're currently on the gangs tab, if not redirect to it
@@ -238,7 +301,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Gang</h2>
@@ -322,7 +385,101 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               </div>
             ) : null;
           })()}
-          
+
+          {/* Gang Variants Section */}
+          <div className="mt-4">
+            <div className="flex items-center space-x-2">
+              <label htmlFor="variant-toggle" className="text-sm font-medium">
+                Gang Variants
+              </label>
+              <Switch
+                id="variant-toggle"
+                checked={showVariants}
+                onCheckedChange={setShowVariants}
+              />
+            </div>
+
+            {showVariants && (
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                {/* Unaffiliated variants */}
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+                  <div className="flex flex-col gap-2">
+                    {availableVariants
+                      .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
+                      .sort((a, b) =>
+                        (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                        (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                      )
+                      .map((variant, index, arr) => (
+                        <div key={variant.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`variant-${variant.id}`}
+                            checked={selectedVariants.some(v => v.id === variant.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedVariants(prev => [...prev, variant]);
+                              } else {
+                                setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                            {variant.variant}
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Outlaw/Corrupted variants*/}
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+                  <div className="flex flex-col gap-2">
+                    {availableVariants
+                      .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
+                      .sort((a, b) =>
+                        (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
+                        (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
+                      )
+                      .map(variant => (
+                        <div key={variant.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`variant-${variant.id}`}
+                            checked={selectedVariants.some(v => v.id === variant.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedVariants(prev => [...prev, variant]);
+                              } else {
+                                setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                            {variant.variant}
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="gang-credits" className="block text-sm font-medium text-gray-700 mb-1">
+              Starting Credits
+            </label>
+            <Input
+              id="gang-credits"
+              type="number"
+              min="0"
+              placeholder="1000"
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+            />
+          </div>
+
           <div>
             <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
               Gang Name *
