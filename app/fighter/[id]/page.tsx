@@ -4,6 +4,9 @@ import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+import { fighterQueries } from '@/app/lib/queries/fighter-queries';
+import { gangQueries } from '@/app/lib/queries/gang-queries';
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -21,8 +24,17 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     redirect("/sign-in");
   }
 
+  // Create a new QueryClient for this request
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000, // 1 minute
+      },
+    },
+  });
+
   try {
-    // Fetch fighter data using granular shared functions
+    // Import the cached functions for prefetching
     const {
       getFighterBasic,
       getFighterEquipment,
@@ -30,29 +42,68 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterEffects,
       getFighterVehicles,
       getFighterTotalCost
-    } = await import('@/app/lib/shared/fighter-data');
+    } = await import('@/app/lib/fighter-data');
 
     const {
       getGangBasic,
       getGangPositioning,
       getGangCredits
-    } = await import('@/app/lib/shared/gang-data');
+    } = await import('@/app/lib/gang-data');
 
-    // Fetch basic fighter data first to check if fighter exists
+    // Prefetch fighter data in parallel using existing cached functions
+    await Promise.all([
+      queryClient.prefetchQuery({
+        ...fighterQueries.basic(id),
+        queryFn: () => getFighterBasic(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...fighterQueries.equipment(id),
+        queryFn: () => getFighterEquipment(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...fighterQueries.skills(id),
+        queryFn: () => getFighterSkills(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...fighterQueries.effects(id),
+        queryFn: () => getFighterEffects(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...fighterQueries.vehicles(id),
+        queryFn: () => getFighterVehicles(id, supabase),
+      }),
+    ]);
+
+    // Get basic fighter data to determine gang ID and check if fighter exists
     const fighterBasic = await getFighterBasic(id, supabase);
     
     if (!fighterBasic) {
       redirect("/");
     }
 
-    // Fetch gang basic data, positioning, and credits
+    // Prefetch gang data
+    await Promise.all([
+      queryClient.prefetchQuery({
+        ...gangQueries.basic(fighterBasic.gang_id),
+        queryFn: () => getGangBasic(fighterBasic.gang_id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...gangQueries.credits(fighterBasic.gang_id),
+        queryFn: () => getGangCredits(fighterBasic.gang_id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        ...gangQueries.positioning(fighterBasic.gang_id),
+        queryFn: () => getGangPositioning(fighterBasic.gang_id, supabase),
+      }),
+    ]);
+
+    // Get the remaining data for server-side processing (still needed for permissions, etc.)
     const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
       getGangBasic(fighterBasic.gang_id, supabase),
       getGangPositioning(fighterBasic.gang_id, supabase),
       getGangCredits(fighterBasic.gang_id, supabase)
     ]);
 
-    // Fetch all fighter-related data in parallel using granular functions
     const [
       equipment,
       skills,
@@ -263,14 +314,16 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
 
-    // Pass fighter data and user permissions to client component
+    // Pass fighter data and user permissions to client component with hydration
     return (
-      <FighterPageComponent
-        initialFighterData={fighterData}
-        initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
-        fighterId={id}
-      />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <FighterPageComponent
+          initialFighterData={fighterData}
+          initialGangFighters={gangFighters}
+          userPermissions={userPermissions}
+          fighterId={id}
+        />
+      </HydrationBoundary>
     );
 
   } catch (error) {

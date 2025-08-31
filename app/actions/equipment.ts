@@ -2,17 +2,17 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { 
-  invalidateFighterDataWithFinancials, 
-  invalidateVehicleData, 
-  invalidateFighterVehicleData,
-  invalidateEquipmentPurchase,
-  invalidateEquipmentDeletion,
-  invalidateGangStash,
+  invalidateFighterEquipmentPurchase,
+  invalidateFighterEquipmentDeletion,
   invalidateGangRating,
-  invalidateFighterAdvancement
-} from '@/utils/cache-tags';
+  invalidateGangStash,
+  invalidateFighterVehicles,
+  invalidateGangCredits
+} from '@/app/lib/queries/invalidation';
+import { cacheKeys } from '@/app/lib/queries/keys';
+import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { getFighterTotalCost } from '@/app/lib/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 interface BuyEquipmentParams {
@@ -612,27 +612,23 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Handle rating update result
     if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
       try {
-        invalidateGangRating(params.gang_id);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateGangRating({ gangId: params.gang_id });
       } catch (e) {
         console.error('Failed to invalidate gang rating cache:', e);
       }
     }
 
-    // Optimized cache invalidation - use granular approach
+    // Cache invalidation using centralized TanStack Query cache keys
     if (params.fighter_id) {
       // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
-      invalidateEquipmentPurchase({
+      invalidateFighterEquipmentPurchase({
         fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        createdBeasts: createdBeasts.length > 0 ? createdBeasts : undefined
+        gangId: params.gang_id
       });
       // If effects were applied to the fighter, also invalidate effects + derived data
       if (appliedEffects.length > 0) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: params.gang_id,
-          advancementType: 'effect'
-        });
+        revalidateTag(cacheKeys.fighters.effects(params.fighter_id));
       }
     } else if (params.vehicle_id) {
       // Use vehicle data from parallel query if available
@@ -640,16 +636,22 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       const vehicleData = vehicleDataResult?.data;
       
       if (vehicleData?.fighter_id) {
-        invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
-        invalidateFighterVehicleData(vehicleData.fighter_id, params.gang_id);
+        invalidateFighterVehicles({
+          fighterId: vehicleData.fighter_id,
+          gangId: params.gang_id,
+          vehicleId: params.vehicle_id
+        });
+        invalidateGangCredits({ gangId: params.gang_id });
+        if (ratingDelta !== 0) {
+          invalidateGangRating({ gangId: params.gang_id });
+        }
+      } else {
+        revalidateTag(cacheKeys.vehicles.detail(params.vehicle_id));
+        invalidateGangCredits({ gangId: params.gang_id });
       }
-      invalidateVehicleData(params.vehicle_id);
     } else {
       // Gang stash purchases
-      invalidateGangStash({
-        gangId: params.gang_id,
-        userId: user.id
-      });
+      invalidateGangStash({ gangId: params.gang_id });
     }
 
     // Build response data to match RPC format
@@ -908,7 +910,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', params.gang_id);
-        invalidateGangRating(params.gang_id);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateGangRating({ gangId: params.gang_id });
       } catch (e) {
         console.error('Failed to update gang rating after equipment deletion:', e);
       }
@@ -934,22 +937,20 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
                          customEquipmentData?.equipment_name || 
                          'Unknown Equipment';
 
-    // Use optimized cache invalidation for equipment deletion
-    // Note: We could detect deleted beast IDs here if needed for even more granular updates
-    invalidateEquipmentDeletion({
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateFighterEquipmentDeletion({
       fighterId: params.fighter_id,
       gangId: params.gang_id
-      // deletedBeastIds could be added here if we track which beasts were deleted
     });
     
     // If the deleted equipment had associated effects, invalidate fighter effects + derived data
-    if ((associatedEffects?.length || 0) > 0) {
-      invalidateFighterAdvancement({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id,
-        advancementType: 'effect'
-      });
-    }
+    // if ((associatedEffects?.length || 0) > 0) {
+    //   invalidateFighterAdvancement({
+    //     fighterId: params.fighter_id,
+    //     gangId: params.gang_id,
+    //     advancementType: 'effect'
+    //   });
+    // }
     
     return { 
       success: true, 
@@ -996,7 +997,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
 
-    invalidateGangStash({ gangId: row.gang_id, userId: user.id });
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateGangStash({ gangId: row.gang_id });
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };

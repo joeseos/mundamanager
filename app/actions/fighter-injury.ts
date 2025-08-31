@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
+// Cache invalidation now handled by TanStack Query client-side
+// import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -114,7 +115,8 @@ export async function addFighterInjury(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + delta) })
           .eq('id', fighter.gang_id);
-        invalidateGangRating(fighter.gang_id);
+        // Cache invalidation now handled by TanStack Query client-side
+        // invalidateGangRating(fighter.gang_id);
       }
     } catch (e) {
       console.error('Failed to update rating for injury addition:', e);
@@ -150,7 +152,8 @@ export async function addFighterInjury(
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return {
       success: true,
@@ -248,7 +251,8 @@ export async function deleteFighterInjury(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + delta) })
           .eq('id', fighter.gang_id);
-        invalidateGangRating(fighter.gang_id);
+        // Cache invalidation now handled by TanStack Query client-side
+        // invalidateGangRating(fighter.gang_id);
       }
     } catch (e) {
       console.error('Failed to update rating after injury delete:', e);
@@ -266,7 +270,8 @@ export async function deleteFighterInjury(
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateFighterData(params.fighter_id, fighter.gang_id);
 
     return { success: true };
 

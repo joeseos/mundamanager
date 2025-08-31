@@ -296,7 +296,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangRating,
       getGangCredits,
       getUserProfile
-    } = await import('@/app/lib/shared/gang-data');
+    } = await import('@/app/lib/gang-data');
 
     // Get supabase client first to pass to all functions
     const supabase = await createClient();

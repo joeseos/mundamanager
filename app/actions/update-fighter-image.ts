@@ -1,8 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { invalidateFighterDetailsUpdate } from '@/app/lib/queries/invalidation';
 
 export async function updateFighterImage(
   fighterId: string,
@@ -22,9 +21,8 @@ export async function updateFighterImage(
       throw updateError;
     }
 
-    // Invalidate cache for fighter data
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateFighterDetailsUpdate({ fighterId, gangId });
 
     return { success: true };
   } catch (error) {

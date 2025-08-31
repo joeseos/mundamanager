@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { getGangRating } from '@/app/lib/shared/gang-data';
+import { getGangRating } from '@/app/lib/gang-data';
 
 // Type definitions
 interface CampaignBasic {

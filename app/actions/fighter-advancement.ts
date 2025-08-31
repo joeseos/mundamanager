@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating } from '@/utils/cache-tags';
+// Cache invalidation now handled by TanStack Query client-side
+// import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 
 import { 
@@ -20,8 +21,9 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .single();
     
   if (ownerData) {
+    // Cache invalidation now handled by TanStack Query client-side
     // Invalidate the owner's cache since their total cost changed
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    // invalidateFighterData(ownerData.fighter_owner_id, gangId);
   }
 }
 
@@ -193,16 +195,19 @@ export async function addCharacteristicAdvancement(
         .from('gangs')
         .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
         .eq('id', fighter.gang_id);
-      invalidateGangRating(fighter.gang_id);
+      // Cache invalidation now handled by TanStack Query client-side
+      // invalidateGangRating(fighter.gang_id);
     } catch (e) {
       console.error('Failed to update gang rating after characteristic advancement:', e);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateFighterData(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    // Cache invalidation now handled by TanStack Query client-side
+    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Log the characteristic advancement
     await logCharacteristicAdvancement({
@@ -216,12 +221,13 @@ export async function addCharacteristicAdvancement(
       include_gang_rating: true
     });
 
-    // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'stat'
-    });
+    // Cache invalidation now handled by TanStack Query client-side
+    // Invalidate cache for fighter advancement no longer needed
+    // invalidateFighterAdvancement({
+    //   fighterId: params.fighter_id,
+    //   gangId: fighter.gang_id,
+    //   advancementType: 'stat'
+    // });
 
     return {
       success: true,
@@ -332,16 +338,19 @@ export async function addSkillAdvancement(
         .from('gangs')
         .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
         .eq('id', fighter.gang_id);
-      invalidateGangRating(fighter.gang_id);
+      // Cache invalidation now handled by TanStack Query client-side
+      // invalidateGangRating(fighter.gang_id);
     } catch (e) {
       console.error('Failed to update gang rating after skill advancement:', e);
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateFighterData(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    // Cache invalidation now handled by TanStack Query client-side
+    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Get skill name for logging
     const { data: skillData } = await supabase
@@ -363,12 +372,13 @@ export async function addSkillAdvancement(
       include_gang_rating: true
     });
 
-    // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: 'skill'
-    });
+    // Cache invalidation now handled by TanStack Query client-side
+    // Invalidate cache for fighter advancement no longer needed
+    // invalidateFighterAdvancement({
+    //   fighterId: params.fighter_id,
+    //   gangId: fighter.gang_id,
+    //   advancementType: 'skill'
+    // });
 
     return {
       success: true,
@@ -563,17 +573,20 @@ export async function deleteAdvancement(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', fighter.gang_id);
-        invalidateGangRating(fighter.gang_id);
+        // Cache invalidation now handled by TanStack Query client-side
+      // invalidateGangRating(fighter.gang_id);
       } catch (e) {
         console.error('Failed to update gang rating after advancement deletion:', e);
       }
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateFighterData(params.fighter_id, fighter.gang_id);
     
     // If this is a beast fighter, also invalidate owner's cache
-    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    // Cache invalidation now handled by TanStack Query client-side
+    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Get advancement name for logging
     let advancementName = 'Unknown Advancement';
@@ -612,12 +625,13 @@ export async function deleteAdvancement(
       include_gang_rating: true
     });
 
-    // Invalidate cache for fighter advancement
-    invalidateFighterAdvancement({
-      fighterId: params.fighter_id,
-      gangId: fighter.gang_id,
-      advancementType: params.advancement_type === 'skill' ? 'skill' : 'effect'
-    });
+    // Cache invalidation now handled by TanStack Query client-side
+    // Invalidate cache for fighter advancement no longer needed
+    // invalidateFighterAdvancement({
+    //   fighterId: params.fighter_id,
+    //   gangId: fighter.gang_id,
+    //   advancementType: params.advancement_type === 'skill' ? 'skill' : 'effect'
+    // });
 
     return {
       success: true,

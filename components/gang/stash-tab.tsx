@@ -222,6 +222,7 @@ export default function GangInventory({
               equipment_name: stashItem.equipment_name || '',
               equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
               cost: stashItem.cost || 0,
+              purchase_cost: stashItem.cost || 0,
               core_equipment: false,
               is_master_crafted: false,
               master_crafted: false,
@@ -768,40 +769,6 @@ export default function GangInventory({
           fighterTypeId=""
           fighterCredits={0}
           isStashMode={true}
-          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
-            // Handle equipment bought for stash - perform optimistic updates
-            
-            // Create new stash item from the purchased equipment
-            const newStashItem: StashItem = {
-              id: boughtEquipment.fighter_equipment_id, // This will be the gang_stash ID from the API response
-              cost: boughtEquipment.cost,
-              type: 'equipment',
-              equipment_id: boughtEquipment.equipment_id,
-              equipment_name: boughtEquipment.equipment_name,
-              equipment_type: boughtEquipment.equipment_type,
-              equipment_category: boughtEquipment.equipment_category,
-              custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined
-            };
-
-            // Update the stash state optimistically
-            const newStash = [...stash, newStashItem];
-            setStash(newStash);
-
-            // Call parent update function if provided
-            if (onStashUpdate) {
-              onStashUpdate(newStash);
-            }
-
-            // Update gang credits in parent component if provided
-            if (onGangCreditsUpdate && newGangCredits !== undefined) {
-              onGangCreditsUpdate(newGangCredits);
-            }
-
-            toast({
-              title: "Equipment Purchased",
-              description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
-            });
-          }}
         />
       )}
 

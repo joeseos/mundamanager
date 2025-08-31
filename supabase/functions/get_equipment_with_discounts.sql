@@ -2,7 +2,7 @@ DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
 
--- Create the new function with all parameters including weapon profiles and fighter legacy support
+-- Create the new function with all parameters including weapon profiles, fighter legacy support, and fighter effects
 CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     gang_type_id uuid DEFAULT NULL,
     equipment_category text DEFAULT NULL,
@@ -27,7 +27,8 @@ RETURNS TABLE (
     equipment_tradingpost boolean,
     is_custom boolean,
     weapon_profiles jsonb,
-    vehicle_upgrade_slot text
+    vehicle_upgrade_slot text,
+    fighter_effects jsonb
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -190,7 +191,38 @@ AS $$
                     END
             )
             ELSE NULL
-        END as vehicle_upgrade_slot
+        END as vehicle_upgrade_slot,
+        -- Aggregate fighter effects into a JSON array
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fet.id,
+                        'effect_name', fet.effect_name,
+                        'type_specific_data', fet.type_specific_data,
+                        'category_name', fec.category_name,
+                        'modifiers', COALESCE(
+                            (
+                                SELECT jsonb_agg(
+                                    jsonb_build_object(
+                                        'stat_name', fetm.stat_name,
+                                        'default_numeric_value', fetm.default_numeric_value
+                                    )
+                                )
+                                FROM fighter_effect_type_modifiers fetm
+                                WHERE fetm.fighter_effect_type_id = fet.id
+                            ),
+                            '[]'::jsonb
+                        )
+                    )
+                    ORDER BY fet.effect_name
+                )
+                FROM fighter_effect_types fet
+                LEFT JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
+                WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+            ),
+            '[]'::jsonb
+        ) as fighter_effects
     FROM equipment e
     -- Resolve legacy fighter type and gang affiliation fighter type (if any) from the provided fighter_id
     LEFT JOIN LATERAL (
@@ -314,7 +346,9 @@ AS $$
             '[]'::jsonb
         ) as weapon_profiles,
         -- Custom equipment doesn't have vehicle upgrade slots
-        NULL as vehicle_upgrade_slot
+        NULL as vehicle_upgrade_slot,
+        -- Custom equipment doesn't have fighter effects
+        '[]'::jsonb as fighter_effects
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment

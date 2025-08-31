@@ -11,6 +11,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import ClientToaster from "@/components/ui/client-toaster";
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import SettingsModal from "@/components/settings-modal";
+import { QueryClientProviderWrapper } from "./providers/query-client-provider";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -136,7 +137,8 @@ export default async function RootLayout({
         )}
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
-        <BackgroundImage />
+        <QueryClientProviderWrapper>
+          <BackgroundImage />
         <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">
@@ -177,6 +179,7 @@ export default async function RootLayout({
           </div>
         </main>
         <ClientToaster />
+        </QueryClientProviderWrapper>
       </body>
     </html>
   );

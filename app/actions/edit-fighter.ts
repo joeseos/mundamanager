@@ -1,11 +1,18 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
+import { 
+  invalidateFighterStatusChange,
+  invalidateFighterDetailsUpdate,
+  invalidateGangRating,
+  invalidateGangCredits,
+  invalidateGangResources
+} from '@/app/lib/queries/invalidation';
+import { cacheKeys } from '@/app/lib/queries/keys';
 import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { getFighterTotalCost } from '@/app/lib/fighter-data';
 import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -18,8 +25,10 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .single();
     
   if (ownerData) {
+    // Cache invalidation using centralized TanStack Query cache keys
     // Invalidate the owner's cache since their total cost changed
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    revalidateTag(cacheKeys.fighters.detail(ownerData.fighter_owner_id));
+    revalidateTag(cacheKeys.fighters.totalCost(ownerData.fighter_owner_id));
   }
 }
 
@@ -124,7 +133,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       if (!delta) return;
       const newRating = Math.max(0, (gang.rating || 0) + delta);
       await supabase.from('gangs').update({ rating: newRating, last_updated: new Date().toISOString() }).eq('id', gangId);
-      invalidateGangRating(gangId);
+      // Cache invalidation using centralized TanStack Query cache keys
+      invalidateGangRating({ gangId });
     };
 
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
@@ -157,7 +167,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter status change
@@ -197,7 +208,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter status change
@@ -255,8 +267,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (gangUpdateError) throw gangUpdateError;
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
-        invalidateGangCredits(gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
+        invalidateGangCredits({ gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter enslaved
@@ -309,7 +322,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Failed to log fighter rescue:', logError);
         }
 
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -371,8 +385,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             console.error('Failed to log fighter feeding:', logError);
           }
 
-          invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          // Cache invalidation using centralized TanStack Query cache keys
+          invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
+          invalidateGangResources({ gangId });
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -404,8 +420,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             console.error('Failed to log fighter starving:', logError);
           }
 
-          invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          // Cache invalidation using TanStack Query compatible keys
+          revalidateTag(`fighters-${params.fighter_id}`);
+          revalidateTag(`gangs-${gangId}-resources`);
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -436,7 +454,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           recovery_type: recoveryType
         });
 
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -471,7 +490,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Failed to log fighter capture/release:', logError);
         }
 
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -523,7 +543,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
+        // Cache invalidation using centralized TanStack Query cache keys
+        invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter removal
@@ -607,9 +628,8 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
       console.error('Failed to log fighter XP change:', logError);
     }
 
-    // Invalidate cache - surgical XP-only invalidation
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateFighterDetailsUpdate({ fighterId: params.fighter_id, gangId: fighter.gang_id });
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -702,9 +722,8 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       }
     }
 
-    // Invalidate cache - surgical XP-only invalidation
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateFighterDetailsUpdate({ fighterId: params.fighter_id, gangId: fighter.gang_id });
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -793,7 +812,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .from('gangs')
             .update({ rating: Math.max(0, currentRating + costAdjustmentDelta) })
             .eq('id', fighter.gang_id);
-          invalidateGangRating(fighter.gang_id);
+          // Cache invalidation using centralized TanStack Query cache keys
+          invalidateGangRating({ gangId: fighter.gang_id });
         } catch (e) {
           console.error('Failed to update rating after cost_adjustment change:', e);
         }
@@ -829,17 +849,11 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       console.error('Failed to log fighter details changes:', logError);
     }
 
-    // Invalidate cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    // Cache invalidation using centralized TanStack Query cache keys
+    invalidateFighterDetailsUpdate({ fighterId: params.fighter_id, gangId: fighter.gang_id });
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
     
-    // Additional cache invalidation for notes
-    if (params.note !== undefined || params.note_backstory !== undefined) {
-      // Invalidate fighter basic data (includes notes)
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-      // Invalidate composite gang data that includes fighter information
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
-    }
+    // Additional cache invalidation for notes already handled in invalidateFighterDetailsUpdate
 
     return {
       success: true,
