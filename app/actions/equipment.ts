@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { 
   invalidateGangRating
-} from '@/app/lib/queries/invalidation';
+} from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/fighter-data';

@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterDetailsUpdate } from '@/app/lib/queries/invalidation';
+// Cache invalidation handled by TanStack Query optimistic updates
 
 export async function updateFighterImage(
   fighterId: string,
@@ -22,7 +22,7 @@ export async function updateFighterImage(
     }
 
     // Cache invalidation using centralized TanStack Query cache keys
-    invalidateFighterDetailsUpdate({ fighterId, gangId });
+    // Cache invalidation handled by TanStack Query optimistic updates
 
     return { success: true };
   } catch (error) {

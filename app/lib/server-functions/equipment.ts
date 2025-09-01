@@ -1,6 +1,6 @@
 'use server'
 
-import { invalidateGangRating } from '@/app/lib/queries/invalidation'
+// Cache invalidation handled by TanStack Query optimistic updates
 import { logEquipmentAction } from '@/app/actions/logs/equipment-logs'
 import { getFighterTotalCost } from '@/app/lib/fighter-data'
 import type { Equipment } from '@/types/equipment'
@@ -401,11 +401,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentInput): Promise
         .update({ rating: newRating })
         .eq('id', params.gang_id)
 
-      try {
-        invalidateGangRating({ gangId: params.gang_id })
-      } catch (e) {
-        console.error('Failed to invalidate gang rating cache:', e)
-      }
+      // Cache invalidation handled by TanStack Query optimistic updates
     }
 
     // Get updated fighter total cost
@@ -567,8 +563,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentInput): 
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', params.gang_id)
-        // Cache invalidation using centralized TanStack Query cache keys
-        invalidateGangRating({ gangId: params.gang_id })
+        // Cache invalidation handled by TanStack Query optimistic updates
       } catch (e) {
         console.error('Failed to update gang rating after equipment deletion:', e)
       }

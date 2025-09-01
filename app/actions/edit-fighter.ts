@@ -1,13 +1,13 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { 
+import {
   invalidateFighterStatusChange,
   invalidateFighterDetailsUpdate,
   invalidateGangRating,
   invalidateGangCredits,
   invalidateGangResources
-} from '@/app/lib/queries/invalidation';
+} from '@/utils/cache-tags';
 import { cacheKeys } from '@/app/lib/queries/keys';
 import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
@@ -134,7 +134,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       const newRating = Math.max(0, (gang.rating || 0) + delta);
       await supabase.from('gangs').update({ rating: newRating, last_updated: new Date().toISOString() }).eq('id', gangId);
       // Cache invalidation using centralized TanStack Query cache keys
-      invalidateGangRating({ gangId });
+      invalidateGangRating(gangId);
     };
 
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
@@ -269,7 +269,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         await adjustRating(delta);
         // Cache invalidation using centralized TanStack Query cache keys
         invalidateFighterStatusChange({ fighterId: params.fighter_id, gangId });
-        invalidateGangCredits({ gangId });
+        invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter enslaved
@@ -813,7 +813,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
             .update({ rating: Math.max(0, currentRating + costAdjustmentDelta) })
             .eq('id', fighter.gang_id);
           // Cache invalidation using centralized TanStack Query cache keys
-          invalidateGangRating({ gangId: fighter.gang_id });
+          invalidateGangRating(fighter.gang_id);
         } catch (e) {
           console.error('Failed to update rating after cost_adjustment change:', e);
         }

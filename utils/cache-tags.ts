@@ -464,3 +464,42 @@ export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) =>
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
 };
+
+/**
+ * Fighter Status Change Invalidation
+ * Triggered when: Fighter killed/retired/enslaved/rescued etc.
+ */
+export const invalidateFighterStatusChange = (params: {
+  fighterId: string;
+  gangId: string;
+}) => {
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+};
+
+/**
+ * Fighter Details Update Invalidation
+ * Triggered when: Fighter XP, name, stats, etc. updated
+ */
+export const invalidateFighterDetailsUpdate = (params: {
+  fighterId: string;
+  gangId: string;
+}) => {
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+};
+
+/**
+ * Gang Resources Change Invalidation
+ * Triggered when: Gang meat, reputation, scavenging rolls updated
+ */
+export const invalidateGangResources = (params: {
+  gangId: string;
+}) => {
+  revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+};
