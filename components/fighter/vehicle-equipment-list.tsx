@@ -6,7 +6,7 @@ import Modal from '../ui/modal';
 import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { sellEquipmentFromFighter } from '@/app/lib/server-functions/sell-equipment';
 import { deleteEquipmentFromFighter } from '@/app/lib/server-functions/equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { MdCurrencyExchange } from 'react-icons/md';

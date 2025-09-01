@@ -486,7 +486,7 @@ export const useGetFighter = (
   return useQuery({
     queryKey: queryKeys.fighters.detail(fighterId),
     queryFn: () => queryFighterBasic(fighterId),
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
@@ -501,7 +501,7 @@ export const useGetFighterEquipment = (
   return useQuery({
     queryKey: queryKeys.fighters.equipment(fighterId),
     queryFn: () => queryFighterEquipment(fighterId),
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 2, // 2 minutes (equipment changes frequently)
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
@@ -516,7 +516,7 @@ export const useGetFighterSkills = (
   return useQuery({
     queryKey: queryKeys.fighters.skills(fighterId),
     queryFn: () => queryFighterSkills(fighterId),
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 10, // 10 minutes (skills change less frequently)
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
@@ -531,7 +531,7 @@ export const useGetFighterEffects = (
   return useQuery({
     queryKey: queryKeys.fighters.effects(fighterId),
     queryFn: () => queryFighterEffects(fighterId),
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
@@ -546,7 +546,7 @@ export const useGetFighterVehicles = (
   return useQuery({
     queryKey: queryKeys.fighters.vehicles(fighterId),
     queryFn: () => queryFighterVehicles(fighterId),
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
@@ -581,7 +581,7 @@ export const useGetFighterTotalCost = (
       
       return baseCost + equipmentCost + skillsCost + effectsCost + adjustment
     },
-    enabled: !!fighterId,
+    enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 2, // 2 minutes (depends on frequently changing data)
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus

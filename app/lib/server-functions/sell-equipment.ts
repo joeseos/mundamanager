@@ -2,10 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-// TanStack Query mutations handle cache invalidation through optimistic updates
-// No server-side cache invalidation imports needed
-// Cache keys not needed - TanStack Query handles cache management
-import { logEquipmentAction } from './logs/equipment-logs';
+import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -216,15 +213,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', gangId);
-        // TanStack Query mutations handle cache invalidation through optimistic updates
-        // No server-side cache invalidation needed
       } catch (e) {
         console.error('Failed to update gang rating after selling equipment:', e);
       }
     }
-
-    // TanStack Query mutations handle cache invalidation through optimistic updates
-    // No server-side cache invalidation needed
 
     return {
       success: true,
@@ -245,7 +237,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     };
 
   } catch (error) {
-    console.error('Error in sellEquipmentFromFighter server action:', error);
+    console.error('Error in sellEquipmentFromFighter server function:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'
@@ -291,9 +283,6 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
-
-    // TanStack Query mutations handle cache invalidation through optimistic updates
-    // No server-side cache invalidation needed
 
     return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits } } };
   } catch (e) {

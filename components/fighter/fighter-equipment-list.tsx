@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { sellEquipmentFromFighter } from '@/app/lib/server-functions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { deleteEquipmentFromFighter } from '@/app/lib/server-functions/equipment';
 import { Button } from "@/components/ui/button";
@@ -115,7 +115,27 @@ export function WeaponList({
       }
       return result.data;
     },
-    onError: (err) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+
+      // Snapshot the previous value
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+
+      // Optimistically update the UI
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
+        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
+      );
+
+      // Return a context object with the snapshotted values
+      return { previousEquipment };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+
       toast({
         title: "Error",
         description: err instanceof Error ? err.message : 'Failed to delete equipment',
@@ -123,18 +143,12 @@ export function WeaponList({
       });
     },
     onSuccess: (data) => {
-      // Strategic updates: Remove deleted item from cache instead of full refetch
-      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
-        (old || []).filter(e => e.fighter_equipment_id !== data.deleted_equipment.id)
-      );
-
       // Update fighter total cost if provided in response
       if (data.fighter_total_cost !== undefined) {
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
       }
 
-      // Only invalidate fighter details if needed (for rating updates, etc.)
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      // Equipment is already updated optimistically, no need to invalidate
 
       toast({
         title: "Success",
@@ -147,7 +161,36 @@ export function WeaponList({
 
   const sellEquipmentMutation = useMutation({
     mutationFn: sellEquipmentFromFighter,
-    onError: (err) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
+      // Snapshot the previous values
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+
+      // Optimistically update the UI
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
+        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
+      );
+
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => 
+        (old || 0) + (variables.manual_cost || 0)
+      );
+
+      // Return a context object with the snapshotted values
+      return { previousEquipment, previousCredits };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousCredits) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+
       toast({
         title: "Error",
         description: err instanceof Error ? err.message : "Failed to sell equipment",
@@ -155,21 +198,11 @@ export function WeaponList({
       });
     },
     onSuccess: (data, variables) => {
-      // Strategic updates: Remove sold item and update credits
-      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
-        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
-      );
-
-      // Update gang credits with sale proceeds (we know the amount from variables.manual_cost)
-      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => 
-        (old || 0) + (variables.manual_cost || 0)
-      );
-
-      // Only invalidate fighter details for rating updates
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-
       // Find equipment name from current equipment list for display
       const soldEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+      
+      // Equipment and credits are already updated optimistically, no need to invalidate
+      // Only invalidate fighter details if we need rating updates (but rating changes are rare)
       
       toast({
         title: "Success",
@@ -181,18 +214,19 @@ export function WeaponList({
 
   const stashEquipmentMutation = useMutation({
     mutationFn: moveEquipmentToStash,
-    onError: (err) => {
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to move equipment to stash",
-        variant: "destructive",
-      });
-    },
-    onSuccess: (data, variables) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+
+      // Snapshot the previous values
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousStash = queryClient.getQueryData(queryKeys.gangs.stash(gangId));
+
       // Find equipment before removing for stash update
       const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
-      // Strategic updates: Remove from fighter equipment and add to stash
+      // Optimistically update the UI
       queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
         (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
       );
@@ -205,8 +239,29 @@ export function WeaponList({
         ]);
       }
 
-      // Only invalidate fighter details for rating updates
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      // Return a context object with the snapshotted values
+      return { previousEquipment, previousStash };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousStash) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
+      }
+
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to move equipment to stash",
+        variant: "destructive",
+      });
+    },
+    onSuccess: (data, variables) => {
+      // Find equipment before removing for stash update
+      const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+
+      // Equipment and stash are already updated optimistically, no need to invalidate
 
       toast({
         title: "Success",
