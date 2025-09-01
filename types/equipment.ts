@@ -17,12 +17,14 @@ export interface WeaponProfile {
 export interface Equipment {
   fighter_equipment_id: string;
   fighter_weapon_id?: string;
-  equipment_id: string;
+  equipment_id?: string;
+  custom_equipment_id?: string;
   equipment_name: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
   cost: number;
   purchase_cost: number;
   base_cost?: number;
+  original_cost?: number;
   discounted_cost?: number;
   adjusted_cost?: number;
   trading_post_category?: string;

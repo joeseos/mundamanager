@@ -7,7 +7,7 @@ import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
-import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter } from '@/app/lib/server-functions/equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -32,7 +32,7 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const [manualCost, setManualCost] = useState(item.cost);
+  const [manualCost, setManualCost] = useState(item.purchase_cost ?? item.cost ?? 0);
 
   return (
     <Modal
@@ -79,7 +79,7 @@ export function VehicleEquipmentList({
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
 
-  // Enhanced delete function using server actions with targeted cache invalidation
+  // Enhanced delete function using server functions with cache invalidation
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     setIsLoading(true);
     try {
@@ -99,24 +99,19 @@ export function VehicleEquipmentList({
         throw new Error(result.error || 'Failed to delete equipment');
       }
 
-      // Use server response data for accurate state updates
+      // Update local state immediately for responsive UI
       const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      
-      // Use fresh data from server response if available, otherwise fall back to calculations
-      const newFighterCredits = result.data?.updatedFighter?.credits || fighterCredits;
-      const newGangCredits = result.data?.updatedGang?.credits || gangCredits;
-      
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
+      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
       
       // Enhanced success message showing effects cleanup
-      const effectsCount = result.data?.deletedEffects?.length || 0;
+      const effectsCount = result.data?.deleted_effects?.length || 0;
       const effectsMessage = effectsCount > 0 
         ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
         : '';
       
       toast({
         title: "Success",
-        description: `Successfully deleted ${result.data?.deletedEquipment?.equipment_name || equipmentToDelete.equipment_name}${effectsMessage}`,
+        description: `Successfully deleted ${result.data?.deleted_equipment?.equipment_name || equipmentToDelete.equipment_name}${effectsMessage}`,
         variant: "default"
       });
       setDeleteModalData(null);
@@ -250,10 +245,10 @@ export function VehicleEquipmentList({
     return {
       id: item.fighter_equipment_id,
       equipment_name: item.equipment_name,
-      cost: item.cost ?? 0,
+      cost: item.purchase_cost ?? item.cost ?? 0,
       core_equipment: item.core_equipment,
       fighter_equipment_id: item.fighter_equipment_id,
-      equipment_id: item.equipment_id,
+      equipment_id: item.equipment_id || "",
       slot: slot
     };
   });
@@ -316,7 +311,7 @@ export function VehicleEquipmentList({
             variant: 'destructive',
             onClick: (item) => setDeleteModalData({
               id: item.fighter_equipment_id,
-              equipmentId: item.equipment_id,
+              equipmentId: item.equipment_id || "",
               name: item.equipment_name
             }),
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
@@ -351,7 +346,7 @@ export function VehicleEquipmentList({
           onClose={() => setSellModalData(null)}
           onConfirm={(manualCost) => handleSellEquipment(
             sellModalData.fighter_equipment_id,
-            sellModalData.equipment_id,
+            sellModalData.equipment_id || "",
             manualCost
           )}
         />
@@ -364,7 +359,7 @@ export function VehicleEquipmentList({
           onClose={() => setStashModalData(null)}
           onConfirm={() => handleStashEquipment(
             stashModalData.fighter_equipment_id,
-            stashModalData.equipment_id
+            stashModalData.equipment_id || ""
           )}
         />
       )}

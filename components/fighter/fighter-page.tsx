@@ -26,7 +26,7 @@ import { FighterActions } from "@/components/fighter/fighter-actions";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
 import { useGetFighter, useGetFighterEquipment, useGetFighterSkills, useGetFighterEffects, useGetFighterVehicles } from '@/app/lib/queries/fighter-queries';
-import { gangQueries } from '@/app/lib/queries/gang-queries';
+import { queryGangBasic, queryGangCredits, queryGangPositioning } from '@/app/lib/queries/gang-queries';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -261,18 +261,21 @@ export default function FighterPage({
   const { data: effects, isLoading: effectsLoading } = useGetFighterEffects(fighterId);
   const { data: vehicles, isLoading: vehiclesLoading } = useGetFighterVehicles(fighterId);
 
-  // Gang queries (enabled only when we have fighter data)
+  // Gang queries are prefetched on the server, so we just access the cache
   const { data: gang, isLoading: gangLoading } = useQuery({
-    ...gangQueries.basic(fighter?.gang_id || ''),
-    enabled: !!fighter?.gang_id
+    queryKey: queryKeys.gangs.detail(fighter?.gang_id || ''),
+    queryFn: () => queryGangBasic(fighter?.gang_id || ''),
+    enabled: false // Disabled - data is prefetched on server
   });
   const { data: gangCredits, isLoading: creditsLoading } = useQuery({
-    ...gangQueries.credits(fighter?.gang_id || ''),
-    enabled: !!fighter?.gang_id
+    queryKey: queryKeys.gangs.credits(fighter?.gang_id || ''),
+    queryFn: () => queryGangCredits(fighter?.gang_id || ''),
+    enabled: false // Disabled - data is prefetched on server
   });
   const { data: gangPositioning, isLoading: positioningLoading } = useQuery({
-    ...gangQueries.positioning(fighter?.gang_id || ''),
-    enabled: !!fighter?.gang_id
+    queryKey: queryKeys.gangs.positioning(fighter?.gang_id || ''),
+    queryFn: () => queryGangPositioning(fighter?.gang_id || ''),
+    enabled: false // Disabled - data is prefetched on server
   });
 
   // Transform initial data and set up fallback state for transitions
@@ -303,7 +306,6 @@ export default function FighterPage({
 
   const router = useRouter();
   const { toast } = useToast();
-  const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
 
   // Fetch fighter types for edit modal
@@ -333,30 +335,6 @@ export default function FighterPage({
     }
   }, [toast]);
 
-  // Fetch latest gang credits from API
-  const fetchLatestGangCredits = useCallback(async (gangId: string) => {
-    setIsFetchingGangCredits(true);
-    try {
-      const res = await fetch(`/api/gangs/${gangId}`);
-      if (!res.ok) throw new Error('Failed to fetch gang data');
-      const data = await res.json();
-      if (data.gang && typeof data.gang.credits === 'number') {
-        setFighterData(prev => ({
-          ...prev,
-          gang: prev.gang ? { ...prev.gang, credits: data.gang.credits } : prev.gang
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching latest gang credits:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not fetch latest gang credits.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsFetchingGangCredits(false);
-    }
-  }, [toast]);
 
   // Direct server action mutations with optimistic updates
   const updateXpMutation = useMutation({
@@ -530,19 +508,7 @@ export default function FighterPage({
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
-    // If opening the Add Equipment modal, fetch latest credits first
-    if ((modalName === 'addWeapon' || modalName === 'addVehicleEquipment') && value && fighterData.gang?.id) {
-      fetchLatestGangCredits(fighterData.gang.id).then(() => {
-        setUiState(prev => ({
-          ...prev,
-          modals: {
-            ...prev.modals,
-            [modalName]: value
-          }
-        }));
-      });
-      return;
-    }
+    // No need to fetch latest credits - we use TanStack Query cache that was prefetched on server
     
     // If opening the Edit Fighter modal, fetch fighter types first
     if (modalName === 'editFighter' && value && fighterData.gang?.id && fighterData.gang?.gang_type_id) {
@@ -949,53 +915,37 @@ export default function FighterPage({
           )}
 
           {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
-            isFetchingGangCredits ? (
-              <Modal
-                title="Loading..."
-                content={<div>Fetching latest gang credits...</div>}
-                onClose={() => handleModalToggle('addWeapon', false)}
-              />
-            ) : (
-              <ItemModal
-                title="Add Equipment"
-                onClose={() => handleModalToggle('addWeapon', false)}
-                gangCredits={currentCredits || 0}
-                gangId={currentGang?.id || ''}
-                gangTypeId={currentGang?.gang_type_id}
-                fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-                gangAffiliationId={fighterData.gang.gang_affiliation_id}
-                fighterCredits={fighterData.fighter.credits}
-                fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
-                fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
-              />
-            )
+            <ItemModal
+              title="Add Equipment"
+              onClose={() => handleModalToggle('addWeapon', false)}
+              gangCredits={currentCredits || 0}
+              gangId={currentGang?.id || ''}
+              gangTypeId={currentGang?.gang_type_id}
+              fighterId={fighterData.fighter.id}
+              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+              gangAffiliationId={fighterData.gang.gang_affiliation_id}
+              fighterCredits={fighterData.fighter.credits}
+              fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
+              fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
+            />
           )}
 
           {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
-            isFetchingGangCredits ? (
-              <Modal
-                title="Loading..."
-                content={<div>Fetching latest gang credits...</div>}
-                onClose={() => handleModalToggle('addVehicleEquipment', false)}
-              />
-            ) : (
-              <ItemModal
-                title="Add Vehicle Equipment"
-                onClose={() => handleModalToggle('addVehicleEquipment', false)}
-                gangCredits={currentCredits || 0}
-                gangId={currentGang?.id || ''}
-                gangTypeId={currentGang?.gang_type_id}
-                fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-                fighterCredits={fighterData.fighter.credits}
-                vehicleId={vehicle.id}
-                vehicleType={vehicle.vehicle_type}
-                vehicleTypeId={vehicle.vehicle_type_id}
-                isVehicleEquipment={true}
-                allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-              />
-            )
+            <ItemModal
+              title="Add Vehicle Equipment"
+              onClose={() => handleModalToggle('addVehicleEquipment', false)}
+              gangCredits={currentCredits || 0}
+              gangId={currentGang?.id || ''}
+              gangTypeId={currentGang?.gang_type_id}
+              fighterId={fighterData.fighter.id}
+              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+              fighterCredits={fighterData.fighter.credits}
+              vehicleId={vehicle.id}
+              vehicleType={vehicle.vehicle_type}
+              vehicleTypeId={vehicle.vehicle_type_id}
+              isVehicleEquipment={true}
+              allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
+            />
           )}
         </div>
       </div>

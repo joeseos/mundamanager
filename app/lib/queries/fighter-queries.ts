@@ -4,9 +4,9 @@ import type { FighterBasic, FighterEquipment, FighterSkill, FighterEffect } from
 import { queryKeys } from './keys'
 
 // Extract query logic from existing functions in fighter-data.ts without unstable_cache
-async function queryFighterBasic(fighterId: string): Promise<FighterBasic> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryFighterBasic(fighterId: string, supabase?: any): Promise<FighterBasic> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighters')
     .select(`
       id,
@@ -70,9 +70,9 @@ async function queryFighterBasic(fighterId: string): Promise<FighterBasic> {
   }
 }
 
-async function queryFighterEquipment(fighterId: string): Promise<FighterEquipment[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryFighterEquipment(fighterId: string, supabase?: any): Promise<FighterEquipment[]> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighter_equipment')
     .select(`
       id,
@@ -106,7 +106,7 @@ async function queryFighterEquipment(fighterId: string): Promise<FighterEquipmen
       if (equipmentType === 'weapon') {
         if (item.equipment_id) {
           // Get standard weapon profiles
-          const { data: profiles } = await supabase
+          const { data: profiles } = await client
             .from('weapon_profiles')
             .select(`
               id,
@@ -133,7 +133,7 @@ async function queryFighterEquipment(fighterId: string): Promise<FighterEquipmen
           }))
         } else if (item.custom_equipment_id) {
           // Get custom weapon profiles
-          const { data: profiles } = await supabase
+          const { data: profiles } = await client
             .from('custom_weapon_profiles')
             .select(`
               id,
@@ -180,9 +180,9 @@ async function queryFighterEquipment(fighterId: string): Promise<FighterEquipmen
   return equipmentWithProfiles
 }
 
-async function queryFighterSkills(fighterId: string): Promise<Record<string, FighterSkill>> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryFighterSkills(fighterId: string, supabase?: any): Promise<Record<string, FighterSkill>> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighter_skills')
     .select(`
       id,
@@ -227,9 +227,9 @@ async function queryFighterSkills(fighterId: string): Promise<Record<string, Fig
   return skills
 }
 
-async function queryFighterEffects(fighterId: string): Promise<Record<string, FighterEffect[]>> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryFighterEffects(fighterId: string, supabase?: any): Promise<Record<string, FighterEffect[]>> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighter_effects')
     .select(`
       id,
@@ -276,9 +276,9 @@ async function queryFighterEffects(fighterId: string): Promise<Record<string, Fi
   return effectsByCategory
 }
 
-async function queryFighterVehicles(fighterId: string): Promise<any[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryFighterVehicles(fighterId: string, supabase?: any): Promise<any[]> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('vehicles')
     .select(`
       id,
@@ -307,8 +307,8 @@ async function queryFighterVehicles(fighterId: string): Promise<any[]> {
   const vehicles = await Promise.all(
     (data || []).map(async (vehicle: any) => {
       const [equipment, effects] = await Promise.all([
-        queryVehicleEquipment(vehicle.id),
-        queryVehicleEffects(vehicle.id)
+        queryVehicleEquipment(vehicle.id, client),
+        queryVehicleEffects(vehicle.id, client)
       ])
 
       return {
@@ -323,9 +323,9 @@ async function queryFighterVehicles(fighterId: string): Promise<any[]> {
 }
 
 // Helper functions for vehicle data
-async function queryVehicleEquipment(vehicleId: string): Promise<any[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryVehicleEquipment(vehicleId: string, supabase?: any): Promise<any[]> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighter_equipment')
     .select(`
       id,
@@ -356,7 +356,7 @@ async function queryVehicleEquipment(vehicleId: string): Promise<any[]> {
 
       if (equipmentType === 'weapon') {
         if (item.equipment_id) {
-          const { data: profiles } = await supabase
+          const { data: profiles } = await client
             .from('weapon_profiles')
             .select('*')
             .eq('weapon_id', item.equipment_id)
@@ -368,7 +368,7 @@ async function queryVehicleEquipment(vehicleId: string): Promise<any[]> {
             is_master_crafted: item.is_master_crafted || false
           }))
         } else if (item.custom_equipment_id) {
-          const { data: profiles } = await supabase
+          const { data: profiles } = await client
             .from('custom_weapon_profiles')
             .select('*')
             .or(`custom_equipment_id.eq.${item.custom_equipment_id},weapon_group_id.eq.${item.custom_equipment_id}`)
@@ -399,9 +399,9 @@ async function queryVehicleEquipment(vehicleId: string): Promise<any[]> {
   return equipmentWithProfiles
 }
 
-async function queryVehicleEffects(vehicleId: string): Promise<Record<string, any[]>> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryVehicleEffects(vehicleId: string, supabase?: any): Promise<Record<string, any[]>> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighter_effects')
     .select(`
       id,
@@ -488,6 +488,8 @@ export const useGetFighter = (
     queryFn: () => queryFighterBasic(fighterId),
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }
@@ -501,6 +503,8 @@ export const useGetFighterEquipment = (
     queryFn: () => queryFighterEquipment(fighterId),
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 2, // 2 minutes (equipment changes frequently)
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }
@@ -514,6 +518,8 @@ export const useGetFighterSkills = (
     queryFn: () => queryFighterSkills(fighterId),
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 10, // 10 minutes (skills change less frequently)
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }
@@ -527,6 +533,8 @@ export const useGetFighterEffects = (
     queryFn: () => queryFighterEffects(fighterId),
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }
@@ -540,6 +548,8 @@ export const useGetFighterVehicles = (
     queryFn: () => queryFighterVehicles(fighterId),
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }
@@ -573,6 +583,8 @@ export const useGetFighterTotalCost = (
     },
     enabled: !!fighterId,
     staleTime: 1000 * 60 * 2, // 2 minutes (depends on frequently changing data)
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     ...options
   })
 }

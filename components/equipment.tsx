@@ -13,11 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { buyEquipmentForFighter } from '@/app/actions/equipment';
+import { buyEquipmentForFighter } from '@/app/lib/server-functions/equipment';
 import { Tooltip } from 'react-tooltip';
 import FighterEffectSelection from './fighter-effect-selection';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
+import type { Equipment as FighterEquipmentType } from '@/types/equipment';
 
 interface ItemModalProps {
   title: string;
@@ -195,7 +196,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
         title="Equipment Effects"
         content={
           <FighterEffectSelection
-            equipmentId={item.equipment_id}
+            equipmentId={item.equipment_id || ''}
             effectTypes={effectTypes}
             onSelectionComplete={handleEffectSelectionComplete}
             onCancel={handleEffectSelectionCancel}
@@ -354,127 +355,65 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   // TanStack Query mutation for buying equipment
   const buyEquipmentMutation = useMutation({
-    mutationFn: buyEquipmentForFighter,
-    onMutate: async (variables) => {
-      // Cancel outgoing refetches for relevant queries
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
-      if (isVehicleEquipment && vehicleId) {
-        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+    mutationFn: async (variables: any) => {
+      const result = await buyEquipmentForFighter(variables);
+      if (!result.success) {
+        throw new Error(result.error);
       }
-      if (isStashMode) {
-        await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
-      }
-
-      // Snapshot previous values
-      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
-      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
-      const previousGangCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
-      const previousVehicleEquipment = isVehicleEquipment && vehicleId 
-        ? queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId))
-        : null;
-      const previousStash = isStashMode 
-        ? queryClient.getQueryData(queryKeys.gangs.stash(gangId))
-        : null;
-
-      // Find the equipment item being purchased for optimistic update
-      const purchaseItem = Object.values(equipment).flat().find(e => e.equipment_id === variables.equipment_id);
-      if (!purchaseItem) return { previousEquipment, previousFighter, previousGangCredits, previousVehicleEquipment, previousStash };
-
-      const isGangStashPurchase = variables.buy_for_gang_stash;
-      const purchaseCost = purchaseItem.adjusted_cost || purchaseItem.cost;
-
-      // Optimistically update gang credits (decrease by manual_cost)
-      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => 
-        (old || 0) - (variables.manual_cost || 0)
-      );
-
-      if (!isGangStashPurchase) {
-        // For fighter equipment purchases
-        // Add equipment to fighter equipment cache
-        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => [
-          ...(old || []),
-          {
-            ...purchaseItem,
-            fighter_equipment_id: `temp-${Date.now()}`, // temporary ID
-            cost: purchaseCost,
-            purchase_cost: purchaseCost,
-            is_master_crafted: variables.master_crafted,
-            equipment_name: variables.master_crafted && purchaseItem.equipment_type === 'weapon' 
-              ? `${purchaseItem.equipment_name} (Master-crafted)` 
-              : purchaseItem.equipment_name
-          }
-        ]);
-
-        if (isVehicleEquipment && vehicleId) {
-          // Add to vehicle equipment cache (update fighter's vehicles data)
-          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
-            if (!old || !old[0]) return old;
-            const vehicle = old[0];
-            return [{
-              ...vehicle,
-              equipment: [...(vehicle.equipment || []), {
-                ...purchaseItem,
-                vehicle_equipment_id: `temp-${Date.now()}`,
-                vehicle_id: vehicleId,
-                cost: purchaseCost,
-                purchase_cost: purchaseCost,
-                is_master_crafted: variables.master_crafted
-              }]
-            }];
-          });
-        }
-      } else {
-        // For gang stash purchases
-        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => [
-          ...(old || []),
-          {
-            ...purchaseItem,
-            fighter_equipment_id: `temp-${Date.now()}`,
-            gang_stash: true,
-            cost: purchaseCost,
-            purchase_cost: purchaseCost,
-            is_master_crafted: variables.master_crafted
-          }
-        ]);
-      }
-
-      return { previousEquipment, previousFighter, previousGangCredits, previousVehicleEquipment, previousStash, purchaseItem };
+      return result.data;
     },
-    onError: (err, variables, context) => {
-      // Rollback on error
-      if (context?.previousEquipment) {
-        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
-      }
-      if (context?.previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
-      }
-      if (context?.previousGangCredits) {
-        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousGangCredits);
-      }
-      if (context?.previousVehicleEquipment && isVehicleEquipment && vehicleId) {
-        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousVehicleEquipment);
-      }
-      if (context?.previousStash && isStashMode) {
-        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
-      }
-
+    onError: (err) => {
+      console.error('❌ PURCHASE ERROR:', err);
+      
       toast({
         title: "Error",
         description: err instanceof Error ? err.message : 'Failed to buy equipment',
         variant: "destructive",
       });
     },
-    onSuccess: (data, variables, context) => {
-      const equipmentRecord = data.data?.insertIntofighter_equipmentCollection?.records[0];
-      const equipmentName = variables.master_crafted && context?.purchaseItem?.equipment_type === 'weapon' 
-        ? `${context.purchaseItem.equipment_name} (Master-crafted)` 
-        : context?.purchaseItem?.equipment_name || 'equipment';
+    onSuccess: (data, variables) => {
+      console.log('✅ PURCHASE SUCCESS:', data);
+
+      // Strategic cache updates: Use server response data to update specific cache entries
+      // Only invalidate what we need to refetch from server
+      
+      if (!variables.buy_for_gang_stash) {
+        // Update equipment cache with new item instead of invalidating
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => [
+          ...(old || []),
+          data.equipment
+        ]);
+        
+        // Update gang credits with server response
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
+        
+        // Only invalidate fighter total cost if it exists in server response
+        if (data.fighter_total_cost !== undefined) {
+          queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+        }
+        
+        // Only invalidate vehicle queries if this is vehicle equipment
+        if (isVehicleEquipment && vehicleId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+        }
+      } else {
+        // For gang stash purchases, update stash and gang credits
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => [
+          ...(old || []),
+          data.equipment
+        ]);
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
+      }
+
+      const equipmentName = variables.master_crafted && data.equipment.equipment_type === 'weapon' 
+        ? `${data.equipment.equipment_name} (Master-crafted)` 
+        : data.equipment.equipment_name;
+
+      const actualCostPaid = variables.manual_cost ?? data.equipment.purchase_cost;
 
       toast({
         title: "Equipment purchased",
-        description: `Successfully bought ${equipmentName} for ${variables.manual_cost} credits`,
+        description: `Successfully bought ${equipmentName} for ${actualCostPaid} credits`,
         variant: "default",
       });
 
@@ -778,6 +717,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const handleBuyEquipment = (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
     if (!session) return;
     
+    console.log('handleBuyEquipment called with:', {
+      item_name: item.equipment_name,
+      item_adjusted_cost: item.adjusted_cost,
+      item_cost: item.cost,
+      manualCost,
+      isMasterCrafted,
+      current_gang_credits: gangCredits
+    });
+    
     // Determine if this is a gang stash purchase
     const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
     
@@ -799,6 +747,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       ))
     };
 
+    console.log('Calling buyEquipmentMutation.mutate with params:', params);
     buyEquipmentMutation.mutate(params);
   };
 
@@ -1247,16 +1196,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
       </div>
-      {/* Purchase Modal and Tooltip */}
-      {buyModalData && (
-        <PurchaseModal
-          item={buyModalData}
-          gangCredits={gangCredits}
-          onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [])}
-          isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
-        />
-      )}
       {/* Weapon Profile Tooltip */}
       <Tooltip
         id="weapon-profile-tooltip"

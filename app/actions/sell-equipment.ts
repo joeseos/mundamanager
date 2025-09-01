@@ -2,15 +2,9 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { 
-  invalidateFighterEquipmentDeletion,
-  invalidateGangRating,
-  invalidateFighterVehicles,
-  invalidateGangStash,
-  invalidateGangCredits
-} from '@/app/lib/queries/invalidation';
-import { cacheKeys } from '@/app/lib/queries/keys';
-import { revalidateTag } from 'next/cache';
+// TanStack Query mutations handle cache invalidation through optimistic updates
+// No server-side cache invalidation imports needed
+// Cache keys not needed - TanStack Query handles cache management
 import { logEquipmentAction } from './logs/equipment-logs';
 
 interface SellEquipmentParams {
@@ -222,42 +216,15 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', gangId);
-        // Cache invalidation using centralized TanStack Query cache keys
-        invalidateGangRating({ gangId });
+        // TanStack Query mutations handle cache invalidation through optimistic updates
+        // No server-side cache invalidation needed
       } catch (e) {
         console.error('Failed to update gang rating after selling equipment:', e);
       }
     }
 
-    // Cache invalidation using centralized TanStack Query cache keys
-    if (equipmentData.fighter_id) {
-      // Invalidate fighter equipment and gang credits
-      invalidateFighterEquipmentDeletion({ 
-        fighterId: equipmentData.fighter_id, 
-        gangId 
-      });
-      
-      // If the equipment had effects, also invalidate fighter effects
-      if ((associatedEffects?.length || 0) > 0) {
-        revalidateTag(cacheKeys.fighters.effects(equipmentData.fighter_id));
-      }
-    } else if (equipmentData.vehicle_id) {
-      // For vehicle equipment, invalidate vehicle data and gang credits
-      invalidateFighterVehicles({ 
-        fighterId: gangId, // This seems wrong, should be actual fighter ID
-        gangId,
-        vehicleId: equipmentData.vehicle_id 
-      });
-      invalidateGangCredits({ gangId });
-      
-      // If vehicle equipment had effects
-      if ((associatedEffects?.length || 0) > 0) {
-        revalidateTag(cacheKeys.vehicles.effects(equipmentData.vehicle_id)); // Fixed: should invalidate vehicle effects
-      }
-    } else {
-      // For other cases, invalidate gang financials
-      invalidateGangCredits({ gangId });
-    }
+    // TanStack Query mutations handle cache invalidation through optimistic updates
+    // No server-side cache invalidation needed
 
     return {
       success: true,
@@ -325,8 +292,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
 
-    // Cache invalidation using centralized TanStack Query cache keys
-    invalidateGangStash({ gangId: row.gang_id });
+    // TanStack Query mutations handle cache invalidation through optimistic updates
+    // No server-side cache invalidation needed
 
     return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits } } };
   } catch (e) {

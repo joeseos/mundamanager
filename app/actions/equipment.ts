@@ -2,14 +2,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { 
-  invalidateFighterEquipmentPurchase,
-  invalidateFighterEquipmentDeletion,
-  invalidateGangRating,
-  invalidateGangStash,
-  invalidateFighterVehicles,
-  invalidateGangCredits
+  invalidateGangRating
 } from '@/app/lib/queries/invalidation';
-import { cacheKeys } from '@/app/lib/queries/keys';
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/fighter-data';
@@ -619,40 +613,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Cache invalidation using centralized TanStack Query cache keys
-    if (params.fighter_id) {
-      // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
-      invalidateFighterEquipmentPurchase({
-        fighterId: params.fighter_id,
-        gangId: params.gang_id
-      });
-      // If effects were applied to the fighter, also invalidate effects + derived data
-      if (appliedEffects.length > 0) {
-        revalidateTag(cacheKeys.fighters.effects(params.fighter_id));
-      }
-    } else if (params.vehicle_id) {
-      // Use vehicle data from parallel query if available
-      const vehicleDataResult = finalOperations.length > 1 ? finalResults[1] : null;
-      const vehicleData = vehicleDataResult?.data;
-      
-      if (vehicleData?.fighter_id) {
-        invalidateFighterVehicles({
-          fighterId: vehicleData.fighter_id,
-          gangId: params.gang_id,
-          vehicleId: params.vehicle_id
-        });
-        invalidateGangCredits({ gangId: params.gang_id });
-        if (ratingDelta !== 0) {
-          invalidateGangRating({ gangId: params.gang_id });
-        }
-      } else {
-        revalidateTag(cacheKeys.vehicles.detail(params.vehicle_id));
-        invalidateGangCredits({ gangId: params.gang_id });
-      }
-    } else {
-      // Gang stash purchases
-      invalidateGangStash({ gangId: params.gang_id });
-    }
+    // TanStack Query mutations handle cache invalidation through optimistic updates
+    // No server-side cache invalidation needed
 
     // Build response data to match RPC format
     let responseData: any = {};
@@ -937,20 +899,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
                          customEquipmentData?.equipment_name || 
                          'Unknown Equipment';
 
-    // Cache invalidation using centralized TanStack Query cache keys
-    invalidateFighterEquipmentDeletion({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-    });
-    
-    // If the deleted equipment had associated effects, invalidate fighter effects + derived data
-    // if ((associatedEffects?.length || 0) > 0) {
-    //   invalidateFighterAdvancement({
-    //     fighterId: params.fighter_id,
-    //     gangId: params.gang_id,
-    //     advancementType: 'effect'
-    //   });
-    // }
+    // TanStack Query mutations handle cache invalidation through optimistic updates
+    // No server-side cache invalidation needed
     
     return { 
       success: true, 
@@ -997,8 +947,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
 
-    // Cache invalidation using centralized TanStack Query cache keys
-    invalidateGangStash({ gangId: row.gang_id });
+    // TanStack Query mutations handle cache invalidation through optimistic updates
+    // No server-side cache invalidation needed
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };

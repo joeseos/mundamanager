@@ -6,7 +6,7 @@ import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
 import { fighterQueries } from '@/app/lib/queries/fighter-queries';
-import { gangQueries } from '@/app/lib/queries/gang-queries';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -28,95 +28,113 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 60 * 1000, // 1 minute
+        staleTime: 1000 * 60 * 5, // 5 minutes - longer stale time
+        gcTime: 1000 * 60 * 10, // 10 minutes - garbage collection time
+        refetchOnMount: false, // Don't refetch on mount if data exists
+        refetchOnWindowFocus: false, // Don't refetch on window focus
+        refetchOnReconnect: false, // Don't refetch on reconnect
       },
     },
   });
 
   try {
-    // Import the cached functions for prefetching
-    const {
-      getFighterBasic,
-      getFighterEquipment,
-      getFighterSkills,
-      getFighterEffects,
-      getFighterVehicles,
-      getFighterTotalCost
-    } = await import('@/app/lib/fighter-data');
+    console.log('Starting fighter page data fetch...');
 
-    const {
-      getGangBasic,
-      getGangPositioning,
-      getGangCredits
-    } = await import('@/app/lib/gang-data');
+    // Import fighter query functions for prefetching
+    const { 
+      queryFighterBasic,
+      queryFighterEquipment,
+      queryFighterSkills,
+      queryFighterEffects,
+      queryFighterVehicles
+    } = await import('@/app/lib/queries/fighter-queries');
 
-    // Prefetch fighter data in parallel using existing cached functions
+    // Prefetch fighter data in parallel using query functions with server-side Supabase client
+    console.log('Prefetching fighter data...');
     await Promise.all([
       queryClient.prefetchQuery({
-        ...fighterQueries.basic(id),
-        queryFn: () => getFighterBasic(id, supabase),
+        queryKey: queryKeys.fighters.detail(id),
+        queryFn: () => queryFighterBasic(id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...fighterQueries.equipment(id),
-        queryFn: () => getFighterEquipment(id, supabase),
+        queryKey: queryKeys.fighters.equipment(id),
+        queryFn: () => queryFighterEquipment(id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...fighterQueries.skills(id),
-        queryFn: () => getFighterSkills(id, supabase),
+        queryKey: queryKeys.fighters.skills(id),
+        queryFn: () => queryFighterSkills(id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...fighterQueries.effects(id),
-        queryFn: () => getFighterEffects(id, supabase),
+        queryKey: queryKeys.fighters.effects(id),
+        queryFn: () => queryFighterEffects(id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...fighterQueries.vehicles(id),
-        queryFn: () => getFighterVehicles(id, supabase),
+        queryKey: queryKeys.fighters.vehicles(id),
+        queryFn: () => queryFighterVehicles(id, supabase),
       }),
     ]);
+    console.log('Fighter data prefetched successfully');
 
     // Get basic fighter data to determine gang ID and check if fighter exists
-    const fighterBasic = await getFighterBasic(id, supabase);
+    // Use the query function directly for server-side data fetching
+    console.log('Fetching basic fighter data...');
+    const fighterBasic = await queryFighterBasic(id, supabase);
+    console.log('Basic fighter data fetched:', fighterBasic ? 'success' : 'failed');
     
     if (!fighterBasic) {
       redirect("/");
     }
 
-    // Prefetch gang data
+    // Prefetch gang data using consistent cache keys and client-safe query functions
+    const { queryGangBasic, queryGangCredits, queryGangPositioning } = await import('@/app/lib/queries/gang-queries');
     await Promise.all([
       queryClient.prefetchQuery({
-        ...gangQueries.basic(fighterBasic.gang_id),
-        queryFn: () => getGangBasic(fighterBasic.gang_id, supabase),
+        queryKey: queryKeys.gangs.detail(fighterBasic.gang_id),
+        queryFn: () => queryGangBasic(fighterBasic.gang_id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...gangQueries.credits(fighterBasic.gang_id),
-        queryFn: () => getGangCredits(fighterBasic.gang_id, supabase),
+        queryKey: queryKeys.gangs.credits(fighterBasic.gang_id),
+        queryFn: () => queryGangCredits(fighterBasic.gang_id, supabase),
       }),
       queryClient.prefetchQuery({
-        ...gangQueries.positioning(fighterBasic.gang_id),
-        queryFn: () => getGangPositioning(fighterBasic.gang_id, supabase),
+        queryKey: queryKeys.gangs.positioning(fighterBasic.gang_id),
+        queryFn: () => queryGangPositioning(fighterBasic.gang_id, supabase),
       }),
     ]);
 
-    // Get the remaining data for server-side processing (still needed for permissions, etc.)
+    // Get gang data using query functions for consistency
+    console.log('Fetching gang data...');
     const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
-      getGangBasic(fighterBasic.gang_id, supabase),
-      getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase)
+      queryGangBasic(fighterBasic.gang_id, supabase),
+      queryGangPositioning(fighterBasic.gang_id, supabase),
+      queryGangCredits(fighterBasic.gang_id, supabase)
     ]);
+    console.log('Gang data fetched successfully');
+
+
 
     const [
       equipment,
       skills,
       effects,
-      vehicles,
-      totalCost
+      vehicles
     ] = await Promise.all([
-      getFighterEquipment(id, supabase),
-      getFighterSkills(id, supabase),
-      getFighterEffects(id, supabase),
-      getFighterVehicles(id, supabase),
-      getFighterTotalCost(id, supabase)
+      queryFighterEquipment(id, supabase),
+      queryFighterSkills(id, supabase),
+      queryFighterEffects(id, supabase),
+      queryFighterVehicles(id, supabase)
     ]);
+
+    // Calculate total cost manually since we have all the data
+    const baseCost = fighterBasic.credits || 0;
+    const equipmentCost = equipment.reduce((sum: number, item: any) => sum + (item.purchase_cost || 0), 0);
+    const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+    const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+      return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
+    }, 0);
+    const adjustment = fighterBasic.cost_adjustment || 0;
+    
+    const totalCost = baseCost + equipmentCost + skillsCost + effectsCost + adjustment;
 
     // Get fighter type and sub-type info (these are fighter-specific queries)
     const [fighterTypeData, fighterSubTypeData] = await Promise.all([
@@ -328,6 +346,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
   } catch (error) {
     console.error('Error in fighter page:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      error
+    });
     redirect("/");
   }
 }

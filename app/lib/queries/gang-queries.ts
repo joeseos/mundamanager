@@ -4,9 +4,9 @@ import type { GangBasic } from '@/app/lib/gang-data'
 import { queryKeys } from './keys'
 
 // Extract query logic from existing functions in gang-data.ts without unstable_cache
-async function queryGangBasic(gangId: string): Promise<GangBasic> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryGangBasic(gangId: string, supabase?: any): Promise<GangBasic> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('gangs')
     .select(`
       id,
@@ -58,9 +58,9 @@ async function queryGangBasic(gangId: string): Promise<GangBasic> {
   }
 }
 
-async function queryGangCredits(gangId: string): Promise<number> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryGangCredits(gangId: string, supabase?: any): Promise<number> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('gangs')
     .select('credits')
     .eq('id', gangId)
@@ -70,9 +70,9 @@ async function queryGangCredits(gangId: string): Promise<number> {
   return data.credits
 }
 
-async function queryGangPositioning(gangId: string): Promise<Record<string, any> | null> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryGangPositioning(gangId: string, supabase?: any): Promise<Record<string, any> | null> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('gangs')
     .select('positioning')
     .eq('id', gangId)
@@ -82,14 +82,14 @@ async function queryGangPositioning(gangId: string): Promise<Record<string, any>
   return data.positioning || null
 }
 
-async function queryGangResources(gangId: string): Promise<{
+export async function queryGangResources(gangId: string, supabase?: any): Promise<{
   meat: number
   reputation: number
   scavenging_rolls: number
   exploration_points: number
 }> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('gangs')
     .select('meat, reputation, scavenging_rolls, exploration_points')
     .eq('id', gangId)
@@ -99,7 +99,7 @@ async function queryGangResources(gangId: string): Promise<{
   return data
 }
 
-async function queryGangRating(gangId: string): Promise<number> {
+export async function queryGangRating(gangId: string): Promise<number> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('gangs')
@@ -111,7 +111,7 @@ async function queryGangRating(gangId: string): Promise<number> {
   return (data?.rating ?? 0) as number
 }
 
-async function queryGangFighterCount(gangId: string): Promise<number> {
+export async function queryGangFighterCount(gangId: string): Promise<number> {
   const supabase = createClient()
   const { count, error } = await supabase
     .from('fighters')
@@ -126,7 +126,7 @@ async function queryGangFighterCount(gangId: string): Promise<number> {
   return count || 0
 }
 
-async function queryGangFighters(gangId: string): Promise<any[]> {
+export async function queryGangFighters(gangId: string): Promise<any[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('fighters')
@@ -168,53 +168,10 @@ async function queryGangFighters(gangId: string): Promise<any[]> {
   return data || []
 }
 
-export const gangQueries = {
-  // Query keys
-  keys: {
-    all: ['gangs'] as const,
-    gang: (id: string) => [...gangQueries.keys.all, id] as const,
-    basic: (id: string) => [...gangQueries.keys.gang(id), 'basic'] as const,
-    credits: (id: string) => [...gangQueries.keys.gang(id), 'credits'] as const,
-    positioning: (id: string) => [...gangQueries.keys.gang(id), 'positioning'] as const,
-    resources: (id: string) => [...gangQueries.keys.gang(id), 'resources'] as const,
-    rating: (id: string) => [...gangQueries.keys.gang(id), 'rating'] as const,
-    fighterCount: (id: string) => [...gangQueries.keys.gang(id), 'fighter-count'] as const,
-  },
-
-  // Query functions - reuse database query logic without cache
-  basic: (gangId: string) => ({
-    queryKey: gangQueries.keys.basic(gangId),
-    queryFn: () => queryGangBasic(gangId),
-  }),
-
-  credits: (gangId: string) => ({
-    queryKey: gangQueries.keys.credits(gangId),
-    queryFn: () => queryGangCredits(gangId),
-  }),
-
-  positioning: (gangId: string) => ({
-    queryKey: gangQueries.keys.positioning(gangId),
-    queryFn: () => queryGangPositioning(gangId),
-  }),
-
-  resources: (gangId: string) => ({
-    queryKey: gangQueries.keys.resources(gangId),
-    queryFn: () => queryGangResources(gangId),
-  }),
-
-  rating: (gangId: string) => ({
-    queryKey: gangQueries.keys.rating(gangId),
-    queryFn: () => queryGangRating(gangId),
-  }),
-
-  fighterCount: (gangId: string) => ({
-    queryKey: gangQueries.keys.fighterCount(gangId),
-    queryFn: () => queryGangFighterCount(gangId),
-  }),
-}
+// gangQueries removed - using centralized queryKeys from keys.ts instead
 
 // =============================================================================
-// CUSTOM HOOKS - Following your superior pattern
+// CUSTOM HOOKS
 // =============================================================================
 
 export const useGetGang = (
