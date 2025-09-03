@@ -244,9 +244,9 @@ export function FighterActions({
           fighterName={fighter?.fighter_name || ''}
           fighterValue={fighter?.credits || 0}
           isEnslaved={fighter?.enslaved || false}
-          onConfirm={(sellValue) => {
+          onConfirm={async (sellValue) => {
             const action = fighter?.enslaved ? 'rescue' : 'sell';
-            handleActionConfirm(action, sellValue);
+            await handleActionConfirm(action, sellValue);
             handleModalToggle('enslave', false);
             return true;
           }}
