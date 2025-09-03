@@ -982,86 +982,14 @@ export function EditFighterModal({
       return;
     }
     
-    try {
-      setIsSavingStats(true);
-      
-      // Use the new onEffectsUpdate prop if available, otherwise fall back to the old API call
-      if (onEffectsUpdate) {
-        const success = await onEffectsUpdate(stats);
-        if (success) {
-          // Show success toast message
-          toast({
-            description: "Fighter characteristics updated successfully",
-            variant: "default",
-          });
-          
-          // Close the modal only after successful update
-          setShowStatsModal(false);
-        } else {
-          throw new Error('Failed to update fighter characteristics');
-        }
-      } else {
-        // Fallback to the old API call for backward compatibility
-        const response = await fetch('/api/fighters/effects', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fighter_id: fighter.id,
-            stats // This should already include negative values when decreasing
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to save stat changes');
-        }
-        
-        // Process the server response
-        const result = await response.json();
-        
-        // Update with the actual server data including any new effects
-        const serverUpdatedFighter = {
-          ...currentFighter, // Use the current fighter as the base
-          effects: {
-            ...currentFighter.effects,
-            injuries: currentFighter.effects?.injuries || [],
-            advancements: currentFighter.effects?.advancements || [],
-            bionics: currentFighter.effects?.bionics || [],
-            cyberteknika: currentFighter.effects?.cyberteknika || [],
-            user: result.effects || []
-          }
-        };
-        
-        // Update local state with server data
-        setCurrentFighter(serverUpdatedFighter);
-        
-        // Notify parent component with the fully updated fighter
-        if (onStatsUpdate) {
-          onStatsUpdate(serverUpdatedFighter);
-        }
-        
-        // Show success toast message with proper formatting
-        toast({
-          description: "Fighter characteristics updated successfully",
-          variant: "default",
-        });
-        
-        // Close the modal only after successful update
-        setShowStatsModal(false);
-      }
-      
-    } catch (error) {
-      console.error('Error saving stats:', error);
-      
-      // Show error toast message with proper formatting
-      toast({
-        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingStats(false);
-    }
+    // Store the stats changes in form values instead of applying them immediately
+    setFormValues(prev => ({
+      ...prev,
+      stats: { ...prev.stats, ...stats }
+    }));
+    
+    // Close the characteristics modal
+    setShowStatsModal(false);
   };
 
   // Update the handleConfirm function
@@ -1161,7 +1089,8 @@ export function EditFighterModal({
         special_rules: formValues.special_rules,
         fighter_sub_type: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null,
         fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null,
-        fighter_gang_legacy_id: selectedGangLegacyId || null
+        fighter_gang_legacy_id: selectedGangLegacyId || null,
+        stats: formValues.stats
       };
       
       await onSubmit(submitData);

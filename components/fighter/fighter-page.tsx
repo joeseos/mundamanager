@@ -985,7 +985,7 @@ export default function FighterPage({
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {
-                  // Use TanStack Query mutation for optimistic updates
+                  // First, update fighter details
                   const result = await updateDetailsMutation.mutateAsync({
                     fighter_id: fighterId,
                     fighter_name: values.name,
@@ -1006,6 +1006,18 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter');
                   }
 
+                  // Then, update fighter effects if there are any stats changes
+                  if (values.stats && Object.keys(values.stats).length > 0) {
+                    const effectsResult = await updateEffectsMutation.mutateAsync({
+                      fighter_id: fighterId,
+                      stats: values.stats
+                    });
+
+                    if (!effectsResult.success) {
+                      throw new Error(effectsResult.error || 'Failed to update fighter effects');
+                    }
+                  }
+
                   // No need to refresh - TanStack Query handles cache updates
                   return true;
                 } catch (error) {
@@ -1014,22 +1026,9 @@ export default function FighterPage({
                 }
               }}
               onEffectsUpdate={async (stats) => {
-                try {
-                  // Use TanStack Query mutation for optimistic updates
-                  const result = await updateEffectsMutation.mutateAsync({
-                    fighter_id: fighterId,
-                    stats
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter effects');
-                  }
-
-                  return true;
-                } catch (error) {
-                  console.error('Error updating fighter effects:', error);
-                  return false;
-                }
+                // This is now just a placeholder - the actual effects update will happen
+                // in the main fighter update mutation when the user confirms the main modal
+                return true;
               }}
             />
           )}
