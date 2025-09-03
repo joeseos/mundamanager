@@ -205,6 +205,7 @@ AS $$
                             (
                                 SELECT jsonb_agg(
                                     jsonb_build_object(
+                                        'id', fetm.id,
                                         'stat_name', fetm.stat_name,
                                         'default_numeric_value', fetm.default_numeric_value
                                     )
