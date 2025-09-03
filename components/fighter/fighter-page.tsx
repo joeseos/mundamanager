@@ -21,7 +21,7 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXp, updateFighterXpWithOoa, updateFighterDetails } from "@/app/actions/edit-fighter";
+import { updateFighterXp, updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects } from "@/app/lib/server-functions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
@@ -371,9 +371,107 @@ export default function FighterPage({
 
   const updateDetailsMutation = useMutation({
     mutationFn: updateFighterDetails,
-    onSuccess: () => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      
+      // Snapshot previous values for rollback
+      const previousFighterData = { ...fighterData };
+      
+      // Optimistically update the local state IMMEDIATELY
+      setFighterData(prev => ({
+        ...prev,
+        fighter: {
+          ...prev.fighter!,
+          fighter_name: variables.fighter_name,
+          label: variables.label,
+          kills: variables.kills,
+          cost_adjustment: variables.cost_adjustment,
+          special_rules: variables.special_rules,
+          fighter_class: variables.fighter_class,
+          fighter_class_id: variables.fighter_class_id,
+          fighter_type: {
+            fighter_type: variables.fighter_type,
+            fighter_type_id: variables.fighter_type_id
+          },
+          fighter_sub_type: variables.fighter_sub_type ? {
+            fighter_sub_type: variables.fighter_sub_type,
+            fighter_sub_type_id: variables.fighter_sub_type_id
+          } : undefined,
+          fighter_gang_legacy_id: variables.fighter_gang_legacy_id,
+        }
+      }));
+      
+      return { previousFighterData };
+    },
+    onError: (err, variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousFighterData) {
+        setFighterData(context.previousFighterData);
+      }
+    },
+    onSuccess: (data, variables) => {
+      // No need to invalidate - we've already updated the local state
+      // The server response confirms our optimistic update was correct
+    },
+  });
+
+  const updateEffectsMutation = useMutation({
+    mutationFn: updateFighterEffects,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      
+      // Snapshot previous values for rollback
+      const previousFighterData = { ...fighterData };
+      
+      // Optimistically update the local state IMMEDIATELY
+      // Add the new effects to the user effects category
+      setFighterData(prev => {
+        if (!prev.fighter) return prev;
+        
+        const newUserEffects = Object.entries(variables.stats).map(([statName, adjustment]) => ({
+          id: `temp-${Date.now()}-${statName}`, // Temporary ID for optimistic update
+          effect_name: `User Adjustment: ${statName}`,
+          type_specific_data: {
+            stat_name: statName,
+            adjustment: adjustment,
+            created_by: 'user_adjustment'
+          },
+          fighter_effect_modifiers: [{
+            id: `temp-mod-${Date.now()}-${statName}`,
+            fighter_effect_id: `temp-${Date.now()}-${statName}`,
+            stat_name: statName,
+            numeric_value: adjustment
+          }],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+        
+        return {
+          ...prev,
+          fighter: {
+            ...prev.fighter,
+            effects: {
+              ...prev.fighter.effects,
+              user: [...(prev.fighter.effects?.user || []), ...newUserEffects]
+            }
+          }
+        };
+      });
+      
+      return { previousFighterData };
+    },
+    onError: (err, variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousFighterData) {
+        setFighterData(context.previousFighterData);
+      }
+    },
+    onSuccess: (data, variables) => {
+      // No need to invalidate - we've already updated the local state
+      // The server response confirms our optimistic update was correct
     },
   });
 
@@ -548,12 +646,13 @@ export default function FighterPage({
   );
 
   // Use TanStack Query data or fallback to initial data
-  const currentFighter = fighter || fighterData.fighter;
-  const currentEquipment = equipment || fighterData.equipment;
-  const currentSkills = skills || fighterData.fighter?.skills;
-  const currentEffects = effects || fighterData.fighter?.effects;
-  const currentVehicles = vehicles || fighterData.fighter?.vehicles;
-  const currentGang = gang || fighterData.gang;
+  // Prioritize local state updates for optimistic updates
+  const currentFighter = fighterData.fighter || fighter;
+  const currentEquipment = fighterData.equipment || equipment;
+  const currentSkills = fighterData.fighter?.skills || skills;
+  const currentEffects = fighterData.fighter?.effects || effects;
+  const currentVehicles = fighterData.fighter?.vehicles || vehicles;
+  const currentGang = fighterData.gang || gang;
   const currentCredits = gangCredits ?? (fighterData.gang?.credits as number);
 
   // Calculate total cost from current data
@@ -882,8 +981,8 @@ export default function FighterPage({
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {
-                  // Use server action instead of direct API call
-                  const result = await updateFighterDetails({
+                  // Use TanStack Query mutation for optimistic updates
+                  const result = await updateDetailsMutation.mutateAsync({
                     fighter_id: fighterId,
                     fighter_name: values.name,
                     label: values.label,
@@ -903,11 +1002,28 @@ export default function FighterPage({
                     throw new Error(result.error || 'Failed to update fighter');
                   }
 
-                  // Refresh fighter data after successful update
-                  router.refresh();
+                  // No need to refresh - TanStack Query handles cache updates
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
+                  return false;
+                }
+              }}
+              onEffectsUpdate={async (stats) => {
+                try {
+                  // Use TanStack Query mutation for optimistic updates
+                  const result = await updateEffectsMutation.mutateAsync({
+                    fighter_id: fighterId,
+                    stats
+                  });
+
+                  if (!result.success) {
+                    throw new Error(result.error || 'Failed to update fighter effects');
+                  }
+
+                  return true;
+                } catch (error) {
+                  console.error('Error updating fighter effects:', error);
                   return false;
                 }
               }}

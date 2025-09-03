@@ -7,7 +7,7 @@ import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
-import { editFighterStatus } from "@/app/actions/edit-fighter";
+import { editFighterStatus } from "@/app/lib/server-functions/edit-fighter";
 
 interface Fighter {
   id: string;

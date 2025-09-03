@@ -607,7 +607,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
       try {
         // Cache invalidation using centralized TanStack Query cache keys
-        invalidateGangRating({ gangId: params.gang_id });
+        invalidateGangRating(params.gang_id);
       } catch (e) {
         console.error('Failed to invalidate gang rating cache:', e);
       }
@@ -873,7 +873,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', params.gang_id);
         // Cache invalidation using centralized TanStack Query cache keys
-        invalidateGangRating({ gangId: params.gang_id });
+        invalidateGangRating(params.gang_id);
       } catch (e) {
         console.error('Failed to update gang rating after equipment deletion:', e);
       }

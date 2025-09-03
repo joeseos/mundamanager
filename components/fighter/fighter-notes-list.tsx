@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterDetails } from '@/app/actions/edit-fighter';
+import { updateFighterDetails } from '@/app/lib/server-functions/edit-fighter';
 
 interface FighterNotesProps {
   fighterId: string;
