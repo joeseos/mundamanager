@@ -864,7 +864,7 @@ export default function FighterPage({
               gangId={currentGang?.id || ''}
               gangTypeId={currentGang?.gang_type_id}
               fighterId={currentFighter.id}
-              fighterTypeId={(currentFighter.fighter_type as any)?.fighter_type_id}
+              fighterTypeId={currentFighter.fighter_type_id}
               gangAffiliationId={currentGang.gang_affiliation_id}
               fighterCredits={currentFighter.credits}
               fighterHasLegacy={Boolean(currentFighter?.fighter_gang_legacy_id)}
@@ -880,7 +880,7 @@ export default function FighterPage({
               gangId={currentGang?.id || ''}
               gangTypeId={currentGang?.gang_type_id}
               fighterId={currentFighter.id}
-              fighterTypeId={(currentFighter.fighter_type as any)?.fighter_type_id}
+              fighterTypeId={currentFighter.fighter_type_id}
               fighterCredits={currentFighter.credits}
               vehicleId={vehicle.id}
               vehicleType={vehicle.vehicle_type}
