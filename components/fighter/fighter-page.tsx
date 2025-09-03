@@ -16,7 +16,7 @@ import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects } from "@/app/lib/server-functions/edit-fighter";
+import { updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects, editFighterStatus } from "@/app/lib/server-functions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
@@ -277,6 +277,106 @@ export default function FighterPage({
       // Rollback optimistic changes
       if (context?.previousEffects) {
         queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+    },
+  });
+
+  // Fighter status mutation (kill, retire, sell, etc.)
+  const statusMutation = useMutation({
+    mutationFn: async (params: any) => {
+      const result = await editFighterStatus(params);
+      // Check if the server function returned an error
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onMutate: async (params) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      if (currentGang?.id) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(currentGang.id) });
+      }
+      
+      // Snapshot previous values
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      const previousGangCredits = currentGang?.id ? 
+        queryClient.getQueryData(queryKeys.gangs.credits(currentGang.id)) : null;
+      
+      // Optimistically update fighter status
+      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => {
+        if (!old) return old;
+        
+        const updates: any = {};
+        
+        switch (params.action) {
+          case 'kill':
+            updates.killed = !old.killed;
+            break;
+          case 'retire':
+            updates.retired = !old.retired;
+            break;
+          case 'sell':
+            updates.enslaved = true;
+            break;
+          case 'rescue':
+            updates.enslaved = false;
+            break;
+          case 'starve':
+            updates.starved = !old.starved;
+            break;
+          case 'recover':
+            updates.recovery = !old.recovery;
+            break;
+          case 'capture':
+            updates.captured = !old.captured;
+            break;
+        }
+        
+        return { ...old, ...updates };
+      });
+      
+      // Optimistically update gang credits for sell action
+      if (params.action === 'sell' && params.sell_value && currentGang?.id) {
+        queryClient.setQueryData(queryKeys.gangs.credits(currentGang.id), (old: number) => {
+          return (old || 0) + params.sell_value;
+        });
+      }
+      
+      return { previousFighter, previousGangCredits };
+    },
+    onError: (err, _variables, context) => {
+      console.error('Fighter status mutation error:', err);
+      
+      // Show error toast
+      toast({
+        description: err instanceof Error ? err.message : 'Failed to update fighter status',
+        variant: "destructive"
+      });
+      
+      // Rollback optimistic changes
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      
+      // Rollback gang credits if they were updated
+      if (context?.previousGangCredits !== undefined && currentGang?.id) {
+        queryClient.setQueryData(queryKeys.gangs.credits(currentGang.id), context.previousGangCredits);
+      }
+    },
+    onSuccess: (result, variables) => {
+      console.log('Fighter status mutation success:', result);
+      
+      // Invalidate related queries to ensure fresh data
+      if (currentGang?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(currentGang.id) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(currentGang.id) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(currentGang.id) });
+      }
+      
+      // Handle delete action redirect
+      if (variables.action === 'delete' && result.data?.redirectTo) {
+        router.push(result.data.redirectTo);
       }
     },
   });
@@ -671,9 +771,7 @@ export default function FighterPage({
             gang={{ id: currentGang?.id || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
-            onFighterUpdate={() => {
-              // Data will be updated via TanStack Query optimistic updates
-            }}
+            onStatusUpdate={(params) => statusMutation.mutate(params)}
           />
 
 
