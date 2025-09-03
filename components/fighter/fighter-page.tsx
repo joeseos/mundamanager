@@ -479,7 +479,7 @@ export default function FighterPage({
     },
   });
 
-  // Sync local state with props when they change (after router.refresh())
+  // Sync local state with props when they change
   useEffect(() => {
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
     
@@ -826,12 +826,7 @@ export default function FighterPage({
           />
 
           <SkillsList
-            key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-            skills={fighterData.fighter?.skills || {}}
-            onSkillDeleted={() => router.refresh()}
             fighterId={fighterData.fighter?.id || ''}
-            fighterXp={fighterData.fighter?.xp || 0}
-            onSkillAdded={() => router.refresh()}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
           />
@@ -843,10 +838,11 @@ export default function FighterPage({
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             onDeleteAdvancement={async () => {
-              // Trigger server component re-execution to get fresh data
-              router.refresh();
+              // Data will be updated via TanStack Query optimistic updates
             }}
-            onAdvancementAdded={() => router.refresh()}
+            onAdvancementAdded={() => {
+              // Data will be updated via TanStack Query optimistic updates  
+            }}
             userPermissions={userPermissions}
           />
 
@@ -937,7 +933,9 @@ export default function FighterPage({
             gang={{ id: currentGang?.id || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
-            onFighterUpdate={() => router.refresh()}
+            onFighterUpdate={() => {
+              // Data will be updated via TanStack Query optimistic updates
+            }}
           />
 
 

@@ -4,6 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
+import { FighterSkill } from '@/app/lib/fighter-data';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
@@ -12,25 +13,15 @@ import {
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
+import { addFighterSkill, deleteFighterSkill } from '@/app/lib/server-functions/fighter-skills';
+import { useGetFighterSkills } from '@/app/lib/queries/fighter-queries';
 
-// Interface for individual skill when displayed in table
-interface Skill {
-  id: string;
-  name: string;
-  xp_cost: number;
-  credits_increase: number;
-  acquired_at: string;
-  is_advance: boolean;
-  fighter_injury_id: string | null;
-}
 
 // Props for the SkillsList component
 interface SkillsListProps {
-  skills: FighterSkills;
-  onSkillDeleted?: () => void;
   fighterId: string;
-  fighterXp: number;
-  onSkillAdded?: () => void;
   free_skill?: boolean;
   userPermissions: UserPermissions;
 }
@@ -41,7 +32,7 @@ interface SkillModalProps {
   onClose: () => void;
   onSkillAdded: () => void;
   isSubmitting: boolean;
-  onSelectSkill?: (selectedSkill: any) => Promise<void>;
+  onSelectSkill?: (params: any) => Promise<void>;
 }
 
 interface Category {
@@ -73,6 +64,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string>('');
+  const [selectedSkillName, setSelectedSkillName] = useState<string>('');
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const { toast } = useToast();
   const session = useSession();
@@ -193,28 +185,46 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 
       console.log("Adding skill with ID:", selectedSkill);
       
-      const result = await addSkillAdvancement({
-        fighter_id: fighterId,
-        skill_id: selectedSkill,
-        xp_cost: 0,
-        credits_increase: 0,
-        is_advance: false
-      });
+      if (onSelectSkill) {
+        // With optimistic updates, we don't await - just trigger the mutation
+        onSelectSkill({
+          fighter_id: fighterId,
+          skill_id: selectedSkill,
+          skill_name: selectedSkillName,
+          xp_cost: 0,
+          credits_increase: 0,
+          is_advance: false
+        });
+        
+        // Close modal immediately - optimistic update handles the UI
+        onSkillAdded();
+        onClose();
+        return true;
+      } else {
+        // Fallback to the old server action for backward compatibility
+        const result = await addSkillAdvancement({
+          fighter_id: fighterId,
+          skill_id: selectedSkill,
+          xp_cost: 0,
+          credits_increase: 0,
+          is_advance: false
+        });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add skill');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to add skill');
+        }
+
+        console.log("Skill added successfully:", result);
+
+        toast({
+          description: "Skill successfully added",
+          variant: "default"
+        });
+
+        onSkillAdded();
+        onClose();
+        return true;
       }
-
-      console.log("Skill added successfully:", result);
-
-      toast({
-        description: "Skill successfully added",
-        variant: "default"
-      });
-
-      onSkillAdded();
-      onClose();
-      return true;
     } catch (error) {
       console.error('Error adding skill:', error);
       toast({
@@ -313,7 +323,13 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           <label className="text-sm font-medium">Skill</label>
           <select
             value={selectedSkill}
-            onChange={(e) => setSelectedSkill(e.target.value)}
+            onChange={(e) => {
+              const skillId = e.target.value;
+              setSelectedSkill(skillId);
+              // Find the skill name from the selected skill ID
+              const skill = skillsData.skills.find(s => s.skill_id === skillId);
+              setSelectedSkillName(skill?.skill_name || '');
+            }}
             className="w-full p-2 border rounded"
           >
             <option key="placeholder-skill" value="">Select a skill</option>
@@ -353,53 +369,152 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 
 // Main SkillsList component that wraps the table with management functionality
 export function SkillsList({ 
-  skills = {}, 
-  onSkillDeleted,
   fighterId,
-  fighterXp,
-  onSkillAdded,
   free_skill,
   userPermissions
 }: SkillsListProps) {
+  // Use TanStack Query to get skills data directly
+  const { data: skills = {} } = useGetFighterSkills(fighterId);
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // TanStack Query mutations with optimistic updates
+  const addSkillMutation = useMutation({
+    mutationFn: addFighterSkill,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+
+      // Snapshot the previous values
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+
+      // Optimistically update the skills cache
+      queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: FighterSkills) => {
+        if (!old) return old;
+        const skillName = variables.skill_name || 'Loading...';
+        const tempSkill: FighterSkill = {
+          id: `temp-${Date.now()}`,
+          name: skillName,
+          credits_increase: variables.credits_increase,
+          xp_cost: variables.xp_cost,
+          is_advance: variables.is_advance ?? false,
+          acquired_at: new Date().toISOString()
+        };
+        return { ...old, [skillName]: tempSkill };
+      });
+
+      // Optimistically update fighter XP
+      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          xp: old.xp - variables.xp_cost
+        };
+      });
+
+      return { previousSkills, previousFighter };
+    },
+    onError: (err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to add skill',
+        variant: "destructive"
+      });
+    },
+    onSuccess: () => {
+      toast({
+        description: "Skill successfully added",
+        variant: "default"
+      });
+      // Note: No immediate invalidation to preserve optimistic updates
+      // Data will be refreshed naturally on next interaction or page refresh
+    }
+  });
+
+  const deleteSkillMutation = useMutation({
+    mutationFn: deleteFighterSkill,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+
+      // Snapshot the previous values
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+
+      // Optimistically remove the skill from the skills cache (find by ID)
+      queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: FighterSkills) => {
+        if (!old) return old;
+        const newSkills = { ...old };
+        // Find and remove the skill by ID (skills are keyed by name but contain ID)
+        Object.keys(newSkills).forEach(skillName => {
+          const skill = newSkills[skillName] as any;
+          if (skill.id === variables.skill_advancement_id) {
+            delete newSkills[skillName];
+          }
+        });
+        return newSkills;
+      });
+
+      return { previousSkills, previousFighter };
+    },
+    onError: (err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to delete skill',
+        variant: "destructive"
+      });
+    },
+    onSuccess: () => {
+      toast({
+        description: `${skillToDelete?.name || 'Skill'} removed successfully`,
+        variant: "default"
+      });
+      // Note: No immediate invalidation to preserve optimistic updates
+      // Data will be refreshed naturally on next interaction or page refresh
+    }
+  });
 
   const handleDeleteClick = (skillId: string, skillName: string) => {
     setSkillToDelete({ id: skillId, name: skillName });
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!skillToDelete) return;
 
-    try {
-      const result = await deleteAdvancement({
-        fighter_id: fighterId,
-        advancement_id: skillToDelete.id,
-        advancement_type: 'skill'
-      });
+    // With optimistic updates, we don't await - just trigger the mutation
+    deleteSkillMutation.mutate({
+      fighter_id: fighterId,
+      skill_advancement_id: skillToDelete.id
+    });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete skill');
-      }
+    // Close modal immediately - optimistic update handles the UI
+    setSkillToDelete(null);
+  };
 
-      // Call the callback to refresh data in parent component
-      onSkillDeleted?.();
-      
-      toast({
-        description: `${skillToDelete.name} removed successfully`,
-        variant: "default"
-      });
-    } catch (error) {
-      console.error('Error deleting skill:', error);
-      toast({
-        description: 'Failed to delete skill',
-        variant: "destructive"
-      });
-    } finally {
-      setSkillToDelete(null);
-    }
+  const handleSkillAdd = async (params: any) => {
+    // With optimistic updates, we don't await - just trigger the mutation
+    addSkillMutation.mutate(params);
   };
 
   // Transform skills object into array for table display
@@ -440,7 +555,7 @@ export function SkillsList({
             key: 'action_info',
             label: 'Source',
             align: 'right',
-            render: (value, item) => {
+            render: (_value, item) => {
               if (item.fighter_injury_id) {
                 return (
                   <span className="text-gray-500 text-sm italic whitespace-nowrap">
@@ -494,10 +609,11 @@ export function SkillsList({
         <SkillModal
           fighterId={fighterId}
           onClose={() => setIsAddSkillModalOpen(false)}
-          onSkillAdded={onSkillAdded || (() => {})}
-          isSubmitting={isSubmitting}
+          onSkillAdded={() => setIsAddSkillModalOpen(false)}
+          isSubmitting={false}
+          onSelectSkill={handleSkillAdd}
         />
       )}
     </>
   );
-} 
+}
