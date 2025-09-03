@@ -383,22 +383,26 @@ export default function FighterPage({
         ...prev,
         fighter: {
           ...prev.fighter!,
-          fighter_name: variables.fighter_name,
-          label: variables.label,
-          kills: variables.kills,
-          cost_adjustment: variables.cost_adjustment,
-          special_rules: variables.special_rules,
-          fighter_class: variables.fighter_class,
-          fighter_class_id: variables.fighter_class_id,
-          fighter_type: {
-            fighter_type: variables.fighter_type,
-            fighter_type_id: variables.fighter_type_id
-          },
-          fighter_sub_type: variables.fighter_sub_type ? {
-            fighter_sub_type: variables.fighter_sub_type,
-            fighter_sub_type_id: variables.fighter_sub_type_id
-          } : undefined,
-          fighter_gang_legacy_id: variables.fighter_gang_legacy_id,
+          ...(variables.fighter_name !== undefined && { fighter_name: variables.fighter_name }),
+          ...(variables.label !== undefined && { label: variables.label }),
+          ...(variables.kills !== undefined && { kills: variables.kills }),
+          ...(variables.cost_adjustment !== undefined && { cost_adjustment: variables.cost_adjustment }),
+          ...(variables.special_rules !== undefined && { special_rules: variables.special_rules }),
+          ...(variables.fighter_class !== undefined && { fighter_class: variables.fighter_class }),
+          ...(variables.fighter_class_id !== undefined && { fighter_class_id: variables.fighter_class_id }),
+          ...(variables.fighter_type !== undefined && variables.fighter_type_id !== undefined && {
+            fighter_type: {
+              fighter_type: variables.fighter_type,
+              fighter_type_id: variables.fighter_type_id
+            }
+          }),
+          ...(variables.fighter_sub_type !== undefined && variables.fighter_sub_type_id !== undefined && {
+            fighter_sub_type: variables.fighter_sub_type && variables.fighter_sub_type_id ? {
+              fighter_sub_type: variables.fighter_sub_type,
+              fighter_sub_type_id: variables.fighter_sub_type_id
+            } : undefined
+          }),
+          ...(variables.fighter_gang_legacy_id !== undefined && { fighter_gang_legacy_id: variables.fighter_gang_legacy_id }),
         }
       }));
       
