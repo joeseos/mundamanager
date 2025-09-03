@@ -121,50 +121,31 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
     
     // Check if this equipment has effects that need selection
     if (!item.is_custom && !showEffectSelection) {
-      // Check if there are any selectable effects (non-fixed) for this equipment
-      const checkSelectableEffects = async () => {
-        try {
-          // Fetch full effect data including modifiers
-          const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch fighter effects');
-          }
+      // Use the fighter_effects data that's already available in the item
+      const equipmentEffects = item.fighter_effects || [];
+      setEffectTypes(equipmentEffects);
 
-          const fetchedEffectTypes = await response.json();
-          setEffectTypes(fetchedEffectTypes);
+      const hasSelectableEffects = equipmentEffects?.some((effect: any) => 
+        effect.type_specific_data?.effect_selection === 'single_select' || 
+        effect.type_specific_data?.effect_selection === 'multiple_select'
+      );
 
-          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
-            effect.type_specific_data?.effect_selection === 'single_select' || 
-            effect.type_specific_data?.effect_selection === 'multiple_select'
-          );
-
-          if (hasSelectableEffects) {
-            setShowEffectSelection(true);
-            setIsEffectSelectionValid(false);
-            return false; // Don't close modal, show effect selection
-          } else {
-            // All effects are fixed, collect them and proceed directly with purchase
-            const fixedEffects = fetchedEffectTypes
-              ?.filter((effect: any) => 
-                effect.type_specific_data?.effect_selection === 'fixed' || 
-                !effect.type_specific_data?.effect_selection
-              )
-              .map((effect: any) => effect.id) || [];
-            
-            onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-            return true; // Allow modal to close
-          }
-        } catch (error) {
-          console.error('Error checking selectable effects:', error);
-          // On error, proceed with purchase to avoid blocking the user
-          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
-          return true;
-        }
-      };
-
-      checkSelectableEffects();
-      return false; // Prevent modal from closing while we check
+      if (hasSelectableEffects) {
+        setShowEffectSelection(true);
+        setIsEffectSelectionValid(false);
+        return false; // Don't close modal, show effect selection
+      } else {
+        // All effects are fixed, collect them and proceed directly with purchase
+        const fixedEffects = equipmentEffects
+          ?.filter((effect: any) => 
+            effect.type_specific_data?.effect_selection === 'fixed' || 
+            !effect.type_specific_data?.effect_selection
+          )
+          .map((effect: any) => effect.id) || [];
+        
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
+        return true; // Allow modal to close
+      }
     }
     
     onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
@@ -362,8 +343,133 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
       return result.data;
     },
-    onError: (err) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      
+      if (!variables.buy_for_gang_stash) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      }
+
+      // Snapshot previous values for rollback
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+      const previousStash = variables.buy_for_gang_stash ? queryClient.getQueryData(queryKeys.gangs.stash(gangId)) : null;
+
+      // Optimistically update equipment cache
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+        if (!old) return old;
+        
+        // Create optimistic equipment item using real item data
+        const itemData = variables.item_data;
+        const optimisticEquipment = {
+          fighter_equipment_id: `temp-${Date.now()}`,
+          equipment_id: variables.equipment_id,
+          custom_equipment_id: variables.custom_equipment_id,
+          equipment_name: itemData.equipment_name,
+          equipment_type: itemData.equipment_type,
+          equipment_category: itemData.equipment_category,
+          purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+          original_cost: itemData.base_cost || itemData.cost,
+          is_master_crafted: variables.master_crafted || false,
+          weapon_profiles: itemData.weapon_profiles || []
+        };
+        
+        return [...old, optimisticEquipment];
+      });
+
+      // Optimistically update gang credits
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+        if (old === undefined) return old;
+        return old - (variables.manual_cost || 0);
+      });
+
+      // Optimistically update fighter effects if effects are being applied
+      if (variables.selected_effect_ids && variables.selected_effect_ids.length > 0) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Create optimistic effects based on selected effect IDs
+          const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => ({
+            id: `temp-effect-${Date.now()}-${index}`,
+            effect_name: 'Loading...', // Will be updated with real data on success
+            type_specific_data: {
+              equipment_id: variables.equipment_id,
+              effect_selection: 'fixed'
+            },
+            fighter_effect_modifiers: [{
+              id: `temp-mod-${Date.now()}-${index}`,
+              fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
+              stat_name: 'loading',
+              numeric_value: 0
+            }],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+          
+          return {
+            ...old,
+            equipment: [...(old?.equipment || []), ...optimisticEffects]
+          };
+        });
+      }
+
+      // For gang stash purchases, optimistically update stash
+      if (variables.buy_for_gang_stash) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => {
+          if (!old) return old;
+          
+          // Create optimistic stash item using real item data
+          const itemData = variables.item_data;
+          const optimisticStashItem = {
+            fighter_equipment_id: `temp-stash-${Date.now()}`,
+            equipment_id: variables.equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            original_cost: itemData.base_cost || itemData.cost,
+            is_master_crafted: variables.master_crafted || false,
+            weapon_profiles: itemData.weapon_profiles || []
+          };
+          
+          return [...old, optimisticStashItem];
+        });
+      }
+
+      return { 
+        previousEquipment, 
+        previousCredits, 
+        previousEffects, 
+        previousTotalCost, 
+        previousStash 
+      };
+    },
+    onError: (err, variables, context) => {
       console.error('❌ PURCHASE ERROR:', err);
+      
+      // Rollback optimistic changes
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      if (context?.previousStash !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
+      }
       
       toast({
         title: "Error",
@@ -374,34 +480,62 @@ const ItemModal: React.FC<ItemModalProps> = ({
     onSuccess: (data, variables) => {
       console.log('✅ PURCHASE SUCCESS:', data);
 
-      // Strategic cache updates: Use server response data to update specific cache entries
-      // Only invalidate what we need to refetch from server
-      
+      // Update with real server data
       if (!variables.buy_for_gang_stash) {
-        // Update equipment cache with new item instead of invalidating
-        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => [
-          ...(old || []),
-          data.equipment
-        ]);
+        // Update equipment cache with real server data
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+          if (!old) return old;
+          // Replace the optimistic item with real data
+          return old.map(item => 
+            item.fighter_equipment_id.startsWith('temp-') 
+              ? data.equipment 
+              : item
+          );
+        });
         
         // Update gang credits with server response
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
         
-        // Only invalidate fighter total cost if it exists in server response
+        // Update fighter total cost if provided
         if (data.fighter_total_cost !== undefined) {
           queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
         }
         
-        // Only invalidate vehicle queries if this is vehicle equipment
+        // Update fighter effects with real server data
+        if (data.applied_effects && data.applied_effects.length > 0) {
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+            if (!old) return old;
+            
+            // Replace optimistic effects with real server data
+            const filteredOld = {
+              ...old,
+              equipment: (old?.equipment || []).filter((effect: any) => 
+                !effect.id.startsWith('temp-effect-')
+              )
+            };
+            
+            return {
+              ...filteredOld,
+              equipment: [...(filteredOld?.equipment || []), ...data.applied_effects]
+            };
+          });
+        }
+        
+        // Invalidate vehicle queries if this is vehicle equipment
         if (isVehicleEquipment && vehicleId) {
           queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
         }
       } else {
-        // For gang stash purchases, update stash and gang credits
-        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => [
-          ...(old || []),
-          data.equipment
-        ]);
+        // For gang stash purchases, update with real server data
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => {
+          if (!old) return old;
+          // Replace the optimistic stash item with real data
+          return old.map(item => 
+            item.fighter_equipment_id.startsWith('temp-stash-') 
+              ? data.equipment 
+              : item
+          );
+        });
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
       }
 
@@ -740,6 +874,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       use_base_cost_for_rating: useBaseCostForRating,
       buy_for_gang_stash: isGangStashPurchase,
       selected_effect_ids: selectedEffectIds,
+      // Pass the full item data for optimistic updates
+      item_data: item,
       // Only include fighter_id or vehicle_id if not buying for gang stash
       ...(!isGangStashPurchase && (isVehicleEquipment
         ? { vehicle_id: vehicleId || undefined }

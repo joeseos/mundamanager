@@ -57,4 +57,18 @@ export interface Equipment {
     } | string;
     created_at?: string;
   };
+  fighter_effects?: Array<{
+    id: string;
+    effect_name: string;
+    category_name: string;
+    type_specific_data?: {
+      equipment_id?: string;
+      effect_selection?: 'fixed' | 'single_select' | 'multiple_select';
+      [key: string]: any;
+    };
+    modifiers?: Array<{
+      stat_name: string;
+      default_numeric_value: number;
+    }>;
+  }>;
 } 

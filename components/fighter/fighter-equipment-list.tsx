@@ -118,22 +118,52 @@ export function WeaponList({
     onMutate: async (variables) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
-      // Snapshot the previous value
+      // Snapshot the previous values
       const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Find the equipment being deleted to check if it has effects
+      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
       // Optimistically update the UI
       queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
         (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
       );
 
+      // Optimistically remove equipment effects if the equipment had any
+      if (equipmentToDelete?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== equipmentToDelete.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
+      }
+
       // Return a context object with the snapshotted values
-      return { previousEquipment };
+      return { previousEquipment, previousEffects, previousTotalCost };
     },
     onError: (err, variables, context) => {
       // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousEquipment) {
         queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
       }
 
       toast({
@@ -148,7 +178,21 @@ export function WeaponList({
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
       }
 
-      // Equipment is already updated optimistically, no need to invalidate
+      // Update fighter effects with real server data if effects were deleted
+      if (data.deleted_effects && data.deleted_effects.length > 0) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove the deleted effects from the cache
+          const deletedEffectIds = data.deleted_effects.map((effect: any) => effect.id);
+          return {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              !deletedEffectIds.includes(effect.id)
+            )
+          };
+        });
+      }
 
       toast({
         title: "Success",
@@ -160,15 +204,28 @@ export function WeaponList({
   });
 
   const sellEquipmentMutation = useMutation({
-    mutationFn: sellEquipmentFromFighter,
+    mutationFn: async (variables: any) => {
+      const result = await sellEquipmentFromFighter(variables);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
     onMutate: async (variables) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
       // Snapshot the previous values
       const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
       const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Find the equipment being sold to check if it has effects
+      const equipmentToSell = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
       // Optimistically update the UI
       queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
@@ -179,16 +236,39 @@ export function WeaponList({
         (old || 0) + (variables.manual_cost || 0)
       );
 
+      // Optimistically remove equipment effects if the equipment had any
+      if (equipmentToSell?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== equipmentToSell.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
+      }
+
       // Return a context object with the snapshotted values
-      return { previousEquipment, previousCredits };
+      return { previousEquipment, previousCredits, previousEffects, previousTotalCost };
     },
     onError: (err, variables, context) => {
       // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousEquipment) {
         queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
       }
-      if (context?.previousCredits) {
+      if (context?.previousCredits !== undefined) {
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
       }
 
       toast({
@@ -201,12 +281,31 @@ export function WeaponList({
       // Find equipment name from current equipment list for display
       const soldEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
       
-      // Equipment and credits are already updated optimistically, no need to invalidate
-      // Only invalidate fighter details if we need rating updates (but rating changes are rare)
+      // Update fighter total cost if provided in response
+      if (data.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
+
+      // Update fighter effects with real server data if effects were deleted
+      if (data.deleted_effects && data.deleted_effects.length > 0) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove the deleted effects from the cache
+          const deletedEffectIds = data.deleted_effects.map((effect: any) => effect.id);
+          return {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              !deletedEffectIds.includes(effect.id)
+            )
+          };
+        });
+      }
       
       toast({
         title: "Success",
         description: `Sold ${soldEquipment?.equipment_name || 'equipment'} for ${variables.manual_cost || 0} credits`,
+        variant: "default"
       });
       setSellModalData(null);
     }
@@ -218,10 +317,14 @@ export function WeaponList({
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
       // Snapshot the previous values
       const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
       const previousStash = queryClient.getQueryData(queryKeys.gangs.stash(gangId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
 
       // Find equipment before removing for stash update
       const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
@@ -239,8 +342,25 @@ export function WeaponList({
         ]);
       }
 
+      // Optimistically remove equipment effects if the equipment had any
+      if (stashedEquipment?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== stashedEquipment.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
+      }
+
       // Return a context object with the snapshotted values
-      return { previousEquipment, previousStash };
+      return { previousEquipment, previousStash, previousEffects, previousTotalCost };
     },
     onError: (err, variables, context) => {
       // If the mutation fails, use the context returned from onMutate to roll back

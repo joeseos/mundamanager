@@ -24,6 +24,11 @@ interface SellEquipmentResult {
       custom_equipment_id?: string;
       sell_value: number;
     };
+    deleted_effects?: Array<{
+      id: string;
+      type_specific_data?: any;
+    }>;
+    fighter_total_cost?: number;
   };
   error?: string;
 }
@@ -218,6 +223,21 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
+    // Get updated fighter total cost if this was fighter equipment
+    let fighterTotalCost: number | undefined;
+    if (equipmentData.fighter_id) {
+      try {
+        const { data: fighterCost } = await supabase
+          .from('fighters')
+          .select('total_cost')
+          .eq('id', equipmentData.fighter_id)
+          .single();
+        fighterTotalCost = fighterCost?.total_cost;
+      } catch (e) {
+        console.error('Failed to get updated fighter total cost:', e);
+      }
+    }
+
     return {
       success: true,
       data: {
@@ -232,7 +252,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
           sell_value: sellValue
-        }
+        },
+        deleted_effects: associatedEffects || [],
+        fighter_total_cost: fighterTotalCost
       }
     };
 

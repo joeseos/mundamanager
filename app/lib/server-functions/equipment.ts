@@ -45,6 +45,7 @@ export interface BuyEquipmentInput {
   use_base_cost_for_rating?: boolean
   buy_for_gang_stash?: boolean
   selected_effect_ids?: string[]
+  item_data?: any // For optimistic updates - not used by server
 }
 
 export interface BuyEquipmentResponse {
@@ -380,18 +381,253 @@ export async function buyEquipmentForFighter(params: BuyEquipmentInput): Promise
       }
     }
 
-    // Handle fighter effects (simplified for now - same logic as server action)
+    // BATCH: Handle fighter effects with direct database operations
     let appliedEffects: any[] = []
     
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
-      // TODO: Implement effects handling - keeping same logic as server action for now
+      try {
+        // Get all effect type data in one query
+        const { data: effectTypes } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            fighter_effect_categories (
+              id,
+              category_name
+            ),
+            fighter_effect_type_modifiers (
+              stat_name,
+              default_numeric_value
+            )
+          `)
+          .in('id', params.selected_effect_ids)
+
+        if (effectTypes && effectTypes.length > 0) {
+          // Batch insert all effects
+          const effectsToInsert = effectTypes.map(effectType => ({
+            fighter_id: params.fighter_id || null,
+            vehicle_id: params.vehicle_id || null,
+            fighter_effect_type_id: effectType.id,
+            effect_name: effectType.effect_name,
+            type_specific_data: effectType.type_specific_data,
+            fighter_equipment_id: newEquipmentId,
+            user_id: user.id
+          }))
+
+          const { data: insertedEffects, error: effectsError } = await supabase
+            .from('fighter_effects')
+            .insert(effectsToInsert)
+            .select('id, fighter_effect_type_id')
+
+          if (effectsError) {
+            throw new Error(`Failed to insert effects: ${effectsError.message}`)
+          }
+
+          if (insertedEffects && insertedEffects.length > 0) {
+            // Batch insert all modifiers
+            const allModifiers: any[] = []
+            effectTypes.forEach((effectType, index) => {
+              const effectId = insertedEffects[index].id
+              if (effectType.fighter_effect_type_modifiers) {
+                effectType.fighter_effect_type_modifiers.forEach(modifier => {
+                  allModifiers.push({
+                    fighter_effect_id: effectId,
+                    stat_name: modifier.stat_name,
+                    numeric_value: modifier.default_numeric_value
+                  })
+                })
+              }
+            })
+
+            if (allModifiers.length > 0) {
+              await supabase.from('fighter_effect_modifiers').insert(allModifiers)
+            }
+
+            // Fetch actual inserted modifiers to match RPC response format
+            let actualModifiers: any[] = []
+            if (allModifiers.length > 0) {
+              const { data } = await supabase
+                .from('fighter_effect_modifiers')
+                .select('id, fighter_effect_id, stat_name, numeric_value')
+                .in('fighter_effect_id', insertedEffects.map(effect => effect.id))
+              actualModifiers = data || []
+            }
+
+            // Build applied effects response and calculate rating delta
+            effectTypes.forEach((effectType, index) => {
+              const insertedEffect = insertedEffects[index]
+              if (insertedEffect) {
+                // Get modifiers for this specific effect
+                const effectModifiers = actualModifiers?.filter(mod => mod.fighter_effect_id === insertedEffect.id) || []
+                
+                appliedEffects.push({
+                  id: insertedEffect.id,
+                  effect_name: effectType.effect_name,
+                  type_specific_data: effectType.type_specific_data,
+                  created_at: new Date().toISOString(),
+                  category_name: (effectType.fighter_effect_categories as any)?.category_name,
+                  fighter_effect_modifiers: effectModifiers
+                })
+
+                // Rating delta calculation
+                const creditsIncrease = effectType.type_specific_data?.credits_increase || 0
+                if (params.fighter_id) {
+                  ratingDelta += creditsIncrease
+                } else if (params.vehicle_id && vehicleAssignedFighterId) {
+                  ratingDelta += creditsIncrease
+                }
+              }
+            })
+          }
+        }
+      } catch (effectError) {
+        console.error('Error applying effects:', effectError)
+      }
     }
 
-    // Handle beast creation (simplified for now - same logic as server action)
+    // Handle beast creation for fighter equipment purchases
     let createdBeasts: any[] = []
     let createdBeastsRatingDelta = 0
     
-    // TODO: Implement beast creation - keeping same logic as server action for now
+    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+      try {
+        // Check if this equipment can grant exotic beasts
+        const { data: beastConfigs } = await supabase
+          .from('exotic_beasts')
+          .select(`
+            *,
+            fighter_types (
+              id,
+              fighter_type,
+              cost,
+              movement,
+              weapon_skill,
+              ballistic_skill,
+              strength,
+              toughness,
+              wounds,
+              initiative,
+              attacks,
+              leadership,
+              cool,
+              willpower,
+              intelligence,
+              special_rules
+            )
+          `)
+          .eq('equipment_id', params.equipment_id)
+
+        if (beastConfigs && beastConfigs.length > 0) {
+          // Create beast fighters for each beast config
+          for (const beastConfig of beastConfigs) {
+            const fighterType = beastConfig.fighter_types
+            if (fighterType) {
+              // Create the beast fighter
+              const { data: newFighter, error: createError } = await supabase
+                .from('fighters')
+                .insert({
+                  fighter_name: fighterType.fighter_type,
+                  fighter_type: fighterType.fighter_type,
+                  fighter_type_id: beastConfig.fighter_type_id,
+                  fighter_class: 'exotic beast',
+                  gang_id: params.gang_id,
+                  credits: 0,
+                  movement: fighterType.movement,
+                  weapon_skill: fighterType.weapon_skill,
+                  ballistic_skill: fighterType.ballistic_skill,
+                  strength: fighterType.strength,
+                  toughness: fighterType.toughness,
+                  wounds: fighterType.wounds,
+                  initiative: fighterType.initiative,
+                  attacks: fighterType.attacks,
+                  leadership: fighterType.leadership,
+                  cool: fighterType.cool,
+                  willpower: fighterType.willpower,
+                  intelligence: fighterType.intelligence,
+                  special_rules: fighterType.special_rules || [],
+                  xp: 0
+                })
+                .select('id, fighter_name, fighter_type, fighter_class, credits, created_at')
+                .single()
+
+              if (createError || !newFighter) {
+                console.error('Error creating beast fighter:', createError)
+                continue
+              }
+
+              // Add default equipment for the beast
+              const { data: defaultEquipmentData } = await supabase
+                .from('fighter_defaults')
+                .select(`
+                  equipment_id,
+                  equipment:equipment_id (
+                    id,
+                    equipment_name,
+                    equipment_type,
+                    equipment_category,
+                    cost
+                  )
+                `)
+                .eq('fighter_type_id', beastConfig.fighter_type_id)
+                .not('equipment_id', 'is', null)
+
+              // Add each default equipment item
+              if (defaultEquipmentData && defaultEquipmentData.length > 0) {
+                for (const defaultItem of defaultEquipmentData) {
+                  await supabase
+                    .from('fighter_equipment')
+                    .insert({
+                      gang_id: params.gang_id,
+                      fighter_id: newFighter.id,
+                      equipment_id: defaultItem.equipment_id,
+                      purchase_cost: 0,
+                      original_cost: (defaultItem.equipment as any)?.cost || 0,
+                      user_id: user.id
+                    })
+                }
+              }
+
+              // Create ownership record
+              const { data: ownershipRecord } = await supabase
+                .from('fighter_exotic_beasts')
+                .insert({
+                  fighter_owner_id: params.fighter_id,
+                  fighter_pet_id: newFighter.id,
+                  fighter_equipment_id: newEquipmentId
+                })
+                .select('id')
+                .single()
+
+              if (ownershipRecord) {
+                // Link the beast to its ownership record for cascade deletion
+                await supabase
+                  .from('fighters')
+                  .update({ fighter_pet_id: ownershipRecord.id })
+                  .eq('id', newFighter.id)
+
+                createdBeasts.push({
+                  id: newFighter.id,
+                  fighter_name: newFighter.fighter_name,
+                  fighter_type: newFighter.fighter_type,
+                  fighter_class: newFighter.fighter_class,
+                  credits: newFighter.credits,
+                  equipment_source: 'Granted by equipment',
+                  created_at: newFighter.created_at
+                })
+
+                // Increase rating by base beast cost (counted via owner semantics)
+                const baseBeastCost = (fighterType.cost || 0)
+                createdBeastsRatingDelta += baseBeastCost
+              }
+            }
+          }
+        }
+      } catch (beastCreationError) {
+        console.error('Error in beast creation process:', beastCreationError)
+      }
+    }
 
     // Update rating if needed
     if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
