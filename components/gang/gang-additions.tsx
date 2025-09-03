@@ -1368,36 +1368,52 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
               }
             });
             
-            // Convert the map values to an array and sort by alignment, then alphabetically
-            return Array.from(typeClassMap.values())
-              .sort((a, b) => {
-                // First sort by alignment
-                const alignmentOrder: Record<string, number> = {
-                  "law abiding": 1,
-                  "outlaw": 2,
-                  "unaligned": 3,
-                };
-                
-                const alignmentA = a.fighter.alignment?.toLowerCase() ?? "unaligned";
-                const alignmentB = b.fighter.alignment?.toLowerCase() ?? "unaligned";
-                
-                const alignmentRankA = alignmentOrder[alignmentA] ?? 4;
-                const alignmentRankB = alignmentOrder[alignmentB] ?? 4;
-                
-                if (alignmentRankA !== alignmentRankB) {
-                  return alignmentRankA - alignmentRankB;
-                }
-                
-                // Then sort alphabetically by fighter type
-                return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
+            // Convert the map values to an array and group by alignment
+            const groupedByAlignment = Array.from(typeClassMap.values()).reduce((groups, { fighter, cost }) => {
+              const alignment = fighter.alignment?.toLowerCase() ?? "unaligned";
+              if (!groups[alignment]) {
+                groups[alignment] = [];
+              }
+              groups[alignment].push({ fighter, cost });
+              return groups;
+            }, {} as Record<string, Array<{ fighter: any; cost: number }>>);
+
+            // Define alignment order and display names
+            const alignmentOrder: Record<string, number> = {
+              "law abiding": 1,
+              "outlaw": 2,
+              "unaligned": 3,
+            };
+
+            const alignmentDisplayNames: Record<string, string> = {
+              "law abiding": "Law Abiding",
+              "outlaw": "Outlaw",
+              "unaligned": "Unaligned",
+            };
+
+            // Sort alignments by order, then sort fighters within each group alphabetically
+            return Object.keys(groupedByAlignment)
+              .sort((a: string, b: string) => {
+                const orderA = alignmentOrder[a] ?? 4;
+                const orderB = alignmentOrder[b] ?? 4;
+                return orderA - orderB;
               })
-              .map(({ fighter, cost }) => {
-                const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} (${cost} credits)`;
-                
+              .map((alignment: string) => {
+                const fighters = groupedByAlignment[alignment]
+                  .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => a.fighter.fighter_type.localeCompare(b.fighter.fighter_type));
+
                 return (
-                  <option key={fighter.id} value={fighter.id}>
-                    {displayName}
-                  </option>
+                  <optgroup key={alignment} label={alignmentDisplayNames[alignment]}>
+                    {fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
+                      const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} (${cost} credits)`;
+                      
+                      return (
+                        <option key={fighter.id} value={fighter.id}>
+                          {displayName}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
                 );
               });
           })()}
