@@ -394,23 +394,51 @@ const ItemModal: React.FC<ItemModalProps> = ({
         queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
           if (!old) return old;
           
-          // Create optimistic effects based on selected effect IDs
-          const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => ({
-            id: `temp-effect-${Date.now()}-${index}`,
-            effect_name: 'Loading...', // Will be updated with real data on success
-            type_specific_data: {
-              equipment_id: variables.equipment_id,
-              effect_selection: 'fixed'
-            },
-            fighter_effect_modifiers: [{
-              id: `temp-mod-${Date.now()}-${index}`,
-              fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
-              stat_name: 'loading',
-              numeric_value: 0
-            }],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
+          // Create optimistic effects using real effect data from item_data
+          const itemData = variables.item_data;
+          const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => {
+            // Find the matching effect data from the equipment's fighter_effects
+            const effectData = itemData.fighter_effects?.find((effect: any) => effect.id === effectId);
+            
+            if (!effectData) {
+              // Fallback to generic data if effect not found
+              return {
+                id: `temp-effect-${Date.now()}-${index}`,
+                effect_name: 'Loading...',
+                type_specific_data: {
+                  equipment_id: variables.equipment_id,
+                  effect_selection: 'fixed'
+                },
+                fighter_effect_modifiers: [{
+                  id: `temp-mod-${Date.now()}-${index}`,
+                  fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
+                  stat_name: 'loading',
+                  numeric_value: 0
+                }],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+            }
+
+            // Use real effect data for optimistic update
+            const tempEffectId = `temp-effect-${Date.now()}-${index}`;
+            return {
+              id: tempEffectId,
+              effect_name: effectData.effect_name,
+              type_specific_data: effectData.type_specific_data || {
+                equipment_id: variables.equipment_id,
+                effect_selection: 'fixed'
+              },
+              fighter_effect_modifiers: effectData.modifiers?.map((modifier: any, modIndex: number) => ({
+                id: `temp-mod-${Date.now()}-${index}-${modIndex}`,
+                fighter_effect_id: tempEffectId,
+                stat_name: modifier.stat_name,
+                numeric_value: modifier.default_numeric_value
+              })) || [],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          });
           
           return {
             ...old,
