@@ -406,7 +406,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentInput): Promise
 
         if (effectTypes && effectTypes.length > 0) {
           // Batch insert all effects
-          const effectsToInsert = effectTypes.map(effectType => ({
+          const effectsToInsert = effectTypes.map((effectType: any) => ({
             fighter_id: params.fighter_id || null,
             vehicle_id: params.vehicle_id || null,
             fighter_effect_type_id: effectType.id,
@@ -428,10 +428,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentInput): Promise
           if (insertedEffects && insertedEffects.length > 0) {
             // Batch insert all modifiers
             const allModifiers: any[] = []
-            effectTypes.forEach((effectType, index) => {
+            effectTypes.forEach((effectType: any, index: number) => {
               const effectId = insertedEffects[index].id
               if (effectType.fighter_effect_type_modifiers) {
-                effectType.fighter_effect_type_modifiers.forEach(modifier => {
+                effectType.fighter_effect_type_modifiers.forEach((modifier: any) => {
                   allModifiers.push({
                     fighter_effect_id: effectId,
                     stat_name: modifier.stat_name,
@@ -451,12 +451,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentInput): Promise
               const { data } = await supabase
                 .from('fighter_effect_modifiers')
                 .select('id, fighter_effect_id, stat_name, numeric_value')
-                .in('fighter_effect_id', insertedEffects.map(effect => effect.id))
+                .in('fighter_effect_id', insertedEffects.map((effect: any) => effect.id))
               actualModifiers = data || []
             }
 
             // Build applied effects response and calculate rating delta
-            effectTypes.forEach((effectType, index) => {
+            effectTypes.forEach((effectType: any, index: number) => {
               const insertedEffect = insertedEffects[index]
               if (insertedEffect) {
                 // Get modifiers for this specific effect

@@ -184,7 +184,7 @@ export function WeaponList({
           if (!old) return old;
           
           // Remove the deleted effects from the cache
-          const deletedEffectIds = data.deleted_effects.map((effect: any) => effect.id);
+          const deletedEffectIds = data?.deleted_effects?.map((effect: any) => effect.id) || [];
           return {
             ...old,
             equipment: (old?.equipment || []).filter((effect: any) => 
@@ -282,17 +282,17 @@ export function WeaponList({
       const soldEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
       
       // Update fighter total cost if provided in response
-      if (data.fighter_total_cost !== undefined) {
+      if (data && data.fighter_total_cost !== undefined) {
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
       }
 
       // Update fighter effects with real server data if effects were deleted
-      if (data.deleted_effects && data.deleted_effects.length > 0) {
+      if (data && data.deleted_effects && data.deleted_effects.length > 0) {
         queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
           if (!old) return old;
           
           // Remove the deleted effects from the cache
-          const deletedEffectIds = data.deleted_effects.map((effect: any) => effect.id);
+          const deletedEffectIds = data?.deleted_effects?.map((effect: any) => effect.id) || [];
           return {
             ...old,
             equipment: (old?.equipment || []).filter((effect: any) => 
