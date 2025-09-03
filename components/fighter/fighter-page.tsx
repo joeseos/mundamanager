@@ -218,6 +218,8 @@ export default function FighterPage({
           } : undefined
         }),
         ...(variables.fighter_gang_legacy_id !== undefined && { fighter_gang_legacy_id: variables.fighter_gang_legacy_id }),
+        ...(variables.note !== undefined && { note: variables.note }),
+        ...(variables.note_backstory !== undefined && { note_backstory: variables.note_backstory }),
       }));
       
       return { previousFighter };
@@ -743,12 +745,8 @@ export default function FighterPage({
                 fighterId={currentFighter.id}
                 initialNote={currentFighter.note}
                 initialNoteBackstory={currentFighter.note_backstory}
-                onNoteUpdate={() => {
-                  // Note updates will be handled by TanStack Query optimistic updates
-                }}
-                onNoteBackstoryUpdate={() => {
-                  // Note updates will be handled by TanStack Query optimistic updates
-                }}
+                onNoteUpdate={(params) => updateDetailsMutation.mutate(params)}
+                onNoteBackstoryUpdate={(params) => updateDetailsMutation.mutate(params)}
                 userPermissions={userPermissions}
               />
             )}

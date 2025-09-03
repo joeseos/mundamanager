@@ -77,53 +77,27 @@ export function FighterActions({
     }));
   };
 
-  const handleDeleteFighter = useCallback(async () => {
+  const handleDeleteFighter = useCallback(() => {
     if (!fighter || !gang) return;
 
-    try {
-      const result = await editFighterStatus({
-        fighter_id: fighter.id,
-        action: 'delete'
-      });
+    // Show success toast immediately  
+    toast({
+      description: `${fighter.fighter_name} has been successfully deleted.`,
+      variant: "default"
+    });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete fighter');
-      }
+    // Close modal immediately
+    setModals(prev => ({
+      ...prev,
+      delete: false
+    }));
 
-      toast({
-        description: `${fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
-      });
-
-      // Navigate to the gang page as returned by the server action
-      if (result.data?.redirectTo) {
-        router.push(result.data.redirectTo);
-      } else {
-        router.push(`/gang/${gang.id}`);
-      }
-    } catch (error) {
-      console.error('Error deleting fighter:', {
-        error,
-        fighterId: fighter.id,
-        fighterName: fighter.fighter_name
-      });
-
-      const message = error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred. Please try again.';
-
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive"
-      });
-    } finally {
-      setModals(prev => ({
-        ...prev,
-        delete: false
-      }));
-    }
-  }, [fighter, gang, toast, router]);
+    // Use the TanStack Query mutation for optimistic updates
+    onStatusUpdate({
+      fighter_id: fighter.id,
+      action: 'delete'
+    });
+  }, [fighter, gang, toast, onStatusUpdate]);
 
   const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number) => {
     // Use the TanStack Query mutation for optimistic updates

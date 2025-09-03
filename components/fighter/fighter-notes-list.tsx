@@ -5,14 +5,13 @@ import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterDetails } from '@/app/lib/server-functions/edit-fighter';
 
 interface FighterNotesProps {
   fighterId: string;
   initialNote?: string;
   initialNoteBackstory?: string;
-  onNoteUpdate?: (updatedNote: string) => void;
-  onNoteBackstoryUpdate?: (updatedNoteBackstory: string) => void;
+  onNoteUpdate: (params: { fighter_id: string; note: string }) => void;
+  onNoteBackstoryUpdate: (params: { fighter_id: string; note_backstory: string }) => void;
   userPermissions: UserPermissions;
 }
 
@@ -20,7 +19,7 @@ interface NoteEditorProps {
   title: string;
   content: string;
   onContentChange: (content: string) => void;
-  onSave: () => Promise<void>;
+  onSave: () => void;
   placeholder: string;
   charLimit: number;
   userPermissions?: UserPermissions;
@@ -37,25 +36,8 @@ function NoteEditor({
 }: NoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [savedContent, setSavedContent] = useState<string>('');
   const { toast } = useToast();
 
-  // Update content when not editing
-  useEffect(() => {
-    if (!isEditing) {
-      onContentChange(content);
-    }
-  }, [content, isEditing, onContentChange]);
-
-  // Track when the note has been refreshed from server
-  useEffect(() => {
-    if (isRefreshing && content === savedContent) {
-      // The server has returned our saved content, so refresh is complete
-      setIsRefreshing(false);
-    }
-  }, [content, isRefreshing, savedContent]);
 
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
@@ -71,38 +53,26 @@ function NoteEditor({
     return textContent.length === 0;
   };
 
-  const handleSave = async () => {
-    try {
-      setError(null);
-      setIsSaving(true);
+  const handleSave = () => {
+    setError(null);
 
-      const charCount = getCharCount(content);
-      if (charCount > charLimit) {
-        setError(`${title} cannot exceed ${charLimit} characters`);
-        return;
-      }
-
-      await onSave();
-
-      toast({
-        description: `${title} updated successfully`,
-        variant: "default"
-      });
-
-      setSavedContent(content);
-      setIsEditing(false);
-      setIsRefreshing(true);
-    } catch (error) {
-      console.error(`Error updating ${title.toLowerCase()}:`, error);
-      setError(error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`);
-      toast({
-        title: "Error",
-        description: `Failed to update ${title.toLowerCase()}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsSaving(false);
+    const charCount = getCharCount(content);
+    if (charCount > charLimit) {
+      setError(`${title} cannot exceed ${charLimit} characters`);
+      return;
     }
+
+    // Show success toast immediately
+    toast({
+      description: `${title} updated successfully`,
+      variant: "default"
+    });
+
+    // Close editor immediately
+    setIsEditing(false);
+
+    // Call the mutation (optimistic update will handle the rest)
+    onSave();
   };
 
   return (
@@ -120,23 +90,22 @@ function NoteEditor({
                       setError(null);
                     }}
                     variant="outline"
-                    disabled={isSaving}
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSave}
-                    disabled={getCharCount(content) > charLimit || isSaving}
+                    disabled={getCharCount(content) > charLimit}
                   >
-                    {isSaving ? "Saving..." : "Save"}
+                    Save
                   </Button>
                 </>
               ) : (
                 <Button 
                   onClick={() => setIsEditing(true)}
-                  disabled={!userPermissions?.canEdit || isRefreshing}
+                  disabled={!userPermissions?.canEdit}
                 >
-                  {isRefreshing ? "Updating..." : "Edit"}
+                  Edit
                 </Button>
               )}
             </div>
@@ -186,34 +155,20 @@ export function FighterNotes({
     setNoteBackstory(initialNoteBackstory || '');
   }, [initialNoteBackstory]);
 
-  const handleNoteSave = async () => {
+  const handleNoteSave = () => {
     const cleanNote = note.trim() === '' ? '' : note;
-    
-    const result = await updateFighterDetails({
+    onNoteUpdate({
       fighter_id: fighterId,
       note: cleanNote
     });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update notes');
-    }
-
-    onNoteUpdate?.(note);
   };
 
-  const handleNoteBackstorySave = async () => {
+  const handleNoteBackstorySave = () => {
     const cleanNoteBackstory = noteBackstory.trim() === '' ? '' : noteBackstory;
-    
-    const result = await updateFighterDetails({
+    onNoteBackstoryUpdate({
       fighter_id: fighterId,
       note_backstory: cleanNoteBackstory
     });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update backstory notes');
-    }
-
-    onNoteBackstoryUpdate?.(noteBackstory);
   };
 
   return (
