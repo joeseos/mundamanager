@@ -1093,12 +1093,22 @@ export function EditFighterModal({
         stats: formValues.stats
       };
       
-      await onSubmit(submitData);
+      // Close modal immediately and show success toast
+      onClose();
       toast({
         description: 'Fighter updated successfully',
         variant: "default"
       });
-      onClose();
+      
+      // Trigger the mutation in the background (optimistic update will handle UI)
+      onSubmit(submitData).catch(error => {
+        console.error('Error updating fighter:', error);
+        toast({
+          description: 'Failed to update fighter',
+          variant: "destructive"
+        });
+      });
+      
       return true;
     } catch (error) {
       console.error('Error updating fighter:', error);

@@ -1,27 +1,22 @@
 'use client';
 
-import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
-import { Equipment } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { SkillsList } from "@/components/fighter/fighter-skills-list";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { FighterNotes } from "@/components/fighter/fighter-notes-list";
-import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
 import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
-import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXp, updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects } from "@/app/lib/server-functions/edit-fighter";
+import { updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects } from "@/app/lib/server-functions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
@@ -38,97 +33,6 @@ interface FighterPageProps {
   }>;
   userPermissions: UserPermissions;
   fighterId: string;
-}
-
-interface Fighter {
-  id: string;
-  fighter_name: string;
-  fighter_type: {
-    fighter_type: string;
-    fighter_type_id: string;
-  };
-  fighter_sub_type?: {
-    fighter_sub_type: string;
-    fighter_sub_type_id: string;
-  };
-  fighter_class?: string;
-  alliance_crew_name?: string;
-  label?: string;
-  credits: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  xp: number;
-  total_xp: number;
-  killed?: boolean;
-  retired?: boolean;
-  enslaved?: boolean;
-  starved?: boolean;
-  recovery?: boolean;
-  captured?: boolean;
-  free_skill?: boolean;
-  kills: number;
-  advancements?: {
-    characteristics: Record<string, any>;
-    skills: Record<string, any>;
-  };
-  note?: string;
-  note_backstory?: string;
-  special_rules?: string[];
-  cost_adjustment?: number;
-  injury_advances?: number;
-  skills?: FighterSkills;
-  effects: {
-    injuries: FighterEffect[];
-    advancements: FighterEffect[];
-    bionics: FighterEffect[];
-    cyberteknika: FighterEffect[];
-    'gene-smithing': FighterEffect[];
-    'rig-glitches': FighterEffect[];
-    augmentations: FighterEffect[];
-    equipment: FighterEffect[];
-    user: FighterEffect[];
-  };
-  vehicles?: Vehicle[];
-  gang_id?: string;
-  gang_type_id?: string;
-  campaigns?: any[];
-  weapons?: any[];
-  wargear?: any[];
-  owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
-  image_url?: string;
-}
-
-interface Gang {
-  id: string;
-  credits: number;
-  positioning?: Record<number, string>;
-  gang_type_id: string;
-  gang_affiliation_id?: string | null;
-  gang_affiliation_name?: string;
-  rating?: number;
-}
-
-interface FighterPageState {
-  fighter: Fighter | null;
-  equipment: Equipment[];
-  vehicleEquipment: VehicleEquipment[];
-  gang: Gang | null;
-  gangFighters: {
-    id: string;
-    fighter_name: string;
-    fighter_type: string;
-    xp: number | null;
-  }[];
 }
 
 interface UIState {
@@ -151,100 +55,6 @@ interface EditState {
   xpAmount: string;
   xpError: string;
 }
-
-
-// Helper function to transform fighter data
-const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
-  // Transform skills
-  const transformedSkills: FighterSkills = {};
-  if (Array.isArray(fighterData.fighter.skills)) {
-    fighterData.fighter.skills.forEach((skill: any) => {
-      if (skill.name) {
-        transformedSkills[skill.name] = {
-          id: skill.id,
-          credits_increase: skill.credits_increase,
-          xp_cost: skill.xp_cost,
-          is_advance: skill.is_advance,
-          acquired_at: skill.acquired_at,
-          fighter_injury_id: skill.fighter_injury_id
-        };
-      }
-    });
-  } else if (typeof fighterData.fighter.skills === 'object' && fighterData.fighter.skills !== null) {
-    Object.assign(transformedSkills, fighterData.fighter.skills);
-  }
-
-  // Transform equipment
-  const transformedEquipment = (fighterData.equipment || []).map((item: any) => ({
-    fighter_equipment_id: item.fighter_equipment_id,
-    equipment_id: item.equipment_id,
-    equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-      ? `${item.equipment_name} (Master-crafted)`
-      : item.equipment_name,
-    equipment_type: item.equipment_type,
-    cost: item.purchase_cost,
-    base_cost: item.original_cost,
-    weapon_profiles: item.weapon_profiles,
-    core_equipment: item.core_equipment,
-    is_master_crafted: item.is_master_crafted
-  }));
-
-  // Transform vehicle equipment
-  const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
-    fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
-    equipment_id: item.equipment_id,
-    equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-      ? `${item.equipment_name} (Master-crafted)`
-      : item.equipment_name,
-    equipment_type: item.equipment_type,
-    cost: item.purchase_cost,
-    base_cost: item.original_cost,
-    core_equipment: false,
-    vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
-    vehicle_equipment_id: item.vehicle_weapon_id || item.id
-  }));
-
-  return {
-    fighter: {
-      ...fighterData.fighter,
-      fighter_class: fighterData.fighter.fighter_class,
-      fighter_type: {
-        fighter_type: fighterData.fighter.fighter_type.fighter_type,
-        fighter_type_id: fighterData.fighter.fighter_type.id
-      },
-      fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
-        fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
-        fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
-      } : undefined,
-      base_credits: fighterData.fighter.credits - (fighterData.fighter.cost_adjustment || 0),
-      gang_id: fighterData.gang.id,
-      gang_type_id: fighterData.gang.gang_type_id,
-      skills: transformedSkills,
-      effects: {
-        injuries: fighterData.fighter.effects?.injuries || [],
-        advancements: fighterData.fighter.effects?.advancements || [],
-        bionics: fighterData.fighter.effects?.bionics || [],
-        cyberteknika: fighterData.fighter.effects?.cyberteknika || [],
-        'gene-smithing': fighterData.fighter.effects?.['gene-smithing'] || [],
-        'rig-glitches': fighterData.fighter.effects?.['rig-glitches'] || [],
-        augmentations: fighterData.fighter.effects?.augmentations || [],
-        equipment: fighterData.fighter.effects?.equipment || [],
-        user: fighterData.fighter.effects?.user || []
-      }
-    },
-    equipment: transformedEquipment,
-    vehicleEquipment: transformedVehicleEquipment,
-    gang: {
-      id: fighterData.gang.id,
-      credits: fighterData.gang.credits,
-      gang_type_id: fighterData.gang.gang_type_id,
-      gang_affiliation_id: fighterData.gang.gang_affiliation_id,
-      gang_affiliation_name: fighterData.gang.gang_affiliation_name,
-      positioning: fighterData.gang.positioning
-    },
-    gangFighters: gangFighters
-  };
-};
 
 export default function FighterPage({ 
   initialFighterData, 
@@ -272,16 +82,26 @@ export default function FighterPage({
     queryFn: () => queryGangCredits(fighter?.gang_id || ''),
     enabled: false // Disabled - data is prefetched on server
   });
-  const { data: gangPositioning, isLoading: positioningLoading } = useQuery({
+  const { data: gangPositioning } = useQuery({
     queryKey: queryKeys.gangs.positioning(fighter?.gang_id || ''),
     queryFn: () => queryGangPositioning(fighter?.gang_id || ''),
     enabled: false // Disabled - data is prefetched on server
   });
 
-  // Transform initial data and set up fallback state for transitions
-  const [fighterData, setFighterData] = useState<FighterPageState>(() => 
-    transformFighterData(initialFighterData, initialGangFighters)
-  );
+  // Computed total cost from all query data
+  const currentTotalCost = useMemo(() => {
+    if (!fighter) return 0;
+    
+    const baseCost = fighter.credits || 0;
+    const equipmentCost = (equipment || []).reduce((sum, item) => sum + (item.purchase_cost || 0), 0);
+    const skillsCost = Object.values(skills || {}).reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);
+    const effectsCost = Object.values(effects || {}).flat().reduce((sum, effect) => {
+      return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
+    }, 0);
+    const costAdjustment = fighter.cost_adjustment || 0;
+    
+    return baseCost + equipmentCost + skillsCost + effectsCost + costAdjustment;
+  }, [fighter, equipment, skills, effects]);
 
   const [uiState, setUiState] = useState<UIState>({
     isLoading: false,
@@ -335,7 +155,6 @@ export default function FighterPage({
     }
   }, [toast]);
 
-
   // Direct server action mutations with optimistic updates
   const updateXpMutation = useMutation({
     mutationFn: updateFighterXpWithOoa,
@@ -347,17 +166,15 @@ export default function FighterPage({
       const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(variables.fighter_id));
 
       // Optimistically update
-      if (previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), (old: any) => ({
-          ...old,
-          xp: old.xp + variables.xp_to_add,
-          kills: old.kills + (variables.ooa_count || 0),
-        }));
-      }
+      queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), (old: any) => ({
+        ...old,
+        xp: old.xp + variables.xp_to_add,
+        kills: old.kills + (variables.ooa_count || 0),
+      }));
 
       return { previousFighter };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, variables, context) => {
       // Rollback on error
       if (context?.previousFighter) {
         queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), context.previousFighter);
@@ -376,47 +193,44 @@ export default function FighterPage({
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       
       // Snapshot previous values for rollback
-      const previousFighterData = { ...fighterData };
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
       
-      // Optimistically update the local state IMMEDIATELY
-      setFighterData(prev => ({
-        ...prev,
-        fighter: {
-          ...prev.fighter!,
-          ...(variables.fighter_name !== undefined && { fighter_name: variables.fighter_name }),
-          ...(variables.label !== undefined && { label: variables.label }),
-          ...(variables.kills !== undefined && { kills: variables.kills }),
-          ...(variables.cost_adjustment !== undefined && { cost_adjustment: variables.cost_adjustment }),
-          ...(variables.special_rules !== undefined && { special_rules: variables.special_rules }),
-          ...(variables.fighter_class !== undefined && { fighter_class: variables.fighter_class }),
-          ...(variables.fighter_class_id !== undefined && { fighter_class_id: variables.fighter_class_id }),
-          ...(variables.fighter_type !== undefined && variables.fighter_type_id !== undefined && {
-            fighter_type: {
-              fighter_type: variables.fighter_type,
-              fighter_type_id: variables.fighter_type_id
-            }
-          }),
-          ...(variables.fighter_sub_type !== undefined && variables.fighter_sub_type_id !== undefined && {
-            fighter_sub_type: variables.fighter_sub_type && variables.fighter_sub_type_id ? {
-              fighter_sub_type: variables.fighter_sub_type,
-              fighter_sub_type_id: variables.fighter_sub_type_id
-            } : undefined
-          }),
-          ...(variables.fighter_gang_legacy_id !== undefined && { fighter_gang_legacy_id: variables.fighter_gang_legacy_id }),
-        }
+      // Optimistically update the fighter cache
+      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => ({
+        ...old,
+        ...(variables.fighter_name !== undefined && { fighter_name: variables.fighter_name }),
+        ...(variables.label !== undefined && { label: variables.label }),
+        ...(variables.kills !== undefined && { kills: variables.kills }),
+        ...(variables.cost_adjustment !== undefined && { cost_adjustment: variables.cost_adjustment }),
+        ...(variables.special_rules !== undefined && { special_rules: variables.special_rules }),
+        ...(variables.fighter_class !== undefined && { fighter_class: variables.fighter_class }),
+        ...(variables.fighter_class_id !== undefined && { fighter_class_id: variables.fighter_class_id }),
+        ...(variables.fighter_type !== undefined && variables.fighter_type_id !== undefined && {
+          fighter_type: {
+            fighter_type: variables.fighter_type,
+            fighter_type_id: variables.fighter_type_id
+          }
+        }),
+        ...(variables.fighter_sub_type !== undefined && variables.fighter_sub_type_id !== undefined && {
+          fighter_sub_type: variables.fighter_sub_type && variables.fighter_sub_type_id ? {
+            fighter_sub_type: variables.fighter_sub_type,
+            fighter_sub_type_id: variables.fighter_sub_type_id
+          } : undefined
+        }),
+        ...(variables.fighter_gang_legacy_id !== undefined && { fighter_gang_legacy_id: variables.fighter_gang_legacy_id }),
       }));
       
-      return { previousFighterData };
+      return { previousFighter };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // Rollback optimistic changes
-      if (context?.previousFighterData) {
-        setFighterData(context.previousFighterData);
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
       }
     },
-    onSuccess: (data, variables) => {
-      // No need to invalidate - we've already updated the local state
-      // The server response confirms our optimistic update was correct
+    onSuccess: () => {
+      // Modal should close immediately after optimistic update
+      handleModalToggle('editFighter', false);
     },
   });
 
@@ -424,19 +238,17 @@ export default function FighterPage({
     mutationFn: updateFighterEffects,
     onMutate: async (variables) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
       
       // Snapshot previous values for rollback
-      const previousFighterData = { ...fighterData };
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
       
-      // Optimistically update the local state IMMEDIATELY
-      // Add the new effects to the user effects category
-      setFighterData(prev => {
-        if (!prev.fighter) return prev;
+      // Optimistically update effects cache
+      queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+        if (!old) return old;
         
         const newUserEffects = Object.entries(variables.stats).map(([statName, adjustment]) => ({
-          id: `temp-${Date.now()}-${statName}`, // Temporary ID for optimistic update
+          id: `temp-${Date.now()}-${statName}`,
           effect_name: `User Adjustment: ${statName}`,
           type_specific_data: {
             stat_name: statName,
@@ -454,47 +266,36 @@ export default function FighterPage({
         }));
         
         return {
-          ...prev,
-          fighter: {
-            ...prev.fighter,
-            effects: {
-              ...prev.fighter.effects,
-              user: [...(prev.fighter.effects?.user || []), ...newUserEffects]
-            }
-          }
+          ...old,
+          user: [...(old?.user || []), ...newUserEffects]
         };
       });
       
-      return { previousFighterData };
+      return { previousEffects };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // Rollback optimistic changes
-      if (context?.previousFighterData) {
-        setFighterData(context.previousFighterData);
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
       }
-    },
-    onSuccess: (data, variables) => {
-      // No need to invalidate - we've already updated the local state
-      // The server response confirms our optimistic update was correct
     },
   });
 
-  // Sync local state with props when they change
+  // Update edit state when fighter data changes
   useEffect(() => {
-    setFighterData(transformFighterData(initialFighterData, initialGangFighters));
-    
-    // Update edit state
-    setEditState(prev => ({
-      ...prev,
-      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0)
-    }));
-  }, [initialFighterData, initialGangFighters]);
+    if (fighter) {
+      setEditState(prev => ({
+        ...prev,
+        costAdjustment: String(fighter.cost_adjustment || 0)
+      }));
+    }
+  }, [fighter]);
 
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
 
   // Helper function to convert Fighter to FighterProps for EditFighterModal
-  const convertToFighterProps = (fighter: Fighter): any => {
+  const convertToFighterProps = (fighter: any): any => {
     return {
       ...fighter,
       base_stats: {
@@ -525,33 +326,41 @@ export default function FighterPage({
         willpower: fighter.willpower,
         intelligence: fighter.intelligence,
       },
-      total_xp: fighter.total_xp,
+      total_xp: fighter.xp || 0,
       weapons: [],
       wargear: [],
       advancements: {
         characteristics: {},
         skills: {}
+      },
+      effects: effects || {
+        injuries: [],
+        advancements: [],
+        bionics: [],
+        cyberteknika: [],
+        'gene-smithing': [],
+        'rig-glitches': [],
+        augmentations: [],
+        equipment: [],
+        user: []
       }
     };
   };
 
-
-
-  // Gang fighters are already provided in initialGangFighters, no need to fetch them again
+  // Gang fighters from initial data
+  const gangFighters = initialGangFighters;
 
   const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     router.push(`/fighter/${e.target.value}`);
   };
 
-  const handleNameUpdate = useCallback((newName: string) => {
-    setFighterData(prev => ({
-      ...prev,
-      fighter: prev.fighter ? { ...prev.fighter, fighter_name: newName } : null
-    }));
+  const handleNameUpdate = useCallback((_newName: string) => {
+    // Update will be handled by TanStack Query optimistic updates
+    // No local state update needed
   }, []);
 
   const handleAddXp = async (ooaCount?: number) => {
-    if (!/^-?\d+$/.test(editState.xpAmount)) {
+    if (!/^-?\\d+$/.test(editState.xpAmount)) {
       setEditState(prev => ({
         ...prev,
         xpError: 'Please enter a valid integer'
@@ -610,11 +419,9 @@ export default function FighterPage({
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
-    // No need to fetch latest credits - we use TanStack Query cache that was prefetched on server
-    
     // If opening the Edit Fighter modal, fetch fighter types first
-    if (modalName === 'editFighter' && value && fighterData.gang?.id && fighterData.gang?.gang_type_id) {
-      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id).then(() => {
+    if (modalName === 'editFighter' && value && gang?.id && gang?.gang_type_id) {
+      fetchFighterTypes(gang.id, gang.gang_type_id).then(() => {
         setUiState(prev => ({
           ...prev,
           modals: {
@@ -637,7 +444,7 @@ export default function FighterPage({
 
   // Use TanStack Query loading states
   const isLoading = fighterLoading || equipmentLoading || skillsLoading || effectsLoading || 
-                   vehiclesLoading || gangLoading || creditsLoading || positioningLoading;
+                   vehiclesLoading || gangLoading || creditsLoading;
 
   if (isLoading || uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
@@ -649,26 +456,14 @@ export default function FighterPage({
     </main>
   );
 
-  // Use TanStack Query data or fallback to initial data
-  // Prioritize local state updates for optimistic updates
-  const currentFighter = fighterData.fighter || fighter;
-  const currentEquipment = fighterData.equipment || equipment;
-  const currentSkills = fighterData.fighter?.skills || skills;
-  const currentEffects = fighterData.fighter?.effects || effects;
-  const currentVehicles = fighterData.fighter?.vehicles || vehicles;
-  const currentGang = fighterData.gang || gang;
-  const currentCredits = gangCredits ?? (fighterData.gang?.credits as number);
-
-  // Calculate total cost from current data
-  const baseCost = currentFighter?.credits || 0;
-  const equipmentCost = (currentEquipment || []).reduce((sum: number, item: any) => sum + (item.purchase_cost || 0), 0);
-  const skillsCost = Object.values(currentSkills || {}).reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
-  const effectsCost = Object.values(currentEffects || {}).flat().reduce((sum: number, effect: any) => {
-    return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
-  }, 0);
-  const costAdjustment = currentFighter?.cost_adjustment || 0;
-  
-  const currentTotalCost = baseCost + equipmentCost + skillsCost + effectsCost + costAdjustment;
+  // Use TanStack Query data directly
+  const currentFighter = fighter;
+  const currentEquipment = equipment;
+  const currentSkills = skills;
+  const currentEffects = effects;
+  const currentVehicles = vehicles;
+  const currentGang = gang;
+  const currentCredits = gangCredits;
 
   if (uiState.error || !currentFighter || !currentGang) return (
     <main className="flex min-h-screen flex-col items-center">
@@ -692,9 +487,9 @@ export default function FighterPage({
               onChange={handleFighterChange}
               className="w-full p-2 border rounded"
             >
-            {[...fighterData.gangFighters]
+            {[...gangFighters]
               .sort((a, b) => {
-                const positioning = fighterData.gang?.positioning || {};
+                const positioning = gangPositioning || {};
                 const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
                 const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
                 const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
@@ -713,7 +508,7 @@ export default function FighterPage({
             name={currentFighter?.fighter_name || ''}
             type={typeof currentFighter?.fighter_type === 'string' 
               ? currentFighter.fighter_type 
-              : currentFighter?.fighter_type?.fighter_type || ''}
+              : (currentFighter?.fighter_type as any)?.fighter_type || ''}
             sub_type={(currentFighter as any)?.fighter_sub_type_id ? { 
               fighter_sub_type: 'Unknown', // We'd need to fetch this separately
               fighter_sub_type_id: (currentFighter as any).fighter_sub_type_id 
@@ -760,7 +555,7 @@ export default function FighterPage({
             }}
             vehicles={currentVehicles}
             gangId={currentGang?.id}
-            vehicleEquipment={fighterData.vehicleEquipment} // Keep using transformed data for now
+            vehicleEquipment={vehicle?.equipment || []}
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
             image_url={currentFighter?.image_url}
@@ -770,45 +565,13 @@ export default function FighterPage({
           {vehicle && (
             <VehicleEquipmentList
               fighterId={fighterId}
-              gangId={fighterData.gang?.id || ''}
-              gangCredits={fighterData.gang?.credits || 0}
-              fighterCredits={fighterData.fighter?.credits || 0}
-              onEquipmentUpdate={(updatedEquipment, newFighterCredits, newGangCredits, deletedEffects = []) => {
-                setFighterData(prev => {
-                  if (!prev.fighter) return prev;
-                  
-                  // Remove deleted effects from vehicle effects if any
-                  let updatedVehicles = prev.fighter.vehicles;
-                  if (deletedEffects.length > 0 && updatedVehicles?.[0]) {
-                    const vehicle = updatedVehicles[0];
-                    let updatedVehicleEffects = { ...vehicle.effects };
-                    
-                    // Remove deleted effects from each category
-                    Object.keys(updatedVehicleEffects).forEach(categoryKey => {
-                      updatedVehicleEffects[categoryKey] = updatedVehicleEffects[categoryKey].filter(
-                        (effect: any) => !deletedEffects.some((deletedEffect: any) => deletedEffect.id === effect.id)
-                      );
-                    });
-                    
-                    updatedVehicles = [{
-                      ...vehicle,
-                      effects: updatedVehicleEffects
-                    }];
-                  }
-                  
-                  return {
-                    ...prev,
-                    vehicleEquipment: updatedEquipment,
-                    fighter: { 
-                      ...prev.fighter, 
-                      credits: newFighterCredits,
-                      vehicles: updatedVehicles
-                    },
-                    gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
-                  };
-                });
+              gangId={currentGang?.id || ''}
+              gangCredits={currentCredits || 0}
+              fighterCredits={currentFighter?.credits || 0}
+              onEquipmentUpdate={() => {
+                // Equipment updates will be handled by TanStack Query optimistic updates
               }}
-              equipment={fighterData.vehicleEquipment}
+              equipment={vehicle?.equipment || []}
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
               vehicleEffects={vehicle.effects}
@@ -819,24 +582,24 @@ export default function FighterPage({
             fighterId={fighterId}
             gangId={currentGang?.id || ''}
             gangCredits={currentCredits || 0}
-            fighterCredits={fighterData.fighter?.credits || 0}
+            fighterCredits={currentFighter?.credits || 0}
             equipment={(currentEquipment as any) || []}
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
             userPermissions={userPermissions}
           />
 
           <SkillsList
-            fighterId={fighterData.fighter?.id || ''}
-            free_skill={fighterData.fighter?.free_skill}
+            fighterId={currentFighter?.id || ''}
+            free_skill={currentFighter?.free_skill}
             userPermissions={userPermissions}
           />
 
           <AdvancementsList
-            key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
-            fighterXp={fighterData.fighter?.xp || 0}
-            fighterId={fighterData.fighter?.id || ''}
-            advancements={fighterData.fighter?.effects?.advancements || []}
-            skills={fighterData.fighter?.skills || {}}
+            key={`advancements-${Object.keys(currentSkills || {}).length}`}
+            fighterXp={currentFighter?.xp || 0}
+            fighterId={currentFighter?.id || ''}
+            advancements={currentEffects?.advancements || []}
+            skills={currentSkills || {}}
             onDeleteAdvancement={async () => {
               // Data will be updated via TanStack Query optimistic updates
             }}
@@ -847,46 +610,27 @@ export default function FighterPage({
           />
 
           <InjuriesList
-            injuries={fighterData.fighter?.effects?.injuries || []}
-            fighterId={fighterData.fighter?.id || ''}
-            fighterRecovery={fighterData.fighter?.recovery}
+            injuries={currentEffects?.injuries || []}
+            fighterId={currentFighter?.id || ''}
+            fighterRecovery={currentFighter?.recovery}
             userPermissions={userPermissions}
-            fighter_class={fighterData.fighter?.fighter_class}
+            fighter_class={currentFighter?.fighter_class}
           />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
           {vehicle && (
             <VehicleDamagesList
               damages={vehicle.effects ? vehicle.effects["lasting damages"] || [] : []}
-              onDamageUpdate={(updatedDamages) => {
-                setFighterData(prev => ({
-                  ...prev,
-                  fighter: prev.fighter ? {
-                    ...prev.fighter,
-                    vehicles: prev.fighter.vehicles?.map(v => 
-                      v.id === vehicle.id 
-                        ? { 
-                            ...v, 
-                            effects: { 
-                              ...v.effects, 
-                              "lasting damages": updatedDamages 
-                            } 
-                          }
-                        : v
-                    )
-                  } : null
-                }));
+              onDamageUpdate={() => {
+                // Damage updates will be handled by TanStack Query optimistic updates
               }}
-              fighterId={fighterData.fighter?.id || ''}
+              fighterId={currentFighter?.id || ''}
               vehicleId={vehicle.id}
-              gangId={fighterData.gang?.id || ''}
+              gangId={currentGang?.id || ''}
               vehicle={vehicle}
-              gangCredits={fighterData.gang?.credits || 0}
-              onGangCreditsUpdate={(newCredits) => {
-                setFighterData(prev => ({
-                  ...prev,
-                  gang: prev.gang ? { ...prev.gang, credits: newCredits } : null
-                }));
+              gangCredits={currentCredits || 0}
+              onGangCreditsUpdate={() => {
+                // Credits updates will be handled by TanStack Query optimistic updates
               }}
               userPermissions={userPermissions}
             />
@@ -894,22 +638,16 @@ export default function FighterPage({
 
           {/* Notes Section */}
           <div className="mt-6">
-            {fighterData.fighter && (
+            {currentFighter && (
               <FighterNotes
-                fighterId={fighterData.fighter.id}
-                initialNote={fighterData.fighter.note}
-                initialNoteBackstory={fighterData.fighter.note_backstory}
-                onNoteUpdate={(updatedNote) => {
-                  setFighterData(prev => ({
-                    ...prev,
-                    fighter: prev.fighter ? { ...prev.fighter, note: updatedNote } : null
-                  }));
+                fighterId={currentFighter.id}
+                initialNote={currentFighter.note}
+                initialNoteBackstory={currentFighter.note_backstory}
+                onNoteUpdate={() => {
+                  // Note updates will be handled by TanStack Query optimistic updates
                 }}
-                onNoteBackstoryUpdate={(updatedNoteBackstory) => {
-                  setFighterData(prev => ({
-                    ...prev,
-                    fighter: prev.fighter ? { ...prev.fighter, note_backstory: updatedNoteBackstory } : null
-                  }));
+                onNoteBackstoryUpdate={() => {
+                  // Note updates will be handled by TanStack Query optimistic updates
                 }}
                 userPermissions={userPermissions}
               />
@@ -928,7 +666,7 @@ export default function FighterPage({
               recovery: currentFighter?.recovery || false,
               captured: currentFighter?.captured || false,
               credits: currentFighter?.credits || 0,
-              campaigns: fighterData.fighter?.campaigns
+              campaigns: (currentFighter as any)?.campaigns
             }}
             gang={{ id: currentGang?.id || '' }}
             fighterId={fighterId}
@@ -939,11 +677,11 @@ export default function FighterPage({
           />
 
 
-          {uiState.modals.addXp && fighterData.fighter && (
+          {uiState.modals.addXp && currentFighter && (
             <FighterXpModal
               isOpen={uiState.modals.addXp}
               fighterId={fighterId}
-              currentXp={fighterData.fighter.xp ?? 0}
+              currentXp={currentFighter.xp ?? 0}
               onClose={() => {
                 setEditState(prev => ({
                   ...prev,
@@ -967,24 +705,24 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.editFighter && fighterData.fighter && (
+          {uiState.modals.editFighter && currentFighter && (
             <EditFighterModal
-              fighter={convertToFighterProps(fighterData.fighter)}
+              fighter={convertToFighterProps(currentFighter)}
               isOpen={uiState.modals.editFighter}
               initialValues={{
-                name: fighterData.fighter.fighter_name,
-                label: fighterData.fighter.label || '',
-                kills: fighterData.fighter.kills || 0,
-                costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
+                name: currentFighter.fighter_name,
+                label: currentFighter.label || '',
+                kills: currentFighter.kills || 0,
+                costAdjustment: String(currentFighter.cost_adjustment || 0)
               }}
-              gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.gang?.gang_type_id || ''}
+              gangId={currentGang?.id || ''}
+              gangTypeId={currentGang?.gang_type_id || ''}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
               onSubmit={async (values) => {
                 try {
                   // First, update fighter details
-                  const result = await updateDetailsMutation.mutateAsync({
+                  await updateDetailsMutation.mutateAsync({
                     fighter_id: fighterId,
                     fighter_name: values.name,
                     label: values.label,
@@ -1000,30 +738,21 @@ export default function FighterPage({
                     fighter_gang_legacy_id: values.fighter_gang_legacy_id,
                   });
 
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter');
-                  }
-
                   // Then, update fighter effects if there are any stats changes
                   if (values.stats && Object.keys(values.stats).length > 0) {
-                    const effectsResult = await updateEffectsMutation.mutateAsync({
+                    await updateEffectsMutation.mutateAsync({
                       fighter_id: fighterId,
                       stats: values.stats
                     });
-
-                    if (!effectsResult.success) {
-                      throw new Error(effectsResult.error || 'Failed to update fighter effects');
-                    }
                   }
 
-                  // No need to refresh - TanStack Query handles cache updates
                   return true;
                 } catch (error) {
                   console.error('Error updating fighter:', error);
                   return false;
                 }
               }}
-              onEffectsUpdate={async (stats) => {
+              onEffectsUpdate={async () => {
                 // This is now just a placeholder - the actual effects update will happen
                 // in the main fighter update mutation when the user confirms the main modal
                 return true;
@@ -1031,32 +760,32 @@ export default function FighterPage({
             />
           )}
 
-          {uiState.modals.addWeapon && fighterData.fighter && fighterData.gang && (
+          {uiState.modals.addWeapon && currentFighter && currentGang && (
             <ItemModal
               title="Add Equipment"
               onClose={() => handleModalToggle('addWeapon', false)}
               gangCredits={currentCredits || 0}
               gangId={currentGang?.id || ''}
               gangTypeId={currentGang?.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              gangAffiliationId={fighterData.gang.gang_affiliation_id}
-              fighterCredits={fighterData.fighter.credits}
-              fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
-              fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
+              fighterId={currentFighter.id}
+              fighterTypeId={(currentFighter.fighter_type as any)?.fighter_type_id}
+              gangAffiliationId={currentGang.gang_affiliation_id}
+              fighterCredits={currentFighter.credits}
+              fighterHasLegacy={Boolean(currentFighter?.fighter_gang_legacy_id)}
+              fighterLegacyName={(currentFighter as any)?.fighter_gang_legacy?.name}
             />
           )}
 
-          {uiState.modals.addVehicleEquipment && fighterData.fighter && fighterData.gang && vehicle && (
+          {uiState.modals.addVehicleEquipment && currentFighter && currentGang && vehicle && (
             <ItemModal
               title="Add Vehicle Equipment"
               onClose={() => handleModalToggle('addVehicleEquipment', false)}
               gangCredits={currentCredits || 0}
               gangId={currentGang?.id || ''}
               gangTypeId={currentGang?.gang_type_id}
-              fighterId={fighterData.fighter.id}
-              fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
-              fighterCredits={fighterData.fighter.credits}
+              fighterId={currentFighter.id}
+              fighterTypeId={(currentFighter.fighter_type as any)?.fighter_type_id}
+              fighterCredits={currentFighter.credits}
               vehicleId={vehicle.id}
               vehicleType={vehicle.vehicle_type}
               vehicleTypeId={vehicle.vehicle_type_id}
