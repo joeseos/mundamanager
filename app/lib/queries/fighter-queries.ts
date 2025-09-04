@@ -563,11 +563,12 @@ export const useGetFighterTotalCost = (
     queryKey: queryKeys.fighters.totalCost(fighterId),
     queryFn: async () => {
       // This would need to be implemented - calculate total cost from all fighter data
-      const [basic, equipment, skills, effects] = await Promise.all([
+      const [basic, equipment, skills, effects, vehicles] = await Promise.all([
         queryFighterBasic(fighterId),
         queryFighterEquipment(fighterId), 
         queryFighterSkills(fighterId),
-        queryFighterEffects(fighterId)
+        queryFighterEffects(fighterId),
+        queryFighterVehicles(fighterId)
       ])
       
       // Calculate total cost logic here
@@ -577,9 +578,10 @@ export const useGetFighterTotalCost = (
       const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
         return sum + ((effect.type_specific_data as any)?.credits_increase || 0)
       }, 0)
+      const vehicleCost = vehicles.reduce((sum, vehicle) => sum + (vehicle.cost || 0), 0)
       const adjustment = basic.cost_adjustment || 0
       
-      return baseCost + equipmentCost + skillsCost + effectsCost + adjustment
+      return baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + adjustment
     },
     enabled: false, // Disabled since we're using server-side prefetching
     staleTime: 1000 * 60 * 2, // 2 minutes (depends on frequently changing data)
