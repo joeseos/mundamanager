@@ -244,7 +244,7 @@ export function FighterXpModal({
       onClose={handleModalClose}
       onConfirm={() => onConfirm(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmountState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
-      confirmDisabled={!xpAmountState.xpAmount || !isValidXpInput(xpAmountState.xpAmount)}
+      confirmDisabled={!isValidXpInput(xpAmountState.xpAmount) || !!xpAmountState.xpError}
     />
   );
 } 

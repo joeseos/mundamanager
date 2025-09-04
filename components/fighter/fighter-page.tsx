@@ -462,7 +462,7 @@ export default function FighterPage({
   }, []);
 
   const handleAddXp = async (ooaCount?: number) => {
-    if (!/^-?\\d+$/.test(editState.xpAmount)) {
+    if (editState.xpAmount !== '' && !/^-?\d+$/.test(editState.xpAmount)) {
       setEditState(prev => ({
         ...prev,
         xpError: 'Please enter a valid integer'
@@ -470,9 +470,9 @@ export default function FighterPage({
       return false;
     }
 
-    const amount = parseInt(editState.xpAmount || '0');
+    const amount = parseInt(editState.xpAmount || '0', 10);
 
-    if (isNaN(amount) || !Number.isInteger(Number(amount))) {
+    if (isNaN(amount) || !Number.isInteger(amount)) {
       setEditState(prev => ({
         ...prev,
         xpError: 'Please enter a valid integer'
@@ -485,7 +485,9 @@ export default function FighterPage({
       xpError: ''
     }));
 
-    try {
+    // Return true immediately to close modal
+    setTimeout(async () => {
+      try {
       await updateXpMutation.mutateAsync({
         fighter_id: fighterId,
         xp_to_add: amount,
@@ -498,25 +500,25 @@ export default function FighterPage({
         successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
       }
 
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
+        toast({
+          description: successMessage,
+          variant: "default"
+        });
+      } catch (error) {
+        console.error('Error adding XP:', error);
+        
+        setEditState(prev => ({
+          ...prev,
+          xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
+        }));
+        toast({
+          description: error instanceof Error ? error.message : 'Failed to add XP',
+          variant: "destructive"
+        });
+      }
+    }, 0);
 
-      return true;
-    } catch (error) {
-      console.error('Error adding XP:', error);
-      
-      setEditState(prev => ({
-        ...prev,
-        xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
-      }));
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add XP',
-        variant: "destructive"
-      });
-      return false;
-    }
+    return true;
   };
 
   // Update modal handlers
