@@ -4,11 +4,12 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   addFighterInjury, 
-  deleteFighterInjury 
-} from '@/app/actions/fighter-injury';
+  deleteFighterInjury
+} from '@/app/lib/server-functions/fighter-injuries';
+import { queryKeys } from '@/app/lib/queries/keys';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew } from '@/utils/dice';
@@ -19,6 +20,7 @@ interface InjuriesListProps {
   injuries: Array<FighterEffect>;
   onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   fighterId: string;
+  gangId: string;
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
   fighter_class?: string;
@@ -28,64 +30,248 @@ export function InjuriesList({
   injuries = [],
   onInjuryUpdate,
   fighterId,
+  gangId,
   fighterRecovery = false,
   userPermissions,
   fighter_class
 }: InjuriesListProps) {
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [isCapturedModalOpen, setIsCapturedModalOpen] = useState(false);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
-  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
-  const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const fetchAvailableInjuries = useCallback(async () => {
-    if (isLoadingInjuries) return;
-    
-    try {
-      setIsLoadingInjuries(true);
-      const response = await fetch(
-        `/api/fighters/injuries`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch lasting injuries');
-      const data: FighterEffect[] = await response.json();
-      
-      setLocalAvailableInjuries(data);
-    } catch (error) {
-      console.error('Error fetching lasting injuries:', error);
-      toast({
-        description: 'Failed to load lasting injury types',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingInjuries(false);
-    }
-  }, [isLoadingInjuries, toast]);
+  // Query for available injuries using the API route (includes complete modifier data)
+  const { data: availableInjuries = [], isLoading: isLoadingInjuries } = useQuery({
+    queryKey: ['injuries', 'available'],
+    queryFn: async () => {
+      const response = await fetch('/api/fighters/injuries');
+      if (!response.ok) {
+        throw new Error('Failed to fetch injuries');
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    enabled: isAddModalOpen, // Only fetch when modal is open
+  });
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
-    if (localAvailableInjuries.length === 0) {
-      fetchAvailableInjuries();
-    }
-  }, [localAvailableInjuries.length, fetchAvailableInjuries]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
     setSelectedInjuryId('');
     setSelectedInjury(null);
   }, []);
+
+  // Mutation for adding injuries
+  const addInjuryMutation = useMutation({
+    mutationFn: addFighterInjury,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      
+      // Snapshot the previous values
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      
+      // Find the injury being added for optimistic update
+      const injuryToAdd = availableInjuries.find(inj => inj.id === variables.injury_type_id);
+      
+      if (injuryToAdd) {
+        // Optimistically add the injury (with temporary ID)
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          const optimisticInjury = {
+            ...injuryToAdd,
+            id: `temp-injury-${Date.now()}`, // Temporary ID for optimistic update
+            created_at: new Date().toISOString(),
+          };
+          
+          return {
+            ...old,
+            injuries: [...(old.injuries || []), optimisticInjury]
+          };
+        });
+        
+        // Check if this injury grants any skills and optimistically add them
+        // First check if injury has skill_name in type_specific_data (most common case)
+        const directSkillName = (injuryToAdd as any)?.type_specific_data?.skill_name;
+        
+        if (directSkillName) {
+          queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (oldSkills: any) => {
+            if (!oldSkills) return oldSkills;
+            
+            const newSkills = { ...oldSkills };
+            
+            if (!newSkills[directSkillName]) {
+              newSkills[directSkillName] = {
+                id: `temp-skill-${Date.now()}`,
+                credits_increase: 0,
+                xp_cost: 0,
+                is_advance: false,
+                fighter_effect_skill_id: `temp-effect-skill-${Date.now()}`,
+                fighter_injury_id: `temp-injury-${Date.now()}`, // Mark as injury-granted skill
+                created_at: new Date().toISOString(),
+                skill: { name: directSkillName },
+                fighter_effect_skills: {
+                  fighter_effects: {
+                    effect_name: injuryToAdd.effect_name
+                  }
+                },
+                injury_name: injuryToAdd.effect_name, // This shows in the Source column
+                source: `Granted by ${injuryToAdd.effect_name}`,
+                source_type: 'injury'
+              };
+            }
+            
+            return newSkills;
+          });
+        }
+        
+        // Also check modifiers for any additional skills
+        const injurySkills = (injuryToAdd as any)?.fighter_effect_type_modifiers?.filter(
+          (mod: any) => mod.stat_name?.includes('skill_') || 
+                       mod.skill_name || 
+                       (mod.type_specific_data && typeof mod.type_specific_data === 'object' && mod.type_specific_data.skill_name)
+        ) || [];
+        
+        if (injurySkills.length > 0) {
+          queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (oldSkills: any) => {
+            if (!oldSkills) return oldSkills;
+            
+            const newSkills = { ...oldSkills };
+            
+            injurySkills.forEach((skillMod: any, index: number) => {
+              // Extract skill name from various possible locations
+              let skillName = skillMod.skill_name;
+              if (!skillName && skillMod.stat_name?.includes('skill_')) {
+                skillName = skillMod.stat_name.replace('skill_', '').replace(/_/g, ' ');
+              }
+              if (!skillName && skillMod.type_specific_data?.skill_name) {
+                skillName = skillMod.type_specific_data.skill_name;
+              }
+              
+              if (skillName && !newSkills[skillName]) {
+                newSkills[skillName] = {
+                  id: `temp-skill-${Date.now()}-${index}`,
+                  credits_increase: 0,
+                  xp_cost: 0,
+                  is_advance: false,
+                  fighter_effect_skill_id: `temp-effect-skill-${Date.now()}-${index}`,
+                  fighter_injury_id: `temp-injury-${Date.now()}-${index}`, // Mark as injury-granted skill
+                  created_at: new Date().toISOString(),
+                  skill: { name: skillName },
+                  fighter_effect_skills: {
+                    fighter_effects: {
+                      effect_name: injuryToAdd.effect_name
+                    }
+                  },
+                  injury_name: injuryToAdd.effect_name, // This shows in the Source column
+                  source: `Granted by ${injuryToAdd.effect_name}`,
+                  source_type: 'injury'
+                };
+              }
+            });
+            
+            return newSkills;
+          });
+        }
+        
+        // Check if this injury has stat modifiers and update fighter characteristics
+        const statModifiers = injuryToAdd.fighter_effect_type_modifiers || [];
+        const hasStatModifiers = statModifiers.some((mod: any) => 
+          mod.stat_name && mod.default_numeric_value !== undefined
+        );
+        
+        // Check if this injury affects fighter status and update accordingly
+        const injuryData = injuryToAdd.type_specific_data || {};
+        const requiresRecovery = injuryData.recovery === "true" || variables.send_to_recovery;
+        const requiresCaptured = injuryData.captured === "true" || variables.set_captured;
+        
+        if (requiresRecovery || requiresCaptured || hasStatModifiers) {
+          queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => {
+            if (!oldFighter) return oldFighter;
+            
+            let updatedFighter = { ...oldFighter };
+            
+            // Update status flags
+            if (requiresRecovery) updatedFighter.recovery = true;
+            if (requiresCaptured) updatedFighter.captured = true;
+            
+            // Apply stat modifications
+            statModifiers.forEach((modifier: any) => {
+              if (modifier.stat_name && modifier.default_numeric_value !== undefined) {
+                const currentValue = updatedFighter[modifier.stat_name] || 0;
+                // Note: For injuries, modifiers are typically negative (reducing stats)
+                // The server handles the actual logic, but for optimistic updates we apply the modifier
+                updatedFighter[modifier.stat_name] = Math.max(0, currentValue + modifier.default_numeric_value);
+              }
+            });
+            
+            return updatedFighter;
+          });
+        }
+      }
+      
+      // Return a context object with the snapshotted values
+      return { previousEffects, previousSkills, previousFighter };
+    },
+    onSuccess: (result, variables) => {
+      const statusMessage = [];
+      if (variables.send_to_recovery) statusMessage.push('fighter sent to Recovery');
+      if (variables.set_captured) statusMessage.push('fighter marked as Captured');
+      
+      toast({
+        description: `Lasting injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
+        variant: "default"
+      });
+
+      // Invalidate queries to ensure we have fresh data with real IDs
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
+      // Clear modal state
+      setSelectedInjuryId('');
+      setSelectedInjury(null);
+      setIsAddModalOpen(false);
+      setIsRecoveryModalOpen(false);
+      setIsCapturedModalOpen(false);
+    },
+    onError: (error: Error, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      
+      toast({
+        description: `Failed to add lasting injury: ${error.message}`,
+        variant: "destructive"
+      });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure we have the correct data
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+    },
+  });
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -97,7 +283,7 @@ export function InjuriesList({
     }
 
     // Find the selected injury object
-    const injury = localAvailableInjuries.find(injury => injury.id === selectedInjuryId);
+    const injury = availableInjuries.find(injury => injury.id === selectedInjuryId);
     if (!injury) {
       toast({
         description: "Selected lasting injury not found",
@@ -126,92 +312,166 @@ export function InjuriesList({
       return false;
     } else {
       // Directly add the injury without asking for status changes
-      return await proceedWithAddingInjury(false, false);
+      addInjuryMutation.mutate({
+        fighter_id: fighterId,
+        injury_type_id: selectedInjuryId,
+        send_to_recovery: false,
+        set_captured: false
+      });
+      return true;
     }
   };
 
-  const proceedWithAddingInjury = async (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
+  const proceedWithAddingInjury = (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
     if (!selectedInjuryId) {
       toast({
         description: "Please select a lasting injury",
         variant: "destructive"
       });
-      return false;
+      return;
     }
 
-    try {
-      const result = await addFighterInjury({
-        fighter_id: fighterId,
-        injury_type_id: selectedInjuryId,
-        send_to_recovery: sendToRecovery,
-        set_captured: setCaptured
-      });
+    // Close the modals immediately for better UX
+    setIsRecoveryModalOpen(false);
+    setIsCapturedModalOpen(false);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add lasting injury');
-      }
-
-      const statusMessage = [];
-      if (sendToRecovery) statusMessage.push('fighter sent to Recovery');
-      if (setCaptured) statusMessage.push('fighter marked as Captured');
-      
-      toast({
-        description: `Lasting injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
-        variant: "default"
-      });
-
-      setSelectedInjuryId('');
-      setSelectedInjury(null);
-      setIsRecoveryModalOpen(false);
-      setIsCapturedModalOpen(false);
-      
-      // Refresh the page to get updated data
-      router.refresh();
-      
-      return true;
-    } catch (error) {
-      console.error('Error adding lasting injury:', error);
-      toast({
-        description: `Failed to add lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-      return false;
-    }
+    addInjuryMutation.mutate({
+      fighter_id: fighterId,
+      injury_type_id: selectedInjuryId,
+      send_to_recovery: sendToRecovery,
+      set_captured: setCaptured
+    });
   };
 
-  const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
-    try {
-      setIsDeleting(injuryId);
+  // Mutation for deleting injuries
+  const deleteInjuryMutation = useMutation({
+    mutationFn: deleteFighterInjury,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
       
-      const result = await deleteFighterInjury({
-        fighter_id: fighterId,
-        injury_id: injuryId
+      // Snapshot the previous values
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      
+      // Find the injury being deleted to get its name
+      const injuryToDelete = (previousEffects as any)?.injuries?.find(
+        (injury: any) => injury.id === variables.injury_id
+      );
+      
+      // Optimistically update to remove the injury
+      queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          injuries: old.injuries?.filter((injury: any) => injury.id !== variables.injury_id) || []
+        };
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete lasting injury');
+      
+      // Remove any skills that were granted by this injury and reverse stat modifiers
+      if (injuryToDelete) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (oldSkills: any) => {
+          if (!oldSkills) return oldSkills;
+          
+          const newSkills = { ...oldSkills };
+          
+          // Remove skills that have this injury as their source
+          Object.keys(newSkills).forEach(skillName => {
+            const skill = newSkills[skillName];
+            if (skill.injury_name === injuryToDelete.effect_name || 
+                skill.fighter_effect_skills?.fighter_effects?.effect_name === injuryToDelete.effect_name) {
+              delete newSkills[skillName];
+            }
+          });
+          
+          return newSkills;
+        });
+        
+        // Check if the injury being deleted has stat modifiers and reverse them
+        // We need to find the original injury data to get the modifiers
+        const originalInjury = availableInjuries.find(inj => 
+          inj.effect_name === injuryToDelete.effect_name
+        );
+        
+        if (originalInjury?.fighter_effect_type_modifiers) {
+          const statModifiers = originalInjury.fighter_effect_type_modifiers.filter((mod: any) => 
+            mod.stat_name && mod.default_numeric_value !== undefined
+          );
+          
+          if (statModifiers.length > 0) {
+            queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => {
+              if (!oldFighter) return oldFighter;
+              
+              let updatedFighter = { ...oldFighter };
+              
+              // Reverse stat modifications by subtracting the modifier values
+              statModifiers.forEach((modifier: any) => {
+                if (modifier.stat_name && modifier.default_numeric_value !== undefined) {
+                  const currentValue = updatedFighter[modifier.stat_name] || 0;
+                  // Reverse the modifier by subtracting it (opposite of adding)
+                  updatedFighter[modifier.stat_name] = Math.max(0, currentValue - modifier.default_numeric_value);
+                }
+              });
+              
+              return updatedFighter;
+            });
+          }
+        }
       }
       
+      // Return a context object with the snapshotted values
+      return { previousEffects, previousSkills, previousFighter };
+    },
+    onSuccess: (result, variables) => {
+      const injuryName = deleteModalData?.name || 'Lasting injury';
       toast({
         description: `${injuryName} removed successfully`,
         variant: "default"
       });
       
-      // Refresh the page to get updated data
-      router.refresh();
+      // Invalidate queries to ensure we have fresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       
-      return true;
-    } catch (error) {
-      console.error('Error deleting lasting injury:', error);
+      setDeleteModalData(null);
+    },
+    onError: (error: Error, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      
       toast({
-        description: `Failed to delete lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Failed to delete lasting injury: ${error.message}`,
         variant: "destructive"
       });
-      return false;
-    } finally {
-      setIsDeleting(null);
       setDeleteModalData(null);
-    }
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure we have the correct data
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+    },
+  });
+
+  const handleDeleteInjury = (injuryId: string, injuryName: string) => {
+    deleteInjuryMutation.mutate({
+      fighter_id: fighterId,
+      injury_id: injuryId
+    });
   };
 
   const handleInjuryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -219,7 +479,7 @@ export function InjuriesList({
     setSelectedInjuryId(id);
     
     if (id) {
-      const selectedInjury = localAvailableInjuries.find(injury => injury.id === id);
+      const selectedInjury = availableInjuries.find(injury => injury.id === id);
       setSelectedInjury(selectedInjury || null);
     } else {
       setSelectedInjury(null);
@@ -258,7 +518,7 @@ export function InjuriesList({
               id: item.injury_id,
               name: item.name
             }),
-            disabled: (item) => isDeleting === item.injury_id || !userPermissions.canEdit
+            disabled: (item) => deleteInjuryMutation.isPending || !userPermissions.canEdit
           }
         ]}
         onAdd={handleOpenModal}
@@ -274,8 +534,8 @@ export function InjuriesList({
             <div className="space-y-4">
               <div>
                 <DiceRoller
-                   items={localAvailableInjuries}
-                   ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
+                   items={availableInjuries}
+                   ensureItems={undefined}
                    getRange={(i: FighterEffect) => {
                      const d: any = (i as any)?.type_specific_data || {};
                      if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
@@ -298,7 +558,7 @@ export function InjuriesList({
                        const util = resolver(roll);
                        let match: any = null;
                        if (util) {
-                         match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
+                         match = availableInjuries.find(i => (i as any).effect_name === util.name);
                        }
                        if (!match) {
                          match = rolled[0].item as any;
@@ -314,7 +574,7 @@ export function InjuriesList({
                      const resolver = fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil;
                      const util = resolver(roll);
                      if (!util) return;
-                     const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
+                     const match = availableInjuries.find(i => (i as any).effect_name === util.name) as any;
                      if (match) {
                        setSelectedInjuryId(match.id);
                        setSelectedInjury(match);
@@ -322,7 +582,7 @@ export function InjuriesList({
                      }
                    }}
                    buttonText="Roll D66"
-                   disabled={!userPermissions.canEdit}
+                   disabled={!userPermissions.canEdit || isLoadingInjuries}
                  />
               </div>
 
@@ -335,17 +595,17 @@ export function InjuriesList({
                   value={selectedInjuryId}
                   onChange={handleInjuryChange}
                   className="w-full p-2 border rounded-md"
-                  disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
+                  disabled={isLoadingInjuries}
                 >
                   <option value="">
-                    {isLoadingInjuries && localAvailableInjuries.length === 0
+                    {isLoadingInjuries
                       ? "Loading injuries..."
                       : "Select a Lasting Injury"
                     }
                   </option>
                 
                   {Object.entries(
-                    localAvailableInjuries
+                    availableInjuries
                       .slice()
                       .filter(injury => {
                         // If fighter is Crew, only show injuries in lastingInjuryCrewRank
@@ -372,7 +632,7 @@ export function InjuriesList({
                         if (!groups[groupLabel]) groups[groupLabel] = [];
                         groups[groupLabel].push(injury);
                         return groups;
-                      }, {} as Record<string, typeof localAvailableInjuries>)
+                      }, {} as Record<string, typeof availableInjuries>)
                   ).map(([groupLabel, injuries]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
                       {injuries.map((injury) => (
@@ -389,7 +649,7 @@ export function InjuriesList({
           onClose={handleCloseModal}
           onConfirm={handleAddInjury}
           confirmText="Add Lasting Injury"
-          confirmDisabled={!selectedInjuryId}
+          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending}
         />
       )}
 
@@ -441,14 +701,16 @@ export function InjuriesList({
               <button
                 onClick={() => proceedWithAddingInjury(false, false)}
                 className="px-4 py-2 border rounded hover:bg-gray-100"
+                disabled={addInjuryMutation.isPending}
               >
                 No
               </button>
               <button
                 onClick={() => proceedWithAddingInjury(true, false)}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                disabled={addInjuryMutation.isPending}
               >
-                Yes
+                {addInjuryMutation.isPending ? 'Adding...' : 'Yes'}
               </button>
             </div>
           </div>
@@ -503,14 +765,16 @@ export function InjuriesList({
               <button
                 onClick={() => proceedWithAddingInjury(false, false)}
                 className="px-4 py-2 border rounded hover:bg-gray-100"
+                disabled={addInjuryMutation.isPending}
               >
                 No
               </button>
               <button
                 onClick={() => proceedWithAddingInjury(false, true)}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                disabled={addInjuryMutation.isPending}
               >
-                Yes
+                {addInjuryMutation.isPending ? 'Adding...' : 'Yes'}
               </button>
             </div>
           </div>

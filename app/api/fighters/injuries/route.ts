@@ -16,7 +16,30 @@ export async function GET(request: Request) {
       .eq('fighter_effect_categories.category_name', 'injuries');
 
     if (effectsError) throw effectsError;
-    return NextResponse.json(effects || []);
+
+    // Process each effect and add skill names from the skills table
+    const processedEffects = await Promise.all(
+      (effects || []).map(async (effect: any) => {
+        if (effect.type_specific_data?.skill_id) {
+          const { data: skill } = await supabase
+            .from('skills')
+            .select('name')
+            .eq('id', effect.type_specific_data.skill_id)
+            .single();
+
+          return {
+            ...effect,
+            type_specific_data: {
+              ...effect.type_specific_data,
+              skill_name: skill?.name || null
+            }
+          };
+        }
+        return effect;
+      })
+    );
+
+    return NextResponse.json(processedEffects);
   } catch (error) {
     console.error('Error fetching injuries:', error);
     return NextResponse.json(

@@ -5,7 +5,6 @@ import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
-import { fighterQueries } from '@/app/lib/queries/fighter-queries';
 import { queryKeys } from '@/app/lib/queries/keys';
 
 interface FighterPageProps {
@@ -38,8 +37,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   });
 
   try {
-    console.log('Starting fighter page data fetch...');
-
     // Import fighter query functions for prefetching
     const { 
       queryFighterBasic,
@@ -50,7 +47,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     } = await import('@/app/lib/queries/fighter-queries');
 
     // Prefetch fighter data in parallel using query functions with server-side Supabase client
-    console.log('Prefetching fighter data...');
     await Promise.all([
       queryClient.prefetchQuery({
         queryKey: queryKeys.fighters.detail(id),
@@ -73,13 +69,10 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         queryFn: () => queryFighterVehicles(id, supabase),
       }),
     ]);
-    console.log('Fighter data prefetched successfully');
 
     // Get basic fighter data to determine gang ID and check if fighter exists
     // Use the query function directly for server-side data fetching
-    console.log('Fetching basic fighter data...');
     const fighterBasic = await queryFighterBasic(id, supabase);
-    console.log('Basic fighter data fetched:', fighterBasic ? 'success' : 'failed');
     
     if (!fighterBasic) {
       redirect("/");
@@ -103,13 +96,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     ]);
 
     // Get gang data using query functions for consistency
-    console.log('Fetching gang data...');
     const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
       queryGangBasic(fighterBasic.gang_id, supabase),
       queryGangPositioning(fighterBasic.gang_id, supabase),
       queryGangCredits(fighterBasic.gang_id, supabase)
     ]);
-    console.log('Gang data fetched successfully');
 
 
 
@@ -345,12 +336,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     );
 
   } catch (error) {
-    console.error('Error in fighter page:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      error
-    });
     redirect("/");
   }
 }

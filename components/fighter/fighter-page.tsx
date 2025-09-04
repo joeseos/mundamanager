@@ -714,6 +714,7 @@ export default function FighterPage({
           <InjuriesList
             injuries={currentEffects?.injuries || []}
             fighterId={currentFighter?.id || ''}
+            gangId={currentFighter?.gang_id || ''}
             fighterRecovery={currentFighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={currentFighter?.fighter_class}

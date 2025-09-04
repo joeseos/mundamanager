@@ -1,0 +1,323 @@
+'use server'
+
+import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from "@/utils/auth";
+
+// Type-safe server function patterns for Next.js + TanStack Query integration
+export type ServerFunctionResult<T = unknown> = {
+  success: true
+  data: T
+} | {
+  success: false
+  error: string
+}
+
+export interface ServerFunctionContext {
+  user: any  // AuthUser type from supabase
+  supabase: any
+}
+
+// Helper function to create server function context
+async function createServerContext(): Promise<ServerFunctionContext> {
+  const supabase = await createClient()
+  const user = await getAuthenticatedUser(supabase)
+  
+  return {
+    user,
+    supabase
+  }
+}
+
+// Helper function to check if user is admin
+async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_role')
+      .eq('id', userId)
+      .single();
+    return profile?.user_role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+// Injury operation types
+export interface AddFighterInjuryParams {
+  fighter_id: string;
+  injury_type_id: string;
+  send_to_recovery?: boolean;
+  set_captured?: boolean;
+}
+
+export interface DeleteFighterInjuryParams {
+  fighter_id: string;
+  injury_id: string;
+}
+
+export interface FighterInjury {
+  id: string;
+  effect_name: string;
+  fighter_effect_type_id: string;
+  fighter_effect_modifiers: any[];
+  type_specific_data: any;
+  created_at: string;
+}
+
+// Get available injury types for the injury selection modal
+export async function getAvailableInjuries(): Promise<ServerFunctionResult<FighterInjury[]>> {
+  try {
+    const { supabase } = await createServerContext()
+
+    const { data: effects, error: effectsError } = await supabase
+      .from('fighter_effect_types')
+      .select(`
+        *,
+        fighter_effect_categories!inner(*),
+        fighter_effect_type_modifiers (
+          *
+        )
+      `)
+      .eq('fighter_effect_categories.category_name', 'injuries');
+
+    if (effectsError) throw effectsError;
+
+    return {
+      success: true,
+      data: effects || []
+    }
+  } catch (error) {
+    console.error('Error fetching available injuries:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch available injuries'
+    }
+  }
+}
+
+// Add an injury to a fighter
+export async function addFighterInjury(
+  params: AddFighterInjuryParams
+): Promise<ServerFunctionResult<{ injury: FighterInjury; recovery_status?: boolean }>> {
+  try {
+    const { user, supabase } = await createServerContext()
+
+    // Check if user is an admin
+    const isAdmin = await checkAdmin(supabase, user.id);
+
+    // Verify fighter ownership
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, user_id, gang_id, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    // Check permissions - if not admin, must be fighter owner
+    if (!isAdmin) {
+      const { data: gang, error: gangError } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangError || !gang || gang.user_id !== user.id) {
+        return { success: false, error: 'Access denied' };
+      }
+    }
+
+    // Add the injury using the RPC function
+    const { data, error } = await supabase
+      .rpc('add_fighter_injury', {
+        in_fighter_id: params.fighter_id,
+        in_injury_type_id: params.injury_type_id,
+        in_user_id: user.id
+      });
+
+    if (error) {
+      console.error('Database error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to add injury'
+      };
+    }
+
+    // The database function returns the complete injury data with modifiers
+    const injuryData = data[0]?.result || data;
+
+    // Update rating based on injury credits_increase (if any)
+    try {
+      const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
+      if (delta) {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', fighter.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + delta) })
+          .eq('id', fighter.gang_id);
+      }
+    } catch (e) {
+      console.error('Failed to update rating for injury addition:', e);
+    }
+    
+    // Handle status updates from parameters
+    const statusUpdates: Record<string, boolean> = {};
+    if (params.send_to_recovery) statusUpdates.recovery = true;
+    if (params.set_captured) statusUpdates.captured = true;
+
+    let recoveryStatus = undefined;
+    if (Object.keys(statusUpdates).length > 0) {
+      const { error: statusError } = await supabase
+        .from('fighters')
+        .update(statusUpdates)
+        .eq('id', params.fighter_id);
+
+      if (statusError) {
+        console.error('Error setting fighter status:', statusError);
+        // Don't fail the entire operation, just log the error
+      } else {
+        recoveryStatus = statusUpdates.recovery;
+      }
+    }
+
+    // Log the injury action
+    if (fighter.fighter_name) {
+      const { logFighterInjury } = await import('@/app/actions/logs/gang-fighter-logs');
+      await logFighterInjury({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        fighter_name: fighter.fighter_name,
+        injury_name: injuryData.effect_name
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        injury: {
+          id: injuryData.id,
+          effect_name: injuryData.effect_name,
+          fighter_effect_type_id: injuryData.effect_type?.id,
+          fighter_effect_modifiers: injuryData.modifiers || [],
+          type_specific_data: injuryData.type_specific_data,
+          created_at: injuryData.created_at || new Date().toISOString()
+        },
+        recovery_status: recoveryStatus
+      }
+    }
+
+  } catch (error) {
+    console.error('Error adding fighter injury:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    };
+  }
+}
+
+// Delete/remove an injury from a fighter
+export async function deleteFighterInjury(
+  params: DeleteFighterInjuryParams
+): Promise<ServerFunctionResult<null>> {
+  try {
+    const { user, supabase } = await createServerContext()
+
+    // Check if user is an admin
+    const isAdmin = await checkAdmin(supabase, user.id);
+
+    // Verify fighter ownership
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, user_id, gang_id, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    // Check permissions - if not admin, must be fighter owner
+    if (!isAdmin) {
+      const { data: gang, error: gangError } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangError || !gang || gang.user_id !== user.id) {
+        return { success: false, error: 'Access denied' };
+      }
+    }
+
+    const { data: injury, error: injuryError } = await supabase
+      .from('fighter_effects')
+      .select('id, fighter_id, effect_name, type_specific_data')
+      .eq('id', params.injury_id)
+      .single();
+
+    if (injuryError || !injury || injury.fighter_id !== params.fighter_id) {
+      return { success: false, error: 'Injury not found or does not belong to this fighter' };
+    }
+
+    // Delete the injury (this will cascade delete the modifiers)
+    const { error: deleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('id', params.injury_id);
+
+    if (deleteError) {
+      console.error('Database error:', deleteError);
+      return { 
+        success: false, 
+        error: deleteError.message || 'Failed to delete injury'
+      };
+    }
+
+    // Decrease rating by injury credits_increase if present
+    try {
+      const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
+      if (delta) {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', fighter.gang_id)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + delta) })
+          .eq('id', fighter.gang_id);
+      }
+    } catch (e) {
+      console.error('Failed to update rating after injury delete:', e);
+    }
+
+    // Log the injury removal as recovery
+    if (fighter.fighter_name) {
+      const { logFighterRecovery } = await import('@/app/actions/logs/gang-fighter-logs');
+      await logFighterRecovery({
+        gang_id: fighter.gang_id,
+        fighter_id: params.fighter_id,
+        fighter_name: fighter.fighter_name,
+        recovery_type: 'injury_removed',
+        recovered_from: injury.effect_name
+      });
+    }
+
+    return { success: true, data: null };
+
+  } catch (error) {
+    console.error('Error deleting fighter injury:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    };
+  }
+}
