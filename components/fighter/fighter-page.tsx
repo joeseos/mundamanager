@@ -3,7 +3,7 @@
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
@@ -16,7 +16,7 @@ import { EditFighterModal } from "@/components/fighter/fighter-edit-modal";
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXpWithOoa, updateFighterDetails, updateFighterEffects, editFighterStatus } from "@/app/lib/server-functions/edit-fighter";
+import { updateFighterDetails, updateFighterEffects, editFighterStatus } from "@/app/lib/server-functions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
@@ -47,14 +47,6 @@ interface UIState {
   };
 }
 
-interface EditState {
-  name: string;
-  label: string;
-  kills: number;
-  costAdjustment: string;
-  xpAmount: string;
-  xpError: string;
-}
 
 export default function FighterPage({ 
   initialFighterData, 
@@ -115,14 +107,6 @@ export default function FighterPage({
     }
   });
 
-  const [editState, setEditState] = useState<EditState>({
-    name: '',
-    label: '',
-    kills: 0,
-    costAdjustment: '0',
-    xpAmount: '',
-    xpError: ''
-  });
 
   const router = useRouter();
   const { toast } = useToast();
@@ -156,35 +140,6 @@ export default function FighterPage({
   }, [toast]);
 
   // Direct server action mutations with optimistic updates
-  const updateXpMutation = useMutation({
-    mutationFn: updateFighterXpWithOoa,
-    onMutate: async (variables) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(variables.fighter_id) });
-
-      // Snapshot previous value
-      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(variables.fighter_id));
-
-      // Optimistically update
-      queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), (old: any) => ({
-        ...old,
-        xp: old.xp + variables.xp_to_add,
-        kills: old.kills + (variables.ooa_count || 0),
-      }));
-
-      return { previousFighter };
-    },
-    onError: (_err, variables, context) => {
-      // Rollback on error
-      if (context?.previousFighter) {
-        queryClient.setQueryData(queryKeys.fighters.detail(variables.fighter_id), context.previousFighter);
-      }
-    },
-    onSettled: () => {
-      // Always refetch after mutation
-      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
-    },
-  });
 
   const updateDetailsMutation = useMutation({
     mutationFn: updateFighterDetails,
@@ -383,15 +338,6 @@ export default function FighterPage({
     },
   });
 
-  // Update edit state when fighter data changes
-  useEffect(() => {
-    if (fighter) {
-      setEditState(prev => ({
-        ...prev,
-        costAdjustment: String(fighter.cost_adjustment || 0)
-      }));
-    }
-  }, [fighter]);
 
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
@@ -461,65 +407,6 @@ export default function FighterPage({
     // No local state update needed
   }, []);
 
-  const handleAddXp = async (ooaCount?: number) => {
-    if (editState.xpAmount !== '' && !/^-?\d+$/.test(editState.xpAmount)) {
-      setEditState(prev => ({
-        ...prev,
-        xpError: 'Please enter a valid integer'
-      }));
-      return false;
-    }
-
-    const amount = parseInt(editState.xpAmount || '0', 10);
-
-    if (isNaN(amount) || !Number.isInteger(amount)) {
-      setEditState(prev => ({
-        ...prev,
-        xpError: 'Please enter a valid integer'
-      }));
-      return false;
-    }
-
-    setEditState(prev => ({
-      ...prev,
-      xpError: ''
-    }));
-
-    // Return true immediately to close modal
-    setTimeout(async () => {
-      try {
-      await updateXpMutation.mutateAsync({
-        fighter_id: fighterId,
-        xp_to_add: amount,
-        ooa_count: ooaCount
-      });
-
-      // Create success message
-      let successMessage = `Successfully added ${amount} XP`;
-      if (ooaCount && ooaCount > 0) {
-        successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
-      }
-
-        toast({
-          description: successMessage,
-          variant: "default"
-        });
-      } catch (error) {
-        console.error('Error adding XP:', error);
-        
-        setEditState(prev => ({
-          ...prev,
-          xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
-        }));
-        toast({
-          description: error instanceof Error ? error.message : 'Failed to add XP',
-          variant: "destructive"
-        });
-      }
-    }, 0);
-
-    return true;
-  };
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
@@ -781,26 +668,7 @@ export default function FighterPage({
               isOpen={uiState.modals.addXp}
               fighterId={fighterId}
               currentXp={currentFighter.xp ?? 0}
-              onClose={() => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: '',
-                  xpError: ''
-                }));
-                handleModalToggle('addXp', false);
-              }}
-              onConfirm={handleAddXp}
-              xpAmountState={{
-                xpAmount: editState.xpAmount,
-                xpError: editState.xpError
-              }}
-              onXpAmountChange={(value) => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: value,
-                  xpError: ''
-                }));
-              }}
+              onClose={() => handleModalToggle('addXp', false)}
             />
           )}
 
