@@ -90,7 +90,11 @@ export default function FighterPage({
     const effectsCost = Object.values(effects || {}).flat().reduce((sum, effect) => {
       return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
     }, 0);
-    const vehicleCost = (vehicles || []).reduce((sum, vehicle) => sum + (vehicle.cost || 0), 0);
+    const vehicleCost = (vehicles || []).reduce((sum, vehicle) => {
+      const baseVehicleCost = vehicle.cost || 0;
+      const vehicleEquipmentCost = (vehicle.equipment || []).reduce((equipSum: number, equip: any) => equipSum + (equip.purchase_cost || 0), 0);
+      return sum + baseVehicleCost + vehicleEquipmentCost;
+    }, 0);
     const costAdjustment = fighter.cost_adjustment || 0;
     
     return baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + costAdjustment;

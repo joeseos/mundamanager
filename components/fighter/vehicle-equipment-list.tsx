@@ -8,10 +8,12 @@ import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/lib/server-functions/sell-equipment';
 import { deleteEquipmentFromFighter } from '@/app/lib/server-functions/equipment';
-import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
+import { moveEquipmentToStash } from '@/app/lib/server-functions/move-to-stash';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -73,141 +75,355 @@ export function VehicleEquipmentList({
   userPermissions,
   vehicleEffects
 }: VehicleEquipmentListProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
 
-  // Enhanced delete function using server functions with cache invalidation
-  const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToDelete) {
-        throw new Error('Equipment not found');
-      }
-
+  // TanStack Query mutation for deleting equipment
+  const deleteEquipmentMutation = useMutation({
+    mutationFn: async (variables: { fighterEquipmentId: string; equipmentId: string; vehicleId?: string }) => {
       const result = await deleteEquipmentFromFighter({
-        fighter_equipment_id: fighterEquipmentId,
+        fighter_equipment_id: variables.fighterEquipmentId, // This is actually the vehicle_weapon_id value
         gang_id: gangId,
         fighter_id: fighterId,
-        vehicle_id: equipmentToDelete.vehicle_id
+        vehicle_id: variables.vehicleId
       });
-
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete equipment');
       }
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
-      // Update local state immediately for responsive UI
-      const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
+      // Snapshot previous values for rollback
+      const previousVehicles = queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Optimistically remove equipment from vehicle
+      queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+        if (!old || old.length === 0) return old;
+        
+        return old.map((vehicle, index) => {
+          if (index === 0) {
+            const updatedEquipment = (vehicle.equipment || []).filter(
+              (item: any) => item.vehicle_weapon_id !== variables.fighterEquipmentId
+            );
+            
+            // Also remove associated effects
+            const currentEffects = vehicle.effects || {};
+            const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+            const equipmentToDelete = equipment.find(e => e.vehicle_weapon_id === variables.fighterEquipmentId);
+            
+            const filteredUpgrades = vehicleUpgrades.filter((effect: any) => 
+              effect.effect_name !== equipmentToDelete?.equipment_name
+            );
+            
+            const updatedEffects = {
+              ...currentEffects,
+              'vehicle upgrades': filteredUpgrades
+            };
+            
+            return { ...vehicle, equipment: updatedEquipment, effects: updatedEffects };
+          }
+          return vehicle;
+        });
+      });
+
+      return { previousVehicles, previousCredits, previousTotalCost };
+    },
+    onError: (err, variables, context) => {
+      console.error('❌ DELETE ERROR:', err);
+      
+      // Rollback optimistic changes
+      if (context?.previousVehicles) {
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousVehicles);
+      }
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to delete equipment',
+        variant: "destructive"
+      });
+    },
+    onSuccess: (data, variables) => {
+      console.log('✅ DELETE SUCCESS:', data);
+      
+      // Update with real server data if needed
+      if (data.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
       
       // Enhanced success message showing effects cleanup
-      const effectsCount = result.data?.deleted_effects?.length || 0;
+      const effectsCount = data?.deleted_effects?.length || 0;
       const effectsMessage = effectsCount > 0 
         ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
         : '';
       
       toast({
         title: "Success",
-        description: `Successfully deleted ${result.data?.deleted_equipment?.equipment_name || equipmentToDelete.equipment_name}${effectsMessage}`,
+        description: `Successfully deleted ${data?.deleted_equipment?.equipment_name}${effectsMessage}`,
         variant: "default"
       });
+      
       setDeleteModalData(null);
-    } catch (error) {
-      console.error('Error deleting equipment:', error);
+    }
+  });
+
+  const handleDeleteEquipment = (fighterEquipmentId: string, equipmentId: string) => {
+    const equipmentToDelete = equipment.find(e => e.vehicle_weapon_id === fighterEquipmentId);
+    if (!equipmentToDelete) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to delete equipment',
+        description: "Equipment not found",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
+
+    deleteEquipmentMutation.mutate({
+      fighterEquipmentId,
+      equipmentId,
+      vehicleId: equipmentToDelete.vehicle_id
+    });
   };
 
-  const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
-    setIsLoading(true);
-    try {
-      const equipmentToSell = equipment.find(
-        item => item.fighter_equipment_id === fighterEquipmentId
-      );
-      if (!equipmentToSell) return;
-
+  // TanStack Query mutation for selling equipment
+  const sellEquipmentMutation = useMutation({
+    mutationFn: async (variables: { fighterEquipmentId: string; manualCost: number }) => {
       const result = await sellEquipmentFromFighter({
-        fighter_equipment_id: fighterEquipmentId,
-        manual_cost: manualCost
+        fighter_equipment_id: variables.fighterEquipmentId,
+        manual_cost: variables.manualCost
       });
-
       if (!result.success) {
         throw new Error(result.error || 'Failed to sell equipment');
       }
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const newGangCredits = result.data?.gang.credits || gangCredits;
-      const newFighterCredits = fighterCredits - equipmentToSell.cost;
+      // Snapshot previous values for rollback
+      const previousVehicles = queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
 
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
+      // Find equipment to sell for optimistic update
+      const equipmentToSell = equipment.find(item => item.vehicle_weapon_id === variables.fighterEquipmentId);
+      if (equipmentToSell) {
+        // Optimistically remove equipment from vehicle
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+          if (!old || old.length === 0) return old;
+          
+          return old.map((vehicle, index) => {
+            if (index === 0) {
+              const updatedEquipment = (vehicle.equipment || []).filter(
+                (item: any) => item.vehicle_weapon_id !== variables.fighterEquipmentId
+              );
+              
+              // Also remove associated effects
+              const currentEffects = vehicle.effects || {};
+              const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+              
+              const filteredUpgrades = vehicleUpgrades.filter((effect: any) => 
+                effect.effect_name !== equipmentToSell?.equipment_name
+              );
+              
+              const updatedEffects = {
+                ...currentEffects,
+                'vehicle upgrades': filteredUpgrades
+              };
+              
+              return { ...vehicle, equipment: updatedEquipment, effects: updatedEffects };
+            }
+            return vehicle;
+          });
+        });
+
+        // Optimistically update gang credits
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+          if (old === undefined) return old;
+          return old + variables.manualCost;
+        });
+      }
+
+      return { previousVehicles, previousCredits, previousTotalCost, equipmentToSell };
+    },
+    onError: (err, variables, context) => {
+      console.error('❌ SELL ERROR:', err);
+      
+      // Rollback optimistic changes
+      if (context?.previousVehicles) {
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousVehicles);
+      }
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to sell equipment',
+        variant: "destructive"
+      });
+    },
+    onSuccess: (data, variables, context) => {
+      console.log('✅ SELL SUCCESS:', data);
+      
+      // Update with real server data
+      if (data?.gang?.credits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang.credits);
+      }
+      
+      if (data?.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
       
       toast({
         title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
+        description: `Sold ${context?.equipmentToSell?.equipment_name} for ${variables.manualCost} credits`,
+        variant: "default"
       });
-    } catch (error) {
-      console.error('Error selling equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      
       setSellModalData(null);
     }
+  });
+
+  const handleSellEquipment = (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+    sellEquipmentMutation.mutate({ fighterEquipmentId, manualCost });
   };
 
-  const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToStash) {
-        throw new Error('Equipment not found');
-      }
-
+  // TanStack Query mutation for moving equipment to stash
+  const stashEquipmentMutation = useMutation({
+    mutationFn: async (variables: { fighterEquipmentId: string }) => {
       const result = await moveEquipmentToStash({
-        fighter_equipment_id: fighterEquipmentId
+        fighter_equipment_id: variables.fighterEquipmentId
       });
-
       if (!result.success) {
         throw new Error(result.error || 'Failed to move equipment to stash');
       }
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
+      // Snapshot previous values for rollback
+      const previousVehicles = queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId));
+      const previousStash = queryClient.getQueryData(queryKeys.gangs.stash(gangId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Find equipment to move for optimistic update
+      const equipmentToStash = equipment.find(item => item.vehicle_weapon_id === variables.fighterEquipmentId);
+      if (equipmentToStash) {
+        // Optimistically remove equipment from vehicle
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+          if (!old || old.length === 0) return old;
+          
+          return old.map((vehicle, index) => {
+            if (index === 0) {
+              const updatedEquipment = (vehicle.equipment || []).filter(
+                (item: any) => item.vehicle_weapon_id !== variables.fighterEquipmentId
+              );
+              
+              // Also remove associated effects
+              const currentEffects = vehicle.effects || {};
+              const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+              
+              const filteredUpgrades = vehicleUpgrades.filter((effect: any) => 
+                effect.effect_name !== equipmentToStash?.equipment_name
+              );
+              
+              const updatedEffects = {
+                ...currentEffects,
+                'vehicle upgrades': filteredUpgrades
+              };
+              
+              return { ...vehicle, equipment: updatedEquipment, effects: updatedEffects };
+            }
+            return vehicle;
+          });
+        });
+
+        // Optimistically add equipment to stash
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => {
+          if (!old) return old;
+          
+          const optimisticStashItem = {
+            fighter_equipment_id: equipmentToStash.fighter_equipment_id,
+            equipment_id: equipmentToStash.equipment_id,
+            equipment_name: equipmentToStash.equipment_name,
+            equipment_type: equipmentToStash.equipment_type,
+            equipment_category: equipmentToStash.equipment_category,
+            purchase_cost: equipmentToStash.cost,
+            weapon_profiles: equipmentToStash.weapon_profiles || []
+          };
+          
+          return [...old, optimisticStashItem];
+        });
+      }
+
+      return { previousVehicles, previousStash, previousTotalCost, equipmentToStash };
+    },
+    onError: (err, variables, context) => {
+      console.error('❌ STASH ERROR:', err);
       
-      const newFighterCredits = fighterCredits - (equipmentToStash.cost ?? 0);
-
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
+      // Rollback optimistic changes
+      if (context?.previousVehicles) {
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousVehicles);
+      }
+      if (context?.previousStash) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to move equipment to stash',
+        variant: "destructive"
+      });
+    },
+    onSuccess: (data, variables, context) => {
+      console.log('✅ STASH SUCCESS:', data);
+      
+      // Update with real server data if provided
+      if (data?.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
       
       toast({
         title: "Success",
-        description: `${equipmentToStash.equipment_name} moved to gang stash`,
+        description: `${context?.equipmentToStash?.equipment_name} moved to gang stash`,
+        variant: "default"
       });
-    } catch (error) {
-      console.error('Error moving equipment to stash:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      
       setStashModalData(null);
     }
+  });
+
+  const handleStashEquipment = (fighterEquipmentId: string, equipmentId: string) => {
+    stashEquipmentMutation.mutate({ fighterEquipmentId });
   };
 
   // Sort equipment: core equipment first, then by name
@@ -222,32 +438,38 @@ export function VehicleEquipmentList({
     // Determine slot for vehicle upgrades
     let slot = '';
     
-    if (item.equipment_type === 'vehicle_upgrade' && vehicleEffects) {
-      // Look for effects that match this equipment
-      const vehicleUpgradeEffects = vehicleEffects['vehicle upgrades'] || vehicleEffects['vehicle_upgrades'] || [];
-      const matchingEffect = vehicleUpgradeEffects.find((effect: any) => 
-        effect.effect_name === item.equipment_name || 
-        effect.effect_name.toLowerCase().includes(item.equipment_name.toLowerCase())
-      );
-      
-      if (matchingEffect?.fighter_effect_modifiers) {
-        const modifiers = matchingEffect.fighter_effect_modifiers;
-        if (modifiers.some((mod: any) => mod.stat_name === 'body_slots' && mod.numeric_value > 0)) {
-          slot = 'Body';
-        } else if (modifiers.some((mod: any) => mod.stat_name === 'drive_slots' && mod.numeric_value > 0)) {
-          slot = 'Drive';
-        } else if (modifiers.some((mod: any) => mod.stat_name === 'engine_slots' && mod.numeric_value > 0)) {
-          slot = 'Engine';
+    if (item.equipment_type === 'vehicle_upgrade') {
+      // First try to use the vehicle_upgrade_slot directly from equipment data
+      if (item.vehicle_upgrade_slot) {
+        slot = item.vehicle_upgrade_slot;
+      } 
+      // Fallback to effects-based detection for compatibility
+      else if (vehicleEffects) {
+        const vehicleUpgradeEffects = vehicleEffects['vehicle upgrades'] || vehicleEffects['vehicle_upgrades'] || [];
+        const matchingEffect = vehicleUpgradeEffects.find((effect: any) => 
+          effect.effect_name === item.equipment_name || 
+          effect.effect_name.toLowerCase().includes(item.equipment_name.toLowerCase())
+        );
+        
+        if (matchingEffect?.fighter_effect_modifiers) {
+          const modifiers = matchingEffect.fighter_effect_modifiers;
+          if (modifiers.some((mod: any) => mod.stat_name === 'body_slots' && mod.numeric_value > 0)) {
+            slot = 'Body';
+          } else if (modifiers.some((mod: any) => mod.stat_name === 'drive_slots' && mod.numeric_value > 0)) {
+            slot = 'Drive';
+          } else if (modifiers.some((mod: any) => mod.stat_name === 'engine_slots' && mod.numeric_value > 0)) {
+            slot = 'Engine';
+          }
         }
       }
     }
 
     return {
-      id: item.fighter_equipment_id,
+      id: item.vehicle_weapon_id,
       equipment_name: item.equipment_name,
       cost: item.purchase_cost ?? item.cost ?? 0,
       core_equipment: item.core_equipment,
-      fighter_equipment_id: item.fighter_equipment_id,
+      fighter_equipment_id: item.vehicle_weapon_id,
       equipment_id: item.equipment_id || "",
       slot: slot
     };
@@ -280,7 +502,7 @@ export function VehicleEquipmentList({
             icon: <FaBox className="h-4 w-4" />,
             variant: 'outline',
             onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              const equipment = sortedEquipment.find(e => e.vehicle_weapon_id === item.fighter_equipment_id);
               if (equipment) {
                 setStashModalData({
                   ...equipment,
@@ -289,13 +511,13 @@ export function VehicleEquipmentList({
                 });
               }
             },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+            disabled: (item) => item.core_equipment || stashEquipmentMutation.isPending || !userPermissions.canEdit
           },
           {
             icon: <MdCurrencyExchange className="h-4 w-4" />,
             variant: 'outline',
             onClick: (item) => {
-              const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
+              const equipment = sortedEquipment.find(e => e.vehicle_weapon_id === item.fighter_equipment_id);
               if (equipment) {
                 setSellModalData({
                   ...equipment,
@@ -304,7 +526,7 @@ export function VehicleEquipmentList({
                 });
               }
             },
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+            disabled: (item) => item.core_equipment || sellEquipmentMutation.isPending || !userPermissions.canEdit
           },
           {
             icon: <LuTrash2 className="h-4 w-4" />,
@@ -314,7 +536,7 @@ export function VehicleEquipmentList({
               equipmentId: item.equipment_id || "",
               name: item.equipment_name
             }),
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+            disabled: (item) => item.core_equipment || deleteEquipmentMutation.isPending || !userPermissions.canEdit
           }
         ]}
         onAdd={onAddEquipment}

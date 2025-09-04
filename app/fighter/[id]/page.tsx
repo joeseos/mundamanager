@@ -123,7 +123,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
       return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
     }, 0);
-    const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => sum + (vehicle.cost || 0), 0);
+    const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
+      const baseVehicleCost = vehicle.cost || 0;
+      const vehicleEquipmentCost = (vehicle.equipment || []).reduce((equipSum: number, equip: any) => equipSum + (equip.purchase_cost || 0), 0);
+      return sum + baseVehicleCost + vehicleEquipmentCost;
+    }, 0);
     const adjustment = fighterBasic.cost_adjustment || 0;
     
     const totalCost = baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + adjustment;

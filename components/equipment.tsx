@@ -345,7 +345,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
     },
     onMutate: async (variables) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      if (isVehicleEquipment) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      } else {
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      }
       await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
@@ -355,33 +359,67 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       // Snapshot previous values for rollback
-      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousEquipment = isVehicleEquipment 
+        ? queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId))
+        : queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
       const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
-      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousEffects = isVehicleEquipment 
+        ? queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId))  // For vehicle equipment, effects are in vehicles cache
+        : queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
       const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
       const previousStash = variables.buy_for_gang_stash ? queryClient.getQueryData(queryKeys.gangs.stash(gangId)) : null;
 
       // Optimistically update equipment cache
-      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
-        if (!old) return old;
-        
-        // Create optimistic equipment item using real item data
-        const itemData = variables.item_data;
-        const optimisticEquipment = {
-          fighter_equipment_id: `temp-${Date.now()}`,
-          equipment_id: variables.equipment_id,
-          custom_equipment_id: variables.custom_equipment_id,
-          equipment_name: itemData.equipment_name,
-          equipment_type: itemData.equipment_type,
-          equipment_category: itemData.equipment_category,
-          purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
-          original_cost: itemData.base_cost || itemData.cost,
-          is_master_crafted: variables.master_crafted || false,
-          weapon_profiles: itemData.weapon_profiles || []
-        };
-        
-        return [...old, optimisticEquipment];
-      });
+      if (isVehicleEquipment) {
+        // Update vehicle cache for vehicle equipment
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+          if (!old || old.length === 0) return old;
+          
+          // Create optimistic equipment item using real item data
+          const itemData = variables.item_data;
+          const optimisticEquipment = {
+            vehicle_weapon_id: `temp-${Date.now()}`,
+            equipment_id: variables.equipment_id || variables.custom_equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            weapon_profiles: itemData.weapon_profiles || [],
+            vehicle_upgrade_slot: itemData.vehicle_upgrade_slot || undefined
+          };
+          
+          // Update the first (and typically only) vehicle's equipment array
+          return old.map((vehicle, index) => 
+            index === 0 
+              ? { ...vehicle, equipment: [...(vehicle.equipment || []), optimisticEquipment] }
+              : vehicle
+          );
+        });
+      } else {
+        // Update fighter equipment cache
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+          if (!old) return old;
+          
+          // Create optimistic equipment item using real item data
+          const itemData = variables.item_data;
+          const optimisticEquipment = {
+            fighter_equipment_id: `temp-${Date.now()}`,
+            equipment_id: variables.equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            original_cost: itemData.base_cost || itemData.cost,
+            is_master_crafted: variables.master_crafted || false,
+            weapon_profiles: itemData.weapon_profiles || []
+          };
+          
+          return [...old, optimisticEquipment];
+        });
+      }
 
       // Optimistically update gang credits
       queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
@@ -389,62 +427,85 @@ const ItemModal: React.FC<ItemModalProps> = ({
         return old - (variables.manual_cost || 0);
       });
 
-      // Optimistically update fighter effects if effects are being applied
+      // Optimistically update effects if effects are being applied
       if (variables.selected_effect_ids && variables.selected_effect_ids.length > 0) {
-        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
-          if (!old) return old;
+        const itemData = variables.item_data;
+        const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => {
+          // Find the matching effect data from the equipment's fighter_effects
+          const effectData = itemData.fighter_effects?.find((effect: any) => effect.id === effectId);
           
-          // Create optimistic effects using real effect data from item_data
-          const itemData = variables.item_data;
-          const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => {
-            // Find the matching effect data from the equipment's fighter_effects
-            const effectData = itemData.fighter_effects?.find((effect: any) => effect.id === effectId);
-            
-            if (!effectData) {
-              // Fallback to generic data if effect not found
-              return {
-                id: `temp-effect-${Date.now()}-${index}`,
-                effect_name: 'Loading...',
-                type_specific_data: {
-                  equipment_id: variables.equipment_id,
-                  effect_selection: 'fixed'
-                },
-                fighter_effect_modifiers: [{
-                  id: `temp-mod-${Date.now()}-${index}`,
-                  fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
-                  stat_name: 'loading',
-                  numeric_value: 0
-                }],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
-            }
-
-            // Use real effect data for optimistic update
-            const tempEffectId = `temp-effect-${Date.now()}-${index}`;
+          if (!effectData) {
+            // Fallback to generic data if effect not found
             return {
-              id: tempEffectId,
-              effect_name: effectData.effect_name,
-              type_specific_data: effectData.type_specific_data || {
+              id: `temp-effect-${Date.now()}-${index}`,
+              effect_name: 'Loading...',
+              type_specific_data: {
                 equipment_id: variables.equipment_id,
                 effect_selection: 'fixed'
               },
-              fighter_effect_modifiers: effectData.modifiers?.map((modifier: any, modIndex: number) => ({
-                id: `temp-mod-${Date.now()}-${index}-${modIndex}`,
-                fighter_effect_id: tempEffectId,
-                stat_name: modifier.stat_name,
-                numeric_value: modifier.default_numeric_value
-              })) || [],
+              fighter_effect_modifiers: [{
+                id: `temp-mod-${Date.now()}-${index}`,
+                fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
+                stat_name: 'loading',
+                numeric_value: 0
+              }],
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
-          });
-          
+          }
+
+          // Use real effect data for optimistic update
+          const tempEffectId = `temp-effect-${Date.now()}-${index}`;
           return {
-            ...old,
-            equipment: [...(old?.equipment || []), ...optimisticEffects]
+            id: tempEffectId,
+            effect_name: effectData.effect_name,
+            type_specific_data: effectData.type_specific_data || {
+              equipment_id: variables.equipment_id,
+              effect_selection: 'fixed'
+            },
+            fighter_effect_modifiers: effectData.modifiers?.map((modifier: any, modIndex: number) => ({
+              id: `temp-mod-${Date.now()}-${index}-${modIndex}`,
+              fighter_effect_id: tempEffectId,
+              stat_name: modifier.stat_name,
+              numeric_value: modifier.default_numeric_value
+            })) || [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           };
         });
+        
+        if (isVehicleEquipment) {
+          // Update vehicle effects cache for vehicle equipment
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const currentEffects = vehicle.effects || {};
+                const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+                
+                // Add optimistic effects to vehicle upgrades category
+                const updatedEffects = {
+                  ...currentEffects,
+                  'vehicle upgrades': [...vehicleUpgrades, ...optimisticEffects]
+                };
+                
+                return { ...vehicle, effects: updatedEffects };
+              }
+              return vehicle;
+            });
+          });
+        } else {
+          // Update fighter effects cache
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+            if (!old) return old;
+            
+            return {
+              ...old,
+              equipment: [...(old?.equipment || []), ...optimisticEffects]
+            };
+          });
+        }
       }
 
       // For gang stash purchases, optimistically update stash
@@ -484,13 +545,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
       
       // Rollback optimistic changes
       if (context?.previousEquipment) {
-        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+        if (isVehicleEquipment) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousEquipment);
+        } else {
+          queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+        }
       }
       if (context?.previousCredits !== undefined) {
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
       }
       if (context?.previousEffects) {
-        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+        if (isVehicleEquipment) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousEffects);
+        } else {
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+        }
       }
       if (context?.previousTotalCost !== undefined) {
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
@@ -510,16 +579,47 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       // Update with real server data
       if (!variables.buy_for_gang_stash) {
-        // Update equipment cache with real server data
-        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
-          if (!old) return old;
-          // Replace the optimistic item with real data
-          return old.map(item => 
-            item.fighter_equipment_id.startsWith('temp-') 
-              ? data.equipment 
-              : item
-          );
-        });
+        if (isVehicleEquipment) {
+          // Update vehicle equipment cache with real server data
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            // Replace the optimistic item with real data in the vehicle's equipment array
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const updatedEquipment = (vehicle.equipment || []).map((item: any) => 
+                  item.vehicle_weapon_id?.startsWith('temp-') 
+                    ? {
+                        vehicle_weapon_id: data.equipment.fighter_equipment_id,
+                        equipment_id: data.equipment.equipment_id || data.equipment.custom_equipment_id,
+                        custom_equipment_id: data.equipment.custom_equipment_id,
+                        equipment_name: data.equipment.equipment_name,
+                        equipment_type: data.equipment.equipment_type,
+                        equipment_category: data.equipment.equipment_category,
+                        cost: data.equipment.purchase_cost,
+                        purchase_cost: data.equipment.purchase_cost,
+                        weapon_profiles: data.equipment.weapon_profiles || [],
+                        vehicle_upgrade_slot: variables.item_data.vehicle_upgrade_slot || undefined
+                      }
+                    : item
+                );
+                return { ...vehicle, equipment: updatedEquipment };
+              }
+              return vehicle;
+            });
+          });
+        } else {
+          // Update fighter equipment cache with real server data
+          queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+            if (!old) return old;
+            // Replace the optimistic item with real data
+            return old.map(item => 
+              item.fighter_equipment_id.startsWith('temp-') 
+                ? data.equipment 
+                : item
+            );
+          });
+        }
         
         // Update gang credits with server response
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
@@ -529,8 +629,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
           queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
         }
         
-        // Update fighter effects with real server data
-        if (data.applied_effects && data.applied_effects.length > 0) {
+        // Update fighter effects with real server data (for fighter equipment)
+        if (!isVehicleEquipment && data.applied_effects && data.applied_effects.length > 0) {
           queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
             if (!old) return old;
             
@@ -549,9 +649,32 @@ const ItemModal: React.FC<ItemModalProps> = ({
           });
         }
         
-        // Invalidate vehicle queries if this is vehicle equipment
-        if (isVehicleEquipment && vehicleId) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+        // Update vehicle effects cache for vehicle equipment
+        if (isVehicleEquipment && data.applied_effects && data.applied_effects.length > 0) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            // Update the first vehicle's effects with new equipment effects
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const currentEffects = vehicle.effects || {};
+                const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+                
+                // Remove optimistic effects first, then add real server data
+                const filteredUpgrades = vehicleUpgrades.filter((effect: any) => 
+                  !effect.id.startsWith('temp-effect-')
+                );
+                
+                const updatedEffects = {
+                  ...currentEffects,
+                  'vehicle upgrades': [...filteredUpgrades, ...data.applied_effects]
+                };
+                
+                return { ...vehicle, effects: updatedEffects };
+              }
+              return vehicle;
+            });
+          });
         }
       } else {
         // For gang stash purchases, update with real server data
