@@ -15,7 +15,9 @@ import {
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
   deleteAdvancement 
-} from '@/app/actions/fighter-advancement';
+} from '@/app/lib/server-functions/fighter-advancements';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 import { LuUndo2 } from 'react-icons/lu';
 
 // AdvancementModal Interfaces
@@ -57,6 +59,7 @@ interface AvailableAdvancement {
   available_acquisition_types?: AcquisitionType[];
   skill_type_id?: string;
   characteristic_code?: string;
+  modifier_value?: number;
 }
 
 interface SkillResponse {
@@ -182,6 +185,221 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
 
+  // TanStack Query mutations
+  const queryClient = useQueryClient();
+
+  const addCharacteristicMutation = useMutation({
+    mutationFn: addCharacteristicAdvancement,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+
+      // Snapshot previous values
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+
+      // Optimistically update fighter XP
+      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => ({
+        ...old,
+        xp: old.xp - variables.xp_cost
+      }));
+
+      // Optimistically add characteristic to effects using data from selectedAdvancement
+      const selectedCategory = categories.find(cat => cat.id === variables.fighter_effect_type_id);
+      const characteristicName = (selectedCategory as StatChangeCategory)?.effect_name || selectedAdvancement?.stat_change_name || 'Unknown Characteristic';
+      const statName = selectedAdvancement?.characteristic_code || characteristicName.toLowerCase().replace(/ /g, '_');
+      
+      // Use the modifier_value from selectedAdvancement (now included in the SQL function response)
+      const modifierValue = selectedAdvancement?.modifier_value || 1;
+
+      queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+        if (!old) return old;
+        
+        const tempId = `temp-${Date.now()}`;
+        const newCharacteristic = {
+          id: tempId,
+          effect_name: characteristicName,
+          type_specific_data: {
+            xp_cost: variables.xp_cost,
+            credits_increase: variables.credits_increase,
+            times_increased: 1
+          },
+          // Add the fighter_effect_modifiers array with correct modifier value from SQL response
+          fighter_effect_modifiers: [{
+            id: `temp-mod-${Date.now()}`,
+            fighter_effect_id: tempId,
+            stat_name: statName,
+            numeric_value: modifierValue // Use the modifier value from get_fighter_available_advancements
+          }],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        return {
+          ...old,
+          advancements: [...(old.advancements || []), newCharacteristic]
+        };
+      });
+
+      return { previousFighter, previousEffects };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        toast({
+          title: "Success!",
+          description: `Successfully added ${result.data.advancement?.name}`
+        });
+
+        // Use remaining XP from server response to update parent
+        onAdvancementAdded?.(result.data.remaining_xp, result.data.advancement?.credits_increase || 0);
+      }
+    },
+  });
+
+  const addSkillMutation = useMutation({
+    mutationFn: addSkillAdvancement,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+
+      // Snapshot previous values
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+
+      // Optimistically update fighter XP
+      queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => ({
+        ...old,
+        xp: old.xp - variables.xp_cost,
+        ...(!(variables.is_advance ?? true) && old.free_skill && { free_skill: false })
+      }));
+
+      // Find skill name from selectedAdvancement
+      const skillName = selectedAdvancement?.stat_change_name || 'Unknown Skill';
+
+      // Optimistically add skill
+      queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: any) => {
+        if (!old) return {};
+        
+        return {
+          ...old,
+          [skillName]: {
+            id: `temp-${Date.now()}`,
+            name: skillName,
+            xp_cost: variables.xp_cost,
+            credits_increase: variables.credits_increase,
+            is_advance: variables.is_advance ?? true,
+            acquired_at: new Date().toISOString()
+          }
+        };
+      });
+
+      return { previousFighter, previousSkills };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        toast({
+          title: "Success!",
+          description: `Successfully added ${result.data.advancement?.name}`
+        });
+
+        // Use remaining XP from server response to update parent
+        onAdvancementAdded?.(result.data.remaining_xp, result.data.advancement?.credits_increase || 0);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAdvancement,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+
+      // Snapshot previous values for rollback
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+
+      // Optimistically remove the advancement and refund XP
+      if (variables.advancement_type === 'skill') {
+        // Remove skill from skills cache and refund XP
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: any) => {
+          if (!old) return old;
+          const newSkills = { ...old };
+          // Find and remove the skill by ID
+          Object.keys(newSkills).forEach(skillName => {
+            if (newSkills[skillName]?.id === variables.advancement_id) {
+              // Optimistically refund XP 
+              const xpCost = newSkills[skillName].xp_cost || 0;
+              queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => ({
+                ...oldFighter,
+                xp: oldFighter.xp + xpCost
+              }));
+              delete newSkills[skillName];
+            }
+          });
+          return newSkills;
+        });
+      } else {
+        // Remove characteristic from effects and refund XP
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          const advancement = (old.advancements || []).find((adv: any) => adv.id === variables.advancement_id);
+          if (advancement) {
+            // Optimistically refund XP
+            const xpCost = advancement.type_specific_data?.xp_cost || 0;
+            queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => ({
+              ...oldFighter,
+              xp: oldFighter.xp + xpCost
+            }));
+          }
+          
+          return {
+            ...old,
+            advancements: (old.advancements || []).filter(
+              (advancement: any) => advancement.id !== variables.advancement_id
+            )
+          };
+        });
+      }
+
+      return { previousFighter, previousEffects, previousSkills };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+    },
+  });
+
   // Fetch stat change categories
   useEffect(() => {
     const fetchCategories = async () => {
@@ -299,6 +517,7 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
             credits_increase: advancementDetails.credits_increase,
             stat_change_name: selectedCategoryObj.effect_name,
             characteristic_code: advancementDetails.characteristic_code,
+            modifier_value: advancementDetails.modifier_value,
             available_acquisition_types: []
           };
 
@@ -446,54 +665,46 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     }
   };
 
-  const handleAdvancementPurchase = async () => {
+  const handleAdvancementPurchase = () => {
     if (!selectedAdvancement) return;
 
-    try {
-      setIsSubmitting(true);
+    // Close modal immediately - optimistic updates handle the UI changes
+    setIsSubmitting(false);
+    onClose();
 
-      let result;
-
-      if (advancementType === 'characteristic') {
-        result = await addCharacteristicAdvancement({
-          fighter_id: fighterId,
-          fighter_effect_type_id: selectedAdvancement.id,
-          xp_cost: editableXpCost,
-          credits_increase: editableCreditsIncrease
-        });
-      } else {
-        result = await addSkillAdvancement({
-          fighter_id: fighterId,
-          skill_id: selectedAdvancement.id,
-          xp_cost: editableXpCost,
-          credits_increase: editableCreditsIncrease
-        });
-      }
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add advancement');
-      }
-
-      toast({
-        title: "Success!",
-        description: `Successfully added ${selectedAdvancement.stat_change_name}`
+    if (advancementType === 'characteristic') {
+      addCharacteristicMutation.mutate({
+        fighter_id: fighterId,
+        fighter_effect_type_id: selectedAdvancement.id,
+        xp_cost: editableXpCost,
+        credits_increase: editableCreditsIncrease
+      }, {
+        onError: (error) => {
+          console.error('Error purchasing characteristic advancement:', error);
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to purchase advancement",
+            variant: "destructive"
+          });
+        }
       });
-
-      // Use the remaining XP from the server action response
-      const remainingXp = result.remaining_xp || result.fighter?.xp || 0;
-      const creditsIncrease = result.advancement?.credits_increase || editableCreditsIncrease;
-      onAdvancementAdded?.(remainingXp, creditsIncrease);
-
-    } catch (error) {
-      console.error('Error purchasing advancement:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to purchase advancement",
-        variant: "destructive"
+    } else {
+      addSkillMutation.mutate({
+        fighter_id: fighterId,
+        skill_id: selectedAdvancement.id,
+        xp_cost: editableXpCost,
+        credits_increase: editableCreditsIncrease,
+        is_advance: true
+      }, {
+        onError: (error) => {
+          console.error('Error purchasing skill advancement:', error);
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to purchase advancement",
+            variant: "destructive"
+          });
+        }
       });
-    } finally {
-      setIsSubmitting(false);
-      onClose();
     }
   };
 
@@ -889,6 +1100,103 @@ export function AdvancementsList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
   const { toast } = useToast();
 
+  // TanStack Query mutation for deleting advancements
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAdvancement,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.detail(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.skills(fighterId) });
+
+      // Snapshot previous values for rollback
+      const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousSkills = queryClient.getQueryData(queryKeys.fighters.skills(fighterId));
+
+      // Optimistically remove the advancement and refund XP
+      if (variables.advancement_type === 'skill') {
+        // Remove skill from skills cache and refund XP
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), (old: any) => {
+          if (!old) return old;
+          const newSkills = { ...old };
+          // Find and remove the skill by ID
+          Object.keys(newSkills).forEach(skillName => {
+            if (newSkills[skillName]?.id === variables.advancement_id) {
+              // Optimistically refund XP 
+              const xpCost = newSkills[skillName].xp_cost || 0;
+              queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => ({
+                ...oldFighter,
+                xp: oldFighter.xp + xpCost
+              }));
+              delete newSkills[skillName];
+            }
+          });
+          return newSkills;
+        });
+      } else {
+        // Remove characteristic from effects and refund XP
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          const advancement = (old.advancements || []).find((adv: any) => adv.id === variables.advancement_id);
+          if (advancement) {
+            // Optimistically refund XP
+            const xpCost = advancement.type_specific_data?.xp_cost || 0;
+            queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (oldFighter: any) => ({
+              ...oldFighter,
+              xp: oldFighter.xp + xpCost
+            }));
+          }
+          
+          return {
+            ...old,
+            advancements: (old.advancements || []).filter(
+              (advancement: any) => advancement.id !== variables.advancement_id
+            )
+          };
+        });
+      }
+
+      return { previousFighter, previousEffects, previousSkills };
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        // Show success toast
+        toast({
+          description: `${result.data.advancement?.name || 'Advancement'} removed successfully`,
+          variant: "default"
+        });
+
+        // Sync the actual XP refund from server (in case our optimistic estimate was wrong)
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), (old: any) => ({
+          ...old,
+          xp: result.data.remaining_xp,
+          ...(result.data.fighter.free_skill !== undefined && { free_skill: result.data.fighter.free_skill })
+        }));
+      }
+    },
+    onError: (error, _variables, context) => {
+      // Show error toast
+      toast({
+        description: 'Failed to delete advancement',
+        variant: "destructive"
+      });
+
+      // Rollback optimistic changes on error
+      if (context?.previousFighter) {
+        queryClient.setQueryData(queryKeys.fighters.detail(fighterId), context.previousFighter);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousSkills) {
+        queryClient.setQueryData(queryKeys.fighters.skills(fighterId), context.previousSkills);
+      }
+    },
+  });
+
   // Memoize the entire data transformation
   const { characteristics, skills: transformedSkills } = useMemo(() => {
     const transformedCharacteristics: TransformedAdvancement[] = [];
@@ -960,43 +1268,38 @@ export function AdvancementsList({
     return [...advancements, ...advancementSkills];
   }, [advancements, advancementSkills]);
 
-  const handleDeleteAdvancement = async (advancementId: string, advancementName: string, advancementType?: string) => {
-    try {
-      setIsDeleting(advancementId);
-      
-      // Determine if this is a skill or characteristic based on the advancement type or name
-      const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
-      
-      const result = await deleteAdvancement({
-        fighter_id: fighterId,
-        advancement_id: advancementId,
-        advancement_type: isSkill ? 'skill' : 'characteristic'
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete advancement');
+  const handleDeleteAdvancement = (advancementId: string, advancementName: string, advancementType?: string) => {
+    // Close modal immediately - optimistic updates handle the UI changes
+    setIsDeleting(null);
+    setDeleteModalData(null);
+    
+    // Determine if this is a skill or characteristic based on the advancement type or name
+    const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
+    
+    deleteMutation.mutate({
+      fighter_id: fighterId,
+      advancement_id: advancementId,
+      advancement_type: isSkill ? 'skill' : 'characteristic'
+    }, {
+      onSuccess: (result) => {
+        if (result.success) {
+          toast({
+            description: `${advancementName} removed successfully`,
+            variant: "default"
+          });
+          
+          // Call the callback to notify parent component
+          onDeleteAdvancement(advancementId);
+        }
+      },
+      onError: (error) => {
+        console.error('Error deleting advancement:', error);
+        toast({
+          description: 'Failed to delete advancement',
+          variant: "destructive"
+        });
       }
-
-      // Call the callback to update parent component state and wait for it to complete
-      await onDeleteAdvancement(advancementId);
-      
-      toast({
-        description: `${advancementName} removed successfully`,
-        variant: "default"
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting advancement:', error);
-      toast({
-        description: 'Failed to delete advancement',
-        variant: "destructive"
-      });
-      return false;
-    } finally {
-      setIsDeleting(null);
-      setDeleteModalData(null);
-    }
+    });
   };
 
   const handleAdvancementAdded = (remainingXp: number, creditsIncrease: number) => {
