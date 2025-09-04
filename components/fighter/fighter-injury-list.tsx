@@ -83,7 +83,7 @@ export function InjuriesList({
       const previousFighter = queryClient.getQueryData(queryKeys.fighters.detail(fighterId));
       
       // Find the injury being added for optimistic update
-      const injuryToAdd = availableInjuries.find(inj => inj.id === variables.injury_type_id);
+      const injuryToAdd = availableInjuries.find((inj: any) => inj.id === variables.injury_type_id);
       
       if (injuryToAdd) {
         // Optimistically add the injury (with temporary ID)
@@ -283,7 +283,7 @@ export function InjuriesList({
     }
 
     // Find the selected injury object
-    const injury = availableInjuries.find(injury => injury.id === selectedInjuryId);
+    const injury = availableInjuries.find((injury: any) => injury.id === selectedInjuryId);
     if (!injury) {
       toast({
         description: "Selected lasting injury not found",
@@ -393,7 +393,7 @@ export function InjuriesList({
         
         // Check if the injury being deleted has stat modifiers and reverse them
         // We need to find the original injury data to get the modifiers
-        const originalInjury = availableInjuries.find(inj => 
+        const originalInjury = availableInjuries.find((inj: any) => 
           inj.effect_name === injuryToDelete.effect_name
         );
         
@@ -479,7 +479,7 @@ export function InjuriesList({
     setSelectedInjuryId(id);
     
     if (id) {
-      const selectedInjury = availableInjuries.find(injury => injury.id === id);
+      const selectedInjury = availableInjuries.find((injury: any) => injury.id === id);
       setSelectedInjury(selectedInjury || null);
     } else {
       setSelectedInjury(null);
@@ -558,7 +558,7 @@ export function InjuriesList({
                        const util = resolver(roll);
                        let match: any = null;
                        if (util) {
-                         match = availableInjuries.find(i => (i as any).effect_name === util.name);
+                         match = availableInjuries.find((i: any) => (i as any).effect_name === util.name);
                        }
                        if (!match) {
                          match = rolled[0].item as any;
@@ -574,7 +574,7 @@ export function InjuriesList({
                      const resolver = fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil;
                      const util = resolver(roll);
                      if (!util) return;
-                     const match = availableInjuries.find(i => (i as any).effect_name === util.name) as any;
+                     const match = availableInjuries.find((i: any) => (i as any).effect_name === util.name) as any;
                      if (match) {
                        setSelectedInjuryId(match.id);
                        setSelectedInjury(match);
@@ -607,7 +607,7 @@ export function InjuriesList({
                   {Object.entries(
                     availableInjuries
                       .slice()
-                      .filter(injury => {
+                      .filter((injury: any) => {
                         // If fighter is Crew, only show injuries in lastingInjuryCrewRank
                         if (fighter_class === 'Crew') {
                           return lastingInjuryCrewRank.hasOwnProperty(injury.effect_name);
@@ -615,13 +615,13 @@ export function InjuriesList({
                         // Otherwise show all injuries
                         return true;
                       })
-                      .sort((a, b) => {
+                      .sort((a: any, b: any) => {
                         const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
                         const rankA = rankMap[a.effect_name] ?? Infinity;
                         const rankB = rankMap[b.effect_name] ?? Infinity;
                         return rankA - rankB;
                       })
-                      .reduce((groups, injury) => {
+                      .reduce((groups: any, injury: any) => {
                         const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
                         const rank = rankMap[injury.effect_name] ?? Infinity;
                         let groupLabel = "Other Injuries";
@@ -635,7 +635,7 @@ export function InjuriesList({
                       }, {} as Record<string, typeof availableInjuries>)
                   ).map(([groupLabel, injuries]) => (
                     <optgroup key={groupLabel} label={groupLabel}>
-                      {injuries.map((injury) => (
+                      {(injuries as any[]).map((injury: any) => (
                         <option key={injury.id} value={injury.id}>
                           {injury.effect_name}
                         </option>
