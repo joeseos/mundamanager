@@ -12,6 +12,7 @@ interface Gang {
   campaign_gang_id?: string;
   user_id?: string;
   campaign_member_id?: string;
+  owner_username?: string;
 }
 
 
@@ -70,17 +71,36 @@ export default function TerritoryGangModal({
 
         if (gangsError) throw gangsError;
 
+        // Get user profiles for all gang owners
+        const userIds = campaignGangs.map(cg => cg.user_id).filter(Boolean);
+        let userProfiles: { id: string; username: string }[] = [];
+        
+        if (userIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+
+          if (!profilesError && profiles) {
+            userProfiles = profiles;
+          }
+        }
+
         // Combine the data with user information
         const enhancedGangs = gangs?.map(gang => {
           // Find the campaign_gang entry for this gang
           const campaignGang = campaignGangs.find(cg => cg.gang_id === gang.id);
+          // Find the user profile for this gang owner
+          const userProfile = userProfiles.find(profile => profile.id === campaignGang?.user_id);
+          
           return {
             id: gang.id,
             name: gang.name,
             gang_type: gang.gang_type,
             campaign_gang_id: campaignGang?.id,
             user_id: campaignGang?.user_id,
-            campaign_member_id: campaignGang?.campaign_member_id
+            campaign_member_id: campaignGang?.campaign_member_id,
+            owner_username: userProfile?.username || 'Unknown'
           };
         }) || [];
 
@@ -113,19 +133,19 @@ export default function TerritoryGangModal({
             className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
           >
             <option value="">Select a gang</option>
-{availableGangs
-  .slice()
-  .sort((a, b) => a.name.localeCompare(b.name))
-  .map((gang) => (
-    <option
-      key={gang.id}
-      value={gang.id}
-      disabled={existingGangId === gang.id}
-      className={existingGangId === gang.id ? "text-gray-400" : ""}
-    >
-      {gang.name} ({gang.gang_type}) {existingGangId === gang.id ? '(Already assigned)' : ''}
-    </option>
-))}
+            {availableGangs
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((gang) => (
+                <option
+                  key={gang.id}
+                  value={gang.id}
+                  disabled={existingGangId === gang.id}
+                  className={existingGangId === gang.id ? "text-gray-400" : ""}
+                >
+                  {gang.name} 󠁯•󠁏 {gang.owner_username} {existingGangId === gang.id ? '(Already assigned)' : ''}
+                </option>
+            ))}
           </select>
         </>
       )}

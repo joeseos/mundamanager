@@ -15,6 +15,7 @@ export interface CampaignPermissions extends UserPermissions {
   canDeleteCampaign: boolean;
   canManageMembers: boolean;
   canManageTerritories: boolean;
+  canClaimTerritories: boolean;
   canAddBattleLogs: boolean;
   canEditBattleLogs: boolean;
   campaignRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER' | null;

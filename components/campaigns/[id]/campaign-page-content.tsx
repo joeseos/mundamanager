@@ -15,8 +15,8 @@ import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
-import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
+import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
@@ -164,6 +164,7 @@ export default function CampaignPageContent({
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const [isPending, startTransition] = useTransition();
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -182,6 +183,7 @@ export default function CampaignPageContent({
     canDeleteCampaign: false,
     canManageMembers: false,
     canManageTerritories: false,
+    canClaimTerritories: false,
     canAddBattleLogs: false,
     canEditBattleLogs: false,
     campaignRole: null
@@ -281,6 +283,11 @@ export default function CampaignPageContent({
     } else {
       console.error('battleLogsRef.current is null');
     }
+  };
+
+  // Add this function to handle the Add territory button click
+  const handleAddTerritory = () => {
+    setShowTerritoryModal(true);
   };
 
   // Screenshot with html2canvas
@@ -615,7 +622,8 @@ export default function CampaignPageContent({
                 campaignId={campaignData.id}
                 members={campaignData.members}
                 permissions={{
-                  canManageTerritories: safePermissions.canManageTerritories
+                  canManageTerritories: safePermissions.canManageTerritories,
+                  canClaimTerritories: safePermissions.canClaimTerritories
                 }}
                 onTerritoryUpdate={refreshData}
               />
@@ -630,28 +638,15 @@ export default function CampaignPageContent({
               <div>
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Territories</h2>
+                  {safePermissions.canManageTerritories && (
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white"
+                      onClick={handleAddTerritory}
+                    >
+                      Add
+                    </Button>
+                  )}
                 </div>
-                
-                {/* Admin can add territories */}
-                {safePermissions.canManageTerritories && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-medium mb-2">Add Territories</h3>
-                    <TerritoryList
-                      isAdmin={!!safePermissions.canManageTerritories}
-                      campaignId={campaignData.id}
-                      campaignTypeId={campaignData.campaign_type_id}
-                      campaignTypes={campaignTypes}
-                      allTerritories={allTerritories}
-                      existingCampaignTerritories={campaignData.territories.map(territory => ({
-                        territory_id: territory.territory_id,
-                        territory_name: territory.territory_name
-                      }))}
-                      onTerritoryAdd={() => {
-                        refreshData();
-                      }}
-                    />
-                  </div>
-                )}
                 
                 {/* Display existing territories */}
                 <CampaignTerritoryList
@@ -659,7 +654,8 @@ export default function CampaignPageContent({
                   campaignId={campaignData.id}
                   members={campaignData.members}
                   permissions={{
-                    canManageTerritories: safePermissions.canManageTerritories
+                    canManageTerritories: safePermissions.canManageTerritories,
+                    canClaimTerritories: safePermissions.canClaimTerritories
                   }}
                   onTerritoryUpdate={refreshData}
                 />
@@ -747,6 +743,21 @@ export default function CampaignPageContent({
           currentImageUrl={campaignData.image_url || ''}
           campaignId={campaignData.id}
           onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
+        />
+
+        <CampaignAddTerritoryModal
+          isOpen={showTerritoryModal}
+          onClose={() => setShowTerritoryModal(false)}
+          campaignId={campaignData.id}
+          campaignTypeId={campaignData.campaign_type_id}
+          campaignTypes={campaignTypes}
+          allTerritories={allTerritories}
+          existingCampaignTerritories={campaignData.territories.map(territory => ({
+            territory_id: territory.territory_id,
+            territory_name: territory.territory_name
+          }))}
+          onTerritoryAdd={refreshData}
+          isAdmin={!!safePermissions.canManageTerritories}
         />
 
       </div>

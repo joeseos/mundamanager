@@ -214,6 +214,25 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     gangsData = gangs || [];
   }
 
+  // Fetch territory counts for each gang in this campaign
+  let territoryCounts: {[gangId: string]: number} = {};
+  if (gangIds.length > 0) {
+    const { data: territories, error: territoriesError } = await supabase
+      .from('campaign_territories')
+      .select('gang_id')
+      .eq('campaign_id', campaignId)
+      .in('gang_id', gangIds);
+
+    if (!territoriesError && territories) {
+      // Count territories per gang
+      territories.forEach(territory => {
+        if (territory.gang_id) {
+          territoryCounts[territory.gang_id] = (territoryCounts[territory.gang_id] || 0) + 1;
+        }
+      });
+    }
+  }
+
   let fightersData: any[] = [];
   let gangVehiclesData: any[] = [];
   
@@ -293,7 +312,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         campaign_member_id: cg.campaign_member_id,
         exploration_points: gangDetails?.exploration_points ?? null,
         meat: gangDetails?.meat ?? null,
-        scavenging_rolls: gangDetails?.scavenging_rolls ?? null
+        scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
+        territory_count: territoryCounts[cg.gang_id] || 0
       };
     });
 

@@ -47,9 +47,27 @@ interface TerritoryLostLogParams {
 
 export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
+    // Get the gang owner's user_id to satisfy RLS policy
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    
+    if (gangError || !gangData) {
+      console.error('Error fetching gang owner:', gangError);
+      return {
+        success: false,
+        error: 'Failed to fetch gang owner information'
+      };
+    }
+    
     const description = `Gang joined campaign "${params.campaign_name}" (added by ${params.user_name})`;
     return await createGangLog({
       gang_id: params.gang_id,
+      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
       action_type: 'campaign_joined',
       description
     });
@@ -64,10 +82,28 @@ export async function logGangJoinedCampaign(params: GangJoinedCampaignLogParams)
 
 export async function logGangLeftCampaign(params: GangLeftCampaignLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
+    // Get the gang owner's user_id to satisfy RLS policy
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    
+    if (gangError || !gangData) {
+      console.error('Error fetching gang owner:', gangError);
+      return {
+        success: false,
+        error: 'Failed to fetch gang owner information'
+      };
+    }
+    
     const description = `Gang left campaign "${params.campaign_name}" (removed by ${params.user_name})`;
 
     return await createGangLog({
       gang_id: params.gang_id,
+      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
       action_type: 'campaign_left',
       description
     });
@@ -82,6 +118,23 @@ export async function logGangLeftCampaign(params: GangLeftCampaignLogParams): Pr
 
 export async function logBattleResult(params: BattleResultLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
+    // Get the gang owner's user_id to satisfy RLS policy
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    
+    if (gangError || !gangData) {
+      console.error('Error fetching gang owner:', gangError);
+      return {
+        success: false,
+        error: 'Failed to fetch gang owner information'
+      };
+    }
+    
     const roleText = params.is_attacker ? 'attacked' : 'defended against';
     let resultText;
     
@@ -101,6 +154,7 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
 
     return await createGangLog({
       gang_id: params.gang_id,
+      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
       action_type: `battle_${params.result}`,
       description
     });
@@ -115,11 +169,29 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
 
 export async function logTerritoryClaimed(params: TerritoryClaimedLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
+    // Get the gang owner's user_id to satisfy RLS policy
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    
+    if (gangError || !gangData) {
+      console.error('Error fetching gang owner:', gangError);
+      return {
+        success: false,
+        error: 'Failed to fetch gang owner information'
+      };
+    }
+    
     const territoryType = params.is_custom ? 'custom territory' : 'territory';
     const description = `Gang "${params.gang_name}" claimed ${territoryType} "${params.territory_name}" in campaign "${params.campaign_name}"`;
 
     return await createGangLog({
       gang_id: params.gang_id,
+      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
       action_type: 'territory_claimed',
       description
     });
@@ -134,11 +206,29 @@ export async function logTerritoryClaimed(params: TerritoryClaimedLogParams): Pr
 
 export async function logTerritoryLost(params: TerritoryLostLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
+    // Get the gang owner's user_id to satisfy RLS policy
+    const { data: gangData, error: gangError } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    
+    if (gangError || !gangData) {
+      console.error('Error fetching gang owner:', gangError);
+      return {
+        success: false,
+        error: 'Failed to fetch gang owner information'
+      };
+    }
+    
     const territoryType = params.is_custom ? 'custom territory' : 'territory';
     const description = `Gang "${params.gang_name}" lost ${territoryType} "${params.territory_name}" in campaign "${params.campaign_name}"`;
 
     return await createGangLog({
       gang_id: params.gang_id,
+      user_id: gangData.user_id, // Use gang owner's user_id to satisfy RLS policy
       action_type: 'territory_lost',
       description
     });
