@@ -187,7 +187,7 @@ export default function Gang({
       // Rollback optimistic changes
       if (context?.previousPositions) {
         queryClient.setQueryData(queryKeys.gangs.positioning(id), context.previousPositions);
-        setPositions(context.previousPositions);
+        setPositions(context.previousPositions as Record<number, string>);
       }
       
       toast({

@@ -12,7 +12,7 @@ import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
-import { addFighterToGang } from '@/app/actions/add-fighter';
+import { addFighterToGang } from '@/app/lib/server-functions/add-fighter';
 
 interface GangEquipmentOption {
   id: string;
