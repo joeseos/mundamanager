@@ -3,14 +3,13 @@ import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '../ui/modal';
-import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
-import { rollD6 } from '@/utils/dice';
+import { rollD6, resolveVehicleDamageFromUtil } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addVehicleDamage, removeVehicleDamage } from '@/app/lib/server-functions/vehicle-damage';
+import { addVehicleDamage, removeVehicleDamage, repairVehicleDamage } from '@/app/lib/server-functions/vehicle-damage';
 import { queryKeys } from '@/app/lib/queries/keys';
 
 interface VehicleDamagesListProps {
@@ -39,7 +38,6 @@ export function VehicleDamagesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
   const [repairPercent, setRepairPercent] = useState<0 | 10 | 25>(0);
-  const [isRepairing, setIsRepairing] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
@@ -48,10 +46,6 @@ export function VehicleDamagesList({
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
 
-  // Helper to check for valid UUID
-  function isValidUUID(id: string) {
-    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-  }
 
   // Query for available vehicle damages using the API route (includes complete modifier data)
   const { data: availableDamages = [], isLoading: isLoadingDamages } = useQuery({
@@ -182,7 +176,7 @@ export function VehicleDamagesList({
     }
 
     // Find the selected damage name for logging
-    const selectedDamage = availableDamages.find(d => d.id === selectedDamageId);
+    const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
     const damageName = selectedDamage?.effect_name || 'Unknown damage';
     
     addDamageMutation.mutate({
@@ -287,61 +281,134 @@ export function VehicleDamagesList({
     return true;
   };
 
+  // Mutation for repairing vehicle damages
+  const repairDamageMutation = useMutation({
+    mutationFn: repairVehicleDamage,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.vehicles.effects(vehicleId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      
+      // Snapshot the previous values
+      const previousVehicleEffects = queryClient.getQueryData(queryKeys.vehicles.effects(vehicleId));
+      const previousFighterVehicles = queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId));
+      const previousGangCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      
+      // Optimistically remove all damages being repaired
+      queryClient.setQueryData(queryKeys.vehicles.effects(vehicleId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          damages: old.damages?.filter((damage: any) => !variables.damageIds.includes(damage.id)) || []
+        };
+      });
+      
+      // Also update fighter vehicles cache
+      queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any) => {
+        if (!old) return old;
+        return old.map((vehicle: any) => {
+          if (vehicle.id === vehicleId) {
+            return {
+              ...vehicle,
+              effects: {
+                ...vehicle.effects,
+                'lasting damages': vehicle.effects?.['lasting damages']?.filter((damage: any) => !variables.damageIds.includes(damage.id)) || []
+              }
+            };
+          }
+          return vehicle;
+        });
+      });
+      
+      // Optimistically update gang credits
+      if (gangCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), gangCredits - variables.repairCost);
+        if (onGangCreditsUpdate) {
+          onGangCreditsUpdate(gangCredits - variables.repairCost);
+        }
+      }
+      
+      return { previousVehicleEffects, previousFighterVehicles, previousGangCredits };
+    },
+    onSuccess: (result, variables) => {
+      if (result.success) {
+        toast({
+          description: `Repaired ${result.data.repairedCount} damage(s) for ${variables.repairCost} credits`,
+          variant: 'default'
+        });
+        
+        // Update gang credits with actual value from server
+        if (onGangCreditsUpdate) {
+          onGangCreditsUpdate(result.data.newGangCredits);
+        }
+      }
+      
+      // Invalidate queries to get fresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.effects(vehicleId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      
+      setIsRepairModalOpen(false);
+      setRepairCost(0);
+    },
+    onError: (error: Error, variables, context) => {
+      // If the mutation fails, use the context to roll back
+      if (context?.previousVehicleEffects) {
+        queryClient.setQueryData(queryKeys.vehicles.effects(vehicleId), context.previousVehicleEffects);
+      }
+      if (context?.previousFighterVehicles) {
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousFighterVehicles);
+      }
+      if (context?.previousGangCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousGangCredits);
+        if (onGangCreditsUpdate && typeof context.previousGangCredits === 'number') {
+          onGangCreditsUpdate(context.previousGangCredits);
+        }
+      }
+      
+      toast({
+        description: `Failed to repair damages: ${error.message}`,
+        variant: 'destructive'
+      });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure correct data
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.effects(vehicleId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+    },
+  });
+
   const handleRepairDamage = async () => {
     if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
-    const damageIdsToRepair = uniqueDamages.map(d => d.id).filter(isValidUUID);
+    const damageIdsToRepair = uniqueDamages.map(d => d.id);
+    
     if (damageIdsToRepair.length === 0) {
       toast({
-        description: 'No valid damages to repair.',
+        description: 'No damages to repair.',
         variant: 'destructive'
       });
       return false;
     }
     
-    try {
-      setIsRepairing('batch');
-      const supabase = createClient();
-      if (gangCredits < repairCost) {
-        toast({
-          description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
-          variant: 'destructive'
-        });
-        return false;
-      }
-      
-      const { data, error } = await supabase.rpc('repair_vehicle_damage', {
-        damage_ids: damageIdsToRepair,
-        repair_cost: repairCost,
-        in_user_id: (await supabase.auth.getSession()).data.session?.user?.id
-      });
-      
-      if (error) throw error;
-      
-      // Optimistic update: Remove repaired damages from the list
-      const updatedDamages = damages.filter(d => !damageIdsToRepair.includes(d.id));
-      onDamageUpdate(updatedDamages);
-      
-      // Update gang credits
-      if (onGangCreditsUpdate) {
-        onGangCreditsUpdate(gangCredits - repairCost);
-      }
-      
+    if (gangCredits < repairCost) {
       toast({
-        description: `Repaired ${damageIdsToRepair.length} damage(s) for ${repairCost} credits`,
-        variant: 'default'
-      });
-      return true;
-    } catch (error) {
-      console.error('Error repairing lasting damage:', error);
-      toast({
-        description: 'Failed to repair lasting damage(s)',
+        description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
         variant: 'destructive'
       });
       return false;
-    } finally {
-      setIsRepairing(null);
-      setRepairCost(0);
     }
+    
+    repairDamageMutation.mutate({
+      damageIds: damageIdsToRepair,
+      repairCost,
+      gangId,
+      fighterId,
+      vehicleId
+    });
+    
+    return true;
   };
 
   // Deduplicate damages by id before rendering to avoid React key warnings
@@ -462,47 +529,23 @@ export function VehicleDamagesList({
                   inline
                   rollFn={rollD6}
                   resolveNameForRoll={(roll) => {
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    return map[roll as 1|2|3|4|5|6];
+                    return resolveVehicleDamageFromUtil(roll);
                   }}
                   buttonText="Roll D6"
                   disabled={!userPermissions.canEdit}
                   onRolled={(rolled) => {
                     if (rolled.length === 0) return;
                     const roll = rolled[0].roll;
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    const name = resolveVehicleDamageFromUtil(roll);
+                    const match = availableDamages.find((d: any) => (d as any).effect_name === name);
                     if (match) {
                       setSelectedDamageId(match.id);
                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
                     }
                   }}
                   onRoll={(roll) => {
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    const name = resolveVehicleDamageFromUtil(roll);
+                    const match = availableDamages.find((d: any) => (d as any).effect_name === name);
                     if (match) {
                       setSelectedDamageId(match.id);
                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
@@ -528,7 +571,7 @@ export function VehicleDamagesList({
                       : "Select a Lasting Damage"
                     }
                   </option>
-                  {availableDamages.map((damage) => (
+                  {availableDamages.map((damage: any) => (
                     <option key={damage.id} value={damage.id}>
                       {damage.effect_name}
                     </option>

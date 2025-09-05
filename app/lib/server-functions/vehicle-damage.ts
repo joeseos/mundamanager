@@ -43,6 +43,14 @@ export interface RemoveVehicleDamageParams {
   gangId: string;
 }
 
+export interface RepairVehicleDamageParams {
+  damageIds: string[];
+  repairCost: number;
+  gangId: string;
+  fighterId: string;
+  vehicleId: string;
+}
+
 export interface VehicleDamage {
   id: string;
   effect_name: string;
@@ -220,6 +228,73 @@ export async function removeVehicleDamage(
     };
   } catch (error) {
     console.error('Error in removeVehicleDamage:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// Repair multiple vehicle damages at once
+export async function repairVehicleDamage(
+  params: RepairVehicleDamageParams
+): Promise<ServerFunctionResult<{ repairedCount: number; newGangCredits: number }>> {
+  try {
+    const { user, supabase } = await createServerContext()
+
+    // Filter out any temporary IDs that might be in the list
+    const validDamageIds = params.damageIds.filter(id => !id.startsWith('temp-damage-'));
+    
+    if (validDamageIds.length === 0) {
+      return {
+        success: true,
+        data: { repairedCount: 0, newGangCredits: 0 }
+      };
+    }
+
+    // Use the existing RPC function to repair damages and deduct credits
+    const { error } = await supabase.rpc('repair_vehicle_damage', {
+      damage_ids: validDamageIds,
+      repair_cost: params.repairCost,
+      in_user_id: user.id
+    });
+
+    if (error) {
+      console.error('Error repairing vehicle damages:', error);
+      throw new Error(error.message || 'Failed to repair vehicle damages');
+    }
+
+    // Get the updated gang credits after repair
+    const { data: gangData } = await supabase
+      .from('gangs')
+      .select('credits')
+      .eq('id', params.gangId)
+      .single();
+
+    // Log the repair action
+    try {
+      const { logVehicleAction } = await import('@/app/actions/logs/vehicle-logs');
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: params.vehicleId,
+        fighter_id: params.fighterId,
+        damage_name: `${validDamageIds.length} damages`,
+        action_type: 'vehicle_damage_removed', // Use existing log type for repairs
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle damage repair:', logError);
+    }
+
+    return {
+      success: true,
+      data: {
+        repairedCount: validDamageIds.length,
+        newGangCredits: gangData?.credits || 0
+      }
+    };
+  } catch (error) {
+    console.error('Error in repairVehicleDamage:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
