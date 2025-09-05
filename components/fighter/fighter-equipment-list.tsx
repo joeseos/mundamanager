@@ -194,7 +194,11 @@ export function WeaponList({
         });
       }
 
-      // Invalidate gang rating and credits since deleting equipment affects both
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      
+      // Gang rating and credits (affected by equipment deletion)
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
 
@@ -306,7 +310,11 @@ export function WeaponList({
         });
       }
       
-      // Invalidate gang rating and credits since selling equipment affects both
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      
+      // Gang rating and credits (affected by equipment sale)
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
 
@@ -389,9 +397,12 @@ export function WeaponList({
       // Find equipment before removing for stash update
       const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
-      // Equipment and stash are already updated optimistically, no need to invalidate
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches  
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
       
-      // Invalidate gang rating and credits since moving equipment to stash affects both
+      // Gang stash and rating (affected by equipment moved to stash)
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.stash(gangId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
 

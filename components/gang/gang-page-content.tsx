@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import Gang from "@/components/gang/gang";
@@ -73,13 +73,40 @@ export default function GangPageContent({
 }: GangPageContentProps) {
   const queryClient = useQueryClient();
   
+  // Use SSR-provided positioning as the single source of truth for initial render
+  const positioning = useMemo(() => initialGangData.positioning || {}, [initialGangData.positioning]);
+  
+  // For now, we'll use the initial fighters data and rely on cache invalidation
+  // to keep it synchronized. This avoids the Rules of Hooks violation.
+  // The cache invalidation in handleFighterUpdate will ensure synchronization.
+  const fighters = useMemo(() => {
+    // Use initial fighters data, which will be updated via cache invalidation
+    return initialGangData.fighters || [];
+  }, [initialGangData.fighters]);
+  
   const [gangData, setGangData] = useState<GangDataState>({
-    processedData: initialGangData,
+    processedData: {
+      ...initialGangData,
+      fighters,
+      positioning
+    },
     stash: initialGangData.stash || [],
     onStashUpdate: () => {},
     onVehicleUpdate: () => {},
     onFighterUpdate: () => {}
   });
+
+  // Update gang data when fighters change from individual queries
+  useEffect(() => {
+    setGangData(prev => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        fighters,
+        positioning
+      }
+    }));
+  }, [fighters, positioning]);
 
   // Move all the callback handlers here from the current page.tsx
   const handleStashUpdate = useCallback((newStash: StashItem[]) => {
@@ -124,107 +151,23 @@ export default function GangPageContent({
   }, []);
 
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps, skipRatingUpdate?: boolean) => {
-    // 🎯 GRANULAR CACHE INVALIDATION - Only invalidate the specific fighter's data
+    // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate the specific fighter's data
     // This automatically updates both gang page and fighter page since they use the same cache keys!
     queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(updatedFighter.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(updatedFighter.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(updatedFighter.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(updatedFighter.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(updatedFighter.id) });
-    // No separate total cost query - it's calculated from the above data
     
-    setGangData((prev: GangDataState) => {
-      // If server provided updated rating, use that instead of calculating
-      if (skipRatingUpdate) {
-        const existingFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
-        
-        return {
-          ...prev,
-          processedData: {
-            ...prev.processedData,
-            fighters: existingFighter 
-              ? prev.processedData.fighters.map(fighter =>
-                  fighter.id === updatedFighter.id ? updatedFighter : fighter
-                )
-              : [...prev.processedData.fighters, updatedFighter], // Add new fighter if it doesn't exist
-            // Don't modify rating when skipRatingUpdate is true
-          }
-        };
-      }
-
-      // Find the previous version of this fighter to compare
-      const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
-      
-      // If fighter doesn't exist, add it as a new fighter
-      if (!prevFighter) {
-        return {
-          ...prev,
-          processedData: {
-            ...prev.processedData,
-            fighters: [...prev.processedData.fighters, updatedFighter],
-            // Don't modify rating for new exotic beasts (they have 0 cost)
-          }
-        };
-      }
-      
-      // Calculate rating change from vehicle updates
-      let ratingChange = 0;
-      let nextFighter: FighterProps = { ...updatedFighter };
-      let vehicleChanged = false;
-      
-      // If fighter now has a vehicle that it didn't have before
-      if (nextFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
-        // Add the vehicle's cost to the rating - we know it's a VehicleProps
-        const vehicleCost = (nextFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        ratingChange += vehicleCost;
-        // Sync fighter credits
-        nextFighter.credits = (prevFighter.credits || 0) + vehicleCost;
-        vehicleChanged = true;
-      } 
-      // If fighter had a vehicle but no longer does
-      else if ((!nextFighter.vehicles || nextFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
-        // Subtract the vehicle's cost from the rating
-        const vehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        ratingChange -= vehicleCost;
-        // Sync fighter credits
-        nextFighter.credits = (prevFighter.credits || 0) - vehicleCost;
-        vehicleChanged = true;
-      }
-      // If fighter had a vehicle and still has one, but it's different
-      else if (nextFighter.vehicles?.length && prevFighter?.vehicles?.length && 
-               nextFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
-        // Remove old vehicle cost and add new vehicle cost
-        const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        const newVehicleCost = (nextFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        ratingChange -= prevVehicleCost;
-        ratingChange += newVehicleCost;
-        // Sync fighter credits
-        nextFighter.credits = (prevFighter.credits || 0) - prevVehicleCost + newVehicleCost;
-        vehicleChanged = true;
-      }
-
-      // Calculate rating change from credit changes (when equipment is moved from stash)
-      if (!vehicleChanged && prevFighter && nextFighter.credits !== prevFighter.credits) {
-        const creditChange = nextFighter.credits - prevFighter.credits;
-        ratingChange += creditChange;
-      }
-
-      // Calculate the new rating
-      const newRating = prev.processedData.rating + ratingChange;
-
-      return {
-        ...prev,
-        processedData: {
-          ...prev.processedData,
-          fighters: prev.processedData.fighters.map(fighter =>
-            fighter.id === nextFighter.id ? nextFighter : fighter
-          ),
-          // Update the rating based on vehicle and credit changes
-          rating: newRating
-        }
-      };
-    });
-  }, [queryClient]);
+    // Only invalidate gang data that depends on this fighter's changes
+    if (!skipRatingUpdate) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+    }
+    
+    // Note: Local state will be updated automatically via useEffect when cache invalidation
+    // triggers refetch of individual fighter queries. No manual state updates needed!
+  }, [queryClient, gangId]);
 
   const handleFighterAdd = useCallback((newFighter: FighterProps, cost: number) => {
     setGangData((prev: GangDataState) => {

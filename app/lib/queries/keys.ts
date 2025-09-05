@@ -42,6 +42,7 @@ export const queryKeys = {
     
     // Related data (different from gang detail)
     fighters: (id: string) => [...queryKeys.gangs.detail(id), 'fighters'] as const,
+    fighterIds: (id: string) => [...queryKeys.gangs.detail(id), 'fighter-ids'] as const,
     campaigns: (id: string) => [...queryKeys.gangs.detail(id), 'campaigns'] as const,
     vehicles: (id: string) => [...queryKeys.gangs.detail(id), 'vehicles'] as const,
   },

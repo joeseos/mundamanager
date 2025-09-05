@@ -134,14 +134,20 @@ export default function Gang({
     queryKey: queryKeys.gangs.credits(id),
     queryFn: () => queryGangCredits(id),
     initialData: initialCredits ?? 0,
-    staleTime: 0, // Always fresh - respond immediately to invalidations
+    staleTime: 0,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const { data: rating } = useQuery({
     queryKey: queryKeys.gangs.rating(id),
     queryFn: () => queryGangRating(id),
     initialData: initialRating ?? 0,
-    staleTime: 0, // Always fresh - respond immediately to invalidations
+    staleTime: 0,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
   
   const [reputation, setReputation] = useState(initialReputation ?? 0)

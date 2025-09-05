@@ -126,46 +126,31 @@ export async function queryGangFighterCount(gangId: string): Promise<number> {
   return count || 0
 }
 
-export async function queryGangFighters(gangId: string): Promise<any[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
+export async function queryGangFighterIds(gangId: string, supabase?: any): Promise<{
+  fighterIds: string[],
+  positioning: Record<number, string>
+}> {
+  const client = supabase || createClient()
+  const { data, error } = await client
     .from('fighters')
-    .select(`
-      id,
-      fighter_name,
-      label,
-      credits,
-      movement,
-      weapon_skill,
-      ballistic_skill,
-      strength,
-      toughness,
-      wounds,
-      initiative,
-      attacks,
-      leadership,
-      cool,
-      willpower,
-      intelligence,
-      xp,
-      fighter_class,
-      fighter_type,
-      killed,
-      retired,
-      enslaved,
-      captured,
-      recovery,
-      starved,
-      kills,
-      image_url,
-      position
-    `)
+    .select('id, position')
     .eq('gang_id', gangId)
     .order('position', { nullsFirst: false })
     .order('created_at')
 
   if (error) throw error
-  return data || []
+
+  const fighters = data || []
+  const fighterIds = fighters.map((f: any) => f.id)
+  
+  // Build positioning map
+  const positioning: Record<number, string> = {}
+  fighters.forEach((fighter: any, index: number) => {
+    const pos = fighter.position !== null ? fighter.position : index
+    positioning[pos] = fighter.id
+  })
+
+  return { fighterIds, positioning }
 }
 
 // gangQueries removed - using centralized queryKeys from keys.ts instead
@@ -252,13 +237,13 @@ export const useGetGangFighterCount = (
   })
 }
 
-export const useGetGangFighters = (
+export const useGetGangFighterIds = (
   gangId: string,
-  options?: Partial<UseQueryOptions<any[], Error, any[], readonly string[]>>
+  options?: Partial<UseQueryOptions<{fighterIds: string[], positioning: Record<number, string>}, Error, {fighterIds: string[], positioning: Record<number, string>}, readonly string[]>>
 ) => {
   return useQuery({
-    queryKey: queryKeys.gangs.fighters(gangId),
-    queryFn: () => queryGangFighters(gangId),
+    queryKey: queryKeys.gangs.fighterIds(gangId),
+    queryFn: () => queryGangFighterIds(gangId),
     enabled: !!gangId && gangId !== 'placeholder',
     staleTime: 1000 * 60 * 5, // 5 minutes
     ...options

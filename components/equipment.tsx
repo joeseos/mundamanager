@@ -624,7 +624,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // Update gang credits with server response
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
         
-        // Invalidate gang rating since buying equipment affects gang rating
+        // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+        // Fighter equipment (will sync gang page automatically via shared cache)
+        if (fighterId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+        }
+        
+        // Gang rating (affected by equipment purchase) - credits already updated above
         queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
         
         // Update fighter total cost if provided

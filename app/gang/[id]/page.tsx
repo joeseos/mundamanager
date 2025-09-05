@@ -395,6 +395,17 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       queryFighterVehicles
     } = await import('@/app/lib/queries/fighter-queries');
     
+    // 🎯 PREFETCH GANG-LEVEL QUERIES FOR TANSTACK SSR HYDRATION
+    const {
+      queryGangBasic,
+      queryGangCredits,
+      queryGangPositioning,
+      queryGangResources,
+      queryGangRating,
+      queryGangFighterCount,
+      queryGangFighterIds,
+    } = await import('@/app/lib/queries/gang-queries');
+    
     // Prefetch all fighter data in parallel for each fighter
     await Promise.all(
       fighters.map((fighter: any) => 
@@ -427,6 +438,38 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         ])
       )
     );
+
+    // Prefetch gang queries as well so all sections hydrate immediately on first paint
+    await Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.detail(params.id),
+        queryFn: () => queryGangBasic(params.id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.credits(params.id),
+        queryFn: () => queryGangCredits(params.id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.positioning(params.id),
+        queryFn: () => queryGangPositioning(params.id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.resources(params.id),
+        queryFn: () => queryGangResources(params.id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.rating(params.id),
+        queryFn: () => queryGangRating(params.id),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.fighterCount(params.id),
+        queryFn: () => queryGangFighterCount(params.id),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.fighterIds(params.id),
+        queryFn: () => queryGangFighterIds(params.id, supabase),
+      }),
+    ]);
 
     // Process the data server-side
     const processedData = await processGangData(gangData);
