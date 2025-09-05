@@ -5,6 +5,8 @@ import { FighterProps, FighterSkills } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 // Move processGangData function here (server-side processing)
 async function processGangData(gangData: any) {
@@ -281,6 +283,19 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     redirect("/sign-in");
   }
 
+  // Create a new QueryClient for this request (same pattern as fighter page)
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5, // 5 minutes - longer stale time
+        gcTime: 1000 * 60 * 10, // 10 minutes - garbage collection time
+        refetchOnMount: false, // Don't refetch on mount if data exists
+        refetchOnWindowFocus: false, // Don't refetch on window focus
+        refetchOnReconnect: false, // Don't refetch on reconnect
+      },
+    },
+  });
+
   try {
     // Fetch gang data using granular shared functions
     const {
@@ -371,6 +386,48 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       username: userProfile?.username
     };
 
+    // 🎯 PREFETCH COMPLETE FIGHTER DATA - Same cache keys as fighter pages!
+    const { 
+      queryFighterBasic,
+      queryFighterEquipment,
+      queryFighterSkills,
+      queryFighterEffects,
+      queryFighterVehicles
+    } = await import('@/app/lib/queries/fighter-queries');
+    
+    // Prefetch all fighter data in parallel for each fighter
+    await Promise.all(
+      fighters.map((fighter: any) => 
+        Promise.all([
+          // Basic fighter data
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.fighters.detail(fighter.id),
+            queryFn: () => queryFighterBasic(fighter.id, supabase),
+          }),
+          // Fighter equipment (weapons, wargear)
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.fighters.equipment(fighter.id),
+            queryFn: () => queryFighterEquipment(fighter.id, supabase),
+          }),
+          // Fighter skills
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.fighters.skills(fighter.id),
+            queryFn: () => queryFighterSkills(fighter.id, supabase),
+          }),
+          // Fighter effects (injuries, advancements, etc.)
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.fighters.effects(fighter.id),
+            queryFn: () => queryFighterEffects(fighter.id, supabase),
+          }),
+          // Fighter vehicles
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.fighters.vehicles(fighter.id),
+            queryFn: () => queryFighterVehicles(fighter.id, supabase),
+          }),
+        ])
+      )
+    );
+
     // Process the data server-side
     const processedData = await processGangData(gangData);
     
@@ -379,12 +436,14 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     const userPermissions = await permissionService.getGangPermissions(user.id, params.id);
     
     return (
-      <GangPageContent
-        initialGangData={processedData}
-        gangId={params.id}
-        userId={user.id}
-        userPermissions={userPermissions}
-      />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <GangPageContent
+          initialGangData={processedData}
+          gangId={params.id}
+          userId={user.id}
+          userPermissions={userPermissions}
+        />
+      </HydrationBoundary>
     );
   } catch (error) {
     console.error('Error in GangPage:', error);

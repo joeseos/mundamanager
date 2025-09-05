@@ -624,6 +624,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // Update gang credits with server response
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
         
+        // Invalidate gang rating since buying equipment affects gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+        
         // Update fighter total cost if provided
         if (data.fighter_total_cost !== undefined) {
           queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
@@ -688,6 +691,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
           );
         });
         queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
+        
+        // Invalidate gang rating since buying equipment for stash affects gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       }
 
       const equipmentName = variables.master_crafted && data.equipment.equipment_type === 'weapon' 

@@ -172,6 +172,9 @@ export function VehicleEquipmentList({
         ? ` and removed ${effectsCount} associated effect${effectsCount > 1 ? 's' : ''}`
         : '';
       
+      // Invalidate gang rating since deleting vehicle equipment affects gang rating
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
       toast({
         title: "Success",
         description: `Successfully deleted ${data?.deleted_equipment?.equipment_name}${effectsMessage}`,
@@ -296,6 +299,9 @@ export function VehicleEquipmentList({
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
       }
       
+      // Invalidate gang rating since selling vehicle equipment affects gang rating
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      
       toast({
         title: "Success",
         description: `Sold ${context?.equipmentToSell?.equipment_name} for ${variables.manualCost} credits`,
@@ -411,6 +417,9 @@ export function VehicleEquipmentList({
       if (data?.fighter_total_cost !== undefined) {
         queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
       }
+      
+      // Invalidate gang rating since moving vehicle equipment to stash affects gang rating
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
       
       toast({
         title: "Success",

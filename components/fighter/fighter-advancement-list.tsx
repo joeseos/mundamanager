@@ -23,6 +23,7 @@ import { LuUndo2 } from 'react-icons/lu';
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
   fighterId: string;
+  gangId: string;
   currentXp: number;
   onClose: () => void;
   onAdvancementAdded?: (remainingXp: number, creditsIncrease: number) => void;
@@ -136,6 +137,7 @@ interface AdvancementsListProps {
   fighterXp: number;
   fighterChanges?: FighterChanges;
   fighterId: string;
+  gangId: string;
   onAdvancementDeleted?: () => void;
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
@@ -169,7 +171,7 @@ interface SkillAccess {
 }
 
 // AdvancementModal Component
-export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
+export function AdvancementModal({ fighterId, gangId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
   const { toast } = useToast();
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -255,6 +257,9 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     },
     onSuccess: (result) => {
       if (result.success) {
+        // Invalidate gang rating since advancements affect gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+
         toast({
           title: "Success!",
           description: `Successfully added ${result.data.advancement?.name}`
@@ -317,6 +322,9 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
     },
     onSuccess: (result) => {
       if (result.success) {
+        // Invalidate gang rating since advancements affect gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+
         toast({
           title: "Success!",
           description: `Successfully added ${result.data.advancement?.name}`
@@ -1088,6 +1096,7 @@ export function AdvancementsList({
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
+  gangId,
   onAdvancementDeleted,
   advancements = [],
   skills = {},
@@ -1163,6 +1172,9 @@ export function AdvancementsList({
     },
     onSuccess: (result) => {
       if (result.success) {
+        // Invalidate gang rating since deleting advancements affects gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+        
         // Show success toast
         toast({
           description: `${result.data.advancement?.name || 'Advancement'} removed successfully`,
@@ -1283,6 +1295,9 @@ export function AdvancementsList({
     }, {
       onSuccess: (result) => {
         if (result.success) {
+          // Invalidate gang rating since deleting advancements affects gang rating
+          queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+
           toast({
             description: `${advancementName} removed successfully`,
             variant: "default"
@@ -1382,6 +1397,7 @@ export function AdvancementsList({
       {isAdvancementModalOpen && (
         <AdvancementModal
           fighterId={fighterId}
+          gangId={gangId}
           currentXp={fighterXp}
           onClose={() => setIsAdvancementModalOpen(false)}
           onAdvancementAdded={handleAdvancementAdded}

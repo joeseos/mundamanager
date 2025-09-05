@@ -30,6 +30,9 @@ import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
+import { queryGangCredits, queryGangRating } from '@/app/lib/queries/gang-queries';
 
 
 interface GangProps {
@@ -125,12 +128,26 @@ export default function Gang({
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(initialName)
-  const [credits, setCredits] = useState(initialCredits ?? 0)
+  
+  // 🎯 Use TanStack Query for credits and rating - syncs automatically with fighter pages!
+  const { data: credits } = useQuery({
+    queryKey: queryKeys.gangs.credits(id),
+    queryFn: () => queryGangCredits(id),
+    initialData: initialCredits ?? 0,
+    staleTime: 0, // Always fresh - respond immediately to invalidations
+  });
+
+  const { data: rating } = useQuery({
+    queryKey: queryKeys.gangs.rating(id),
+    queryFn: () => queryGangRating(id),
+    initialData: initialRating ?? 0,
+    staleTime: 0, // Always fresh - respond immediately to invalidations
+  });
+  
   const [reputation, setReputation] = useState(initialReputation ?? 0)
   const [meat, setMeat] = useState(initialMeat ?? 0)
   const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
   const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
-  const [rating, setRating] = useState<number>(initialRating ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
   const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
@@ -170,15 +187,7 @@ export default function Gang({
     setFighters(initialFighters);
   }, [initialFighters]);
 
-  // Sync credits state with prop changes from parent
-  useEffect(() => {
-    setCredits(initialCredits ?? 0);
-  }, [initialCredits]);
-
-  // Sync rating state with prop changes from parent
-  useEffect(() => {
-    setRating(initialRating ?? 0);
-  }, [initialRating]);
+  // Credits and rating now managed by TanStack Query - no sync needed
 
 
   // Calculate the total value of unassigned vehicles including equipment
@@ -330,8 +339,7 @@ export default function Gang({
 
       // Apply optimistic updates
       setName(updates.name);
-      const newCredits = prevCredits + (updates.credits_operation === 'add' ? updates.credits : -updates.credits);
-      setCredits(newCredits);
+      const newCredits = (credits ?? 0) + (updates.credits_operation === 'add' ? updates.credits : -updates.credits);
       // Update parent component's credits state
       onGangCreditsUpdate?.(newCredits);
       setAlignment(updates.alignment);
@@ -362,9 +370,8 @@ export default function Gang({
       if (!result.success) {
         // Revert optimistic updates if the request fails
         setName(prevName);
-        setCredits(prevCredits);
         // Revert parent component's credits state
-        onGangCreditsUpdate?.(prevCredits);
+        onGangCreditsUpdate?.(credits ?? 0);
         setAlignment(prevAlignment);
         setAllianceId(prevAllianceId);
         setAllianceName(prevAllianceName);
@@ -421,13 +428,12 @@ export default function Gang({
   // Add the handler for when a fighter is added
   const handleFighterAdded = (newFighter: FighterProps, cost: number) => {
     if (onFighterAdd) {
-      // Use the parent callback - this will handle all state updates
+      // Use the parent callback - this will handle all state updates including TanStack Query invalidation
       onFighterAdd(newFighter, cost);
     } else {
       // Fallback to local state management if no callback provided
       setFighters(prev => [...prev, newFighter]);
-      setCredits(prev => prev - cost); // Deduct what was actually paid
-      setRating(prev => prev + newFighter.credits); // Add the fighter's rating cost
+      // Credits and rating now managed by TanStack Query - will be updated via invalidation
     }
   };
 
@@ -456,9 +462,8 @@ export default function Gang({
   };
 
   const handleVehicleAdded = (newVehicle: VehicleProps) => {
-    // Update credits using payment_cost (what the user actually paid)
+    // Credits now managed by TanStack Query - will be updated via parent callback and invalidation
     const paymentCost = newVehicle.payment_cost !== undefined ? newVehicle.payment_cost : newVehicle.cost;
-    setCredits(prev => prev - paymentCost);
     
     // Note: Unassigned vehicles don't contribute to gang rating yet
     // They'll contribute to the rating when assigned to a fighter

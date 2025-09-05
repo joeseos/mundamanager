@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import Gang from "@/components/gang/gang";
@@ -15,6 +15,8 @@ import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { FiMap } from 'react-icons/fi';
 import { LuClipboard } from 'react-icons/lu';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -69,6 +71,8 @@ export default function GangPageContent({
   userId,
   userPermissions 
 }: GangPageContentProps) {
+  const queryClient = useQueryClient();
+  
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || [],
@@ -120,6 +124,15 @@ export default function GangPageContent({
   }, []);
 
   const handleFighterUpdate = useCallback((updatedFighter: FighterProps, skipRatingUpdate?: boolean) => {
+    // 🎯 GRANULAR CACHE INVALIDATION - Only invalidate the specific fighter's data
+    // This automatically updates both gang page and fighter page since they use the same cache keys!
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.detail(updatedFighter.id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(updatedFighter.id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.skills(updatedFighter.id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.effects(updatedFighter.id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.fighters.vehicles(updatedFighter.id) });
+    // No separate total cost query - it's calculated from the above data
+    
     setGangData((prev: GangDataState) => {
       // If server provided updated rating, use that instead of calculating
       if (skipRatingUpdate) {
@@ -211,7 +224,7 @@ export default function GangPageContent({
         }
       };
     });
-  }, []);
+  }, [queryClient]);
 
   const handleFighterAdd = useCallback((newFighter: FighterProps, cost: number) => {
     setGangData((prev: GangDataState) => {
@@ -331,7 +344,7 @@ export default function GangPageContent({
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}
-          fighters={gangData.processedData.fighters || []}
+          fighters={gangData.processedData.fighters}
           gangId={gangId}
           onVehicleUpdate={handleVehicleUpdate}
           onFighterUpdate={handleFighterUpdate}

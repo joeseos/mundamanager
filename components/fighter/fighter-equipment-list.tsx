@@ -194,6 +194,10 @@ export function WeaponList({
         });
       }
 
+      // Invalidate gang rating and credits since deleting equipment affects both
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
       toast({
         title: "Success",
         description: `Successfully deleted ${data.deleted_equipment?.equipment_name || 'equipment'}`,
@@ -302,6 +306,10 @@ export function WeaponList({
         });
       }
       
+      // Invalidate gang rating and credits since selling equipment affects both
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
       toast({
         title: "Success",
         description: `Sold ${soldEquipment?.equipment_name || 'equipment'} for ${variables.manual_cost || 0} credits`,
@@ -382,6 +390,10 @@ export function WeaponList({
       const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
       // Equipment and stash are already updated optimistically, no need to invalidate
+      
+      // Invalidate gang rating and credits since moving equipment to stash affects both
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
 
       toast({
         title: "Success",

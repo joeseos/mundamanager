@@ -594,6 +594,7 @@ export default function FighterPage({
             key={`advancements-${Object.keys(currentSkills || {}).length}`}
             fighterXp={currentFighter?.xp || 0}
             fighterId={currentFighter?.id || ''}
+            gangId={currentFighter?.gang_id || ''}
             advancements={currentEffects?.advancements || []}
             skills={currentSkills || {}}
             onDeleteAdvancement={async () => {
