@@ -24,13 +24,13 @@ import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
-import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
+import { updateGangPositioning as updateGangPositioningServer } from '@/app/lib/server-functions/gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
 import { queryGangCredits, queryGangRating } from '@/app/lib/queries/gang-queries';
 
@@ -127,6 +127,7 @@ export default function Gang({
   const { toast } = useToast();
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const [name, setName] = useState(initialName)
   
   // 🎯 Use TanStack Query for credits and rating - syncs automatically with fighter pages!
@@ -148,6 +149,58 @@ export default function Gang({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+  });
+
+  // TanStack Query mutation for gang positioning
+  const updatePositioningMutation = useMutation({
+    mutationFn: updateGangPositioningServer,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.positioning(id) });
+      
+      // Snapshot previous values for rollback
+      const previousPositions = queryClient.getQueryData(queryKeys.gangs.positioning(id));
+      
+      // Optimistically update the positioning cache
+      queryClient.setQueryData(queryKeys.gangs.positioning(id), variables.positions);
+      
+      // Optimistically update local state
+      setPositions(variables.positions);
+      
+      // Also ensure our fighters array is ordered according to the positions
+      if (fighters.length > 0) {
+        const orderedFighters = Object.values(variables.positions).map(
+          fighterId => fighters.find(f => f.id === fighterId)
+        ).filter(Boolean) as FighterProps[];
+        
+        // Update any fighters not included in positions
+        const unpositionedFighters = fighters.filter(
+          f => !Object.values(variables.positions).includes(f.id)
+        );
+        
+        setFighters([...orderedFighters, ...unpositionedFighters]);
+      }
+      
+      return { previousPositions };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousPositions) {
+        queryClient.setQueryData(queryKeys.gangs.positioning(id), context.previousPositions);
+        setPositions(context.previousPositions);
+      }
+      
+      toast({
+        title: "Error",
+        description: "Failed to update fighter positions",
+        variant: "destructive"
+      });
+    },
+    onSuccess: () => {
+      // Invalidate related queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.positioning(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(id) });
+    },
   });
   
   const [reputation, setReputation] = useState(initialReputation ?? 0)
@@ -491,42 +544,12 @@ export default function Gang({
     setCurrentGangImageUrl(newImageUrl);
   };
 
-  const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
-    try {
-      const result = await updateGangPositioning({
-        gangId: id,
-        positions: newPositions
-      });
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update positions');
-      }
-      
-      // Update the positions state
-      setPositions(newPositions);
-      
-      // Also ensure our fighters array is ordered according to the positions
-      if (fighters.length > 0) {
-        const orderedFighters = Object.values(newPositions).map(
-          fighterId => fighters.find(f => f.id === fighterId)
-        ).filter(Boolean) as FighterProps[];
-        
-        // Update any fighters not included in positions
-        const unpositionedFighters = fighters.filter(
-          f => !Object.values(newPositions).includes(f.id)
-        );
-        
-        setFighters([...orderedFighters, ...unpositionedFighters]);
-      }
-    } catch (error) {
-      console.error('Error updating positions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update fighter positions",
-        variant: "destructive"
-      });
-    }
-  };
+  const handlePositionsUpdate = useCallback((newPositions: Record<number, string>) => {
+    updatePositioningMutation.mutate({
+      gangId: id,
+      positions: newPositions
+    });
+  }, [updatePositioningMutation, id]);
 
   // Add function to handle fighters reordering
   const handleFightersReorder = (newFighters: FighterProps[]) => {
