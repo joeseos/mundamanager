@@ -64,6 +64,7 @@ interface CampaignTerritoryListProps {
   members: Member[];
   permissions: {
     canManageTerritories: boolean;
+    canClaimTerritories: boolean;
   };
   onTerritoryUpdate?: () => void;
 }
@@ -226,6 +227,63 @@ export default function CampaignTerritoryList({
     );
   };
 
+  // Helper function to group territories for display
+  const groupTerritoriesForDisplay = (territories: Territory[]) => {
+    const controlledTerritories: Territory[] = [];
+    const uncontrolledTerritories: { [key: string]: { territory: Territory; count: number } } = {};
+
+    territories.forEach(territory => {
+      const hasGang = territory.owning_gangs && territory.owning_gangs.length > 0;
+      
+      if (hasGang) {
+        controlledTerritories.push(territory);
+      } else {
+        // Group uncontrolled territories by name AND ruined status
+        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}`;
+        if (uncontrolledTerritories[key]) {
+          uncontrolledTerritories[key].count++;
+        } else {
+          uncontrolledTerritories[key] = {
+            territory: territory,
+            count: 1
+          };
+        }
+      }
+    });
+
+    return { controlledTerritories, uncontrolledTerritories };
+  };
+
+  // Helper function to create a unified sorted list for display
+  const createSortedDisplayList = (territories: Territory[]) => {
+    const { controlledTerritories, uncontrolledTerritories } = groupTerritoriesForDisplay(territories);
+    
+    // Create display items for controlled territories
+    const controlledItems = controlledTerritories.map(territory => ({
+      type: 'controlled' as const,
+      territory,
+      sortKey: sortField === 'territory' ? territory.territory_name : (territory.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled')
+    }));
+
+    // Create display items for uncontrolled territories (grouped)
+    const uncontrolledItems = Object.entries(uncontrolledTerritories).map(([groupKey, { territory, count }]) => ({
+      type: 'uncontrolled' as const,
+      territory,
+      count,
+      sortKey: sortField === 'territory' ? territory.territory_name : 'ZZZ_Uncontrolled'
+    }));
+
+    // Combine and sort all items
+    const allItems = [...controlledItems, ...uncontrolledItems];
+    
+    allItems.sort((a, b) => {
+      const comparison = a.sortKey.localeCompare(b.sortKey);
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return allItems;
+  };
+
   // Territory deletion
   const handleDeleteClick = (territoryId: string, territoryName: string) => {
     setTerritoryToDelete({ id: territoryId, name: territoryName });
@@ -258,6 +316,9 @@ export default function CampaignTerritoryList({
     }
   };
 
+  // Get sorted display list
+  const sortedDisplayItems = createSortedDisplayList(territories);
+
   return (
     <>
       {/* Territory Table */}
@@ -273,7 +334,7 @@ export default function CampaignTerritoryList({
                 <SortIndicator field="territory" />
               </th>
               <th 
-                className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                className="w-3/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
@@ -290,50 +351,35 @@ export default function CampaignTerritoryList({
                 </td>
               </tr>
             ) : (
-              [...territories]
-                .sort((a, b) => {
-                  let aValue: string;
-                  let bValue: string;
-
-                  if (sortField === 'territory') {
-                    aValue = a.territory_name;
-                    bValue = b.territory_name;
-                  } else {
-                    // Sort by controlling gang name
-                    const aGang = a.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled'; // ZZZ to sort uncontrolled last
-                    const bGang = b.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled';
-                    aValue = aGang;
-                    bValue = bGang;
-                  }
-
-                  const comparison = aValue.localeCompare(bValue);
-                  return sortDirection === 'asc' ? comparison : -comparison;
-                })
-                .map((territory) => (
-                <tr key={territory.id} className="border-b last:border-0">
+              sortedDisplayItems.map((item, index) => (
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}`} 
+                  className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-2/5 px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{territory.territory_name}</span>
-                      {territory.ruined && (
+                    <div className="font-medium">
+                      {item.territory.territory_name}
+                      {item.territory.ruined && (
                         <GiAncientRuins 
-                          className="h-4 w-4 text-gray-600" 
+                          className="h-4 w-4 text-gray-600 inline ml-1" 
                           data-tooltip-id="ruined-tooltip"
                           data-tooltip-content="This territory has been ruined and now provides a different boon"
                         />
                       )}
-                      {territory.default_gang_territory && (
+                      {item.territory.default_gang_territory && (
                         <IoHome 
-                          className="h-4 w-4 text-gray-600" 
+                          className="h-4 w-4 text-gray-600 inline ml-1" 
                           data-tooltip-id="default-territory-tooltip"
                           data-tooltip-content="This is a default gang territory"
                         />
                       )}
+                      {item.type === 'uncontrolled' && item.count > 1 && (
+                        <span className="text-gray-500 font-normal ml-1">(x{item.count})</span>
+                      )}
                     </div>
                   </td>
-                  <td className="w-3/5 px-4 py-2">
+                  <td className="w-3/5 px-2 py-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {territory.owning_gangs && territory.owning_gangs.length > 0 ? (
-                        territory.owning_gangs.map(gang => (
+                      {item.type === 'controlled' && item.territory.owning_gangs && item.territory.owning_gangs.length > 0 ? (
+                        item.territory.owning_gangs.map(gang => (
                           <div
                             key={gang.id}
                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
@@ -349,7 +395,7 @@ export default function CampaignTerritoryList({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleRemoveGang(territory.id, gang.id);
+                                  handleRemoveGang(item.territory.id, gang.id);
                                 }}
                                 className="ml-1 text-gray-400 hover:text-gray-600"
                               >
@@ -358,29 +404,27 @@ export default function CampaignTerritoryList({
                             )}
                           </div>
                         ))
-                      ) : permissions.canManageTerritories && !territory.ruined ? (
+                      ) : item.type === 'uncontrolled' && permissions.canClaimTerritories ? (
                         <button
                           onClick={() => {
-                            setSelectedTerritory(territory);
+                            setSelectedTerritory(item.territory);
                             setShowGangModal(true);
                           }}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                         >
                           Add gang
                         </button>
-                      ) : territory.ruined && !territory.owning_gangs?.length ? (
-                        <span className="text-gray-500 italic text-xs">Ruined territory</span>
                       ) : null}
                     </div>
                   </td>
-                  <td className="w-[100px] px-4 py-2 text-right">
+                  <td className="w-[100px] px-2 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {permissions.canManageTerritories && (
                         <>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleEditClick(territory)}
+                            onClick={() => handleEditClick(item.territory)}
                             className="h-8 w-8 p-0"
                             aria-label="Edit territory"
                           >
@@ -389,7 +433,7 @@ export default function CampaignTerritoryList({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteClick(territory.id, territory.territory_name)}
+                            onClick={() => handleDeleteClick(item.territory.id, item.territory.territory_name)}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                             aria-label="Delete territory"
                           >

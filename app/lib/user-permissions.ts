@@ -195,7 +195,7 @@ export class PermissionService {
    * 1. APP ADMIN = same permissions as campaign owner (full control)
    * 2. CAMPAIGN OWNER = full control and should see all buttons and edit everything
    * 3. ARBITRATOR = same as Owner, but cannot delete a campaign  
-   * 4. MEMBER = can only add battle logs, nothing else
+   * 4. MEMBER = can add battle logs and manage territories
    * 5. NON-MEMBER = read-only access (similar to 'user' role in gang/fighter system)
    * 
    * @param userId - The current user's ID
@@ -245,7 +245,8 @@ export class PermissionService {
       canEditCampaign: hasArbitratorPermissions,              // Owner + Arbitrator + App Admin can edit campaign settings
       canDeleteCampaign: hasOwnerPermissions,                 // Only Owner + App Admin can delete campaign
       canManageMembers: hasArbitratorPermissions,             // Owner + Arbitrator + App Admin can add/remove members
-      canManageTerritories: hasArbitratorPermissions,         // Owner + Arbitrator + App Admin can manage territories
+      canManageTerritories: hasArbitratorPermissions,         // Only Owner + Arbitrator + App Admin can manage territories
+      canClaimTerritories: hasMemberPermissions,              // All members + higher roles can claim territories
       canAddBattleLogs: hasMemberPermissions,                 // All members + higher roles can add battle logs
       canEditBattleLogs: hasArbitratorPermissions,            // Only Owner + Arbitrator + App Admin can edit battle logs
       campaignRole
@@ -299,6 +300,7 @@ export class PermissionService {
       canDeleteCampaign: false,
       canManageMembers: false,
       canManageTerritories: false,
+      canClaimTerritories: false,  // Non-members cannot claim territories
       canAddBattleLogs: false,    // Non-members cannot add battle logs
       canEditBattleLogs: false,
       campaignRole: null
@@ -346,7 +348,7 @@ export class PermissionService {
  *    - Can add and edit battle logs
  * 
  * 4. MEMBER:
- *    - Can only add battle logs
+ *    - Can add battle logs and claim territories
  *    - Cannot edit campaign, manage members, or manage territories
  *    - Read-only access to everything else
  * 

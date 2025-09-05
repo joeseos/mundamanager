@@ -136,7 +136,18 @@ export default function TerritoryList({
       }
       
       // Include regular territories that match the selected campaign types
-      return territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id);
+      // Also include territories with "Custom" campaign type when Custom checkbox is checked
+      if (territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id)) {
+        return true;
+      }
+      
+      // Check if this territory has the "Custom" campaign type and Custom checkbox is checked
+      const territoryType = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
+      if (territoryType?.campaign_type_name.toLowerCase() === 'custom' && showCustomTerritories) {
+        return true;
+      }
+      
+      return false;
     })
     .sort((a, b) => {
       const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
@@ -155,6 +166,21 @@ export default function TerritoryList({
   // All filtered territories should be shown in the same list
   const allFilteredTerritories = filteredTerritories;
 
+  // Function to count how many times a territory has been added to the campaign
+  const getTerritoryCount = (territory: Territory) => {
+    return existingCampaignTerritories.filter(existing => {
+      // For regular territories, match by territory_id
+      if (!territory.is_custom && existing.territory_id === territory.territory_id) {
+        return true;
+      }
+      // For custom territories, match by territory_name since custom_territory_id might not be available in existingCampaignTerritories
+      if (territory.is_custom && existing.territory_name === territory.territory_name) {
+        return true;
+      }
+      return false;
+    }).length;
+  };
+
 
 
   if (isLoading) {
@@ -167,6 +193,7 @@ export default function TerritoryList({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mx-auto">
           {/* Campaign Types */}
           {[...campaignTypes]
+            .filter(type => type.campaign_type_name.toLowerCase() !== 'custom') // Exclude "Custom" campaign type to avoid duplication
             .sort((a, b) => {
               const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
               const rankB = campaignRank[b.campaign_type_name.toLowerCase()] ?? Infinity;
@@ -205,10 +232,11 @@ export default function TerritoryList({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-                <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Campaign Type</th>
+                <th className="w-2/4 px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                <th className="w-3/4 px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
+                <th className="w-1/4 px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
                 {isAdmin && (
-                  <th className="w-1/5 px-4 py-2 text-right font-medium whitespace-nowrap"></th>
+                  <th className="w-1/4 px-2 py-2 text-right font-medium whitespace-nowrap"></th>
                 )}
               </tr>
             </thead>
@@ -216,15 +244,25 @@ export default function TerritoryList({
               {allFilteredTerritories.map((territory) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
                 const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
+                const territoryCount = getTerritoryCount(territory);
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-2/5 px-4 py-2">
+                    <td className="w-2/4 px-2 md:px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
                     </td>
-                    <td className="w-2/5 px-4 py-2 text-gray-500">{typeName}</td>
+                    <td className="w-3/4 px-1 py-2 text-gray-500">{typeName}</td>
+                    <td className="w-1/4 px-2 py-2 text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        territoryCount > 0 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {territoryCount}
+                      </span>
+                    </td>
                     {isAdmin && (
-                      <td className="w-1/5 px-4 py-2 text-right">
+                      <td className="w-1/4 px-2 py-2 text-right">
                         <Button
                           onClick={() => handleAddTerritory(territory)}
                           size="sm"

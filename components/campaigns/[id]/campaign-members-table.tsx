@@ -43,6 +43,7 @@ interface Member {
     exploration_points?: number;
     meat?: number;
     scavenging_rolls?: number;
+    territory_count?: number;
   }[];
   index?: number;
 }
@@ -201,6 +202,10 @@ export default function MembersTable({
           aValue = a.gangs[0]?.scavenging_rolls ?? -1;
           bValue = b.gangs[0]?.scavenging_rolls ?? -1;
           break;
+        case 'territory_count':
+          aValue = a.gangs[0]?.territory_count ?? -1;
+          bValue = b.gangs[0]?.territory_count ?? -1;
+          break;
         default:
           aValue = a.gangs[0]?.rating ?? -1;
           bValue = b.gangs[0]?.rating ?? -1;
@@ -235,7 +240,7 @@ export default function MembersTable({
     } else {
       setSortField(field);
       // Set default direction based on field type
-      const numericalFields = ['rating', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls'];
+      const numericalFields = ['rating', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls', 'territory_count'];
       setSortDirection(numericalFields.includes(field) ? 'desc' : 'asc');
     }
   };
@@ -602,10 +607,25 @@ export default function MembersTable({
               <th 
                 className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
                 onClick={() => handleSort('reputation')}
+                title="Reputation"
               >
                 <div className="flex items-center justify-end gap-1">
                   Rep.
                   {sortField === 'reputation' && (
+                    <span className="text-gray-500">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                onClick={() => handleSort('territory_count')}
+                title="Territories"
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Terr.
+                  {sortField === 'territory_count' && (
                     <span className="text-gray-500">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
@@ -762,6 +782,11 @@ export default function MembersTable({
                     {member.gangs[0]?.reputation ?? "-"}
                   </span>
                 </td>
+                <td className="px-2 py-2 text-right max-w-[3rem]">
+                  <span className="text-gray-500">
+                    {member.gangs[0]?.territory_count ?? "-"}
+                  </span>
+                </td>
                 {hasExplorationPoints && (
                   <td className="px-2 py-2 text-right max-w-[3rem]">
                     <span className="text-gray-500">
@@ -911,6 +936,12 @@ export default function MembersTable({
               <span className="text-sm text-gray-500">Reputation</span>
               <span className="text-sm text-gray-500">
                 {member.gangs[0]?.reputation ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Territories</span>
+              <span className="text-sm text-gray-500">
+                {member.gangs[0]?.territory_count ?? "-"}
               </span>
             </div>
             {hasExplorationPoints && (
