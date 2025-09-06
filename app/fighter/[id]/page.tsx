@@ -4,6 +4,8 @@ import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -21,51 +23,114 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     redirect("/sign-in");
   }
 
+  // Create a new QueryClient for this request
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5, // 5 minutes - longer stale time
+        gcTime: 1000 * 60 * 10, // 10 minutes - garbage collection time
+        refetchOnMount: false, // Don't refetch on mount if data exists
+        refetchOnWindowFocus: false, // Don't refetch on window focus
+        refetchOnReconnect: false, // Don't refetch on reconnect
+      },
+    },
+  });
+
   try {
-    // Fetch fighter data using granular shared functions
-    const {
-      getFighterBasic,
-      getFighterEquipment,
-      getFighterSkills,
-      getFighterEffects,
-      getFighterVehicles,
-      getFighterTotalCost
-    } = await import('@/app/lib/shared/fighter-data');
+    // Import fighter query functions for prefetching
+    const { 
+      queryFighterBasic,
+      queryFighterEquipment,
+      queryFighterSkills,
+      queryFighterEffects,
+      queryFighterVehicles
+    } = await import('@/app/lib/queries/fighter-queries');
 
-    const {
-      getGangBasic,
-      getGangPositioning,
-      getGangCredits
-    } = await import('@/app/lib/shared/gang-data');
+    // Prefetch fighter data in parallel using query functions with server-side Supabase client
+    await Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.fighters.detail(id),
+        queryFn: () => queryFighterBasic(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.fighters.equipment(id),
+        queryFn: () => queryFighterEquipment(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.fighters.skills(id),
+        queryFn: () => queryFighterSkills(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.fighters.effects(id),
+        queryFn: () => queryFighterEffects(id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.fighters.vehicles(id),
+        queryFn: () => queryFighterVehicles(id, supabase),
+      }),
+    ]);
 
-    // Fetch basic fighter data first to check if fighter exists
-    const fighterBasic = await getFighterBasic(id, supabase);
+    // Get basic fighter data to determine gang ID and check if fighter exists
+    // Use the query function directly for server-side data fetching
+    const fighterBasic = await queryFighterBasic(id, supabase);
     
     if (!fighterBasic) {
       redirect("/");
     }
 
-    // Fetch gang basic data, positioning, and credits
-    const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
-      getGangBasic(fighterBasic.gang_id, supabase),
-      getGangPositioning(fighterBasic.gang_id, supabase),
-      getGangCredits(fighterBasic.gang_id, supabase)
+    // Prefetch gang data using consistent cache keys and client-safe query functions
+    const { queryGangBasic, queryGangCredits, queryGangPositioning } = await import('@/app/lib/queries/gang-queries');
+    await Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.detail(fighterBasic.gang_id),
+        queryFn: () => queryGangBasic(fighterBasic.gang_id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.credits(fighterBasic.gang_id),
+        queryFn: () => queryGangCredits(fighterBasic.gang_id, supabase),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.gangs.positioning(fighterBasic.gang_id),
+        queryFn: () => queryGangPositioning(fighterBasic.gang_id, supabase),
+      }),
     ]);
 
-    // Fetch all fighter-related data in parallel using granular functions
+    // Get gang data using query functions for consistency
+    const [gangBasic, gangPositioning, gangCredits] = await Promise.all([
+      queryGangBasic(fighterBasic.gang_id, supabase),
+      queryGangPositioning(fighterBasic.gang_id, supabase),
+      queryGangCredits(fighterBasic.gang_id, supabase)
+    ]);
+
+
+
     const [
       equipment,
       skills,
       effects,
-      vehicles,
-      totalCost
+      vehicles
     ] = await Promise.all([
-      getFighterEquipment(id, supabase),
-      getFighterSkills(id, supabase),
-      getFighterEffects(id, supabase),
-      getFighterVehicles(id, supabase),
-      getFighterTotalCost(id, supabase)
+      queryFighterEquipment(id, supabase),
+      queryFighterSkills(id, supabase),
+      queryFighterEffects(id, supabase),
+      queryFighterVehicles(id, supabase)
     ]);
+
+    // Calculate total cost manually since we have all the data
+    const baseCost = fighterBasic.credits || 0;
+    const equipmentCost = equipment.reduce((sum: number, item: any) => sum + (item.purchase_cost || 0), 0);
+    const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+    const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+      return sum + ((effect.type_specific_data as any)?.credits_increase || 0);
+    }, 0);
+    const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
+      const baseVehicleCost = vehicle.cost || 0;
+      const vehicleEquipmentCost = (vehicle.equipment || []).reduce((equipSum: number, equip: any) => equipSum + (equip.purchase_cost || 0), 0);
+      return sum + baseVehicleCost + vehicleEquipmentCost;
+    }, 0);
+    const adjustment = fighterBasic.cost_adjustment || 0;
+    
+    const totalCost = baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + adjustment;
 
     // Get fighter type and sub-type info (these are fighter-specific queries)
     const [fighterTypeData, fighterSubTypeData] = await Promise.all([
@@ -263,18 +328,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
 
-    // Pass fighter data and user permissions to client component
+    // Pass fighter data and user permissions to client component with hydration
     return (
-      <FighterPageComponent
-        initialFighterData={fighterData}
-        initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
-        fighterId={id}
-      />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <FighterPageComponent
+          initialFighterData={fighterData}
+          initialGangFighters={gangFighters}
+          userPermissions={userPermissions}
+          fighterId={id}
+        />
+      </HydrationBoundary>
     );
 
   } catch (error) {
-    console.error('Error in fighter page:', error);
     redirect("/");
   }
 }

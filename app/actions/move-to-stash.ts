@@ -2,7 +2,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
+// Cache invalidation now handled by TanStack Query client-side
+// import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
 
 interface MoveToStashParams {
@@ -179,47 +180,48 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', gangId);
-        invalidateGangRating(gangId);
+        // Cache invalidation now handled by TanStack Query client-side
+        // invalidateGangRating(gangId);
       } catch (e) {
         console.error('Failed to update gang rating after moving equipment to stash:', e);
       }
     }
 
-    // Invalidate appropriate caches - moving equipment to stash affects gang overview
-    if (equipmentData.fighter_id) {
-      invalidateFighterEquipment(equipmentData.fighter_id, gangId);
-      // If there were associated effects removed, also invalidate fighter effects
-      if ((associatedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: equipmentData.fighter_id,
-          gangId,
-          advancementType: 'effect'
-        });
-      }
-    } else if (equipmentData.vehicle_id) {
-      // For vehicle equipment, we need to get the fighter_id from the vehicle
-      const { data: vehicleData, error: vehicleError } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', equipmentData.vehicle_id)
-        .single();
-      
-      if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterEquipment(vehicleData.fighter_id, gangId);
-        invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
-        // If there were associated effects removed, also invalidate fighter effects
-        if ((associatedEffects?.length || 0) > 0) {
-          invalidateFighterAdvancement({
-            fighterId: vehicleData.fighter_id,
-            gangId,
-            advancementType: 'effect'
-          });
-        }
-      }
-      
-      // Also invalidate vehicle-specific cache tags
-      invalidateVehicleData(equipmentData.vehicle_id);
-    }
+    // Cache invalidation now handled by TanStack Query client-side
+    // if (equipmentData.fighter_id) {
+    //   invalidateFighterEquipment(equipmentData.fighter_id, gangId);
+    //   // If there were associated effects removed, also invalidate fighter effects
+    //   if ((associatedEffects?.length || 0) > 0) {
+    //     invalidateFighterAdvancement({
+    //       fighterId: equipmentData.fighter_id,
+    //       gangId,
+    //       advancementType: 'effect'
+    //     });
+    //   }
+    // } else if (equipmentData.vehicle_id) {
+    //   // For vehicle equipment, we need to get the fighter_id from the vehicle
+    //   const { data: vehicleData, error: vehicleError } = await supabase
+    //     .from('vehicles')
+    //     .select('fighter_id')
+    //     .eq('id', equipmentData.vehicle_id)
+    //     .single();
+    //   
+    //   if (!vehicleError && vehicleData?.fighter_id) {
+    //     invalidateFighterEquipment(vehicleData.fighter_id, gangId);
+    //     invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
+    //     // If there were associated effects removed, also invalidate fighter effects
+    //     if ((associatedEffects?.length || 0) > 0) {
+    //       invalidateFighterAdvancement({
+    //         fighterId: vehicleData.fighter_id,
+    //         gangId,
+    //         advancementType: 'effect'
+    //       });
+    //     }
+    //   }
+    //   
+    //   // Also invalidate vehicle-specific cache tags
+    //   invalidateVehicleData(equipmentData.vehicle_id);
+    // }
     
     // Log equipment moved to stash
     try {
@@ -254,14 +256,14 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       console.error('Failed to log equipment moved to stash:', logError);
     }
 
-    // Always invalidate gang overview to refresh stash display
-    invalidateGangFinancials(gangId);
-    
-    // Also invalidate gang stash specifically
-    invalidateGangStash({
-      gangId: gangId,
-      userId: user.id
-    });
+    // Cache invalidation now handled by TanStack Query client-side
+    // invalidateGangFinancials(gangId);
+    // 
+    // // Also invalidate gang stash specifically
+    // invalidateGangStash({
+    //   gangId: gangId,
+    //   userId: user.id
+    // });
 
     return {
       success: true,

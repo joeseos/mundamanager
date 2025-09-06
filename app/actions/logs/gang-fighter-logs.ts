@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { getGangRating } from "@/app/lib/shared/gang-data";
+import { getGangRating } from "@/app/lib/gang-data";
 
 // Advancement Logging Functions
 

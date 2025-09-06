@@ -1,8 +1,8 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+// Cache invalidation handled by TanStack Query optimistic updates
 import { logVehicleAction } from './logs/vehicle-logs';
 
 interface RemoveVehicleDamageParams {
@@ -62,7 +62,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
               .from('gangs')
               .update({ rating: Math.max(0, currentRating + delta) })
               .eq('id', params.gangId);
-            invalidateGangRating(params.gangId);
+            // Cache invalidation handled by TanStack Query optimistic updates
           }
         }
       }
@@ -84,8 +84,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
       console.error('Failed to log vehicle damage removal:', logError);
     }
 
-    // Invalidate cache for the fighter and gang
-    invalidateFighterVehicleData(params.fighterId, params.gangId);
+    // Cache invalidation handled by TanStack Query optimistic updates
 
     return {
       success: true

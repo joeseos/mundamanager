@@ -1,10 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
-import { logEquipmentAction } from './logs/equipment-logs';
+import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -26,6 +24,11 @@ interface SellEquipmentResult {
       custom_equipment_id?: string;
       sell_value: number;
     };
+    deleted_effects?: Array<{
+      id: string;
+      type_specific_data?: any;
+    }>;
+    fighter_total_cost?: number;
   };
   error?: string;
 }
@@ -215,58 +218,24 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', gangId);
-        invalidateGangRating(gangId);
       } catch (e) {
         console.error('Failed to update gang rating after selling equipment:', e);
       }
     }
 
-    // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
+    // Get updated fighter total cost if this was fighter equipment
+    let fighterTotalCost: number | undefined;
     if (equipmentData.fighter_id) {
-      // Use equipment deletion invalidation since selling is essentially deletion with credit refund
-      // This ensures both fighter equipment list AND gang credits are properly invalidated
-      invalidateEquipmentDeletion({
-        fighterId: equipmentData.fighter_id,
-        gangId: gangId
-      });
-      // If the equipment had effects, also invalidate fighter effects + derived data
-      if ((associatedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: equipmentData.fighter_id,
-          gangId,
-          advancementType: 'effect'
-        });
+      try {
+        const { data: fighterCost } = await supabase
+          .from('fighters')
+          .select('total_cost')
+          .eq('id', equipmentData.fighter_id)
+          .single();
+        fighterTotalCost = fighterCost?.total_cost;
+      } catch (e) {
+        console.error('Failed to get updated fighter total cost:', e);
       }
-    } else if (equipmentData.vehicle_id) {
-      // For vehicle equipment, we need to get the fighter_id from the vehicle
-      const { data: vehicleData, error: vehicleError } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', equipmentData.vehicle_id)
-        .single();
-      
-      if (!vehicleError && vehicleData?.fighter_id) {
-        // Use equipment deletion invalidation for the fighter to ensure equipment list updates
-        invalidateEquipmentDeletion({
-          fighterId: vehicleData.fighter_id,
-          gangId: gangId
-        });
-        invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
-        // Also invalidate fighter effects if the sold vehicle equipment had effects linked
-        if ((associatedEffects?.length || 0) > 0) {
-          invalidateFighterAdvancement({
-            fighterId: vehicleData.fighter_id,
-            gangId,
-            advancementType: 'effect'
-          });
-        }
-      }
-      
-      // Also invalidate vehicle-specific cache tags
-      invalidateVehicleData(equipmentData.vehicle_id);
-    } else {
-      // For other cases, invalidate gang financials
-      invalidateGangFinancials(gangId);
     }
 
     return {
@@ -283,12 +252,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           equipment_id: equipmentData.equipment_id || undefined,
           custom_equipment_id: equipmentData.custom_equipment_id || undefined,
           sell_value: sellValue
-        }
+        },
+        deleted_effects: associatedEffects || [],
+        fighter_total_cost: fighterTotalCost
       }
     };
 
   } catch (error) {
-    console.error('Error in sellEquipmentFromFighter server action:', error);
+    console.error('Error in sellEquipmentFromFighter server function:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'
@@ -334,9 +305,6 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
-
-    // Invalidate stash cache so UI refreshes
-    invalidateGangStash({ gangId: row.gang_id, userId: user.id });
 
     return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits } } };
   } catch (e) {

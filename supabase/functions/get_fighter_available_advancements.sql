@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS public.get_fighter_available_advancements(UUID);
+
 CREATE OR REPLACE FUNCTION public.get_fighter_available_advancements(
   fighter_id UUID
 )
@@ -76,6 +78,12 @@ BEGIN
       etc.effect_name as characteristic_name,
       LOWER(REPLACE(etc.effect_name, ' ', '_')) as characteristic_code,
       etc.base_xp_cost,
+      -- Get the modifier value for this characteristic
+      (SELECT fetm.default_numeric_value 
+       FROM fighter_effect_type_modifiers fetm 
+       WHERE fetm.fighter_effect_type_id = etc.fighter_effect_type_id 
+       AND fetm.stat_name = LOWER(REPLACE(etc.effect_name, ' ', '_')) 
+       LIMIT 1) as modifier_value,
       -- Calculate XP cost based on fighter class and characteristic
       CASE
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
@@ -122,6 +130,7 @@ BEGIN
       jsonb_build_object(
         'id', id,
         'characteristic_code', characteristic_code,
+        'modifier_value', modifier_value,
         'times_increased', times_increased,
         'base_xp_cost', base_xp_cost,
         'xp_cost', xp_cost,

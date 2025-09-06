@@ -3,20 +3,21 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
-import { 
-  invalidateFighterData, 
-  invalidateFighterDataWithFinancials,
-  invalidateFighterVehicleData,
-  invalidateFighterEquipment,
-  addBeastToGangCache,
-  invalidateFighterOwnedBeasts,
-  invalidateGangStash,
-  invalidateGangRating,
-  invalidateFighterAdvancement
-} from '@/utils/cache-tags';
+// Cache invalidation now handled by TanStack Query client-side
+// import { 
+//   invalidateFighterData, 
+//   invalidateFighterDataWithFinancials,
+//   invalidateFighterVehicleData,
+//   invalidateFighterEquipment,
+//   addBeastToGangCache,
+//   invalidateFighterOwnedBeasts,
+//   invalidateGangStash,
+//   invalidateGangRating,
+//   invalidateFighterAdvancement
+// } from '@/utils/cache-tags';
 import { 
   createExoticBeastsForEquipment, 
-  invalidateCacheForBeastCreation,
+  // invalidateCacheForBeastCreation,
   type CreatedBeast 
 } from '@/app/lib/exotic-beasts';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -331,7 +332,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', stashData.gang_id);
-        invalidateGangRating(stashData.gang_id);
+        // Cache invalidation now handled by TanStack Query client-side
+        // invalidateGangRating(stashData.gang_id);
       } catch (e) {
         console.error('Failed to update gang rating after moving from stash:', e);
       }
@@ -363,7 +365,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         
         // Get complete beast data to return to frontend
         if (affectedBeastIds.length > 0) {
-          const { getFighterBasic, getFighterEquipment, getFighterSkills, getFighterEffects, getFighterVehicles, getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
+          const { getFighterBasic, getFighterEquipment, getFighterSkills, getFighterEffects, getFighterVehicles, getFighterTotalCost } = await import('@/app/lib/fighter-data');
           
           const completeBeastData = [];
           for (const beastId of affectedBeastIds) {
@@ -496,34 +498,34 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           
           // Add complete beast data to response
           if (completeBeastData.length > 0) {
-    // Invalidate equipment caches for the fighter who received the equipment
-    if (params.fighter_id) {
-      invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
-      // If effects were applied from stash, also invalidate fighter effects
-      if ((appliedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: stashData.gang_id,
-          advancementType: 'effect'
-        });
-      }
-    }
+    // Cache invalidation now handled by TanStack Query client-side
+    // if (params.fighter_id) {
+    //   invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
+    //   // If effects were applied from stash, also invalidate fighter effects
+    //   if ((appliedEffects?.length || 0) > 0) {
+    //     invalidateFighterAdvancement({
+    //       fighterId: params.fighter_id,
+    //       gangId: stashData.gang_id,
+    //       advancementType: 'effect'
+    //     });
+    //   }
+    // }
             
-            // Invalidate gang stash since equipment was moved
-            invalidateGangStash({
-              gangId: stashData.gang_id,
-              userId: user.id
-            });
-            
-            // Invalidate caches for affected exotic beasts (they are now visible)
-            affectedBeastIds.forEach(beastId => {
-              addBeastToGangCache(beastId, stashData.gang_id);
-            });
+            // Cache invalidation now handled by TanStack Query client-side
+            // invalidateGangStash({
+            //   gangId: stashData.gang_id,
+            //   userId: user.id
+            // });
+            // 
+            // // Invalidate caches for affected exotic beasts (they are now visible)
+            // affectedBeastIds.forEach(beastId => {
+            //   addBeastToGangCache(beastId, stashData.gang_id);
+            // });
             
             // Get updated gang rating AFTER all cache invalidations
             let updatedGangRating: number | undefined;
             try {
-              const { getGangRating } = await import('@/app/lib/shared/gang-data');
+              const { getGangRating } = await import('@/app/lib/gang-data');
               updatedGangRating = await getGangRating(stashData.gang_id, supabase);
             } catch (error) {
               // Silently continue if gang rating fetch fails
@@ -565,33 +567,31 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
-    // Invalidate caches after equipment move
-
-    // Invalidate equipment caches for the fighter who received the equipment
-    if (params.fighter_id) {
-      invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
-      // If effects were applied from stash, also invalidate fighter effects
-      if ((appliedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: stashData.gang_id,
-          advancementType: 'effect'
-        });
-      }
-    }
-    
-    // Invalidate gang stash since equipment was moved
-    invalidateGangStash({
-      gangId: stashData.gang_id,
-      userId: user.id
-    });
-    
-    // Invalidate caches for affected exotic beasts
-    if (affectedBeastIds.length > 0) {
-      affectedBeastIds.forEach(beastId => {
-        addBeastToGangCache(beastId, stashData.gang_id);
-      });
-    }
+    // Cache invalidation now handled by TanStack Query client-side
+    // if (params.fighter_id) {
+    //   invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
+    //   // If effects were applied from stash, also invalidate fighter effects
+    //   if ((appliedEffects?.length || 0) > 0) {
+    //     invalidateFighterAdvancement({
+    //       fighterId: params.fighter_id,
+    //       gangId: stashData.gang_id,
+    //       advancementType: 'effect'
+    //     });
+    //   }
+    // }
+    // 
+    // // Invalidate gang stash since equipment was moved
+    // invalidateGangStash({
+    //   gangId: stashData.gang_id,
+    //   userId: user.id
+    // });
+    // 
+    // // Invalidate caches for affected exotic beasts
+    // if (affectedBeastIds.length > 0) {
+    //   affectedBeastIds.forEach(beastId => {
+    //     addBeastToGangCache(beastId, stashData.gang_id);
+    //   });
+    // }
 
     // Log equipment moved from stash
     try {
@@ -629,7 +629,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Get updated gang rating after the equipment move (if not already calculated above)
     let updatedGangRating: number | undefined;
     try {
-      const { getGangRating } = await import('@/app/lib/shared/gang-data');
+      const { getGangRating } = await import('@/app/lib/gang-data');
       updatedGangRating = await getGangRating(stashData.gang_id, supabase);
     } catch (error) {
       // Silently continue if gang rating fetch fails

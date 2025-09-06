@@ -5,21 +5,22 @@ import { useToast } from "@/components/ui/use-toast";
 import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
-import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
+import { sellEquipmentFromFighter } from '@/app/lib/server-functions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter } from '@/app/lib/server-functions/equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
 import { rollD6 } from '@/utils/dice';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface WeaponListProps {
   fighterId: string;
   gangId: string;
   gangCredits: number;
   fighterCredits: number;
-  onEquipmentUpdate: (updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => void;
   equipment?: Equipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
@@ -32,7 +33,7 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const originalCost = item.cost ?? 0;
+  const originalCost = item.purchase_cost ?? 0;
   const [manualCost, setManualCost] = useState(originalCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
   const { toast } = useToast();
@@ -95,152 +96,343 @@ export function WeaponList({
   gangId, 
   gangCredits, 
   fighterCredits, 
-  onEquipmentUpdate,
   equipment = [],
   onAddEquipment,
   userPermissions
 }: WeaponListProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
 
-  const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      // Find the equipment cost before deleting
-      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToDelete) {
-        throw new Error('Equipment not found');
-      }
-
-      // Use server action instead of direct API call
-      const result = await deleteEquipmentFromFighter({
-        fighter_equipment_id: fighterEquipmentId,
-        gang_id: gangId,
-        fighter_id: fighterId
-      });
-
+  // TanStack Query mutations with cache invalidation
+  const deleteEquipmentMutation = useMutation({
+    mutationFn: async (variables: any) => {
+      const result = await deleteEquipmentFromFighter(variables);
       if (!result.success) {
-        throw new Error(result.error || 'Failed to delete equipment');
+        throw new Error(result.error);
       }
-      
-      const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      // Use purchase_cost for calculating credit adjustments as this is what affects the rating
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - (equipmentToDelete.cost ?? 0);
-      
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
-      
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+
+      // Snapshot the previous values
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Find the equipment being deleted to check if it has effects
+      const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+
+      // Optimistically update the UI
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
+        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
+      );
+
+      // Optimistically remove equipment effects if the equipment had any
+      if (equipmentToDelete?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== equipmentToDelete.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
+      }
+
+      // Return a context object with the snapshotted values
+      return { previousEquipment, previousEffects, previousTotalCost };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+
       toast({
-        description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to delete equipment',
+        variant: "destructive"
+      });
+    },
+    onSuccess: (data) => {
+      // Update fighter total cost if provided in response
+      if (data.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
+
+      // Update fighter effects with real server data if effects were deleted
+      if (data.deleted_effects && data.deleted_effects.length > 0) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove the deleted effects from the cache
+          const deletedEffectIds = data?.deleted_effects?.map((effect: any) => effect.id) || [];
+          return {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              !deletedEffectIds.includes(effect.id)
+            )
+          };
+        });
+      }
+
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      
+      // Gang rating and credits (affected by equipment deletion)
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${data.deleted_equipment?.equipment_name || 'equipment'}`,
         variant: "default"
       });
       setDeleteModalData(null);
-    } catch (error) {
-      console.error('Error deleting equipment:', error);
-      toast({
-        description: 'Failed to delete equipment. Please try again.',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  });
 
-  const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
-    try {
-      const equipmentToSell = equipment.find(
-        item => item.fighter_equipment_id === fighterEquipmentId
-      );
-      if (!equipmentToSell) return;
-
-      const result = await sellEquipmentFromFighter({
-        fighter_equipment_id: fighterEquipmentId,
-        manual_cost: manualCost
-      });
-
+  const sellEquipmentMutation = useMutation({
+    mutationFn: async (variables: any) => {
+      const result = await sellEquipmentFromFighter(variables);
       if (!result.success) {
-        throw new Error(result.error || 'Failed to sell equipment');
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+
+      // Snapshot the previous values
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+
+      // Find the equipment being sold to check if it has effects
+      const equipmentToSell = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+
+      // Optimistically update the UI
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
+        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
+      );
+
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => 
+        (old || 0) + (variables.manual_cost || 0)
+      );
+
+      // Optimistically remove equipment effects if the equipment had any
+      if (equipmentToSell?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== equipmentToSell.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
       }
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const newGangCredits = result.data?.gang.credits || gangCredits;
-      // When selling, we need to subtract the rating cost (purchase_cost) from fighter's credits
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - equipmentToSell.cost;
+      // Return a context object with the snapshotted values
+      return { previousEquipment, previousCredits, previousEffects, previousTotalCost };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousEffects) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
 
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
-      
-      toast({
-        title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
-      });
-    } catch (error) {
-      console.error('Error selling equipment:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
+        description: err instanceof Error ? err.message : "Failed to sell equipment",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+    },
+    onSuccess: (data, variables) => {
+      // Find equipment name from current equipment list for display
+      const soldEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+      
+      // Update fighter total cost if provided in response
+      if (data && data.fighter_total_cost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+      }
+
+      // Update fighter effects with real server data if effects were deleted
+      if (data && data.deleted_effects && data.deleted_effects.length > 0) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove the deleted effects from the cache
+          const deletedEffectIds = data?.deleted_effects?.map((effect: any) => effect.id) || [];
+          return {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              !deletedEffectIds.includes(effect.id)
+            )
+          };
+        });
+      }
+      
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      
+      // Gang rating and credits (affected by equipment sale)
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
+      toast({
+        title: "Success",
+        description: `Sold ${soldEquipment?.equipment_name || 'equipment'} for ${variables.manual_cost || 0} credits`,
+        variant: "default"
+      });
       setSellModalData(null);
     }
-  };
+  });
 
-  const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
-    try {
-      // Find the equipment cost before moving to stash
-      const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
-      if (!equipmentToStash) {
-        throw new Error('Equipment not found');
-      }
+  const stashEquipmentMutation = useMutation({
+    mutationFn: moveEquipmentToStash,
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
 
-      // Use server action instead of direct API call
-      console.log('Moving equipment to stash:', { 
-        fighterEquipmentId, 
-        equipmentId, 
-        equipmentToStash: equipmentToStash 
-      });
-      
-      const result = await moveEquipmentToStash({
-        fighter_equipment_id: fighterEquipmentId
-      });
+      // Snapshot the previous values
+      const previousEquipment = queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousStash = queryClient.getQueryData(queryKeys.gangs.stash(gangId));
+      const previousEffects = queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to move equipment to stash');
-      }
+      // Find equipment before removing for stash update
+      const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
+      // Optimistically update the UI
+      queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: Equipment[]) => 
+        (old || []).filter(e => e.fighter_equipment_id !== variables.fighter_equipment_id)
       );
-      
-      // Adjust fighter credits using the purchase_cost (rating value)
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - (equipmentToStash.cost ?? 0);
 
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
-      
-      toast({
-        title: "Success",
-        description: `${equipmentToStash.equipment_name} moved to gang stash`,
-      });
-    } catch (error) {
-      console.error('Error moving equipment to stash:', error);
+      // Add to gang stash if we have the equipment data
+      if (stashedEquipment) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => [
+          ...(old || []),
+          { ...stashedEquipment, gang_stash: true }
+        ]);
+      }
+
+      // Optimistically remove equipment effects if the equipment had any
+      if (stashedEquipment?.equipment_id) {
+        queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+          if (!old) return old;
+          
+          // Remove effects that were associated with this equipment
+          const filteredEffects = {
+            ...old,
+            equipment: (old?.equipment || []).filter((effect: any) => 
+              effect.type_specific_data?.equipment_id !== stashedEquipment.equipment_id
+            )
+          };
+          
+          return filteredEffects;
+        });
+      }
+
+      // Return a context object with the snapshotted values
+      return { previousEquipment, previousStash, previousEffects, previousTotalCost };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousEquipment) {
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+      }
+      if (context?.previousStash) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
+      }
+
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
+        description: err instanceof Error ? err.message : "Failed to move equipment to stash",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+    },
+    onSuccess: (data, variables) => {
+      // Find equipment before removing for stash update
+      const stashedEquipment = equipment.find(e => e.fighter_equipment_id === variables.fighter_equipment_id);
+
+      // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches  
+      // Fighter equipment (will sync gang page automatically via shared cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      
+      // Gang stash and rating (affected by equipment moved to stash)
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+
+      toast({
+        title: "Success",
+        description: `${stashedEquipment?.equipment_name || 'Equipment'} moved to gang stash`,
+      });
       setStashModalData(null);
     }
+  });
+
+  const handleDeleteEquipment = (fighterEquipmentId: string, equipmentId: string) => {
+    deleteEquipmentMutation.mutate({
+      fighter_equipment_id: fighterEquipmentId,
+      gang_id: gangId,
+      fighter_id: fighterId
+    });
+  };
+
+  const handleSellEquipment = (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+    sellEquipmentMutation.mutate({
+      fighter_equipment_id: fighterEquipmentId,
+      manual_cost: manualCost
+    });
+  };
+
+  const handleStashEquipment = (fighterEquipmentId: string, equipmentId: string) => {
+    stashEquipmentMutation.mutate({
+      fighter_equipment_id: fighterEquipmentId
+    });
   };
 
   // Sort equipment: core equipment first, then by name
@@ -264,7 +456,7 @@ export function WeaponList({
         {item.equipment_name}
       </td>
       <td className="px-1 py-1 text-right">
-        {item.cost ?? '-'}
+        {item.purchase_cost ?? '-'}
       </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
@@ -279,7 +471,7 @@ export function WeaponList({
                     setStashModalData(equipment);
                   }
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={deleteEquipmentMutation.isPending || sellEquipmentMutation.isPending || stashEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Store in Stash"
               >
@@ -294,7 +486,7 @@ export function WeaponList({
                     setSellModalData(equipment);
                   }
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={deleteEquipmentMutation.isPending || sellEquipmentMutation.isPending || stashEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Sell"
               >
@@ -305,10 +497,10 @@ export function WeaponList({
                 size="sm"
                 onClick={() => setDeleteModalData({
                   id: item.fighter_equipment_id,
-                  equipmentId: item.equipment_id,
+                  equipmentId: item.equipment_id || '',
                   name: item.equipment_name
                 })}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={deleteEquipmentMutation.isPending || sellEquipmentMutation.isPending || stashEquipmentMutation.isPending || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Delete"
               >
@@ -321,18 +513,7 @@ export function WeaponList({
     </tr>
   );
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 bg-gray-200 animate-pulse rounded" />
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const isLoading = deleteEquipmentMutation.isPending || sellEquipmentMutation.isPending || stashEquipmentMutation.isPending;
 
   return (
     <>
@@ -411,7 +592,7 @@ export function WeaponList({
           onClose={() => setSellModalData(null)}
           onConfirm={(manualCost) => handleSellEquipment(
             sellModalData.fighter_equipment_id,
-            sellModalData.equipment_id,
+            sellModalData.equipment_id || '',
             manualCost
           )}
         />
@@ -424,7 +605,7 @@ export function WeaponList({
           onClose={() => setStashModalData(null)}
           onConfirm={() => handleStashEquipment(
             stashModalData.fighter_equipment_id,
-            stashModalData.equipment_id
+            stashModalData.equipment_id || ''
           )}
         />
       )}
