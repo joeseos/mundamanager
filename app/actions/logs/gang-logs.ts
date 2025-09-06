@@ -31,20 +31,14 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
     // Use user_id from params or fallback to current user
     const userId = params.user_id || user.id;
 
-    // Insert gang log
-    const { data, error } = await supabase
-      .from('gang_logs')
-      .insert({
-        gang_id: params.gang_id,
-        user_id: userId,
-        action_type: params.action_type,
-        description: params.description,
-        fighter_id: params.fighter_id || null,
-        vehicle_id: params.vehicle_id || null,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // Insert gang log using the SECURITY DEFINER function to bypass RLS
+    const { data, error } = await supabase.rpc('gang_logs', {
+      p_gang_id: params.gang_id,
+      p_action_type: params.action_type,
+      p_description: params.description,
+      p_fighter_id: params.fighter_id || null,
+      p_vehicle_id: params.vehicle_id || null
+    });
 
     if (error) {
       console.error('Error creating gang log:', error);
@@ -53,7 +47,7 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
 
     return { 
       success: true, 
-      data
+      data: { id: data } // The RPC function returns the log ID
     };
   } catch (error) {
     console.error('Error in createGangLog server action:', error);
