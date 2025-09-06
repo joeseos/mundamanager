@@ -485,12 +485,12 @@ const CampaignBattleLogModal = ({
 
       // Create or update battle based on mode
       if (isEditMode && battleToEdit) {
-        await updateBattleLog(campaignId, battleToEdit.id, { ...battleData, created_at: new Date(battleDate).toISOString() });
+        await updateBattleLog(campaignId, battleToEdit.id, { ...battleData, created_at: new Date(battleDate + 'T00:00:00').toISOString() });
         toast({
           description: "Battle report updated successfully"
         });
       } else {
-        await createBattleLog(campaignId, { ...battleData, created_at: new Date(battleDate).toISOString() });
+        await createBattleLog(campaignId, { ...battleData, created_at: new Date(battleDate + 'T00:00:00').toISOString() });
         toast({
           description: "Battle report added successfully"
         });
@@ -564,6 +564,19 @@ const CampaignBattleLogModal = ({
       helper="Fields marked with * are required."
       content={
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date *
+            </label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+              value={battleDate}
+              onChange={(e) => setBattleDate(e.target.value)}
+              disabled={isLoadingBattleData}
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Scenario *
@@ -757,19 +770,6 @@ const CampaignBattleLogModal = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="min-h-[100px] bg-gray-100"
-              disabled={isLoadingBattleData}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
-              value={battleDate}
-              onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
             />
           </div>
