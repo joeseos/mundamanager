@@ -6,7 +6,9 @@ import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
-import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
+import { addGangVehicle, getGangVehicleTypes } from '@/app/lib/server-functions/add-gang-vehicle';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface VehicleType {
   id: string;
@@ -43,6 +45,103 @@ export default function AddVehicle({
   onGangCreditsUpdate
 }: AddVehicleProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // TanStack Query mutation for adding vehicle
+  const addVehicleMutation = useMutation({
+    mutationFn: addGangVehicle,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches for gang data
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.vehicles(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      
+      // Optimistically update credits
+      const vehicleCost = variables.cost || 0;
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+        return Math.max(0, (old || 0) - vehicleCost);
+      });
+      
+      return { previousCredits };
+    },
+    onError: (err, _variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      
+      console.error('Error adding vehicle:', err);
+      setVehicleError(err instanceof Error ? err.message : 'Failed to add vehicle');
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        // Update credits with server authoritative value
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), result.data.gangCredits);
+        
+        // Invalidate related queries to trigger refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.vehicles(gangId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+        
+        const vehicle = result.data.vehicle;
+        const paymentCost = result.data.paymentCost;
+        const baseCost = result.data.baseCost;
+        
+        // Create the new vehicle object for the parent component
+        const newVehicle: VehicleProps = {
+          id: vehicle.id,
+          vehicle_name: vehicle.vehicle_name,
+          cost: vehicle.cost,
+          vehicle_type_id: vehicle.vehicle_type_id,
+          vehicle_type: vehicle.vehicle_type,
+          gang_id: vehicle.gang_id,
+          fighter_id: vehicle.fighter_id,
+          movement: vehicle.movement,
+          front: vehicle.front,
+          side: vehicle.side,
+          rear: vehicle.rear,
+          hull_points: vehicle.hull_points,
+          handling: vehicle.handling,
+          save: vehicle.save,
+          body_slots: vehicle.body_slots,
+          body_slots_occupied: vehicle.body_slots_occupied,
+          drive_slots: vehicle.drive_slots,
+          drive_slots_occupied: vehicle.drive_slots_occupied,
+          engine_slots: vehicle.engine_slots,
+          engine_slots_occupied: vehicle.engine_slots_occupied,
+          special_rules: vehicle.special_rules || [],
+          created_at: vehicle.created_at,
+          equipment: [],
+          payment_cost: paymentCost
+        };
+        
+        // Call the parent component's callback
+        onVehicleAdd(newVehicle);
+
+        // Also update credits callback if provided
+        if (typeof onGangCreditsUpdate === 'function') {
+          onGangCreditsUpdate(result.data.gangCredits);
+        }
+
+        // Create a more informative success message when base cost is different from payment
+        let successMessage = `${vehicle.vehicle_name} added to gang successfully`;
+        if (useBaseCost && paymentCost !== baseCost) {
+          successMessage = `${vehicle.vehicle_name} added for ${paymentCost} credits (base value: ${baseCost} credits)`;
+        }
+        
+        toast({
+          description: successMessage,
+          variant: "default"
+        });
+
+        // Reset form and close modal
+        handleClose();
+      } else {
+        setVehicleError(result.error || 'Failed to add vehicle');
+      }
+    }
+  });
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);
@@ -55,10 +154,12 @@ export default function AddVehicle({
     const fetchVehicleTypes = async () => {
       if (vehicleTypes.length === 0) {
         try {
-          const response = await fetch(`/api/gangs/${gangId}/vehicles`);
-          if (!response.ok) throw new Error('Failed to fetch vehicle types');
-          const data = await response.json();
-          setVehicleTypes(data);
+          const result = await getGangVehicleTypes(gangId);
+          if (result.success) {
+            setVehicleTypes(result.data);
+          } else {
+            throw new Error(result.error);
+          }
         } catch (error) {
           console.error('Error fetching vehicle types:', error);
           setVehicleError('Failed to load vehicle types');
@@ -95,7 +196,8 @@ export default function AddVehicle({
 
     const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
     if (!selectedVehicleType) {
-      throw new Error('Vehicle type not found');
+      setVehicleError('Vehicle type not found');
+      return false;
     }
 
     // Get the entered cost or use the base cost if none entered
@@ -106,70 +208,15 @@ export default function AddVehicle({
     const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;
 
     try {
-      const result = await addGangVehicle({
+      // Use TanStack mutation to add the vehicle
+      addVehicleMutation.mutate({
         gangId,
         vehicleTypeId: selectedVehicleTypeId,
         cost: paymentCost, // This is what the user pays in credits
         vehicleName: name,
         baseCost: ratingCost // The vehicle's base cost for display and when equipped
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add vehicle');
-      }
-
-      const data = result.vehicle;
       
-      // Create the new vehicle object from the response
-      const newVehicle: VehicleProps = {
-        id: data.id,
-        vehicle_name: name,
-        // Use the actual cost determined above
-        cost: ratingCost,
-        vehicle_type_id: selectedVehicleTypeId,
-        vehicle_type: selectedVehicleType.vehicle_type,
-        gang_id: gangId,
-        fighter_id: null,
-        movement: selectedVehicleType.movement,
-        front: selectedVehicleType.front,
-        side: selectedVehicleType.side,
-        rear: selectedVehicleType.rear,
-        hull_points: selectedVehicleType.hull_points,
-        handling: selectedVehicleType.handling,
-        save: selectedVehicleType.save,
-        body_slots: selectedVehicleType.body_slots,
-        body_slots_occupied: 0,
-        drive_slots: selectedVehicleType.drive_slots,
-        drive_slots_occupied: 0,
-        engine_slots: selectedVehicleType.engine_slots,
-        engine_slots_occupied: 0,
-        special_rules: selectedVehicleType.special_rules || [],
-        created_at: new Date().toISOString(),
-        equipment: [],
-        payment_cost: paymentCost // Track what was actually paid
-      };
-      
-      // Call the parent component's callback
-      onVehicleAdd(newVehicle);
-
-      // Also update credits from server authoritative value if provided
-      if (typeof onGangCreditsUpdate === 'function' && typeof result.gangCredits === 'number') {
-        onGangCreditsUpdate(result.gangCredits);
-      }
-
-      // Create a more informative success message when base cost is different from payment
-      let successMessage = `${name} added to gang successfully`;
-      if (useBaseCost && paymentCost !== ratingCost) {
-        successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
-      }
-      
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
-
-      // Reset form and close modal
-      handleClose();
       return true;
     } catch (error) {
       console.error('Error details:', error);
