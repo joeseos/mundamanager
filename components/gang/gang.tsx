@@ -2,7 +2,6 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { FighterProps } from '@/types/fighter';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
@@ -32,7 +31,7 @@ import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/app/lib/queries/keys';
-import { queryGangCredits, queryGangRating } from '@/app/lib/queries/gang-queries';
+import { queryGangCredits, queryGangRating, useGetGang, useGetGangResources } from '@/app/lib/queries/gang-queries';
 
 
 interface GangProps {
@@ -128,9 +127,9 @@ export default function Gang({
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
-  const [name, setName] = useState(initialName)
-  
-  // 🎯 Use TanStack Query for credits and rating - syncs automatically with fighter pages!
+  // 🎯 Use TanStack Query for all gang data - syncs automatically with prefetched SSR data!
+  const { data: gangData } = useGetGang(id);
+  const { data: gangResources } = useGetGangResources(id);
   const { data: credits } = useQuery({
     queryKey: queryKeys.gangs.credits(id),
     queryFn: () => queryGangCredits(id),
@@ -150,6 +149,28 @@ export default function Gang({
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+
+  // Extract data from queries with fallback to initial props
+  const name = gangData?.name ?? initialName;
+  const alignment = gangData?.alignment ?? initialAlignment;
+  const gangColour = gangData?.gang_colour ?? initialGangColour ?? '';
+  const allianceId = gangData?.alliance_id ?? initialAllianceId;
+  const gangAffiliationId = gangData?.gang_affiliation_id ?? gang_affiliation_id;
+  const gangAffiliationName = gangData?.gang_affiliation?.name ?? gang_affiliation_name ?? '';
+  const lastUpdated = gangData?.last_updated ?? initialLastUpdated;
+  const currentGangImageUrl = gangData?.image_url ?? image_url;
+  
+  const reputation = gangResources?.reputation ?? initialReputation ?? 0;
+  const meat = gangResources?.meat ?? initialMeat ?? 0;
+  const scavengingRolls = gangResources?.scavenging_rolls ?? initialScavengingRolls ?? 0;
+  const explorationPoints = gangResources?.exploration_points ?? initialExplorationPoints ?? 0;
+  
+  // Convert gang variants from server data to expected format
+  const rawGangVariants = (gangData?.gang_variants || safeGangVariant) as Array<{id: string, variant: string}>;
+  // Filter out null/undefined values
+  const gangVariants = rawGangVariants?.filter(variant => variant && variant.variant) || [];
+  const gangIsVariant = gangVariants.length > 0;
+  
 
   // TanStack Query mutation for gang positioning
   const updatePositioningMutation = useMutation({
@@ -203,31 +224,19 @@ export default function Gang({
     },
   });
   
-  const [reputation, setReputation] = useState(initialReputation ?? 0)
-  const [meat, setMeat] = useState(initialMeat ?? 0)
-  const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
-  const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
-  const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
-  const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
+  // Keep only UI state and data not handled by queries
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
-  const [alignment, setAlignment] = useState(initialAlignment);
-  const [allianceId, setAllianceId] = useState<string | null>(initialAllianceId);
   const [allianceName, setAllianceName] = useState(initialAllianceName);
-  const [gangAffiliationId, setGangAffiliationId] = useState<string | null>(gang_affiliation_id);
-  const [gangAffiliationName, setGangAffiliationName] = useState(gang_affiliation_name);
+  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [positions, setPositions] = useState<Record<number, string>>(positioning);
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
-  const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
-  const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
-  const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   // Page view mode
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
 
@@ -377,102 +386,13 @@ export default function Gang({
   };
 
 
-  // Handle gang updates from the edit modal
-  const handleGangUpdate = async (updates: any): Promise<boolean> => {
-    try {
-      // Store previous values for optimistic updates
-      const prevName = name;
-      const prevCredits = credits;
-      const prevAlignment = alignment;
-      const prevAllianceId = allianceId;
-      const prevAllianceName = allianceName;
-      const prevGangAffiliationId = gangAffiliationId;
-      const prevGangAffiliationName = gangAffiliationName;
-      const prevReputation = reputation;
-      const prevMeat = meat;
-      const prevScavengingRolls = scavengingRolls;
-      const prevExplorationPoints = explorationPoints;
-      const prevGangVariants = [...gangVariants];
-      const prevGangIsVariant = gangIsVariant;
-      const prevGangColour = gangColour;
-
-      // Apply optimistic updates
-      setName(updates.name);
-      const newCredits = (credits ?? 0) + (updates.credits_operation === 'add' ? updates.credits : -updates.credits);
-      // Update parent component's credits state
-      onGangCreditsUpdate?.(newCredits);
-      setAlignment(updates.alignment);
-      setAllianceId(updates.alliance_id);
-      setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
-      setGangAffiliationId(updates.gang_affiliation_id);
-      // Gang affiliation name will be updated from server response if needed
-      setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
-      setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
-      setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
-      setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
-      setGangColour(updates.gang_colour);
-      
-      // Handle gang variants
-      const newVariants = updates.gang_variants.map((variantId: string) => 
-        gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
-      );
-      setGangVariants(newVariants);
-      setGangIsVariant(newVariants.length > 0);
-
-      // Use server action instead of fetch
-      const { updateGang } = await import('@/app/actions/update-gang');
-      const result = await updateGang({
-        gang_id: id,
-        ...updates
-      });
-
-      if (!result.success) {
-        // Revert optimistic updates if the request fails
-        setName(prevName);
-        // Revert parent component's credits state
-        onGangCreditsUpdate?.(credits ?? 0);
-        setAlignment(prevAlignment);
-        setAllianceId(prevAllianceId);
-        setAllianceName(prevAllianceName);
-        setGangAffiliationId(prevGangAffiliationId);
-        setGangAffiliationName(prevGangAffiliationName);
-        setReputation(prevReputation);
-        setMeat(prevMeat);
-        setScavengingRolls(prevScavengingRolls);
-        setExplorationPoints(prevExplorationPoints);
-        setGangIsVariant(prevGangIsVariant);
-        setGangVariants(prevGangVariants);
-        setGangColour(prevGangColour);
-        
-        throw new Error(result.error || 'Failed to update gang');
-      }
-
-      // Update from server response
-      if (result.data) {
-        setLastUpdated(result.data.last_updated);
-        
-        // Update alliance name if alliance was changed
-        if (result.data.alliance_name) {
-          setAllianceName(result.data.alliance_name);
-        }
-        
-        // Update gang affiliation name if affiliation was changed
-        if (result.data.gang_affiliation_name !== undefined) {
-          setGangAffiliationName(result.data.gang_affiliation_name);
-        }
-        
-        // Update gang variants from server response
-        if (result.data.gang_variants) {
-          setGangVariants(result.data.gang_variants);
-          setGangIsVariant(result.data.gang_variants.length > 0);
-        }
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error updating gang:', error);
-      throw error;
-    }
+  // Handle gang updates from the edit modal - just update local state, mutation handles server updates
+  const handleGangUpdate = (data: any) => {
+    // Only update alliance name since it's not in the gang basic query
+    setAllianceName(data.alliance_name || '');
+    
+    // Update parent component's credits state (redundant since credits handled by TanStack Query, but kept for compatibility)
+    onGangCreditsUpdate?.(data.credits);
   };
 
   const handleAddFighterClick = () => {
@@ -522,8 +442,6 @@ export default function Gang({
 
   const handleVehicleAdded = (newVehicle: VehicleProps) => {
     // Credits now managed by TanStack Query - will be updated via parent callback and invalidation
-    const paymentCost = newVehicle.payment_cost !== undefined ? newVehicle.payment_cost : newVehicle.cost;
-    
     // Note: Unassigned vehicles don't contribute to gang rating yet
     // They'll contribute to the rating when assigned to a fighter
     // No need to update the rating here
@@ -541,7 +459,14 @@ export default function Gang({
   };
 
   const handleGangImageUpdate = (newImageUrl: string) => {
-    setCurrentGangImageUrl(newImageUrl);
+    // Update TanStack Query cache with new image URL
+    queryClient.setQueryData(queryKeys.gangs.detail(id), (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        image_url: newImageUrl
+      };
+    });
   };
 
   const handlePositionsUpdate = useCallback((newPositions: Record<number, string>) => {
@@ -693,13 +618,13 @@ export default function Gang({
                 <div className="flex items-center gap-1">
                   Type: <Badge variant="secondary">{gang_type}</Badge>
                 </div>
-                {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
+                {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0]?.variant === 'Outlaw') && (
                   <div className="flex items-center gap-1">
                     Variants:
                     {gangVariants
-                      .filter((variant) => variant.variant !== 'Outlaw')
-                      .map((variant) => (
-                        <Badge key={variant.id} variant="secondary">
+                      .filter((variant) => variant && variant.variant && variant.variant !== 'Outlaw')
+                      .map((variant, index) => (
+                        <Badge key={variant.id || `variant-${index}`} variant="secondary">
                           {variant.variant}
                         </Badge>
                       ))}
@@ -851,7 +776,7 @@ export default function Gang({
             gangAffiliationName={gangAffiliationName}
             gangTypeHasAffiliation={gang_type_has_affiliation}
             campaigns={campaigns}
-            onSave={handleGangUpdate}
+            onGangUpdate={handleGangUpdate}
           />
 
           {showAddFighterModal && (
@@ -1008,54 +933,3 @@ export default function Gang({
   );
 }
 
-interface StatItemProps {
-  label: string;
-  value: number | string | null;
-  isEditing: boolean;
-  editedValue: string;
-  onChange: (value: string) => void;
-  type?: 'number' | 'select';
-  options?: string[];
-}
-
-function StatItem({
-  label,
-  value,
-  isEditing,
-  editedValue,
-  onChange,
-  type = 'number',
-  options = []
-}: StatItemProps) {
-  return (
-    <div>
-      <p className="text-gray-600 text-sm truncate">{label}:</p>
-      {isEditing ? (
-        type === 'select' ? (
-          <select
-            value={editedValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full p-2 border rounded font-semibold"
-          >
-            {options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <Input
-            type="number"
-            value={editedValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="font-semibold w-full"
-          />
-        )
-      ) : (
-        <p className="font-semibold">
-          {value != null ? value : 0}
-        </p>
-      )}
-    </div>
-  );
-}

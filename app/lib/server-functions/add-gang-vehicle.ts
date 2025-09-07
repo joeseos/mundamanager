@@ -2,8 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { CACHE_TAGS, invalidateGangCredits } from "@/utils/cache-tags";
-import { revalidateTag } from "next/cache";
+// Removed Next.js cache invalidation - handled by TanStack Query on client side
 
 // Type-safe server function patterns for Next.js + TanStack Query integration
 export type ServerFunctionResult<T = unknown> = {
@@ -161,13 +160,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<Serv
       throw new Error(`Gang update failed: ${gangUpdateError.message}`);
     }
 
-    // Invalidate relevant cache tags
-    invalidateGangCredits(params.gangId);
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-    
-    // Also invalidate computed gang vehicle count
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.gangId));
+    // Cache invalidation is handled by TanStack Query on the client side
 
     return {
       success: true,

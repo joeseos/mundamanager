@@ -10,6 +10,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
+import { updateGang } from '@/app/lib/server-functions/update-gang';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface GangUpdates {
   name: string;
@@ -62,8 +65,8 @@ interface GangEditModalProps {
   // Campaign features
   campaigns?: Campaign[];
   
-  // Callbacks
-  onSave: (updates: GangUpdates) => Promise<boolean>;
+  // Optional callback to update parent component state
+  onGangUpdate?: (data: any) => void;
 }
 
 /**
@@ -97,8 +100,148 @@ export default function GangEditModal({
   gangAffiliationName,
   gangTypeHasAffiliation,
   campaigns,
-  onSave
+  onGangUpdate
 }: GangEditModalProps) {
+  const queryClient = useQueryClient();
+  
+  // TanStack Query mutation for updating gang
+  const updateGangMutation = useMutation({
+    mutationFn: updateGang,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches for gang data
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.resources(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousGang = queryClient.getQueryData(queryKeys.gangs.detail(gangId));
+      const previousResources = queryClient.getQueryData(queryKeys.gangs.resources(gangId));
+      
+      // Optimistically update credits if changed
+      if (variables.credits !== undefined && variables.credits_operation) {
+        const creditsDelta = variables.credits_operation === 'add' ? variables.credits : -variables.credits;
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+          return Math.max(0, (old || 0) + creditsDelta);
+        });
+      }
+      
+      // Optimistically update gang basic data (except gang_variants which needs DB lookup)
+      queryClient.setQueryData(queryKeys.gangs.detail(gangId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          name: variables.name,
+          alignment: variables.alignment,
+          gang_colour: variables.gang_colour,
+          alliance_id: variables.alliance_id,
+          gang_affiliation_id: variables.gang_affiliation_id,
+          // Don't optimistically update gang_variants since it requires DB lookup to convert IDs to objects
+        };
+      });
+      
+      // Optimistically update resources if changed
+      const resourceUpdates: any = {};
+      if (variables.reputation !== undefined && variables.reputation_operation) {
+        resourceUpdates.reputation = variables.reputation_operation === 'add' ? variables.reputation : -variables.reputation;
+      }
+      if (variables.meat !== undefined && variables.meat_operation) {
+        resourceUpdates.meat = variables.meat_operation === 'add' ? variables.meat : -variables.meat;
+      }
+      if (variables.scavenging_rolls !== undefined && variables.scavenging_rolls_operation) {
+        resourceUpdates.scavenging_rolls = variables.scavenging_rolls_operation === 'add' ? variables.scavenging_rolls : -variables.scavenging_rolls;
+      }
+      if (variables.exploration_points !== undefined && variables.exploration_points_operation) {
+        resourceUpdates.exploration_points = variables.exploration_points_operation === 'add' ? variables.exploration_points : -variables.exploration_points;
+      }
+      
+      if (Object.keys(resourceUpdates).length > 0) {
+        queryClient.setQueryData(queryKeys.gangs.resources(gangId), (old: any) => {
+          if (!old) return old;
+          const updated = { ...old };
+          Object.keys(resourceUpdates).forEach(key => {
+            updated[key] = Math.max(0, (old[key] || 0) + resourceUpdates[key]);
+          });
+          return updated;
+        });
+      }
+      
+      return { previousCredits, previousGang, previousResources };
+    },
+    onError: (err, _variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousGang !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), context.previousGang);
+      }
+      if (context?.previousResources !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.resources(gangId), context.previousResources);
+      }
+      
+      console.error('Error updating gang:', err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update gang. Please try again.",
+        variant: "destructive"
+      });
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        
+        // Update cache with server authoritative values
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), result.data.credits);
+        
+        // Update gang detail cache with server response
+        queryClient.setQueryData(queryKeys.gangs.detail(gangId), (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            name: result.data.name,
+            alignment: result.data.alignment,
+            gang_colour: result.data.gang_colour,
+            alliance_id: result.data.alliance_id,
+            gang_affiliation_id: result.data.gang_affiliation_id,
+            gang_variants: result.data.gang_variants, // This should be the array of objects from server
+            last_updated: result.data.last_updated,
+          };
+        });
+        
+        // Update resources cache
+        queryClient.setQueryData(queryKeys.gangs.resources(gangId), {
+          reputation: result.data.reputation,
+          meat: result.data.meat,
+          scavenging_rolls: result.data.scavenging_rolls,
+          exploration_points: result.data.exploration_points,
+        });
+        
+        // Invalidate related queries to trigger refetch for dependent data
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.vehicles(gangId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.fighters(gangId) });
+        
+        // Call parent callback if provided to update local state
+        if (onGangUpdate) {
+          onGangUpdate(result.data);
+        }
+        
+        toast({
+          description: "Gang updated successfully",
+          variant: "default"
+        });
+        
+        onClose();
+        setEditedCredits('');
+        setEditedReputation('');
+        setEditedMeat('');
+        setEditedScavengingRolls('');
+        setEditedExplorationPoints('');
+      } else {
+        throw new Error(result.error || 'Failed to update gang');
+      }
+    }
+  });
   const { toast } = useToast();
   
   // Internal modal state
@@ -111,8 +254,8 @@ export default function GangEditModal({
   const [editedAlignment, setEditedAlignment] = useState(alignment);
   const [editedAllianceId, setEditedAllianceId] = useState(allianceId || '');
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
-  const [editedGangIsVariant, setEditedGangIsVariant] = useState(gangVariants.length > 0);
-  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants);
+  const [editedGangIsVariant, setEditedGangIsVariant] = useState((gangVariants?.length ?? 0) > 0);
+  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants || []);
   const [editedGangAffiliationId, setEditedGangAffiliationId] = useState(gangAffiliationId || '');
   
   // Alliance management state
@@ -139,11 +282,11 @@ export default function GangEditModal({
       setEditedAlignment(alignment);
       setEditedAllianceId(allianceId || '');
       setEditedGangColour(gangColour);
-      setEditedGangIsVariant(gangVariants.length > 0);
-      setEditedGangVariants([...gangVariants]);
+      setEditedGangIsVariant((gangVariants?.length ?? 0) > 0);
+      setEditedGangVariants([...(gangVariants || [])]);
       setEditedGangAffiliationId(gangAffiliationId || '');
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants, gangAffiliationId]);
+  }, [isOpen]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -210,40 +353,30 @@ export default function GangEditModal({
       const scavengingRollsDifference = parseInt(editedScavengingRolls) || 0;
       const explorationPointsDifference = parseInt(editedExplorationPoints) || 0;
 
-      const updates: GangUpdates = {
+      const updates = {
+        gang_id: gangId,
         name: editedName,
         credits: Math.abs(creditsDifference),
-        credits_operation: creditsDifference >= 0 ? 'add' : 'subtract',
+        credits_operation: (creditsDifference >= 0 ? 'add' : 'subtract') as 'add' | 'subtract',
         alignment: editedAlignment,
         alliance_id: editedAllianceId === '' ? null : editedAllianceId,
         reputation: Math.abs(reputationDifference),
-        reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
+        reputation_operation: (reputationDifference >= 0 ? 'add' : 'subtract') as 'add' | 'subtract',
         meat: Math.abs(meatDifference),
-        meat_operation: meatDifference >= 0 ? 'add' : 'subtract',
+        meat_operation: (meatDifference >= 0 ? 'add' : 'subtract') as 'add' | 'subtract',
         scavenging_rolls: Math.abs(scavengingRollsDifference),
-        scavenging_rolls_operation: scavengingRollsDifference >= 0 ? 'add' : 'subtract',
+        scavenging_rolls_operation: (scavengingRollsDifference >= 0 ? 'add' : 'subtract') as 'add' | 'subtract',
         exploration_points: Math.abs(explorationPointsDifference),
-        exploration_points_operation: explorationPointsDifference >= 0 ? 'add' : 'subtract',
+        exploration_points_operation: (explorationPointsDifference >= 0 ? 'add' : 'subtract') as 'add' | 'subtract',
         gang_variants: editedGangVariants.map(v => v.id),
         gang_colour: editedGangColour,
         gang_affiliation_id: editedGangAffiliationId === '' ? null : editedGangAffiliationId,
       };
 
-      const success = await onSave(updates);
+
+      // Use TanStack mutation to update the gang
+      updateGangMutation.mutate(updates);
       
-      if (success) {
-        toast({
-          description: "Gang updated successfully",
-          variant: "default"
-        });
-        
-        onClose();
-        setEditedCredits('');
-        setEditedReputation('');
-        setEditedMeat('');
-        setEditedScavengingRolls('');
-        setEditedExplorationPoints('');
-      }
     } catch (error) {
       console.error('Error updating gang:', error);
       toast({
