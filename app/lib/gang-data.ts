@@ -561,121 +561,120 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
 
       if (fighterIdsError || !fighterIds) return [];
 
-      // Use the shared fighter data functions to get complete data for each fighter
-      const fighters: GangFighter[] = [];
-      
-      for (const fighter of fighterIds) {
-        try {
-          // Get complete fighter data using shared functions
-          const [
-            fighterBasic,
-            equipment,
-            skills,
-            effects,
-            vehicles,
-            totalCost
-          ] = await Promise.all([
-            getFighterBasic(fighter.id, supabase),
-            getFighterEquipment(fighter.id, supabase),
-            getFighterSkills(fighter.id, supabase),
-            getFighterEffects(fighter.id, supabase),
-            getFighterVehicles(fighter.id, supabase),
-            getFighterTotalCost(fighter.id, supabase)
-          ]);
+      // Build all fighters in parallel to speed up SSR
+      const fighters = await Promise.all(
+        (fighterIds || []).map(async (fighter: any) => {
+          try {
+            const [
+              fighterBasic,
+              equipment,
+              skills,
+              effects,
+              vehicles,
+              totalCost
+            ] = await Promise.all([
+              getFighterBasic(fighter.id, supabase),
+              getFighterEquipment(fighter.id, supabase),
+              getFighterSkills(fighter.id, supabase),
+              getFighterEffects(fighter.id, supabase),
+              getFighterVehicles(fighter.id, supabase),
+              getFighterTotalCost(fighter.id, supabase)
+            ]);
 
-          // Get fighter type and sub-type info
-          const [fighterTypeData, fighterSubTypeData] = await Promise.all([
-            supabase
-              .from('fighter_types')
-              .select('fighter_type, alliance_crew_name')
-              .eq('id', fighterBasic.fighter_type_id)
-              .single(),
-            fighterBasic.fighter_sub_type_id ? 
+            const [fighterTypeData, fighterSubTypeData] = await Promise.all([
               supabase
-                .from('fighter_sub_types')
-                .select('sub_type_name')
-                .eq('id', fighterBasic.fighter_sub_type_id)
-                .single() : 
-              Promise.resolve({ data: null, error: null })
-          ]);
+                .from('fighter_types')
+                .select('fighter_type, alliance_crew_name')
+                .eq('id', fighterBasic.fighter_type_id)
+                .single(),
+              fighterBasic.fighter_sub_type_id ? 
+                supabase
+                  .from('fighter_sub_types')
+                  .select('sub_type_name')
+                  .eq('id', fighterBasic.fighter_sub_type_id)
+                  .single() : 
+                Promise.resolve({ data: null, error: null })
+            ]);
 
-          // Check if this fighter is owned by another fighter (i.e., is an exotic beast)
-          let ownerName: string | undefined;
-          let beastEquipmentStashed = false;
-          if (fighterBasic.fighter_pet_id) {
-            const { data: ownershipData } = await supabase
-              .from('fighter_exotic_beasts')
-              .select(`
-                fighter_owner_id,
-                fighter_equipment_id,
-                fighters!fighter_owner_id (
-                  fighter_name
-                ),
-                fighter_equipment!fighter_equipment_id (
-                  gang_stash
-                )
-              `)
-              .eq('id', fighterBasic.fighter_pet_id)
-              .single();
+            let ownerName: string | undefined;
+            let beastEquipmentStashed = false;
+            if (fighterBasic.fighter_pet_id) {
+              const { data: ownershipData } = await supabase
+                .from('fighter_exotic_beasts')
+                .select(`
+                  fighter_owner_id,
+                  fighter_equipment_id,
+                  fighters!fighter_owner_id (
+                    fighter_name
+                  ),
+                  fighter_equipment!fighter_equipment_id (
+                    gang_stash
+                  )
+                `)
+                .eq('id', fighterBasic.fighter_pet_id)
+                .single();
 
-            if (ownershipData) {
-              ownerName = (ownershipData.fighters as any)?.fighter_name;
-              beastEquipmentStashed = ownershipData.fighter_equipment?.gang_stash || false;
+              if (ownershipData) {
+                ownerName = (ownershipData.fighters as any)?.fighter_name;
+                beastEquipmentStashed = ownershipData.fighter_equipment?.gang_stash || false;
+              }
             }
+
+            const built: GangFighter = {
+              id: fighterBasic.id,
+              fighter_name: fighterBasic.fighter_name,
+              label: fighterBasic.label,
+              fighter_type: fighterBasic.fighter_type || fighterTypeData?.data?.fighter_type || 'Unknown',
+              fighter_class: fighterBasic.fighter_class || 'Unknown',
+              fighter_sub_type: fighterSubTypeData?.data ? {
+                fighter_sub_type: fighterSubTypeData.data.sub_type_name,
+                fighter_sub_type_id: fighterBasic.fighter_sub_type_id!
+              } : undefined,
+              alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
+              position: fighterBasic.position,
+              xp: fighterBasic.xp,
+              kills: fighterBasic.kills || 0,
+              credits: totalCost,
+              movement: fighterBasic.movement,
+              weapon_skill: fighterBasic.weapon_skill,
+              ballistic_skill: fighterBasic.ballistic_skill,
+              strength: fighterBasic.strength,
+              toughness: fighterBasic.toughness,
+              wounds: fighterBasic.wounds,
+              initiative: fighterBasic.initiative,
+              attacks: fighterBasic.attacks,
+              leadership: fighterBasic.leadership,
+              cool: fighterBasic.cool,
+              willpower: fighterBasic.willpower,
+              intelligence: fighterBasic.intelligence,
+              equipment,
+              effects,
+              skills,
+              vehicles,
+              cost_adjustment: fighterBasic.cost_adjustment,
+              special_rules: fighterBasic.special_rules || [],
+              note: fighterBasic.note,
+              killed: fighterBasic.killed || false,
+              starved: fighterBasic.starved || false,
+              retired: fighterBasic.retired || false,
+              enslaved: fighterBasic.enslaved || false,
+              recovery: fighterBasic.recovery || false,
+              captured: fighterBasic.captured || false,
+              free_skill: fighterBasic.free_skill || false,
+              image_url: fighterBasic.image_url,
+              owner_name: ownerName,
+              beast_equipment_stashed: beastEquipmentStashed,
+            };
+
+            return built;
+          } catch (error) {
+            console.error(`Error processing fighter ${fighter.id}:`, error);
+            return null;
           }
+        })
+      );
 
-          fighters.push({
-            id: fighterBasic.id,
-            fighter_name: fighterBasic.fighter_name,
-            label: fighterBasic.label,
-            fighter_type: fighterBasic.fighter_type || fighterTypeData?.data?.fighter_type || 'Unknown',
-            fighter_class: fighterBasic.fighter_class || 'Unknown',
-            fighter_sub_type: fighterSubTypeData?.data ? {
-              fighter_sub_type: fighterSubTypeData.data.sub_type_name,
-              fighter_sub_type_id: fighterBasic.fighter_sub_type_id!
-            } : undefined,
-            alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
-            position: fighterBasic.position,
-            xp: fighterBasic.xp,
-            kills: fighterBasic.kills || 0,
-            credits: totalCost,
-            movement: fighterBasic.movement,
-            weapon_skill: fighterBasic.weapon_skill,
-            ballistic_skill: fighterBasic.ballistic_skill,
-            strength: fighterBasic.strength,
-            toughness: fighterBasic.toughness,
-            wounds: fighterBasic.wounds,
-            initiative: fighterBasic.initiative,
-            attacks: fighterBasic.attacks,
-            leadership: fighterBasic.leadership,
-            cool: fighterBasic.cool,
-            willpower: fighterBasic.willpower,
-            intelligence: fighterBasic.intelligence,
-            equipment,
-            effects,
-            skills,
-            vehicles,
-            cost_adjustment: fighterBasic.cost_adjustment,
-            special_rules: fighterBasic.special_rules || [],
-            note: fighterBasic.note,
-            killed: fighterBasic.killed || false,
-            starved: fighterBasic.starved || false,
-            retired: fighterBasic.retired || false,
-            enslaved: fighterBasic.enslaved || false,
-            recovery: fighterBasic.recovery || false,
-            captured: fighterBasic.captured || false,
-            free_skill: fighterBasic.free_skill || false,
-            image_url: fighterBasic.image_url,
-            owner_name: ownerName,
-            beast_equipment_stashed: beastEquipmentStashed,
-          });
-        } catch (error) {
-          console.error(`Error processing fighter ${fighter.id}:`, error);
-          continue;
-        }
-      }
-
-      return fighters;
+      return (fighters.filter(Boolean) as GangFighter[]);
     },
     [`gang-fighters-list-${gangId}`],
     {

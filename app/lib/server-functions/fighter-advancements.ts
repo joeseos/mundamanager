@@ -1,15 +1,37 @@
-'use server';
+'use server'
 
-import { createClient } from '@/utils/supabase/server';
-// Cache invalidation now handled by TanStack Query client-side
-// import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating } from '@/utils/cache-tags';
-import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
-
+import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser, checkAdminOptimized } from "@/utils/auth";
 import { 
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
   logAdvancementDeletion 
-} from './logs/gang-fighter-logs';
+} from '@/app/actions/logs/gang-fighter-logs';
+
+// Type-safe server function patterns for Next.js + TanStack Query integration
+export type ServerFunctionResult<T = unknown> = {
+  success: true
+  data: T
+} | {
+  success: false
+  error: string
+}
+
+export interface ServerFunctionContext {
+  user: any  // AuthUser type from supabase
+  supabase: any
+}
+
+// Helper function to create server function context
+async function createServerContext(): Promise<ServerFunctionContext> {
+  const supabase = await createClient()
+  const user = await getAuthenticatedUser(supabase)
+  
+  return {
+    user,
+    supabase
+  }
+}
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -23,11 +45,10 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
   if (ownerData) {
     // Cache invalidation now handled by TanStack Query client-side
     // Invalidate the owner's cache since their total cost changed
-    // invalidateFighterData(ownerData.fighter_owner_id, gangId);
   }
 }
 
-// Types for advancement operations
+// Interfaces
 export interface AddCharacteristicAdvancementParams {
   fighter_id: string;
   fighter_effect_type_id: string;
@@ -50,26 +71,25 @@ export interface DeleteAdvancementParams {
 }
 
 export interface AdvancementResult {
-  success: boolean;
-  error?: string;
-  fighter?: {
+  fighter: {
     id: string;
     xp: number;
+    free_skill?: boolean;
   };
   advancement?: {
+    id: string;
+    name: string;
     credits_increase: number;
+    type: 'skill' | 'characteristic';
   };
-  remaining_xp?: number;
+  remaining_xp: number;
 }
 
 export async function addCharacteristicAdvancement(
   params: AddCharacteristicAdvancementParams
-): Promise<AdvancementResult> {
+): Promise<ServerFunctionResult<AdvancementResult>> {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    const { user, supabase } = await createServerContext();
 
     // Check if user is an admin (optimized)
     const isAdmin = await checkAdminOptimized(supabase, user);
@@ -176,7 +196,7 @@ export async function addCharacteristicAdvancement(
         updated_at: new Date().toISOString()
       })
       .eq('id', params.fighter_id)
-      .select('id, xp')
+      .select('id, xp, free_skill')
       .single();
 
     if (updateError || !updatedFighter) {
@@ -195,19 +215,12 @@ export async function addCharacteristicAdvancement(
         .from('gangs')
         .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
         .eq('id', fighter.gang_id);
-      // Cache invalidation now handled by TanStack Query client-side
-      // invalidateGangRating(fighter.gang_id);
     } catch (e) {
       console.error('Failed to update gang rating after characteristic advancement:', e);
     }
 
-    // Invalidate fighter cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // invalidateFighterData(params.fighter_id, fighter.gang_id);
-    
     // If this is a beast fighter, also invalidate owner's cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Log the characteristic advancement
     await logCharacteristicAdvancement({
@@ -221,21 +234,18 @@ export async function addCharacteristicAdvancement(
       include_gang_rating: true
     });
 
-    // Cache invalidation now handled by TanStack Query client-side
-    // Invalidate cache for fighter advancement no longer needed
-    // invalidateFighterAdvancement({
-    //   fighterId: params.fighter_id,
-    //   gangId: fighter.gang_id,
-    //   advancementType: 'stat'
-    // });
-
     return {
       success: true,
-      fighter: updatedFighter,
-      advancement: {
-        credits_increase: params.credits_increase
-      },
-      remaining_xp: updatedFighter.xp
+      data: {
+        fighter: updatedFighter,
+        advancement: {
+          id: insertedEffect.id,
+          name: effectType.effect_name,
+          credits_increase: params.credits_increase,
+          type: 'characteristic' as const
+        },
+        remaining_xp: updatedFighter.xp
+      }
     };
 
   } catch (error) {
@@ -249,12 +259,9 @@ export async function addCharacteristicAdvancement(
 
 export async function addSkillAdvancement(
   params: AddSkillAdvancementParams
-): Promise<AdvancementResult> {
+): Promise<ServerFunctionResult<AdvancementResult>> {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    const { user, supabase } = await createServerContext();
 
     // Check if user is an admin (optimized)
     const isAdmin = await checkAdminOptimized(supabase, user);
@@ -279,6 +286,13 @@ export async function addSkillAdvancement(
     if (fighter.xp < params.xp_cost) {
       return { success: false, error: 'Insufficient XP' };
     }
+
+    // Get skill name for logging and response
+    const { data: skillData } = await supabase
+      .from('skills')
+      .select('name')
+      .eq('id', params.skill_id)
+      .single();
 
     // Insert the new skill advancement
     const { data: insertedSkill, error: insertError } = await supabase
@@ -338,26 +352,12 @@ export async function addSkillAdvancement(
         .from('gangs')
         .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
         .eq('id', fighter.gang_id);
-      // Cache invalidation now handled by TanStack Query client-side
-      // invalidateGangRating(fighter.gang_id);
     } catch (e) {
       console.error('Failed to update gang rating after skill advancement:', e);
     }
 
-    // Invalidate fighter cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // invalidateFighterData(params.fighter_id, fighter.gang_id);
-    
     // If this is a beast fighter, also invalidate owner's cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
-
-    // Get skill name for logging
-    const { data: skillData } = await supabase
-      .from('skills')
-      .select('name')
-      .eq('id', params.skill_id)
-      .single();
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Log the skill advancement
     await logSkillAdvancement({
@@ -372,21 +372,18 @@ export async function addSkillAdvancement(
       include_gang_rating: true
     });
 
-    // Cache invalidation now handled by TanStack Query client-side
-    // Invalidate cache for fighter advancement no longer needed
-    // invalidateFighterAdvancement({
-    //   fighterId: params.fighter_id,
-    //   gangId: fighter.gang_id,
-    //   advancementType: 'skill'
-    // });
-
     return {
       success: true,
-      fighter: updatedFighter,
-      advancement: {
-        credits_increase: params.credits_increase
-      },
-      remaining_xp: updatedFighter.xp
+      data: {
+        fighter: updatedFighter,
+        advancement: {
+          id: insertedSkill.id,
+          name: skillData?.name || 'Unknown Skill',
+          credits_increase: params.credits_increase,
+          type: 'skill' as const
+        },
+        remaining_xp: updatedFighter.xp
+      }
     };
 
   } catch (error) {
@@ -400,12 +397,9 @@ export async function addSkillAdvancement(
 
 export async function deleteAdvancement(
   params: DeleteAdvancementParams
-): Promise<AdvancementResult> {
+): Promise<ServerFunctionResult<AdvancementResult>> {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    const { user, supabase } = await createServerContext();
 
     // Check if user is an admin (optimized)
     const isAdmin = await checkAdminOptimized(supabase, user);
@@ -429,6 +423,8 @@ export async function deleteAdvancement(
     let xpToRefund = 0;
     let ratingDelta = 0;
     let newFreeSkillStatus = fighter.free_skill;
+    let advancementName = 'Unknown Advancement';
+    let deletedAdvancementId = '';
 
     if (params.advancement_type === 'skill') {
       // Handle skill deletion
@@ -450,6 +446,16 @@ export async function deleteAdvancement(
 
       xpToRefund = skillData.xp_cost || 0;
       ratingDelta -= (skillData.credits_increase || 0);
+      deletedAdvancementId = skillData.id;
+
+      // Get skill name for logging
+      const { data: skillInfo } = await supabase
+        .from('skills')
+        .select('name')
+        .eq('id', skillData.skill_id)
+        .single();
+      
+      advancementName = skillInfo?.name || 'Unknown Skill';
 
       // Get fighter type info
       const { data: fighterTypeData, error: fighterTypeError } = await supabase
@@ -511,7 +517,7 @@ export async function deleteAdvancement(
       // Check if effect exists and get effect data
       const { data: effectData, error: effectError } = await supabase
         .from('fighter_effects')
-        .select('id, fighter_id, type_specific_data')
+        .select('id, fighter_id, type_specific_data, effect_name')
         .eq('id', params.advancement_id)
         .single();
 
@@ -522,6 +528,9 @@ export async function deleteAdvancement(
       if (effectData.fighter_id !== params.fighter_id) {
         return { success: false, error: 'Effect does not belong to this fighter' };
       }
+
+      advancementName = effectData.effect_name || 'Unknown Characteristic';
+      deletedAdvancementId = effectData.id;
 
       // Extract XP cost and credits_increase from type_specific_data
       if (effectData.type_specific_data && typeof effectData.type_specific_data === 'object') {
@@ -553,7 +562,7 @@ export async function deleteAdvancement(
         updated_at: new Date().toISOString()
       })
       .eq('id', params.fighter_id)
-      .select('id, xp')
+      .select('id, xp, free_skill')
       .single();
 
     if (updateError || !updatedFighter) {
@@ -573,45 +582,13 @@ export async function deleteAdvancement(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', fighter.gang_id);
-        // Cache invalidation now handled by TanStack Query client-side
-      // invalidateGangRating(fighter.gang_id);
       } catch (e) {
         console.error('Failed to update gang rating after advancement deletion:', e);
       }
     }
 
-    // Invalidate fighter cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // invalidateFighterData(params.fighter_id, fighter.gang_id);
-    
     // If this is a beast fighter, also invalidate owner's cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
-
-    // Get advancement name for logging
-    let advancementName = 'Unknown Advancement';
-    if (params.advancement_type === 'skill') {
-      const { data: skillData } = await supabase
-        .from('fighter_skills')
-        .select(`
-          skills!inner(name)
-        `)
-        .eq('id', params.advancement_id)
-        .single();
-      
-      if (skillData && skillData.skills) {
-        const skills = Array.isArray(skillData.skills) ? skillData.skills[0] : skillData.skills;
-        advancementName = skills.name;
-      }
-    } else {
-      const { data: effectData } = await supabase
-        .from('fighter_effects')
-        .select('effect_name')
-        .eq('id', params.advancement_id)
-        .single();
-      
-      advancementName = effectData?.effect_name || 'Unknown Characteristic';
-    }
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Log the advancement deletion
     await logAdvancementDeletion({
@@ -625,18 +602,18 @@ export async function deleteAdvancement(
       include_gang_rating: true
     });
 
-    // Cache invalidation now handled by TanStack Query client-side
-    // Invalidate cache for fighter advancement no longer needed
-    // invalidateFighterAdvancement({
-    //   fighterId: params.fighter_id,
-    //   gangId: fighter.gang_id,
-    //   advancementType: params.advancement_type === 'skill' ? 'skill' : 'effect'
-    // });
-
     return {
       success: true,
-      fighter: updatedFighter,
-      remaining_xp: updatedFighter.xp
+      data: {
+        fighter: updatedFighter,
+        advancement: {
+          id: deletedAdvancementId,
+          name: advancementName,
+          credits_increase: Math.abs(ratingDelta), // Return positive value for display
+          type: params.advancement_type
+        },
+        remaining_xp: updatedFighter.xp
+      }
     };
 
   } catch (error) {
@@ -646,4 +623,4 @@ export async function deleteAdvancement(
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
     };
   }
-} 
+}

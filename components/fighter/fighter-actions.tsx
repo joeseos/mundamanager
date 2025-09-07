@@ -7,7 +7,6 @@ import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
-import { editFighterStatus } from "@/app/actions/edit-fighter";
 
 interface Fighter {
   id: string;
@@ -33,7 +32,7 @@ interface FighterActionsProps {
   gang: Gang;
   fighterId: string;
   userPermissions: UserPermissions;
-  onFighterUpdate?: () => void;
+  onStatusUpdate: (params: { fighter_id: string; action: string; sell_value?: number }) => void;
 }
 
 interface ActionModals {
@@ -51,7 +50,7 @@ export function FighterActions({
   gang, 
   fighterId, 
   userPermissions,
-  onFighterUpdate 
+  onStatusUpdate
 }: FighterActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -78,109 +77,37 @@ export function FighterActions({
     }));
   };
 
-  const handleDeleteFighter = useCallback(async () => {
+  const handleDeleteFighter = useCallback(() => {
     if (!fighter || !gang) return;
 
-    try {
-      const result = await editFighterStatus({
-        fighter_id: fighter.id,
-        action: 'delete'
-      });
+    // Show success toast immediately  
+    toast({
+      description: `${fighter.fighter_name} has been successfully deleted.`,
+      variant: "default"
+    });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete fighter');
-      }
+    // Close modal immediately
+    setModals(prev => ({
+      ...prev,
+      delete: false
+    }));
 
-      toast({
-        description: `${fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
-      });
-
-      // Navigate to the gang page as returned by the server action
-      if (result.data?.redirectTo) {
-        router.push(result.data.redirectTo);
-      } else {
-        router.push(`/gang/${gang.id}`);
-      }
-    } catch (error) {
-      console.error('Error deleting fighter:', {
-        error,
-        fighterId: fighter.id,
-        fighterName: fighter.fighter_name
-      });
-
-      const message = error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred. Please try again.';
-
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive"
-      });
-    } finally {
-      setModals(prev => ({
-        ...prev,
-        delete: false
-      }));
-    }
-  }, [fighter, gang, toast, router]);
+    // Use the TanStack Query mutation for optimistic updates
+    onStatusUpdate({
+      fighter_id: fighter.id,
+      action: 'delete'
+    });
+  }, [fighter, gang, toast, onStatusUpdate]);
 
   const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number) => {
-    try {
-      const result = await editFighterStatus({
-        fighter_id: fighterId,
-        action,
-        sell_value: action === 'sell' ? sellValue : undefined
-      });
+    // Use the TanStack Query mutation for optimistic updates
+    onStatusUpdate({
+      fighter_id: fighterId,
+      action,
+      sell_value: action === 'sell' ? sellValue : undefined
+    });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update fighter status');
-      }
-
-      router.refresh();
-      onFighterUpdate?.();
-      
-      // Get success message based on action
-      let successMessage = '';
-      switch (action) {
-        case 'kill':
-          successMessage = fighter?.killed ? 'Fighter has been resurrected' : 'Fighter has been killed';
-          break;
-        case 'retire':
-          successMessage = fighter?.retired ? 'Fighter has been unretired' : 'Fighter has been retired';
-          break;
-        case 'sell':
-          successMessage = `Fighter has been sold for ${sellValue} credits`;
-          break;
-        case 'rescue':
-          successMessage = 'Fighter has been rescued from the Guilders';
-          break;
-        case 'starve':
-          successMessage = fighter?.starved ? 'Fighter has been fed' : 'Fighter has been starved';
-          break;
-        case 'recover':
-          successMessage = fighter?.recovery ? 'Fighter has been recovered from the recovery bay' : 'Fighter has been sent to the recovery bay';
-          break;
-        case 'capture':
-          successMessage = fighter?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
-          break;
-      }
-      
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error updating fighter status:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update fighter status',
-        variant: "destructive"
-      });
-      return false;
-    }
+    return true;
   };
 
   return (
@@ -282,11 +209,9 @@ export function FighterActions({
             </div>
           }
           onClose={() => handleModalToggle('kill', false)}
-          onConfirm={async () => {
-            const success = await handleActionConfirm('kill');
-            if (success) {
-              handleModalToggle('kill', false);
-            }
+          onConfirm={() => {
+            handleActionConfirm('kill');
+            handleModalToggle('kill', false);
           }}
         />
       )}
@@ -305,11 +230,9 @@ export function FighterActions({
             </div>
           }
           onClose={() => handleModalToggle('retire', false)}
-          onConfirm={async () => {
-            const success = await handleActionConfirm('retire');
-            if (success) {
-              handleModalToggle('retire', false);
-            }
+          onConfirm={() => {
+            handleActionConfirm('retire');
+            handleModalToggle('retire', false);
           }}
         />
       )}
@@ -323,11 +246,9 @@ export function FighterActions({
           isEnslaved={fighter?.enslaved || false}
           onConfirm={async (sellValue) => {
             const action = fighter?.enslaved ? 'rescue' : 'sell';
-            const success = await handleActionConfirm(action, sellValue);
-            if (success) {
-              handleModalToggle('enslave', false);
-            }
-            return success;
+            await handleActionConfirm(action, sellValue);
+            handleModalToggle('enslave', false);
+            return true;
           }}
         />
       )}
@@ -346,11 +267,9 @@ export function FighterActions({
             </div>
           }
           onClose={() => handleModalToggle('starve', false)}
-          onConfirm={async () => {
-            const success = await handleActionConfirm('starve');
-            if (success) {
-              handleModalToggle('starve', false);
-            }
+          onConfirm={() => {
+            handleActionConfirm('starve');
+            handleModalToggle('starve', false);
           }}
         />
       )}
@@ -369,11 +288,9 @@ export function FighterActions({
             </div>
           }
           onClose={() => handleModalToggle('recovery', false)}
-          onConfirm={async () => {
-            const success = await handleActionConfirm('recover');
-            if (success) {
-              handleModalToggle('recovery', false);
-            }
+          onConfirm={() => {
+            handleActionConfirm('recover');
+            handleModalToggle('recovery', false);
           }}
         />
       )}
@@ -392,11 +309,9 @@ export function FighterActions({
             </div>
           }
           onClose={() => handleModalToggle('captured', false)}
-          onConfirm={async () => {
-            const success = await handleActionConfirm('capture');
-            if (success) {
-              handleModalToggle('captured', false);
-            }
+          onConfirm={() => {
+            handleActionConfirm('capture');
+            handleModalToggle('captured', false);
           }}
         />
       )}

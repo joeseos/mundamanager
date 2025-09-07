@@ -13,9 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { buyEquipmentForFighter } from '@/app/actions/equipment';
+import { buyEquipmentForFighter } from '@/app/lib/server-functions/equipment';
 import { Tooltip } from 'react-tooltip';
 import FighterEffectSelection from './fighter-effect-selection';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
+import type { Equipment as FighterEquipmentType } from '@/types/equipment';
 
 interface ItemModalProps {
   title: string;
@@ -35,7 +38,6 @@ interface ItemModalProps {
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
   isStashMode?: boolean;
-  onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
 interface RawEquipmentData {
@@ -119,50 +121,31 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
     
     // Check if this equipment has effects that need selection
     if (!item.is_custom && !showEffectSelection) {
-      // Check if there are any selectable effects (non-fixed) for this equipment
-      const checkSelectableEffects = async () => {
-        try {
-          // Fetch full effect data including modifiers
-          const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch fighter effects');
-          }
+      // Use the fighter_effects data that's already available in the item
+      const equipmentEffects = item.fighter_effects || [];
+      setEffectTypes(equipmentEffects);
 
-          const fetchedEffectTypes = await response.json();
-          setEffectTypes(fetchedEffectTypes);
+      const hasSelectableEffects = equipmentEffects?.some((effect: any) => 
+        effect.type_specific_data?.effect_selection === 'single_select' || 
+        effect.type_specific_data?.effect_selection === 'multiple_select'
+      );
 
-          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
-            effect.type_specific_data?.effect_selection === 'single_select' || 
-            effect.type_specific_data?.effect_selection === 'multiple_select'
-          );
-
-          if (hasSelectableEffects) {
-            setShowEffectSelection(true);
-            setIsEffectSelectionValid(false);
-            return false; // Don't close modal, show effect selection
-          } else {
-            // All effects are fixed, collect them and proceed directly with purchase
-            const fixedEffects = fetchedEffectTypes
-              ?.filter((effect: any) => 
-                effect.type_specific_data?.effect_selection === 'fixed' || 
-                !effect.type_specific_data?.effect_selection
-              )
-              .map((effect: any) => effect.id) || [];
-            
-            onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-            return true; // Allow modal to close
-          }
-        } catch (error) {
-          console.error('Error checking selectable effects:', error);
-          // On error, proceed with purchase to avoid blocking the user
-          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
-          return true;
-        }
-      };
-
-      checkSelectableEffects();
-      return false; // Prevent modal from closing while we check
+      if (hasSelectableEffects) {
+        setShowEffectSelection(true);
+        setIsEffectSelectionValid(false);
+        return false; // Don't close modal, show effect selection
+      } else {
+        // All effects are fixed, collect them and proceed directly with purchase
+        const fixedEffects = equipmentEffects
+          ?.filter((effect: any) => 
+            effect.type_specific_data?.effect_selection === 'fixed' || 
+            !effect.type_specific_data?.effect_selection
+          )
+          .map((effect: any) => effect.id) || [];
+        
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
+        return true; // Allow modal to close
+      }
     }
     
     onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
@@ -194,7 +177,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
         title="Equipment Effects"
         content={
           <FighterEffectSelection
-            equipmentId={item.equipment_id}
+            equipmentId={item.equipment_id || ''}
             effectTypes={effectTypes}
             onSelectionComplete={handleEffectSelectionComplete}
             onCancel={handleEffectSelectionCancel}
@@ -314,11 +297,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
   vehicleTypeId,
   isVehicleEquipment,
   allowedCategories,
-  isStashMode,
-  onEquipmentBought
+  isStashMode
 }) => {
   const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
   
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
@@ -350,6 +333,390 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [minAvailability, setMinAvailability] = useState(6);
   const [maxAvailability, setMaxAvailability] = useState(12);
   const DEBUG = false;
+
+  // TanStack Query mutation for buying equipment
+  const buyEquipmentMutation = useMutation({
+    mutationFn: async (variables: any) => {
+      const result = await buyEquipmentForFighter(variables);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      if (isVehicleEquipment) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.vehicles(fighterId) });
+      } else {
+        await queryClient.cancelQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+      }
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.effects(fighterId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.fighters.totalCost(fighterId) });
+      
+      if (!variables.buy_for_gang_stash) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.gangs.stash(gangId) });
+      }
+
+      // Snapshot previous values for rollback
+      const previousEquipment = isVehicleEquipment 
+        ? queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId))
+        : queryClient.getQueryData(queryKeys.fighters.equipment(fighterId));
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousEffects = isVehicleEquipment 
+        ? queryClient.getQueryData(queryKeys.fighters.vehicles(fighterId))  // For vehicle equipment, effects are in vehicles cache
+        : queryClient.getQueryData(queryKeys.fighters.effects(fighterId));
+      const previousTotalCost = queryClient.getQueryData(queryKeys.fighters.totalCost(fighterId));
+      const previousStash = variables.buy_for_gang_stash ? queryClient.getQueryData(queryKeys.gangs.stash(gangId)) : null;
+
+      // Optimistically update equipment cache
+      if (isVehicleEquipment) {
+        // Update vehicle cache for vehicle equipment
+        queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+          if (!old || old.length === 0) return old;
+          
+          // Create optimistic equipment item using real item data
+          const itemData = variables.item_data;
+          const optimisticEquipment = {
+            vehicle_weapon_id: `temp-${Date.now()}`,
+            equipment_id: variables.equipment_id || variables.custom_equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            weapon_profiles: itemData.weapon_profiles || [],
+            vehicle_upgrade_slot: itemData.vehicle_upgrade_slot || undefined
+          };
+          
+          // Update the first (and typically only) vehicle's equipment array
+          return old.map((vehicle, index) => 
+            index === 0 
+              ? { ...vehicle, equipment: [...(vehicle.equipment || []), optimisticEquipment] }
+              : vehicle
+          );
+        });
+      } else {
+        // Update fighter equipment cache
+        queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+          if (!old) return old;
+          
+          // Create optimistic equipment item using real item data
+          const itemData = variables.item_data;
+          const optimisticEquipment = {
+            fighter_equipment_id: `temp-${Date.now()}`,
+            equipment_id: variables.equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            original_cost: itemData.base_cost || itemData.cost,
+            is_master_crafted: variables.master_crafted || false,
+            weapon_profiles: itemData.weapon_profiles || []
+          };
+          
+          return [...old, optimisticEquipment];
+        });
+      }
+
+      // Optimistically update gang credits
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+        if (old === undefined) return old;
+        return old - (variables.manual_cost || 0);
+      });
+
+      // Optimistically update effects if effects are being applied
+      if (variables.selected_effect_ids && variables.selected_effect_ids.length > 0) {
+        const itemData = variables.item_data;
+        const optimisticEffects = variables.selected_effect_ids.map((effectId: string, index: number) => {
+          // Find the matching effect data from the equipment's fighter_effects
+          const effectData = itemData.fighter_effects?.find((effect: any) => effect.id === effectId);
+          
+          if (!effectData) {
+            // Fallback to generic data if effect not found
+            return {
+              id: `temp-effect-${Date.now()}-${index}`,
+              effect_name: 'Loading...',
+              type_specific_data: {
+                equipment_id: variables.equipment_id,
+                effect_selection: 'fixed'
+              },
+              fighter_effect_modifiers: [{
+                id: `temp-mod-${Date.now()}-${index}`,
+                fighter_effect_id: `temp-effect-${Date.now()}-${index}`,
+                stat_name: 'loading',
+                numeric_value: 0
+              }],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          }
+
+          // Use real effect data for optimistic update
+          const tempEffectId = `temp-effect-${Date.now()}-${index}`;
+          return {
+            id: tempEffectId,
+            effect_name: effectData.effect_name,
+            type_specific_data: effectData.type_specific_data || {
+              equipment_id: variables.equipment_id,
+              effect_selection: 'fixed'
+            },
+            fighter_effect_modifiers: effectData.modifiers?.map((modifier: any, modIndex: number) => ({
+              id: `temp-mod-${Date.now()}-${index}-${modIndex}`,
+              fighter_effect_id: tempEffectId,
+              stat_name: modifier.stat_name,
+              numeric_value: modifier.default_numeric_value
+            })) || [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        });
+        
+        if (isVehicleEquipment) {
+          // Update vehicle effects cache for vehicle equipment
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const currentEffects = vehicle.effects || {};
+                const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+                
+                // Add optimistic effects to vehicle upgrades category
+                const updatedEffects = {
+                  ...currentEffects,
+                  'vehicle upgrades': [...vehicleUpgrades, ...optimisticEffects]
+                };
+                
+                return { ...vehicle, effects: updatedEffects };
+              }
+              return vehicle;
+            });
+          });
+        } else {
+          // Update fighter effects cache
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+            if (!old) return old;
+            
+            return {
+              ...old,
+              equipment: [...(old?.equipment || []), ...optimisticEffects]
+            };
+          });
+        }
+      }
+
+      // For gang stash purchases, optimistically update stash
+      if (variables.buy_for_gang_stash) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => {
+          if (!old) return old;
+          
+          // Create optimistic stash item using real item data
+          const itemData = variables.item_data;
+          const optimisticStashItem = {
+            fighter_equipment_id: `temp-stash-${Date.now()}`,
+            equipment_id: variables.equipment_id,
+            custom_equipment_id: variables.custom_equipment_id,
+            equipment_name: itemData.equipment_name,
+            equipment_type: itemData.equipment_type,
+            equipment_category: itemData.equipment_category,
+            purchase_cost: variables.manual_cost || itemData.adjusted_cost || itemData.cost,
+            original_cost: itemData.base_cost || itemData.cost,
+            is_master_crafted: variables.master_crafted || false,
+            weapon_profiles: itemData.weapon_profiles || []
+          };
+          
+          return [...old, optimisticStashItem];
+        });
+      }
+
+      return { 
+        previousEquipment, 
+        previousCredits, 
+        previousEffects, 
+        previousTotalCost, 
+        previousStash 
+      };
+    },
+    onError: (err, variables, context) => {
+      console.error('❌ PURCHASE ERROR:', err);
+      
+      // Rollback optimistic changes
+      if (context?.previousEquipment) {
+        if (isVehicleEquipment) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousEquipment);
+        } else {
+          queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), context.previousEquipment);
+        }
+      }
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousEffects) {
+        if (isVehicleEquipment) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), context.previousEffects);
+        } else {
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), context.previousEffects);
+        }
+      }
+      if (context?.previousTotalCost !== undefined) {
+        queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), context.previousTotalCost);
+      }
+      if (context?.previousStash !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), context.previousStash);
+      }
+      
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to buy equipment',
+        variant: "destructive",
+      });
+    },
+    onSuccess: (data, variables) => {
+      console.log('✅ PURCHASE SUCCESS:', data);
+
+      // Update with real server data
+      if (!variables.buy_for_gang_stash) {
+        if (isVehicleEquipment) {
+          // Update vehicle equipment cache with real server data
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            // Replace the optimistic item with real data in the vehicle's equipment array
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const updatedEquipment = (vehicle.equipment || []).map((item: any) => 
+                  item.vehicle_weapon_id?.startsWith('temp-') 
+                    ? {
+                        vehicle_weapon_id: data.equipment.fighter_equipment_id,
+                        equipment_id: data.equipment.equipment_id || data.equipment.custom_equipment_id,
+                        custom_equipment_id: data.equipment.custom_equipment_id,
+                        equipment_name: data.equipment.equipment_name,
+                        equipment_type: data.equipment.equipment_type,
+                        equipment_category: data.equipment.equipment_category,
+                        cost: data.equipment.purchase_cost,
+                        purchase_cost: data.equipment.purchase_cost,
+                        weapon_profiles: data.equipment.weapon_profiles || [],
+                        vehicle_upgrade_slot: variables.item_data.vehicle_upgrade_slot || undefined
+                      }
+                    : item
+                );
+                return { ...vehicle, equipment: updatedEquipment };
+              }
+              return vehicle;
+            });
+          });
+        } else {
+          // Update fighter equipment cache with real server data
+          queryClient.setQueryData(queryKeys.fighters.equipment(fighterId), (old: any[]) => {
+            if (!old) return old;
+            // Replace the optimistic item with real data
+            return old.map(item => 
+              item.fighter_equipment_id.startsWith('temp-') 
+                ? data.equipment 
+                : item
+            );
+          });
+        }
+        
+        // Update gang credits with server response
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
+        
+        // 🎯 SURGICAL CACHE INVALIDATION - Only invalidate affected caches
+        // Fighter equipment (will sync gang page automatically via shared cache)
+        if (fighterId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.fighters.equipment(fighterId) });
+        }
+        
+        // Gang rating (affected by equipment purchase) - credits already updated above
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+        
+        // Update fighter total cost if provided
+        if (data.fighter_total_cost !== undefined) {
+          queryClient.setQueryData(queryKeys.fighters.totalCost(fighterId), data.fighter_total_cost);
+        }
+        
+        // Update fighter effects with real server data (for fighter equipment)
+        if (!isVehicleEquipment && data.applied_effects && data.applied_effects.length > 0) {
+          queryClient.setQueryData(queryKeys.fighters.effects(fighterId), (old: any) => {
+            if (!old) return old;
+            
+            // Replace optimistic effects with real server data
+            const filteredOld = {
+              ...old,
+              equipment: (old?.equipment || []).filter((effect: any) => 
+                !effect.id.startsWith('temp-effect-')
+              )
+            };
+            
+            return {
+              ...filteredOld,
+              equipment: [...(filteredOld?.equipment || []), ...data.applied_effects]
+            };
+          });
+        }
+        
+        // Update vehicle effects cache for vehicle equipment
+        if (isVehicleEquipment && data.applied_effects && data.applied_effects.length > 0) {
+          queryClient.setQueryData(queryKeys.fighters.vehicles(fighterId), (old: any[]) => {
+            if (!old || old.length === 0) return old;
+            
+            // Update the first vehicle's effects with new equipment effects
+            return old.map((vehicle, index) => {
+              if (index === 0) {
+                const currentEffects = vehicle.effects || {};
+                const vehicleUpgrades = currentEffects['vehicle upgrades'] || [];
+                
+                // Remove optimistic effects first, then add real server data
+                const filteredUpgrades = vehicleUpgrades.filter((effect: any) => 
+                  !effect.id.startsWith('temp-effect-')
+                );
+                
+                const updatedEffects = {
+                  ...currentEffects,
+                  'vehicle upgrades': [...filteredUpgrades, ...data.applied_effects]
+                };
+                
+                return { ...vehicle, effects: updatedEffects };
+              }
+              return vehicle;
+            });
+          });
+        }
+      } else {
+        // For gang stash purchases, update with real server data
+        queryClient.setQueryData(queryKeys.gangs.stash(gangId), (old: any[]) => {
+          if (!old) return old;
+          // Replace the optimistic stash item with real data
+          return old.map(item => 
+            item.fighter_equipment_id.startsWith('temp-stash-') 
+              ? data.equipment 
+              : item
+          );
+        });
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), data.gang_credits);
+        
+        // Invalidate gang rating since buying equipment for stash affects gang rating
+        queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      }
+
+      const equipmentName = variables.master_crafted && data.equipment.equipment_type === 'weapon' 
+        ? `${data.equipment.equipment_name} (Master-crafted)` 
+        : data.equipment.equipment_name;
+
+      const actualCostPaid = variables.manual_cost ?? data.equipment.purchase_cost;
+
+      toast({
+        title: "Equipment purchased",
+        description: `Successfully bought ${equipmentName} for ${actualCostPaid} credits`,
+        variant: "default",
+      });
+
+      setBuyModalData(null);
+    }
+  });
 
   useEffect(() => {
     return () => {
@@ -520,6 +887,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
           equipment_id: item.id,
           fighter_equipment_id: '',
           cost: item.adjusted_cost,
+          purchase_cost: item.adjusted_cost,
           base_cost: item.base_cost,
           adjusted_cost: item.adjusted_cost,
           equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
@@ -643,93 +1011,43 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
+  const handleBuyEquipment = (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
     if (!session) return;
-    try {
-      // Determine if this is a gang stash purchase
-      const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
-      
-      const params = {
-        ...(item.is_custom 
-          ? { custom_equipment_id: item.equipment_id }
-          : { equipment_id: item.equipment_id }
-        ),
-        gang_id: gangId,
-        manual_cost: manualCost,
-        master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
-        use_base_cost_for_rating: useBaseCostForRating,
-        buy_for_gang_stash: isGangStashPurchase,
-        selected_effect_ids: selectedEffectIds,
-        // Only include fighter_id or vehicle_id if not buying for gang stash
-        ...(!isGangStashPurchase && (isVehicleEquipment
-          ? { vehicle_id: vehicleId || undefined }
-          : { fighter_id: fighterId || undefined }
-        ))
-      };
+    
+    console.log('handleBuyEquipment called with:', {
+      item_name: item.equipment_name,
+      item_adjusted_cost: item.adjusted_cost,
+      item_cost: item.cost,
+      manualCost,
+      isMasterCrafted,
+      current_gang_credits: gangCredits
+    });
+    
+    // Determine if this is a gang stash purchase
+    const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
+    
+    const params = {
+      ...(item.is_custom 
+        ? { custom_equipment_id: item.equipment_id }
+        : { equipment_id: item.equipment_id }
+      ),
+      gang_id: gangId,
+      manual_cost: manualCost,
+      master_crafted: isMasterCrafted && item.equipment_type === 'weapon',
+      use_base_cost_for_rating: useBaseCostForRating,
+      buy_for_gang_stash: isGangStashPurchase,
+      selected_effect_ids: selectedEffectIds,
+      // Pass the full item data for optimistic updates
+      item_data: item,
+      // Only include fighter_id or vehicle_id if not buying for gang stash
+      ...(!isGangStashPurchase && (isVehicleEquipment
+        ? { vehicle_id: vehicleId || undefined }
+        : { fighter_id: fighterId || undefined }
+      ))
+    };
 
-      
-
-      const result = await buyEquipmentForFighter(params);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to buy equipment');
-      }
-
-      const data = result.data;
-      const newGangCredits = data.updategangsCollection?.records[0]?.credits;
-      
-      // Handle different response structures for gang stash vs fighter equipment
-      let equipmentRecord;
-      if (isGangStashPurchase) {
-        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
-      } else {
-        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
-      }
-
-      if (!equipmentRecord) {
-        throw new Error('Failed to get equipment ID from response');
-      }
-
-      // Use the rating cost from the backend response
-      // This value will be the adjusted_cost when use_base_cost_for_rating is true
-      // or the manual_cost when use_base_cost_for_rating is false
-      const ratingCost = data.rating_cost;
-      
-      // Calculate new fighter credits adding the rating cost, not the manual cost
-      // This ensures the fighter's rating is correctly updated
-      // For gang stash purchases, fighter credits don't change
-      const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
-      
-      // Log removed
-
-      onEquipmentBought(newFighterCredits, newGangCredits, {
-        ...item,
-        fighter_equipment_id: equipmentRecord.id,
-        cost: ratingCost, // Use the rating cost value from the server
-        is_master_crafted: equipmentRecord.is_master_crafted,
-        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
-          ? `${item.equipment_name} (Master-crafted)` 
-          : item.equipment_name,
-        equipment_effect: data.equipment_effect
-      });
-
-      toast({
-        title: "Equipment purchased",
-        description: `Successfully bought ${equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
-          ? `${item.equipment_name} (Master-crafted)` 
-          : item.equipment_name} for ${manualCost} credits`,
-        variant: "default",
-      });
-
-      setBuyModalData(null);
-    } catch (err) {
-      console.error('Error buying equipment:', err);
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : 'Failed to buy equipment',
-        variant: "destructive",
-      });
-    }
+    console.log('Calling buyEquipmentMutation.mutate with params:', params);
+    buyEquipmentMutation.mutate(params);
   };
 
   useEffect(() => {
@@ -1177,16 +1495,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
       </div>
-      {/* Purchase Modal and Tooltip */}
-      {buyModalData && (
-        <PurchaseModal
-          item={buyModalData}
-          gangCredits={gangCredits}
-          onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [])}
-          isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
-        />
-      )}
       {/* Weapon Profile Tooltip */}
       <Tooltip
         id="weapon-profile-tooltip"

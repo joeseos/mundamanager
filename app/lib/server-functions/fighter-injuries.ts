@@ -1,10 +1,32 @@
-'use server';
+'use server'
 
-import { createClient } from '@/utils/supabase/server';
-// Cache invalidation now handled by TanStack Query client-side
-// import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
-import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from "@/utils/auth";
+
+// Type-safe server function patterns for Next.js + TanStack Query integration
+export type ServerFunctionResult<T = unknown> = {
+  success: true
+  data: T
+} | {
+  success: false
+  error: string
+}
+
+export interface ServerFunctionContext {
+  user: any  // AuthUser type from supabase
+  supabase: any
+}
+
+// Helper function to create server function context
+async function createServerContext(): Promise<ServerFunctionContext> {
+  const supabase = await createClient()
+  const user = await getAuthenticatedUser(supabase)
+  
+  return {
+    user,
+    supabase
+  }
+}
 
 // Helper function to check if user is admin
 async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
@@ -20,6 +42,7 @@ async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
   }
 }
 
+// Injury operation types
 export interface AddFighterInjuryParams {
   fighter_id: string;
   injury_type_id: string;
@@ -32,28 +55,52 @@ export interface DeleteFighterInjuryParams {
   injury_id: string;
 }
 
-export interface InjuryResult {
-  success: boolean;
-  error?: string;
-  injury?: {
-    id: string;
-    effect_name: string;
-    fighter_effect_type_id: string;
-    fighter_effect_modifiers: any[];
-    type_specific_data: any;
-    created_at: string;
-  };
-  recovery_status?: boolean;
+export interface FighterInjury {
+  id: string;
+  effect_name: string;
+  fighter_effect_type_id: string;
+  fighter_effect_modifiers: any[];
+  type_specific_data: any;
+  created_at: string;
 }
 
+// Get available injury types for the injury selection modal
+export async function getAvailableInjuries(): Promise<ServerFunctionResult<FighterInjury[]>> {
+  try {
+    const { supabase } = await createServerContext()
+
+    const { data: effects, error: effectsError } = await supabase
+      .from('fighter_effect_types')
+      .select(`
+        *,
+        fighter_effect_categories!inner(*),
+        fighter_effect_type_modifiers (
+          *
+        )
+      `)
+      .eq('fighter_effect_categories.category_name', 'injuries');
+
+    if (effectsError) throw effectsError;
+
+    return {
+      success: true,
+      data: effects || []
+    }
+  } catch (error) {
+    console.error('Error fetching available injuries:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch available injuries'
+    }
+  }
+}
+
+// Add an injury to a fighter
 export async function addFighterInjury(
   params: AddFighterInjuryParams
-): Promise<InjuryResult> {
+): Promise<ServerFunctionResult<{ injury: FighterInjury; recovery_status?: boolean }>> {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    const { user, supabase } = await createServerContext()
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase, user.id);
@@ -115,8 +162,6 @@ export async function addFighterInjury(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + delta) })
           .eq('id', fighter.gang_id);
-        // Cache invalidation now handled by TanStack Query client-side
-        // invalidateGangRating(fighter.gang_id);
       }
     } catch (e) {
       console.error('Failed to update rating for injury addition:', e);
@@ -142,7 +187,9 @@ export async function addFighterInjury(
       }
     }
 
+    // Log the injury action
     if (fighter.fighter_name) {
+      const { logFighterInjury } = await import('@/app/actions/logs/gang-fighter-logs');
       await logFighterInjury({
         gang_id: fighter.gang_id,
         fighter_id: params.fighter_id,
@@ -151,22 +198,20 @@ export async function addFighterInjury(
       });
     }
 
-    // Invalidate fighter cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // invalidateFighterData(params.fighter_id, fighter.gang_id);
-
     return {
       success: true,
-      injury: {
-        id: injuryData.id,
-        effect_name: injuryData.effect_name,
-        fighter_effect_type_id: injuryData.effect_type?.id,
-        fighter_effect_modifiers: injuryData.modifiers || [],
-        type_specific_data: injuryData.type_specific_data,
-        created_at: injuryData.created_at || new Date().toISOString()
-      },
-      recovery_status: recoveryStatus
-    };
+      data: {
+        injury: {
+          id: injuryData.id,
+          effect_name: injuryData.effect_name,
+          fighter_effect_type_id: injuryData.effect_type?.id,
+          fighter_effect_modifiers: injuryData.modifiers || [],
+          type_specific_data: injuryData.type_specific_data,
+          created_at: injuryData.created_at || new Date().toISOString()
+        },
+        recovery_status: recoveryStatus
+      }
+    }
 
   } catch (error) {
     console.error('Error adding fighter injury:', error);
@@ -177,14 +222,12 @@ export async function addFighterInjury(
   }
 }
 
+// Delete/remove an injury from a fighter
 export async function deleteFighterInjury(
   params: DeleteFighterInjuryParams
-): Promise<InjuryResult> {
+): Promise<ServerFunctionResult<null>> {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    const { user, supabase } = await createServerContext()
 
     // Check if user is an admin
     const isAdmin = await checkAdmin(supabase, user.id);
@@ -251,8 +294,6 @@ export async function deleteFighterInjury(
           .from('gangs')
           .update({ rating: Math.max(0, currentRating + delta) })
           .eq('id', fighter.gang_id);
-        // Cache invalidation now handled by TanStack Query client-side
-        // invalidateGangRating(fighter.gang_id);
       }
     } catch (e) {
       console.error('Failed to update rating after injury delete:', e);
@@ -260,6 +301,7 @@ export async function deleteFighterInjury(
 
     // Log the injury removal as recovery
     if (fighter.fighter_name) {
+      const { logFighterRecovery } = await import('@/app/actions/logs/gang-fighter-logs');
       await logFighterRecovery({
         gang_id: fighter.gang_id,
         fighter_id: params.fighter_id,
@@ -269,11 +311,7 @@ export async function deleteFighterInjury(
       });
     }
 
-    // Invalidate fighter cache
-    // Cache invalidation now handled by TanStack Query client-side
-    // invalidateFighterData(params.fighter_id, fighter.gang_id);
-
-    return { success: true };
+    return { success: true, data: null };
 
   } catch (error) {
     console.error('Error deleting fighter injury:', error);
@@ -282,4 +320,4 @@ export async function deleteFighterInjury(
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
     };
   }
-} 
+}

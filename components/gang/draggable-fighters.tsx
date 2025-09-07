@@ -51,20 +51,24 @@ export function DraggableFighters({
       
       // Update positions
       setCurrentPositions(newPositions);
-      console.log("Added positions for unpositioned fighters:", 
-        unpositionedFighters.map(f => f.id),
-        newPositions
-      );
-      
-      // Also inform parent component about new positions
-      onPositionsUpdate?.(newPositions);
+      // Do not persist to parent/DB on initial auto-fill – only update locally
     }
   }, [fighters, currentPositions, onPositionsUpdate]);
   
-  const sortedFighters = Object.entries(currentPositions)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([_, id]) => fighters.find(f => f.id === id))
-    .filter(Boolean) as FighterProps[]; // Filter out undefined and null values
+  // Ensure we render ALL fighters immediately even if some are missing from positioning
+  const sortedFighters = (() => {
+    const positionEntries = Object.entries(currentPositions)
+      .sort(([a], [b]) => Number(a) - Number(b));
+
+    const positionedFighters = positionEntries
+      .map(([_, id]) => fighters.find(f => f.id === id))
+      .filter(Boolean) as FighterProps[];
+
+    const positionedIds = new Set(positionedFighters.map(f => f.id));
+    const unpositionedFighters = fighters.filter(f => !positionedIds.has(f.id));
+
+    return [...positionedFighters, ...unpositionedFighters];
+  })();
 
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
@@ -127,14 +131,6 @@ export function DraggableFighters({
         return;
       }
       
-      console.log('Drag operation:', { 
-        fighter: draggedFighter.fighter_name, 
-        from: oldIndex, 
-        to: newIndex,
-        activeId: active.id,
-        overId: over.id
-      });
-      
       // Create new sorted IDs with the dragged item moved
       const newSortedIds = [...sortedIds];
       newSortedIds.splice(oldIndex, 1); // Remove from old position
@@ -145,8 +141,6 @@ export function DraggableFighters({
         ...acc,
         [index]: id
       }), {});
-      
-      console.log('New positions:', newPositions);
       
       // Create new fighters array in the new order
       const newFighters = newSortedIds

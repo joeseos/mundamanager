@@ -535,6 +535,7 @@ interface EditFighterModalProps {
     fighter_gang_legacy_id?: string | null;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
+  onEffectsUpdate?: (stats: Record<string, number>) => Promise<boolean>;
 }
 
 export function EditFighterModal({
@@ -546,7 +547,8 @@ export function EditFighterModal({
   preFetchedFighterTypes,
   onClose,
   onSubmit,
-  onStatsUpdate
+  onStatsUpdate,
+  onEffectsUpdate
 }: EditFighterModalProps) {
   // Update form state to include fighter type fields
   const [formValues, setFormValues] = useState({
@@ -980,72 +982,14 @@ export function EditFighterModal({
       return;
     }
     
-    try {
-      setIsSavingStats(true);
-      
-      // Make a clean copy of the fighter BEFORE any adjustments
-      const cleanFighter = { ...currentFighter };
-      
-      // Send the update to the server with the correct sign (positive or negative)
-      const response = await fetch('/api/fighters/effects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fighter_id: fighter.id,
-          stats // This should already include negative values when decreasing
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save stat changes');
-      }
-      
-      // Process the server response
-      const result = await response.json();
-      
-      // Update with the actual server data including any new effects
-      const serverUpdatedFighter = {
-        ...cleanFighter, // Use the clean fighter as the base
-        effects: {
-          ...cleanFighter.effects,
-          injuries: cleanFighter.effects?.injuries || [],
-          advancements: cleanFighter.effects?.advancements || [],
-          bionics: cleanFighter.effects?.bionics || [],
-          cyberteknika: cleanFighter.effects?.cyberteknika || [],
-          user: result.effects || []
-        }
-      };
-      
-      // Update local state with server data
-      setCurrentFighter(serverUpdatedFighter);
-      
-      // Notify parent component with the fully updated fighter
-      if (onStatsUpdate) {
-        onStatsUpdate(serverUpdatedFighter);
-      }
-      
-      // Show success toast message with proper formatting
-      toast({
-        description: "Fighter characteristics updated successfully",
-        variant: "default",
-      });
-      
-      // Close the modal only after successful update
-      setShowStatsModal(false);
-      
-    } catch (error) {
-      console.error('Error saving stats:', error);
-      
-      // Show error toast message with proper formatting
-      toast({
-        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingStats(false);
-    }
+    // Store the stats changes in form values instead of applying them immediately
+    setFormValues(prev => ({
+      ...prev,
+      stats: { ...prev.stats, ...stats }
+    }));
+    
+    // Close the characteristics modal
+    setShowStatsModal(false);
   };
 
   // Update the handleConfirm function
@@ -1145,15 +1089,26 @@ export function EditFighterModal({
         special_rules: formValues.special_rules,
         fighter_sub_type: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null,
         fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null,
-        fighter_gang_legacy_id: selectedGangLegacyId || null
+        fighter_gang_legacy_id: selectedGangLegacyId || null,
+        stats: formValues.stats
       };
       
-      await onSubmit(submitData);
+      // Close modal immediately and show success toast
+      onClose();
       toast({
         description: 'Fighter updated successfully',
         variant: "default"
       });
-      onClose();
+      
+      // Trigger the mutation in the background (optimistic update will handle UI)
+      onSubmit(submitData).catch(error => {
+        console.error('Error updating fighter:', error);
+        toast({
+          description: 'Failed to update fighter',
+          variant: "destructive"
+        });
+      });
+      
       return true;
     } catch (error) {
       console.error('Error updating fighter:', error);

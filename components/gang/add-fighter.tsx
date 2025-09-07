@@ -11,7 +11,9 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
-import { addFighterToGang } from '@/app/actions/add-fighter';
+import { addFighterToGang as addFighterToGangServer } from '@/app/lib/server-functions/add-fighter';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/app/lib/queries/keys';
 
 interface AddFighterProps {
   showModal: boolean;
@@ -50,6 +52,210 @@ interface EquipmentSelectionCategory {
 
 interface EquipmentSelection {
   [key: string]: EquipmentSelectionCategory;
+}
+
+// Helper functions to convert server results to UI format
+function createFighterFromServerResult(data: any): any {
+  return {
+    id: data.fighter_id,
+    fighter_name: data.fighter_name,
+    fighter_type_id: data.fighter_type_id || data.fighter_id,
+    fighter_type: data.fighter_type,
+    fighter_class: data.fighter_class,
+    fighter_sub_type: data.fighter_sub_type_id ? { 
+      fighter_sub_type_id: data.fighter_sub_type_id,
+      fighter_sub_type: '' // We'd need this from the server
+    } : undefined,
+    credits: data.rating_cost || data.cost,
+    movement: data.stats.movement,
+    weapon_skill: data.stats.weapon_skill,
+    ballistic_skill: data.stats.ballistic_skill,
+    strength: data.stats.strength,
+    toughness: data.stats.toughness,
+    wounds: data.stats.wounds,
+    initiative: data.stats.initiative,
+    attacks: data.stats.attacks,
+    leadership: data.stats.leadership,
+    cool: data.stats.cool,
+    willpower: data.stats.willpower,
+    intelligence: data.stats.intelligence,
+    xp: data.stats.xp,
+    kills: data.stats.kills,
+    weapons: data.equipment
+      .filter((item: any) => item.equipment_type === 'weapon')
+      .map((item: any) => ({
+        weapon_name: item.equipment_name,
+        weapon_id: item.equipment_id,
+        cost: item.cost,
+        fighter_weapon_id: item.fighter_equipment_id,
+        weapon_profiles: item.weapon_profiles || []
+      })),
+    wargear: data.equipment
+      .filter((item: any) => item.equipment_type === 'wargear')
+      .map((item: any) => ({
+        wargear_name: item.equipment_name,
+        wargear_id: item.equipment_id,
+        cost: item.cost,
+        fighter_weapon_id: item.fighter_equipment_id
+      })),
+    special_rules: data.special_rules || [],
+    skills: data.skills ? data.skills.reduce((acc: any, skill: any) => {
+      acc[skill.skill_name] = {
+        id: skill.skill_id,
+        credits_increase: 0,
+        xp_cost: 0,
+        is_advance: false,
+        acquired_at: new Date().toISOString(),
+        fighter_injury_id: null
+      };
+      return acc;
+    }, {}) : {},
+    advancements: {
+      characteristics: {},
+      skills: {}
+    },
+    injuries: [],
+    free_skill: data.free_skill || false,
+    effects: {
+      injuries: [],
+      advancements: [],
+      bionics: [],
+      cyberteknika: [],
+      'gene-smithing': [],
+      'rig-glitches': [],
+      augmentations: [],
+      equipment: [],
+      user: []
+    },
+    base_stats: {
+      movement: data.stats.movement,
+      weapon_skill: data.stats.weapon_skill,
+      ballistic_skill: data.stats.ballistic_skill,
+      strength: data.stats.strength,
+      toughness: data.stats.toughness,
+      wounds: data.stats.wounds,
+      initiative: data.stats.initiative,
+      attacks: data.stats.attacks,
+      leadership: data.stats.leadership,
+      cool: data.stats.cool,
+      willpower: data.stats.willpower,
+      intelligence: data.stats.intelligence
+    },
+    current_stats: {
+      movement: data.stats.movement,
+      weapon_skill: data.stats.weapon_skill,
+      ballistic_skill: data.stats.ballistic_skill,
+      strength: data.stats.strength,
+      toughness: data.stats.toughness,
+      wounds: data.stats.wounds,
+      initiative: data.stats.initiative,
+      attacks: data.stats.attacks,
+      leadership: data.stats.leadership,
+      cool: data.stats.cool,
+      willpower: data.stats.willpower,
+      intelligence: data.stats.intelligence
+    }
+  };
+}
+
+function createBeastFighterFromServerResult(beast: any): any {
+  return {
+    id: beast.id,
+    fighter_name: beast.fighter_name,
+    fighter_type: beast.fighter_type,
+    fighter_class: beast.fighter_class,
+    fighter_type_id: beast.fighter_type_id,
+    credits: beast.credits,
+    owner_name: beast.owner?.fighter_name,
+    movement: beast.movement,
+    weapon_skill: beast.weapon_skill,
+    ballistic_skill: beast.ballistic_skill,
+    strength: beast.strength,
+    toughness: beast.toughness,
+    wounds: beast.wounds,
+    initiative: beast.initiative,
+    attacks: beast.attacks,
+    leadership: beast.leadership,
+    cool: beast.cool,
+    willpower: beast.willpower,
+    intelligence: beast.intelligence,
+    xp: beast.xp,
+    kills: beast.kills,
+    weapons: beast.equipment
+      .filter((item: any) => item.equipment_type === 'weapon')
+      .map((item: any) => ({
+        weapon_name: item.equipment_name,
+        weapon_id: item.equipment_id,
+        cost: item.cost,
+        fighter_weapon_id: item.fighter_equipment_id,
+        weapon_profiles: item.weapon_profiles || []
+      })),
+    wargear: beast.equipment
+      .filter((item: any) => item.equipment_type === 'wargear')
+      .map((item: any) => ({
+        wargear_name: item.equipment_name,
+        wargear_id: item.equipment_id,
+        cost: item.cost,
+        fighter_weapon_id: item.fighter_equipment_id
+      })),
+    special_rules: beast.special_rules || [],
+    skills: beast.skills ? beast.skills.reduce((acc: any, skill: any) => {
+      acc[skill.skill_name] = {
+        id: skill.skill_id,
+        credits_increase: 0,
+        xp_cost: 0,
+        is_advance: false,
+        acquired_at: new Date().toISOString(),
+        fighter_injury_id: null
+      };
+      return acc;
+    }, {}) : {},
+    advancements: {
+      characteristics: {},
+      skills: {}
+    },
+    injuries: [],
+    free_skill: false,
+    effects: {
+      injuries: [],
+      advancements: [],
+      bionics: [],
+      cyberteknika: [],
+      'gene-smithing': [],
+      'rig-glitches': [],
+      augmentations: [],
+      equipment: [],
+      user: []
+    },
+    base_stats: {
+      movement: beast.movement,
+      weapon_skill: beast.weapon_skill,
+      ballistic_skill: beast.ballistic_skill,
+      strength: beast.strength,
+      toughness: beast.toughness,
+      wounds: beast.wounds,
+      initiative: beast.initiative,
+      attacks: beast.attacks,
+      leadership: beast.leadership,
+      cool: beast.cool,
+      willpower: beast.willpower,
+      intelligence: beast.intelligence
+    },
+    current_stats: {
+      movement: beast.movement,
+      weapon_skill: beast.weapon_skill,
+      ballistic_skill: beast.ballistic_skill,
+      strength: beast.strength,
+      toughness: beast.toughness,
+      wounds: beast.wounds,
+      initiative: beast.initiative,
+      attacks: beast.attacks,
+      leadership: beast.leadership,
+      cool: beast.cool,
+      willpower: beast.willpower,
+      intelligence: beast.intelligence
+    }
+  };
 }
 
 // Helper to normalize equipment_selection to the old UI format
@@ -215,6 +421,77 @@ export default function AddFighter({
   gangVariants = [],
 }: AddFighterProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // TanStack Query mutation for adding fighter
+  const addFighterMutation = useMutation({
+    mutationFn: addFighterToGangServer,
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches for gang data
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      
+      // Snapshot previous values for rollback
+      const previousCredits = queryClient.getQueryData(queryKeys.gangs.credits(gangId));
+      const previousRating = queryClient.getQueryData(queryKeys.gangs.rating(gangId));
+      
+      // Optimistically update credits
+      const fighterCost = variables.cost || 0;
+      queryClient.setQueryData(queryKeys.gangs.credits(gangId), (old: number) => {
+        return Math.max(0, (old || 0) - fighterCost);
+      });
+      
+      return { previousCredits, previousRating };
+    },
+    onError: (err, _variables, context) => {
+      // Rollback optimistic changes
+      if (context?.previousCredits !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.credits(gangId), context.previousCredits);
+      }
+      if (context?.previousRating !== undefined) {
+        queryClient.setQueryData(queryKeys.gangs.rating(gangId), context.previousRating);
+      }
+      
+      // Show error message
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add fighter';
+      setFetchError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    },
+    onSuccess: (result) => {
+      // Invalidate related queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.credits(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.rating(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.detail(gangId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gangs.positioning(gangId) });
+      
+      // Call the parent callback to handle UI updates
+      if (result.success && result.data) {
+        // Convert server result to the expected format for the callback
+        const newFighter = createFighterFromServerResult(result.data);
+        onFighterAdded(newFighter, result.data.cost);
+        
+        // Handle exotic beasts if any were created
+        if (result.data.created_beasts && result.data.created_beasts.length > 0) {
+          result.data.created_beasts.forEach(beast => {
+            const beastFighter = createBeastFighterFromServerResult(beast);
+            onFighterAdded(beastFighter, 0); // 0 cost since already paid
+          });
+        }
+        
+        // Show success toast
+        toast({
+          description: `${result.data.fighter_name} added successfully${result.data.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
+          variant: "default"
+        });
+      }
+    },
+  });
+
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -831,16 +1108,6 @@ export default function AddFighter({
       // Parse the cost from the input
       const enteredCost = parseInt(fighterCost);
       
-      // Get the base cost of the fighter for optimistic update
-      const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
-      const actualBaseCost = selectedType?.total_cost || 0;
-      
-      // Determine the actual cost to use for gang credits deduction (always what user entered)
-      const gangCreditsCost = enteredCost;
-      
-      // Determine the cost to use for fighter rating/display
-      const fighterDisplayCost = useBaseCostForRating ? actualBaseCost : enteredCost;
-
       // Prepare default equipment from the selected fighter type
       const fighterTypeForEquipment = fighterTypes.find(t => t.id === fighterTypeIdToUse);
       const defaultEquipment = fighterTypeForEquipment?.default_equipment?.map(item => ({
@@ -849,9 +1116,8 @@ export default function AddFighter({
         quantity: 1
       })) || [];
       
-
-      // Use the new server action instead of direct SQL function call
-      const result = await addFighterToGang({
+      // Use TanStack mutation to add the fighter
+      addFighterMutation.mutate({
         fighter_name: fighterName,
         fighter_type_id: fighterTypeIdToUse,
         gang_id: gangId,
@@ -863,231 +1129,8 @@ export default function AddFighter({
         fighter_gang_legacy_id: selectedLegacyId || undefined
       });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add fighter');
-}
-
-      const data = result.data!;
-
-      // Use the rating_cost from the server - it correctly handles the use_base_cost_for_rating setting
-      const displayCost = data.rating_cost || data.cost || enteredCost;
-
-      const newFighter = {
-        id: data.fighter_id,
-        fighter_name: fighterName,
-        fighter_type_id: fighterTypeIdToUse,
-        fighter_type: data.fighter_type,
-        fighter_class: data.fighter_class,
-        fighter_sub_type: data.fighter_sub_type_id ? { 
-          fighter_sub_type_id: data.fighter_sub_type_id,
-          fighter_sub_type: selectedType?.sub_type?.sub_type_name || ''
-        } : undefined,
-        credits: displayCost,
-        movement: data.stats.movement,
-        weapon_skill: data.stats.weapon_skill,
-        ballistic_skill: data.stats.ballistic_skill,
-        strength: data.stats.strength,
-        toughness: data.stats.toughness,
-        wounds: data.stats.wounds,
-        initiative: data.stats.initiative,
-        attacks: data.stats.attacks,
-        leadership: data.stats.leadership,
-        cool: data.stats.cool,
-        willpower: data.stats.willpower,
-        intelligence: data.stats.intelligence,
-        xp: data.stats.xp,
-        kills: 0,
-        weapons: data.equipment
-          .filter((item: any) => item.equipment_type === 'weapon')
-          .map((item: any) => ({
-            weapon_name: item.equipment_name,
-            weapon_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id,
-            weapon_profiles: item.weapon_profiles || []
-          })),
-        wargear: data.equipment
-          .filter((item: any) => item.equipment_type === 'wargear')
-          .map((item: any) => ({
-            wargear_name: item.equipment_name,
-            wargear_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id
-          })),
-        special_rules: data.special_rules || [],
-        skills: data.skills ? data.skills.reduce((acc: any, skill: any) => {
-          acc[skill.skill_name] = {
-            id: skill.skill_id,
-            credits_increase: 0,
-            xp_cost: 0,
-            is_advance: false,
-            acquired_at: new Date().toISOString(),
-            fighter_injury_id: null
-          };
-          return acc;
-        }, {}) : {},
-        advancements: {
-          characteristics: {},
-          skills: {}
-        },
-        injuries: [],
-        free_skill: data.free_skill || false,
-        effects: {
-          injuries: [],
-          advancements: [],
-          bionics: [],
-          cyberteknika: [],
-          'gene-smithing': [],
-          'rig-glitches': [],
-          augmentations: [],
-          equipment: [],
-          user: []
-        },
-        base_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        },
-        current_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        }
-      };
-
-      onFighterAdded(newFighter, gangCreditsCost);
-
-      // Process created exotic beasts
-      if (result.data?.created_beasts && result.data.created_beasts.length > 0) {
-        result.data.created_beasts.forEach(beast => {
-          const beastFighter = {
-            id: beast.id,
-            fighter_name: beast.fighter_name,
-            fighter_type: beast.fighter_type,
-            fighter_class: beast.fighter_class,
-            fighter_type_id: beast.fighter_type_id,
-            credits: beast.credits,
-            owner_name: beast.owner?.fighter_name,
-            // Use actual beast stats from database
-            movement: beast.movement,
-            weapon_skill: beast.weapon_skill,
-            ballistic_skill: beast.ballistic_skill,
-            strength: beast.strength,
-            toughness: beast.toughness,
-            wounds: beast.wounds,
-            initiative: beast.initiative,
-            attacks: beast.attacks,
-            leadership: beast.leadership,
-            cool: beast.cool,
-            willpower: beast.willpower,
-            intelligence: beast.intelligence,
-            xp: beast.xp,
-            kills: beast.kills,
-            // Process equipment
-            weapons: beast.equipment
-              .filter((item: any) => item.equipment_type === 'weapon')
-              .map((item: any) => ({
-                weapon_name: item.equipment_name,
-                weapon_id: item.equipment_id,
-                cost: item.cost,
-                fighter_weapon_id: item.fighter_equipment_id,
-                weapon_profiles: item.weapon_profiles || []
-              })),
-            wargear: beast.equipment
-              .filter((item: any) => item.equipment_type === 'wargear')
-              .map((item: any) => ({
-                wargear_name: item.equipment_name,
-                wargear_id: item.equipment_id,
-                cost: item.cost,
-                fighter_weapon_id: item.fighter_equipment_id
-              })),
-            special_rules: beast.special_rules || [],
-            // Process skills
-            skills: beast.skills ? beast.skills.reduce((acc: any, skill: any) => {
-              acc[skill.skill_name] = {
-                id: skill.skill_id,
-                credits_increase: 0,
-                xp_cost: 0,
-                is_advance: false,
-                acquired_at: new Date().toISOString(),
-                fighter_injury_id: null
-              };
-              return acc;
-            }, {}) : {},
-            advancements: {
-              characteristics: {},
-              skills: {}
-            },
-            injuries: [],
-            free_skill: false,
-            effects: {
-              injuries: [],
-              advancements: [],
-              bionics: [],
-              cyberteknika: [],
-              'gene-smithing': [],
-              'rig-glitches': [],
-              augmentations: [],
-              equipment: [],
-              user: []
-            },
-            base_stats: {
-              movement: beast.movement,
-              weapon_skill: beast.weapon_skill,
-              ballistic_skill: beast.ballistic_skill,
-              strength: beast.strength,
-              toughness: beast.toughness,
-              wounds: beast.wounds,
-              initiative: beast.initiative,
-              attacks: beast.attacks,
-              leadership: beast.leadership,
-              cool: beast.cool,
-              willpower: beast.willpower,
-              intelligence: beast.intelligence
-            },
-            current_stats: {
-              movement: beast.movement,
-              weapon_skill: beast.weapon_skill,
-              ballistic_skill: beast.ballistic_skill,
-              strength: beast.strength,
-              toughness: beast.toughness,
-              wounds: beast.wounds,
-              initiative: beast.initiative,
-              attacks: beast.attacks,
-              leadership: beast.leadership,
-              cool: beast.cool,
-              willpower: beast.willpower,
-              intelligence: beast.intelligence
-            }
-          };
-          onFighterAdded(beastFighter, 0); // 0 cost since already paid
-        });
-      }
-      
+      // Close modal and show toast - will be handled in the mutation's onSuccess
       closeModal();
-
-      toast({
-        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
-        variant: "default"
-      });
 
       return true;
     } catch (error) {
