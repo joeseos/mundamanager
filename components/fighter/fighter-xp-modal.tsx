@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import Modal from "@/components/ui/modal";
 import { Plus, Minus } from "lucide-react";
+import { useMutation } from '@tanstack/react-query';
+import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
+import { useToast } from "@/components/ui/use-toast";
 
 interface XpCase {
   id: string;
@@ -18,24 +21,32 @@ interface FighterXpModalProps {
   isOpen: boolean;
   fighterId: string;
   currentXp: number;
+  currentTotalXp: number;
+  currentKills: number;
   onClose: () => void;
-  onConfirm: (ooaCount?: number) => Promise<boolean>;
-  xpAmountState: {
-    xpAmount: string;
-    xpError: string;
-  };
-  onXpAmountChange: (value: string) => void;
+  onXpUpdated: (newXp: number, newTotalXp: number, newKills: number) => void;
 }
 
 export function FighterXpModal({
   isOpen,
   fighterId,
   currentXp,
+  currentTotalXp,
+  currentKills,
   onClose,
-  onConfirm,
-  xpAmountState,
-  onXpAmountChange
+  onXpUpdated
 }: FighterXpModalProps) {
+  const { toast } = useToast();
+  const fighterXpMutation = useMutation({
+    mutationFn: updateFighterXpWithOoa,
+    onError: (error) => {
+      console.error('Fighter XP mutation failed:', error)
+    },
+  });
+  
+  // Internal state for XP amount and errors
+  const [xpAmount, setXpAmount] = useState('');
+  const [xpError, setXpError] = useState('');
   // Define XP "events" for the checkbox list
   const xpCountCases: XpCase[] = [
     { id: 'seriousInjury', label: 'Cause Serious Injury', xp: 1 },
@@ -116,13 +127,85 @@ export function FighterXpModal({
     const calculatedAmount = totalXpFromCountsAndCheckboxes === 0 ? "" : String(totalXpFromCountsAndCheckboxes);
     
     // Update the input field with the calculated value
-    onXpAmountChange(calculatedAmount);
+    setXpAmount(calculatedAmount);
   }, [totalXpFromCountsAndCheckboxes]);
 
   // Function to check if the input is valid
   const isValidXpInput = (value: string) => {
     // Allow empty string, minus sign, or only digits
     return value === '' || value === '-' || /^-?\d+$/.test(value);
+  };
+
+  // Handle XP mutation
+  const handleAddXp = async (ooaCount?: number) => {
+    if (!/^-?\d+$/.test(xpAmount)) {
+      setXpError('Please enter a valid integer');
+      return false;
+    }
+
+    const amount = parseInt(xpAmount || '0');
+
+    if (isNaN(amount) || !Number.isInteger(Number(amount))) {
+      setXpError('Please enter a valid integer');
+      return false;
+    }
+
+    setXpError('');
+
+    // Calculate optimistic values (absolute values)
+    const optimisticXp = currentXp + amount;
+    const optimisticTotalXp = currentTotalXp + amount;
+    const optimisticKills = currentKills + (ooaCount || 0);
+
+    // Update parent immediately with optimistic values
+    onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills);
+
+    // Close modal immediately for instant UX
+    handleModalClose();
+
+    // Fire mutation in background
+    fighterXpMutation.mutateAsync({
+      fighter_id: fighterId,
+      xp_to_add: amount,
+      ooa_count: ooaCount
+    }).then((result) => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add XP');
+      }
+
+      // Server confirmation - sync with actual values
+      const serverXp = result.data?.xp || optimisticXp;
+      const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
+      const serverKills = result.data?.kills || optimisticKills;
+      
+      // Update parent with server values if different
+      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp || serverKills !== optimisticKills) {
+        onXpUpdated(serverXp, serverTotalXp, serverKills);
+      }
+
+      // Create success message
+      let successMessage = `Successfully added ${amount} XP`;
+      if (ooaCount && ooaCount > 0) {
+        successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
+      }
+
+      toast({
+        description: successMessage,
+        variant: "default"
+      });
+    }).catch((error) => {
+      console.error('Error adding XP:', error);
+      
+      // Rollback optimistic updates by reverting to original values
+      onXpUpdated(currentXp, currentTotalXp, currentKills);
+
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to add XP',
+        variant: "destructive"
+      });
+    });
+
+    return true;
   };
 
   // Handle modal close - resets all state
@@ -141,8 +224,9 @@ export function FighterXpModal({
         return acc;
       }, {} as Record<string, number>)
     );
-    // Clear XP amount and error - we use an empty string to ensure it's properly reset
-    onXpAmountChange('');
+    // Clear XP amount and error
+    setXpAmount('');
+    setXpError('');
     // Call the parent onClose function
     onClose();
   };
@@ -228,23 +312,23 @@ export function FighterXpModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={xpAmountState.xpAmount}
+            value={xpAmount}
             onChange={(e) => {
-              // When user enters a value manually, update the parent state
-              onXpAmountChange(e.target.value);
+              // When user enters a value manually, update the internal state
+              setXpAmount(e.target.value);
             }}
             placeholder="XP Amount"
             className="w-full"
           />
-          {xpAmountState.xpError && (
-            <p className="text-red-500 text-sm mt-1">{xpAmountState.xpError}</p>
+          {xpError && (
+            <p className="text-red-500 text-sm mt-1">{xpError}</p>
           )}
         </div>
       }
       onClose={handleModalClose}
-      onConfirm={() => onConfirm(xpCounts.outOfAction)}
-      confirmText={parseInt(xpAmountState.xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
-      confirmDisabled={!xpAmountState.xpAmount || !isValidXpInput(xpAmountState.xpAmount)}
+      onConfirm={() => handleAddXp(xpCounts.outOfAction)}
+      confirmText={parseInt(xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
+      confirmDisabled={!xpAmount || !isValidXpInput(xpAmount)}
     />
   );
 } 

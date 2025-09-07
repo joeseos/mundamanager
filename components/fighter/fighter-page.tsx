@@ -21,7 +21,7 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterXp, updateFighterXpWithOoa, updateFighterDetails } from "@/app/actions/edit-fighter";
+import { updateFighterDetails } from "@/app/actions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 
 interface FighterPageProps {
@@ -139,16 +139,6 @@ interface UIState {
   };
 }
 
-interface EditState {
-  name: string;
-  label: string;
-  kills: number;
-  costAdjustment: string;
-  xpAmount: string;
-  xpError: string;
-}
-
-
 // Helper function to transform fighter data
 const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
   // Transform skills
@@ -265,15 +255,6 @@ export default function FighterPage({
     }
   });
 
-  const [editState, setEditState] = useState<EditState>({
-    name: '',
-    label: '',
-    kills: 0,
-    costAdjustment: '0',
-    xpAmount: '',
-    xpError: ''
-  });
-
   const router = useRouter();
   const { toast } = useToast();
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
@@ -334,12 +315,6 @@ export default function FighterPage({
   // Sync local state with props when they change (after router.refresh())
   useEffect(() => {
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
-    
-    // Update edit state
-    setEditState(prev => ({
-      ...prev,
-      costAdjustment: String(initialFighterData.fighter.cost_adjustment || 0)
-    }));
   }, [initialFighterData, initialGangFighters]);
 
   // Add conditional rendering based on permissions
@@ -525,125 +500,23 @@ export default function FighterPage({
     }));
   }, []);
 
-  const handleAddXp = async (ooaCount?: number) => {
-    if (!/^-?\d+$/.test(editState.xpAmount)) {
-      setEditState(prev => ({
-        ...prev,
-        xpError: 'Please enter a valid integer'
-      }));
-      return false;
-    }
-
-    const amount = parseInt(editState.xpAmount || '0');
-
-    if (isNaN(amount) || !Number.isInteger(Number(amount))) {
-      setEditState(prev => ({
-        ...prev,
-        xpError: 'Please enter a valid integer'
-      }));
-      return false;
-    }
-
-    setEditState(prev => ({
-      ...prev,
-      xpError: ''
-    }));
-
-    // Store original state for potential rollback
-    const originalFighterData = {
-      fighter: fighterData.fighter,
-      gangFighters: fighterData.gangFighters
-    };
-
-    // Calculate optimistic values
-    const optimisticXp = (fighterData.fighter?.xp || 0) + amount;
-    const optimisticTotalXp = (fighterData.fighter?.total_xp || 0) + amount;
-    const optimisticKills = (fighterData.fighter?.kills || 0) + (ooaCount || 0);
-
-    // OPTIMISTIC UPDATES - Update UI immediately
+  const handleXpUpdated = useCallback((newXp: number, newTotalXp: number, newKills: number) => {
     setFighterData(prev => ({
       ...prev,
       fighter: prev.fighter ? {
         ...prev.fighter,
-        xp: optimisticXp,
-        total_xp: optimisticTotalXp,
-        kills: optimisticKills
+        xp: newXp,
+        total_xp: newTotalXp,
+        kills: newKills // Use absolute kills value from modal
       } : null,
       // Update gang fighters list for dropdown
       gangFighters: prev.gangFighters.map(fighter => 
         fighter.id === fighterId 
-          ? { ...fighter, xp: optimisticXp, kills: optimisticKills }
+          ? { ...fighter, xp: newXp }
           : fighter
       )
     }));
-
-    try {
-      const result = await updateFighterXpWithOoa({
-        fighter_id: fighterId,
-        xp_to_add: amount,
-        ooa_count: ooaCount
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add XP');
-      }
-
-      // Server confirmation - sync with actual values if different
-      const serverXp = result.data?.xp || optimisticXp;
-      const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
-      const serverKills = result.data?.kills || optimisticKills;
-      
-      // Only update if server values differ from optimistic
-      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp || serverKills !== optimisticKills) {
-        setFighterData(prev => ({
-          ...prev,
-          fighter: prev.fighter ? {
-            ...prev.fighter,
-            xp: serverXp,
-            total_xp: serverTotalXp,
-            kills: serverKills
-          } : null,
-          gangFighters: prev.gangFighters.map(fighter => 
-            fighter.id === fighterId 
-              ? { ...fighter, xp: serverXp, kills: serverKills }
-              : fighter
-          )
-        }));
-      }
-
-      // Create success message
-      let successMessage = `Successfully added ${amount} XP`;
-      if (ooaCount && ooaCount > 0) {
-        successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
-      }
-
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error adding XP:', error);
-      
-      // ROLLBACK optimistic updates on error
-      setFighterData(prev => ({
-        ...prev,
-        fighter: originalFighterData.fighter,
-        gangFighters: originalFighterData.gangFighters
-      }));
-
-      setEditState(prev => ({
-        ...prev,
-        xpError: error instanceof Error ? error.message : 'Failed to add XP. Please try again.'
-      }));
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add XP',
-        variant: "destructive"
-      });
-      return false;
-    }
-  };
+  }, [fighterId]);
 
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
@@ -966,26 +839,10 @@ export default function FighterPage({
               isOpen={uiState.modals.addXp}
               fighterId={fighterId}
               currentXp={fighterData.fighter.xp ?? 0}
-              onClose={() => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: '',
-                  xpError: ''
-                }));
-                handleModalToggle('addXp', false);
-              }}
-              onConfirm={handleAddXp}
-              xpAmountState={{
-                xpAmount: editState.xpAmount,
-                xpError: editState.xpError
-              }}
-              onXpAmountChange={(value) => {
-                setEditState(prev => ({
-                  ...prev,
-                  xpAmount: value,
-                  xpError: ''
-                }));
-              }}
+              currentTotalXp={fighterData.fighter.total_xp ?? 0}
+              currentKills={fighterData.fighter.kills ?? 0}
+              onClose={() => handleModalToggle('addXp', false)}
+              onXpUpdated={handleXpUpdated}
             />
           )}
 
