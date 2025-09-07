@@ -391,7 +391,7 @@ export default function CampaignTerritoryList({
                             >
                               {gang.name}
                             </Link>
-                            {permissions.canManageTerritories && (
+                            {permissions.canClaimTerritories && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
