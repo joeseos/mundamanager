@@ -442,6 +442,22 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
 };
 
+export const invalidateVehicleEffects = (vehicleId: string, fighterId: string, gangId: string) => {
+  // Vehicle effects data (where lasting damages are stored)
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EFFECTS(vehicleId));
+  // Fighter's vehicle data (includes effects)
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
+  // Gang fighters list (shows vehicle data)
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+};
+
+export const invalidateVehicleRepair = (vehicleId: string, fighterId: string, gangId: string) => {
+  // Vehicle effects (damages removed)
+  invalidateVehicleEffects(vehicleId, fighterId, gangId);
+  // Gang credits (repair costs money)
+  invalidateGangCredits(gangId);
+};
+
 export const invalidateFighterEquipment = (fighterId: string, gangId?: string) => {
   if (gangId) {
     invalidateEquipmentPurchase({ fighterId, gangId });

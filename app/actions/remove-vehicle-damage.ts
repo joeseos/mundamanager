@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateVehicleEffects, invalidateVehicleRepair, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
 
@@ -12,6 +12,19 @@ interface RemoveVehicleDamageParams {
 }
 
 interface RemoveVehicleDamageResult {
+  success: boolean;
+  error?: string;
+}
+
+interface RepairVehicleDamageParams {
+  damageIds: string[];
+  repairCost: number;
+  vehicleId: string;
+  fighterId: string;
+  gangId: string;
+}
+
+interface RepairVehicleDamageResult {
   success: boolean;
   error?: string;
 }
@@ -84,14 +97,50 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
       console.error('Failed to log vehicle damage removal:', logError);
     }
 
-    // Invalidate cache for the fighter and gang
-    invalidateFighterVehicleData(params.fighterId, params.gangId);
+    // Invalidate cache for vehicle effects
+    if (effectRow?.vehicle_id) {
+      invalidateVehicleEffects(effectRow.vehicle_id, params.fighterId, params.gangId);
+    }
 
     return {
       success: true
     };
   } catch (error) {
     console.error('Error in removeVehicleDamage:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function repairVehicleDamage(params: RepairVehicleDamageParams): Promise<RepairVehicleDamageResult> {
+  try {
+    const supabase = await createClient();
+    
+    // Get the current user
+    const user = await getAuthenticatedUser(supabase);
+
+    // Call the repair RPC function
+    const { error } = await supabase.rpc('repair_vehicle_damage', {
+      damage_ids: params.damageIds,
+      repair_cost: params.repairCost,
+      in_user_id: user.id
+    });
+    
+    if (error) {
+      console.error('Error repairing vehicle damage:', error);
+      throw new Error(error.message || 'Failed to repair vehicle damage');
+    }
+
+    // Invalidate cache for vehicle effects and gang credits
+    invalidateVehicleRepair(params.vehicleId, params.fighterId, params.gangId);
+
+    return {
+      success: true
+    };
+  } catch (error) {
+    console.error('Error in repairVehicleDamage:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
