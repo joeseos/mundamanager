@@ -3,14 +3,14 @@ import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '../ui/modal';
-import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
 import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage } from '@/app/actions/add-vehicle-damage';
-import { removeVehicleDamage } from '@/app/actions/remove-vehicle-damage';
+import { removeVehicleDamage, repairVehicleDamage } from '@/app/actions/remove-vehicle-damage';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
@@ -35,53 +35,223 @@ export function VehicleDamagesList({
   onGangCreditsUpdate,
   userPermissions
 }: VehicleDamagesListProps) {
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
   const [repairPercent, setRepairPercent] = useState<0 | 10 | 25>(0);
   const [isRepairing, setIsRepairing] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
-  const [availableDamages, setAvailableDamages] = useState<FighterEffect[]>([]);
-  const [isLoadingDamages, setIsLoadingDamages] = useState(false);
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
+
+  // TanStack Query mutations
+  const addDamageMutation = useMutation({
+    mutationFn: addVehicleDamage,
+    onMutate: async (variables) => {
+      // Find the selected damage for optimistic update
+      const selectedDamage = availableDamages.find((d: any) => d.id === variables.damageId);
+      if (!selectedDamage) return { previousDamages: damages };
+
+      // Create optimistic damage object
+      const optimisticDamage: FighterEffect = {
+        id: `temp-${Date.now()}`, // Temporary ID for optimistic update
+        effect_name: selectedDamage.effect_name,
+        fighter_effect_type_id: variables.damageId,
+        fighter_effect_modifiers: selectedDamage.fighter_effect_modifiers || [],
+        type_specific_data: selectedDamage.type_specific_data,
+        created_at: new Date().toISOString()
+      };
+
+      // Store previous state for rollback
+      const previousDamages = [...damages];
+
+      // Optimistically update the UI
+      const updatedDamages = [...damages, optimisticDamage];
+      onDamageUpdate(updatedDamages);
+
+      return { previousDamages, optimisticDamage };
+    },
+    onSuccess: (result, variables, context) => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add vehicle damage');
+      }
+
+      // Replace optimistic update with real data
+      const realDamage: FighterEffect = {
+        id: result.data.id,
+        effect_name: result.data.effect_name,
+        fighter_effect_type_id: result.data.effect_type?.id,
+        fighter_effect_modifiers: result.data.fighter_effect_modifiers || [],
+        type_specific_data: result.data.type_specific_data,
+        created_at: result.data.created_at || new Date().toISOString()
+      };
+
+      // Update with real data
+      const updatedDamages = damages.filter((d: FighterEffect) => d.id !== context?.optimisticDamage?.id);
+      updatedDamages.push(realDamage);
+      onDamageUpdate(updatedDamages);
+
+      // Invalidate related queries in the query client
+      queryClient.invalidateQueries({ queryKey: ['fighter', variables.fighterId] });
+      queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+
+      toast({
+        description: 'Lasting damage added successfully',
+        variant: 'default'
+      });
+
+      setSelectedDamageId('');
+      setIsAddModalOpen(false);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousDamages) {
+        onDamageUpdate(context.previousDamages);
+      }
+
+      toast({
+        description: 'Failed to add lasting damage',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const removeDamageMutation = useMutation({
+    mutationFn: removeVehicleDamage,
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousDamages = [...damages];
+      
+      // Find the damage being removed for the toast message
+      const damageToRemove = damages.find(d => d.id === variables.damageId);
+      
+      // Optimistically remove the damage
+      const updatedDamages = damages.filter((d: FighterEffect) => d.id !== variables.damageId);
+      onDamageUpdate(updatedDamages);
+
+      return { previousDamages, damageName: damageToRemove?.effect_name || 'damage' };
+    },
+    onSuccess: (result, variables, context) => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to remove vehicle damage');
+      }
+
+      // Invalidate related queries in the query client
+      queryClient.invalidateQueries({ queryKey: ['fighter', variables.fighterId] });
+      queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+
+      toast({
+        description: `${context?.damageName} removed successfully`,
+        variant: 'default'
+      });
+
+      setDeleteModalData(null);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousDamages) {
+        onDamageUpdate(context.previousDamages);
+      }
+
+      toast({
+        description: 'Failed to delete lasting damage',
+        variant: 'destructive'
+      });
+
+      setDeleteModalData(null);
+    }
+  });
+
+  const repairDamageMutation = useMutation({
+    mutationFn: repairVehicleDamage,
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousDamages = [...damages];
+      const previousCredits = gangCredits;
+      
+      // Optimistically remove all damages
+      const updatedDamages: FighterEffect[] = [];
+      onDamageUpdate(updatedDamages);
+      
+      // Optimistically update gang credits
+      if (onGangCreditsUpdate && gangCredits !== undefined) {
+        onGangCreditsUpdate(gangCredits - variables.repairCost);
+      }
+
+      return { previousDamages, previousCredits };
+    },
+    onSuccess: (result, variables, context) => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to repair vehicle damage');
+      }
+
+      toast({
+        description: `Repaired ${variables.damageIds.length} damage(s) for ${variables.repairCost} credits`,
+        variant: 'default'
+      });
+
+      // Close repair modal
+      setIsRepairModalOpen(false);
+      setRepairCost(0);
+      setRepairPercent(0);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousDamages) {
+        onDamageUpdate(context.previousDamages);
+      }
+      if (context?.previousCredits !== undefined && onGangCreditsUpdate) {
+        onGangCreditsUpdate(context.previousCredits);
+      }
+
+      toast({
+        description: 'Failed to repair lasting damage(s)',
+        variant: 'destructive'
+      });
+
+      // Reset repair modal state
+      setIsRepairing(null);
+    }
+  });
 
   // Helper to check for valid UUID
   function isValidUUID(id: string) {
     return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
   }
 
-  const fetchAvailableDamages = useCallback(async () => {
-    if (isLoadingDamages) return;
-    try {
-      setIsLoadingDamages(true);
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('fighter_effect_types')
-        .select('*')
-        .eq('fighter_effect_category_id', VEHICLE_DAMAGE_CATEGORY_ID)
-        .order('effect_name');
-      if (error) throw error;
-      setAvailableDamages(data || []);
-    } catch (error) {
+  // Fetch available damages using TanStack Query - only when modal is opened
+  const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
+    queryKey: ['vehicle-lasting-damages'],
+    queryFn: async () => {
+      const response = await fetch('/api/vehicles/lasting-damage');
+      if (!response.ok) {
+        throw new Error('Failed to fetch lasting damage types');
+      }
+      return response.json();
+    },
+    enabled: isAddModalOpen, // Only fetch when modal is open
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,  // 10 minutes
+  });
+
+  // Show error toast if damages failed to load
+  useEffect(() => {
+    if (damagesError) {
       toast({
         description: 'Failed to load lasting damage types',
-        variant: "destructive"
+        variant: 'destructive'
       });
-    } finally {
-      setIsLoadingDamages(false);
     }
-  }, [isLoadingDamages, toast]);
+  }, [damagesError, toast]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
-    if (availableDamages.length === 0) {
-      fetchAvailableDamages();
-    }
-  }, [availableDamages.length, fetchAvailableDamages]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -97,56 +267,19 @@ export function VehicleDamagesList({
       return false;
     }
 
-    try {
-      // Find the selected damage name for logging
-      const selectedDamage = availableDamages.find(d => d.id === selectedDamageId);
-      const damageName = selectedDamage?.effect_name || 'Unknown damage';
-      
-      const result = await addVehicleDamage({
-        vehicleId,
-        fighterId,
-        gangId,
-        damageId: selectedDamageId,
-        damageName
-      });
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add vehicle damage');
-      }
+    // Find the selected damage name for logging
+    const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
+    const damageName = selectedDamage?.effect_name || 'Unknown damage';
+    
+    addDamageMutation.mutate({
+      vehicleId,
+      fighterId,
+      gangId,
+      damageId: selectedDamageId,
+      damageName
+    });
 
-      // The server action returns JSON data with the complete damage information
-      const damageData = result.data;
-      
-      // Create the new damage object using the data returned from the server action
-      const newDamage: FighterEffect = {
-        id: damageData.id,
-        effect_name: damageData.effect_name,
-        fighter_effect_type_id: damageData.effect_type?.id,
-        fighter_effect_modifiers: damageData.fighter_effect_modifiers || [],
-        type_specific_data: damageData.type_specific_data,
-        created_at: damageData.created_at || new Date().toISOString()
-      };
-
-      // Optimistic update: Add the new damage to the list
-      const updatedDamages = [...damages, newDamage];
-      onDamageUpdate(updatedDamages);
-      
-      toast({
-        description: 'Lasting damage added successfully',
-        variant: "default"
-      });
-      
-      setSelectedDamageId('');
-      setIsAddModalOpen(false);
-      return true;
-    } catch (error) {
-      console.error('Error adding lasting damage:', error);
-      toast({
-        description: 'Failed to add lasting damage',
-        variant: "destructive"
-      });
-      return false;
-    }
+    return true;
   };
 
   const handleDeleteDamage = async (damageId: string, damageName: string) => {
@@ -158,44 +291,18 @@ export function VehicleDamagesList({
       return false;
     }
     
-    try {
-      setIsDeleting(damageId);
-      
-      const result = await removeVehicleDamage({
-        damageId,
-        fighterId,
-        gangId
-      });
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to remove vehicle damage');
-      }
-      
-      // Optimistic update: Remove the damage from the list
-      const updatedDamages = damages.filter(d => d.id !== damageId);
-      onDamageUpdate(updatedDamages);
-      
-      toast({
-        description: `${damageName} removed successfully`,
-        variant: "default"
-      });
-      return true;
-    } catch (error) {
-      console.error('Error deleting lasting damage:', error);
-      toast({
-        description: 'Failed to delete lasting damage',
-        variant: "destructive"
-      });
-      return false;
-    } finally {
-      setIsDeleting(null);
-      setDeleteModalData(null);
-    }
+    removeDamageMutation.mutate({
+      damageId,
+      fighterId,
+      gangId
+    });
+
+    return true;
   };
 
   const handleRepairDamage = async () => {
     if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
-    const damageIdsToRepair = uniqueDamages.map(d => d.id).filter(isValidUUID);
+    const damageIdsToRepair = uniqueDamages.map((d: FighterEffect) => d.id).filter(isValidUUID);
     if (damageIdsToRepair.length === 0) {
       toast({
         description: 'No valid damages to repair.',
@@ -204,50 +311,23 @@ export function VehicleDamagesList({
       return false;
     }
     
-    try {
-      setIsRepairing('batch');
-      const supabase = createClient();
-      if (gangCredits < repairCost) {
-        toast({
-          description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
-          variant: 'destructive'
-        });
-        return false;
-      }
-      
-      const { data, error } = await supabase.rpc('repair_vehicle_damage', {
-        damage_ids: damageIdsToRepair,
-        repair_cost: repairCost,
-        in_user_id: (await supabase.auth.getSession()).data.session?.user?.id
-      });
-      
-      if (error) throw error;
-      
-      // Optimistic update: Remove repaired damages from the list
-      const updatedDamages = damages.filter(d => !damageIdsToRepair.includes(d.id));
-      onDamageUpdate(updatedDamages);
-      
-      // Update gang credits
-      if (onGangCreditsUpdate) {
-        onGangCreditsUpdate(gangCredits - repairCost);
-      }
-      
+    if (gangCredits < repairCost) {
       toast({
-        description: `Repaired ${damageIdsToRepair.length} damage(s) for ${repairCost} credits`,
-        variant: 'default'
-      });
-      return true;
-    } catch (error) {
-      console.error('Error repairing lasting damage:', error);
-      toast({
-        description: 'Failed to repair lasting damage(s)',
+        description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
         variant: 'destructive'
       });
       return false;
-    } finally {
-      setIsRepairing(null);
-      setRepairCost(0);
     }
+    
+    repairDamageMutation.mutate({
+      damageIds: damageIdsToRepair,
+      repairCost,
+      vehicleId,
+      fighterId,
+      gangId
+    });
+
+    return true;
   };
 
   // Deduplicate damages by id before rendering to avoid React key warnings
@@ -337,7 +417,7 @@ export function VehicleDamagesList({
                                 id: damage.id,
                                 name: damage.effect_name
                               })}
-                              disabled={isDeleting === damage.id || !userPermissions.canEdit}
+                              disabled={removeDamageMutation.isPending || !userPermissions.canEdit}
                               className="text-xs px-1.5 h-6"
                               title="Delete"
                             >
@@ -362,7 +442,7 @@ export function VehicleDamagesList({
               <div>
                 <DiceRoller
                   items={availableDamages}
-                  ensureItems={availableDamages.length === 0 ? fetchAvailableDamages : undefined}
+                  ensureItems={undefined}
                   getRange={(i: FighterEffect) => null}
                   getName={(i: FighterEffect) => (i as any).effect_name}
                   inline
@@ -392,7 +472,7 @@ export function VehicleDamagesList({
                       6: 'Damaged Frame',
                     };
                     const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    const match = availableDamages.find((d: any) => d.effect_name === name);
                     if (match) {
                       setSelectedDamageId(match.id);
                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
@@ -408,7 +488,7 @@ export function VehicleDamagesList({
                       6: 'Damaged Frame',
                     };
                     const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find(d => (d as any).effect_name === name);
+                    const match = availableDamages.find((d: any) => d.effect_name === name);
                     if (match) {
                       setSelectedDamageId(match.id);
                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
@@ -426,15 +506,15 @@ export function VehicleDamagesList({
                   value={selectedDamageId}
                   onChange={(e) => setSelectedDamageId(e.target.value)}
                   className="w-full p-2 border rounded-md"
-                  disabled={isLoadingDamages && availableDamages.length === 0}
+                  disabled={isLoadingDamages}
                 >
                   <option value="">
-                    {isLoadingDamages && availableDamages.length === 0 
+                    {isLoadingDamages 
                       ? "Loading damages..." 
                       : "Select a Lasting Damage"
                     }
                   </option>
-                  {availableDamages.map((damage) => (
+                  {availableDamages.map((damage: any) => (
                     <option key={damage.id} value={damage.id}>
                       {damage.effect_name}
                     </option>
@@ -446,7 +526,7 @@ export function VehicleDamagesList({
           onClose={handleCloseModal}
           onConfirm={handleAddDamage}
           confirmText="Add Lasting Damage"
-          confirmDisabled={!selectedDamageId}
+          confirmDisabled={!selectedDamageId || addDamageMutation.isPending}
         />
       )}
 
@@ -485,7 +565,7 @@ export function VehicleDamagesList({
               <div>
                 <label className="block text-sm font-medium mb-2">The following damages will be repaired:</label>
                 <ul className="divide-y divide-gray-200 mb-4">
-                  {uniqueDamages.map(damage => (
+                  {uniqueDamages.map((damage: FighterEffect) => (
                     <li key={damage.id} className="flex items-center justify-between py-2">
                       <div>
                         <span className="text-base">{damage.effect_name}</span>
@@ -546,7 +626,7 @@ export function VehicleDamagesList({
           }}
           onConfirm={handleRepairDamage}
           confirmText="Repair"
-          confirmDisabled={uniqueDamages.length === 0}
+          confirmDisabled={uniqueDamages.length === 0 || repairDamageMutation.isPending}
         />
       )}
     </>
