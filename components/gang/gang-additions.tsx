@@ -1471,6 +1471,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         </div>
       )}
 
+      {renderEquipmentSelection()}
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
           Total Cost (credits)
@@ -1490,7 +1492,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             )}
           </p>
         )}
-
       </div>
 
       <div className="flex items-center space-x-2 mb-4 mt-2">
@@ -1512,8 +1513,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           </div>
         </div>
       </div>
-
-      {renderEquipmentSelection()}
 
       {fetchError && <p className="text-red-500">{fetchError}</p>}
     </div>
