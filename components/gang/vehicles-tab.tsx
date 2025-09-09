@@ -427,7 +427,7 @@ export default function GangVehicles({
             vehicles: [],
             credits: Math.max(0, (fighter.credits || 0) - localVehicleCost)
           };
-          onFighterUpdate(updatedFighter, true);
+          onFighterUpdate(updatedFighter, false);
         }
       }
 
@@ -446,10 +446,7 @@ export default function GangVehicles({
       if (typeof result.data?.gang?.credits === 'number' && onGangCreditsUpdate) {
         onGangCreditsUpdate(result.data.gang.credits);
       }
-      // Update gang rating immediately if provided
-      if (typeof result.data?.updated_gang_rating === 'number' && onGangRatingUpdate) {
-        onGangRatingUpdate(result.data.updated_gang_rating);
-      }
+      // Gang rating will be recalculated automatically from fighter costs
 
       toast({
         title: 'Success',

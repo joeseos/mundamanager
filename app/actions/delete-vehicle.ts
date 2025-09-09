@@ -23,12 +23,22 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Before deletion: fetch assignment state to compute rating delta
+    // Before deletion: fetch assignment state and calculate cost
     const { data: vehBefore } = await supabase
       .from('vehicles')
       .select('fighter_id')
       .eq('id', params.vehicleId)
       .single();
+
+    // Calculate vehicle cost BEFORE deletion
+    let vehicleCost = 0;
+    if (vehBefore?.fighter_id) {
+      try {
+        vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
+      } catch (e) {
+        console.error('Failed to calculate vehicle cost before deletion:', e);
+      }
+    }
 
     // Delete the vehicle
     const { error } = await supabase
@@ -41,23 +51,20 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
       throw new Error(error.message || 'Failed to delete vehicle');
     }
 
-    // If assigned pre-delete, subtract its total cost from rating
-    if (vehBefore?.fighter_id) {
+    // Update gang rating if vehicle was assigned and had cost
+    if (vehBefore?.fighter_id && vehicleCost > 0) {
       try {
-        const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
-        if (vehicleCost > 0) {
-          const { data: ratingRow } = await supabase
-            .from('gangs')
-            .select('rating')
-            .eq('id', params.gangId)
-            .single();
-          const currentRating = (ratingRow?.rating ?? 0) as number;
-          await supabase
-            .from('gangs')
-            .update({ rating: Math.max(0, currentRating - vehicleCost) })
-            .eq('id', params.gangId);
-          invalidateGangRating(params.gangId);
-        }
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', params.gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating - vehicleCost) })
+          .eq('id', params.gangId);
+        invalidateGangRating(params.gangId);
       } catch (e) {
         console.error('Failed to update gang rating after vehicle deletion:', e);
       }
