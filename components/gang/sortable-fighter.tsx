@@ -68,6 +68,7 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
         vehicle={vehicle}
         disableLink={isDragging}
         viewMode={viewMode}
+        isDragging={dndKitIsDragging}
       />
     </div>
   );
