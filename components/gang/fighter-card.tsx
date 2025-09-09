@@ -48,6 +48,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
+  isDragging?: boolean;
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -147,6 +148,7 @@ const FighterCard = memo(function FighterCard({
   viewMode = 'normal',
   owner_name,
   image_url,
+  isDragging = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -380,7 +382,7 @@ const FighterCard = memo(function FighterCard({
   const cardContent = (
     <div
       id={fighterCardId}
-      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black print:hover:scale-[1] print:print-fighter-card print:inline-block
+      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'opacity-90' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
         ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`}`}
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1747057650/fighter-card-background-4-web_pm2scj.avif')",
