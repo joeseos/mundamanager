@@ -16,6 +16,8 @@ import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { Edit } from 'lucide-react';
 import { MdCurrencyExchange } from 'react-icons/md';
+import { unassignVehicle } from '@/app/actions/unassign-vehicle';
+import { HiUserRemove } from "react-icons/hi";
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -52,6 +54,7 @@ export default function GangVehicles({
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [isSellLoading, setIsSellLoading] = useState(false);
+  const [isUnassignLoading, setIsUnassignLoading] = useState(false);
   const { toast } = useToast();
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [editedVehicleName, setEditedVehicleName] = useState('');
@@ -72,6 +75,69 @@ export default function GangVehicles({
     }, 0);
     
     return baseCost + equipmentCost;
+  };
+
+  const handleUnassignVehicle = async (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
+    e.preventDefault();
+    if (!vehicle.assigned_to) return;
+
+    setIsUnassignLoading(true);
+
+    // Store original state for potential rollback
+    const originalVehicles = [...vehicles];
+    const originalFighters = [...fighters];
+
+    try {
+      // Optimistic updates
+      // 1) Remove from fighter
+      const assignedFighter = fighters.find(f => f.fighter_name === vehicle.assigned_to);
+      if (assignedFighter && onFighterUpdate) {
+        const fighterWithoutVehicle = { ...assignedFighter, vehicles: [] };
+        onFighterUpdate(fighterWithoutVehicle, true);
+      }
+
+      // 2) Add to unassigned vehicles list
+      if (onVehicleUpdate) {
+        // Create a clean unassigned vehicle without assigned_to property
+        const { assigned_to, ...unassignedVehicle } = vehicle;
+        const cleanVehicle: VehicleProps = {
+          ...unassignedVehicle,
+          fighter_id: undefined as any,
+          equipment: vehicle.equipment || [],
+          special_rules: vehicle.special_rules || [],
+        } as VehicleProps;
+        
+        // Add to existing unassigned vehicles and deduplicate
+        const updatedVehicles = [...originalVehicles, cleanVehicle];
+        const deduped = Array.from(new Map(updatedVehicles.map(v => [v.id, v])).values());
+        onVehicleUpdate(deduped);
+      }
+
+      // Server call
+      const result = await unassignVehicle({ vehicleId: vehicle.id, gangId });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to unassign vehicle');
+      }
+
+      // Gang rating will be recalculated automatically from fighter costs
+
+      toast({ title: 'Success', description: `${vehicle.vehicle_name || vehicle.vehicle_type} unassigned` });
+    } catch (error) {
+      console.error('Error unassigning vehicle:', error);
+
+      // Rollback
+      if (onVehicleUpdate) {
+        onVehicleUpdate(originalVehicles);
+      }
+      if (onFighterUpdate && vehicle.assigned_to) {
+        const originalFighter = originalFighters.find(f => f.fighter_name === vehicle.assigned_to);
+        if (originalFighter) onFighterUpdate(originalFighter, true);
+      }
+
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to unassign vehicle', variant: 'destructive' });
+    } finally {
+      setIsUnassignLoading(false);
+    }
   };
 
   // Filter for only Crew fighters who don't have vehicles assigned
@@ -626,6 +692,18 @@ export default function GangVehicles({
                     </span>
                     <div className="flex-1" />
                     <div className="w-48 flex justify-end gap-1">
+                      {vehicle.assigned_to && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs py-0"
+                          onClick={(e) => handleUnassignVehicle(e, vehicle)}
+                          disabled={isLoading || isUnassignLoading || !userPermissions?.canEdit}
+                          title="Unassign Vehicle"
+                        >
+                          <HiUserRemove className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -666,7 +744,7 @@ export default function GangVehicles({
             <div className="px-0">
               <div className="border-t pt-4">
                 <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
-                  Select a Crew
+                  Assign Vehicle to a Crew
                 </label>
                 <select
                   id="fighter-select"
@@ -674,7 +752,7 @@ export default function GangVehicles({
                   onChange={(e) => setSelectedFighter(e.target.value)}
                   className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
                 >
-                  <option value="">Select a crew</option>
+                  <option value="">Select a Crew</option>
                   {crewFighters.map((fighter) => (
                     <option 
                       key={fighter.id} 
@@ -690,7 +768,7 @@ export default function GangVehicles({
                   disabled={selectedVehicle === null || !selectedFighter || isLoading || !userPermissions?.canEdit}
                   className="w-full"
                 >
-                  Move to Crew
+                  Assign to Crew
                 </Button>
               </div>
             </div>
@@ -816,4 +894,4 @@ export default function GangVehicles({
       )}
     </div>
   );
-} 
+}
