@@ -87,6 +87,7 @@
       break-inside: avoid !important;
       display: inline-block; /* ios workaround for break-inside: avoid */
       background-image: none !important;
+      background-color: transparent !important;
       box-shadow: none !important;
       border-width: 3px !important; /* Firefox workaround when printing borders less than border-4 in tailwind */
       margin-right: 6px !important;
