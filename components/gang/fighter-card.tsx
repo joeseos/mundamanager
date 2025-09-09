@@ -386,6 +386,7 @@ const FighterCard = memo(function FighterCard({
         ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`}`}
         style={{
           backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1747057650/fighter-card-background-4-web_pm2scj.avif')",
+          backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
