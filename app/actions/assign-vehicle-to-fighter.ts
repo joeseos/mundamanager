@@ -1,8 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { invalidateFighterVehicleData } from '@/utils/cache-tags';
 
 interface AssignVehicleToFighterParams {
   vehicleId: string;
@@ -23,16 +22,6 @@ interface AssignVehicleToFighterResult {
 export async function assignVehicleToFighter(params: AssignVehicleToFighterParams): Promise<AssignVehicleToFighterResult> {
   try {
     const supabase = await createClient();
-    
-    // Get the current user with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
-
-    // Capture pre-state
-    const { data: beforeVehicle } = await supabase
-      .from('vehicles')
-      .select('fighter_id')
-      .eq('id', params.vehicleId)
-      .single();
 
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
