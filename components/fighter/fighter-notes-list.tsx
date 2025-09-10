@@ -6,6 +6,7 @@ import { useToast } from '../ui/use-toast';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
+import { useMutation } from '@tanstack/react-query';
 
 interface FighterNotesProps {
   fighterId: string;
@@ -20,7 +21,7 @@ interface NoteEditorProps {
   title: string;
   content: string;
   onContentChange: (content: string) => void;
-  onSave: () => Promise<void>;
+  onSave: (content: string) => Promise<void>;
   placeholder: string;
   charLimit: number;
   userPermissions?: UserPermissions;
@@ -37,25 +38,22 @@ function NoteEditor({
 }: NoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [savedContent, setSavedContent] = useState<string>('');
+  const [originalContent, setOriginalContent] = useState<string>('');
   const { toast } = useToast();
 
-  // Update content when not editing
-  useEffect(() => {
-    if (!isEditing) {
-      onContentChange(content);
-    }
-  }, [content, isEditing, onContentChange]);
+  const noteMutation = useMutation({
+    mutationFn: onSave,
+    onError: (error) => {
+      console.error(`Error updating ${title.toLowerCase()}:`, error);
+    },
+  });
 
-  // Track when the note has been refreshed from server
+  // Store original content when starting to edit
   useEffect(() => {
-    if (isRefreshing && content === savedContent) {
-      // The server has returned our saved content, so refresh is complete
-      setIsRefreshing(false);
+    if (isEditing) {
+      setOriginalContent(content);
     }
-  }, [content, isRefreshing, savedContent]);
+  }, [isEditing, content]);
 
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
@@ -72,37 +70,36 @@ function NoteEditor({
   };
 
   const handleSave = async () => {
-    try {
-      setError(null);
-      setIsSaving(true);
+    setError(null);
 
-      const charCount = getCharCount(content);
-      if (charCount > charLimit) {
-        setError(`${title} cannot exceed ${charLimit} characters`);
-        return;
-      }
+    const charCount = getCharCount(content);
+    if (charCount > charLimit) {
+      setError(`${title} cannot exceed ${charLimit} characters`);
+      return;
+    }
 
-      await onSave();
+    // Exit edit mode immediately for optimistic update
+    setIsEditing(false);
 
+    // Fire mutation in background
+    noteMutation.mutateAsync(content).then(() => {
       toast({
         description: `${title} updated successfully`,
         variant: "default"
       });
-
-      setSavedContent(content);
-      setIsEditing(false);
-      setIsRefreshing(true);
-    } catch (error) {
-      console.error(`Error updating ${title.toLowerCase()}:`, error);
-      setError(error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`);
+    }).catch((error) => {
+      // Rollback: re-enter edit mode with original content
+      setIsEditing(true);
+      onContentChange(originalContent);
+      
+      const errorMessage = error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`;
+      setError(errorMessage);
       toast({
         title: "Error",
-        description: `Failed to update ${title.toLowerCase()}`,
+        description: errorMessage,
         variant: "destructive"
       });
-    } finally {
-      setIsSaving(false);
-    }
+    });
   };
 
   return (
@@ -118,25 +115,26 @@ function NoteEditor({
                     onClick={() => {
                       setIsEditing(false);
                       setError(null);
+                      onContentChange(originalContent);
                     }}
                     variant="outline"
-                    disabled={isSaving}
+                    disabled={noteMutation.isPending}
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSave}
-                    disabled={getCharCount(content) > charLimit || isSaving}
+                    disabled={getCharCount(content) > charLimit || noteMutation.isPending}
                   >
-                    {isSaving ? "Saving..." : "Save"}
+                    {noteMutation.isPending ? "Saving..." : "Save"}
                   </Button>
                 </>
               ) : (
                 <Button 
                   onClick={() => setIsEditing(true)}
-                  disabled={!userPermissions?.canEdit || isRefreshing}
+                  disabled={!userPermissions?.canEdit}
                 >
-                  {isRefreshing ? "Updating..." : "Edit"}
+                  Edit
                 </Button>
               )}
             </div>
@@ -186,8 +184,8 @@ export function FighterNotes({
     setNoteBackstory(initialNoteBackstory || '');
   }, [initialNoteBackstory]);
 
-  const handleNoteSave = async () => {
-    const cleanNote = note.trim() === '' ? '' : note;
+  const handleNoteSave = async (content: string) => {
+    const cleanNote = content.trim() === '' ? '' : content;
     
     const result = await updateFighterDetails({
       fighter_id: fighterId,
@@ -198,11 +196,11 @@ export function FighterNotes({
       throw new Error(result.error || 'Failed to update notes');
     }
 
-    onNoteUpdate?.(note);
+    onNoteUpdate?.(content);
   };
 
-  const handleNoteBackstorySave = async () => {
-    const cleanNoteBackstory = noteBackstory.trim() === '' ? '' : noteBackstory;
+  const handleNoteBackstorySave = async (content: string) => {
+    const cleanNoteBackstory = content.trim() === '' ? '' : content;
     
     const result = await updateFighterDetails({
       fighter_id: fighterId,
@@ -213,7 +211,7 @@ export function FighterNotes({
       throw new Error(result.error || 'Failed to update backstory notes');
     }
 
-    onNoteBackstoryUpdate?.(noteBackstory);
+    onNoteBackstoryUpdate?.(content);
   };
 
   return (
