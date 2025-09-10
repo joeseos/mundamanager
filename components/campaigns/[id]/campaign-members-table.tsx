@@ -13,6 +13,9 @@ import {
   updateMemberRole 
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { LuTrash2 } from 'react-icons/lu'
+import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
+import { FaUser   } from "react-icons/fa6"
+import { HiUser } from "react-icons/hi2";
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -83,13 +86,13 @@ interface MembersTableProps {
 const formatRole = (role: MemberRole | undefined) => {
   switch (role) {
     case 'OWNER':
-      return 'Owner';
+      return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
     case 'ARBITRATOR':
-      return 'Arbitrator';
+      return <MdLocalPolice className="h-4 w-4" title="Arbitrator" />;
     case 'MEMBER':
-      return 'Member';
+      return <HiUser className="h-4 w-4" title="Member" />;
     default:
-      return 'Member';
+      return <HiUser className="h-4 w-4" title="Member" />;
   }
 };
 
@@ -178,10 +181,6 @@ export default function MembersTable({
           aValue = a.profile.username || '';
           bValue = b.profile.username || '';
           break;
-        case 'role':
-          aValue = a.role || '';
-          bValue = b.role || '';
-          break;
         case 'rating':
           aValue = a.gangs[0]?.rating ?? -1;
           bValue = b.gangs[0]?.rating ?? -1;
@@ -213,16 +212,6 @@ export default function MembersTable({
       
        // Handle string comparison
        if (typeof aValue === 'string' && typeof bValue === 'string') {
-         // Special handling for role sorting
-         if (sortField === 'role') {
-           const roleOrder = { 'OWNER': 1, 'ARBITRATOR': 2, 'MEMBER': 3 };
-           const aOrder = roleOrder[aValue as keyof typeof roleOrder] || 4;
-           const bOrder = roleOrder[bValue as keyof typeof roleOrder] || 4;
-           if (aOrder < bOrder) return sortDirection === 'asc' ? -1 : 1;
-           if (aOrder > bOrder) return sortDirection === 'asc' ? 1 : -1;
-           return 0;
-         }
-         
          const comparison = aValue.localeCompare(bValue);
          return sortDirection === 'asc' ? comparison : -comparison;
        }
@@ -497,9 +486,9 @@ export default function MembersTable({
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">
-        Are you sure you want to change <span className="font-medium">{roleChange?.username}</span>'s role from{' '}
-        <span className="font-medium">{roleChange?.currentRole}</span> to{' '}
-        <span className="font-medium">{roleChange?.newRole}</span>?
+        Are you sure you want to change <span className="font-bold">{roleChange?.username}</span>'s role from {' '}
+        <span className="font-bold">{roleChange?.currentRole}</span> to {' '}
+        <span className="font-bold">{roleChange?.newRole}</span>?
       </p>
     </div>
   ), [roleChange]);
@@ -566,25 +555,12 @@ export default function MembersTable({
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-left font-medium max-w-[3rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-2 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
                 onClick={() => handleSort('player')}
               >
                 <div className="flex items-center gap-1">
                   Player
                   {sortField === 'player' && (
-                    <span className="text-gray-500">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-left font-medium max-w-[3.5rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
-                onClick={() => handleSort('role')}
-              >
-                <div className="flex items-center gap-1">
-                  Role
-                  {sortField === 'role' && (
                     <span className="text-gray-500">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
@@ -737,10 +713,7 @@ export default function MembersTable({
                     {member.gangs[0]?.gang_type || "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 max-w-[3rem]">
-                  <span className="text-xs font-medium">{member.profile.username}</span>
-                </td>
-                <td className="px-2 py-2 max-w-[3.5rem]">
+                <td className="px-2 py-2 max-w-[6rem]">
                   <div className="flex items-center gap-2">
                     {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                       <button
@@ -753,23 +726,17 @@ export default function MembersTable({
                           });
                           setShowRoleModal(true);
                         }}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                        className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
                       >
                         {formatRole(member.role)}
-                        <svg
-                          className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+
                       </button>
                     ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                         {formatRole(member.role)}
                       </span>
                     )}
+                    <span className="text-xs font-medium">{member.profile.username}</span>
                   </div>
                 </td>
                 <td className="px-2 py-2 text-right max-w-[2rem]">
@@ -887,8 +854,7 @@ export default function MembersTable({
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500 text-base">Player</span>
-                <div className="text-sm text-base">
-                  {member.profile.username}
+                <div className="flex items-center gap-2 text-sm text-base">
                   {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                     <button
                       onClick={() => {
@@ -900,23 +866,17 @@ export default function MembersTable({
                         });
                         setShowRoleModal(true);
                       }}
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                      className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
                     >
                       {formatRole(member.role)}
-                      <svg
-                        className="ml-1 h-4 w-4 text-gray-500 group-hover:text-gray-700"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
                     </button>
                   ) : (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    {formatRole(member.role)}
-                  </span>
-                )}
+                    <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {formatRole(member.role)}
+                    </span>
+                  )}
+                  {member.profile.username}
+                </div>
               </div>
             </div>
             <div className="flex justify-between items-center">
@@ -984,7 +944,6 @@ export default function MembersTable({
                 </Button>
               </div>
             )}
-            </div>
           </div>
         ))}
       </div>
