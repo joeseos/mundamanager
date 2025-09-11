@@ -64,6 +64,8 @@ interface CampaignTerritoryListProps {
   members: Member[];
   permissions: {
     canManageTerritories: boolean;
+    canEditTerritories: boolean;
+    canDeleteTerritories: boolean;
     canClaimTerritories: boolean;
   };
   onTerritoryUpdate?: () => void;
@@ -419,27 +421,27 @@ export default function CampaignTerritoryList({
                   </td>
                   <td className="w-[100px] px-2 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {permissions.canManageTerritories && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditClick(item.territory)}
-                            className="h-8 w-8 p-0"
-                            aria-label="Edit territory"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteClick(item.territory.id, item.territory.territory_name)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            aria-label="Delete territory"
-                          >
-                            <LuTrash2 className="h-4 w-4" />
-                          </Button>
-                        </>
+                      {permissions.canEditTerritories && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditClick(item.territory)}
+                          className="h-8 w-8 p-0"
+                          aria-label="Edit territory"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {permissions.canDeleteTerritories && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteClick(item.territory.id, item.territory.territory_name)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          aria-label="Delete territory"
+                        >
+                          <LuTrash2 className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   </td>

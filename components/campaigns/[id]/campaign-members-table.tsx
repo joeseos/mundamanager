@@ -14,7 +14,6 @@ import {
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { LuTrash2 } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
-import { FaUser   } from "react-icons/fa6"
 import { HiUser } from "react-icons/hi2";
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -88,11 +87,11 @@ const formatRole = (role: MemberRole | undefined) => {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
     case 'ARBITRATOR':
-      return <MdLocalPolice className="h-4 w-4" title="Arbitrator" />;
+      return <MdLocalPolice className="h-4 w-4" title="Arbitrator (Click to change role)" />;
     case 'MEMBER':
-      return <HiUser className="h-4 w-4" title="Member" />;
+      return <HiUser className="h-4 w-4" title="Member (Click to change role)" />;
     default:
-      return <HiUser className="h-4 w-4" title="Member" />;
+      return <HiUser className="h-4 w-4" title="Member (Click to change role)" />;
   }
 };
 
@@ -555,7 +554,7 @@ export default function MembersTable({
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-3 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
                 onClick={() => handleSort('player')}
               >
                 <div className="flex items-center gap-1">

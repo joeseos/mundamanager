@@ -183,6 +183,8 @@ export default function CampaignPageContent({
     canDeleteCampaign: false,
     canManageMembers: false,
     canManageTerritories: false,
+    canEditTerritories: false,
+    canDeleteTerritories: false,
     canClaimTerritories: false,
     canAddBattleLogs: false,
     canEditBattleLogs: false,
@@ -489,8 +491,10 @@ export default function CampaignPageContent({
                       : allArbitrators;
                     
                     return uniqueArbitrators.length > 0 ? (
-                      <div className="flex items-center gap-1">
-                        {uniqueArbitrators.length === 1 ? 'Arbitrator: ' : 'Arbitrators: '}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="whitespace-nowrap">
+                          {uniqueArbitrators.length === 1 ? 'Arbitrator: ' : 'Arbitrators: '}
+                        </span>
                         {uniqueArbitrators.map((username, index) => (
                           <Badge key={index} variant={username === owner ? 'outline' : 'secondary'}>
                             {username}
@@ -562,7 +566,9 @@ export default function CampaignPageContent({
                 <div className="relative group">
                   <ImInfo className="text-gray-500 cursor-help" />
                   <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                    To add a gang to this campaign, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                    To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                    <br /><br />
+                    You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
                   </div>
                 </div>
               </div>
@@ -623,6 +629,8 @@ export default function CampaignPageContent({
                 members={campaignData.members}
                 permissions={{
                   canManageTerritories: safePermissions.canManageTerritories,
+                  canEditTerritories: safePermissions.canEditTerritories,
+                  canDeleteTerritories: safePermissions.canDeleteTerritories,
                   canClaimTerritories: safePermissions.canClaimTerritories
                 }}
                 onTerritoryUpdate={refreshData}
@@ -655,6 +663,8 @@ export default function CampaignPageContent({
                   members={campaignData.members}
                   permissions={{
                     canManageTerritories: safePermissions.canManageTerritories,
+                    canEditTerritories: safePermissions.canEditTerritories,
+                    canDeleteTerritories: safePermissions.canDeleteTerritories,
                     canClaimTerritories: safePermissions.canClaimTerritories
                   }}
                   onTerritoryUpdate={refreshData}
