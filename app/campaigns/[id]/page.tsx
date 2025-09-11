@@ -52,6 +52,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         canDeleteCampaign: false,
         canManageMembers: false,
         canManageTerritories: false,
+        canEditTerritories: false,
+        canDeleteTerritories: false,
         canClaimTerritories: false,
         canAddBattleLogs: false,
         canEditBattleLogs: false,

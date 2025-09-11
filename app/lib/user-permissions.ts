@@ -246,6 +246,8 @@ export class PermissionService {
       canDeleteCampaign: hasOwnerPermissions,                 // Only Owner + App Admin can delete campaign
       canManageMembers: hasArbitratorPermissions,             // Owner + Arbitrator + App Admin can add/remove members
       canManageTerritories: hasArbitratorPermissions,         // Only Owner + Arbitrator + App Admin can manage territories
+      canEditTerritories: hasMemberPermissions,               // All members + higher roles can edit territories
+      canDeleteTerritories: hasArbitratorPermissions,         // Only Owner + Arbitrator + App Admin can delete territories
       canClaimTerritories: hasMemberPermissions,              // All members + higher roles can claim territories
       canAddBattleLogs: hasMemberPermissions,                 // All members + higher roles can add battle logs
       canEditBattleLogs: hasArbitratorPermissions,            // Only Owner + Arbitrator + App Admin can edit battle logs
@@ -300,6 +302,8 @@ export class PermissionService {
       canDeleteCampaign: false,
       canManageMembers: false,
       canManageTerritories: false,
+      canEditTerritories: false,
+      canDeleteTerritories: false,
       canClaimTerritories: false,  // Non-members cannot claim territories
       canAddBattleLogs: false,    // Non-members cannot add battle logs
       canEditBattleLogs: false,
@@ -345,11 +349,13 @@ export class PermissionService {
  *    - Same as Owner except cannot delete campaign
  *    - Can edit campaign settings
  *    - Can manage members and territories
+ *    - Can delete territories
  *    - Can add and edit battle logs
  * 
  * 4. MEMBER:
  *    - Can add battle logs and claim territories
- *    - Cannot edit campaign, manage members, or manage territories
+ *    - Can edit territories (set ruined/default status)
+ *    - Cannot edit campaign, manage members, or delete territories
  *    - Read-only access to everything else
  * 
  * 5. NON-MEMBER:
