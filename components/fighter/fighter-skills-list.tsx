@@ -4,7 +4,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
-import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { 
@@ -12,25 +11,13 @@ import {
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Interface for individual skill when displayed in table
-interface Skill {
-  id: string;
-  name: string;
-  xp_cost: number;
-  credits_increase: number;
-  acquired_at: string;
-  is_advance: boolean;
-  fighter_injury_id: string | null;
-}
 
 // Props for the SkillsList component
 interface SkillsListProps {
   skills: FighterSkills;
-  onSkillDeleted?: () => void;
   fighterId: string;
-  fighterXp: number;
-  onSkillAdded?: () => void;
   free_skill?: boolean;
   userPermissions: UserPermissions;
 }
@@ -39,9 +26,15 @@ interface SkillsListProps {
 interface SkillModalProps {
   fighterId: string;
   onClose: () => void;
-  onSkillAdded: () => void;
   isSubmitting: boolean;
-  onSelectSkill?: (selectedSkill: any) => Promise<void>;
+  onAddSkill: (skillData: { 
+    fighter_id: string; 
+    skill_id: string; 
+    xp_cost: number; 
+    credits_increase: number; 
+    is_advance: boolean;
+    skillName: string;
+  }) => void;
 }
 
 interface Category {
@@ -53,6 +46,7 @@ interface SkillData {
   skill_id: string;
   skill_name: string;
   skill_type_id: string;
+  skill_type_name: string;
   available_acquisition_types: string[];
   available: boolean;
 }
@@ -68,7 +62,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
+export function SkillModal({ fighterId, onClose, isSubmitting, onAddSkill }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -77,67 +71,9 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
   const { toast } = useToast();
   const session = useSession();
 
-  // Fetch categories (skill sets) and skill access
+  // Fetch all data from get_available_skills function
   useEffect(() => {
-    const fetchCategoriesAndAccess = async () => {
-      try {
-        // Get the session from the hook
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        // Fetch skill types
-        const skillTypesResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/skill_types`,
-          {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token || ''}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!skillTypesResponse.ok) {
-          throw new Error('Failed to fetch skill sets');
-        }
-        const skillTypesData = await skillTypesResponse.json();
-        setCategories(skillTypesData);
-
-        // Fetch skill access for this fighter
-        console.log('Fetching skill access for fighter:', fighterId);
-        try {
-          const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-          console.log('Skill access response status:', skillAccessResponse.status);
-          if (skillAccessResponse.ok) {
-            const skillAccessData = await skillAccessResponse.json();
-            console.log('Skill access data:', skillAccessData);
-            setSkillAccess(skillAccessData.skill_access || []);
-          } else {
-            const errorText = await skillAccessResponse.text();
-            console.warn('Failed to fetch skill access:', errorText);
-            setSkillAccess([]);
-          }
-        } catch (error) {
-          console.error('Error fetching skill access:', error);
-          setSkillAccess([]);
-        }
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast({
-          description: 'Failed to load skill sets',
-          variant: "destructive"
-        });
-      }
-    };
-
-    fetchCategoriesAndAccess();
-  }, [fighterId, toast]);
-
-  // Fetch skills when category is selected
-  useEffect(() => {
-    if (!selectedCategory) return;
-
-    const fetchSkills = async () => {
+    const fetchAllData = async () => {
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_available_skills`,
@@ -154,75 +90,84 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         );
         
         if (!response.ok) {
-          throw new Error('Failed to fetch skills');
+          throw new Error('Failed to fetch fighter skills data');
         }
 
         const data = await response.json();
-        console.log('Raw skills data:', data);
+        console.log('Skills data from get_available_skills:', data);
         
-        // Filter skills by the selected type
-        const skillsForType = data.skills.filter(
-          (skill: SkillData) => skill.skill_type_id === selectedCategory
-        );
-
-        setSkillsData({ skills: skillsForType });
+        // Set all skills data
+        setSkillsData(data);
+        
+        // Extract skill access from the response
+        setSkillAccess(data.skill_access || []);
+        
+        // Extract unique skill types from skills to create categories
+        const skillTypesMap = new Map();
+        data.skills.forEach((skill: SkillData & { skill_type_name: string }) => {
+          if (!skillTypesMap.has(skill.skill_type_id)) {
+            skillTypesMap.set(skill.skill_type_id, {
+              id: skill.skill_type_id,
+              name: skill.skill_type_name
+            });
+          }
+        });
+        setCategories(Array.from(skillTypesMap.values()));
       } catch (error) {
-        console.error('Error fetching skills:', error);
+        console.error('Error fetching skills data:', error);
         toast({
-          description: 'Failed to load skills',
+          description: 'Failed to load skills data',
           variant: "destructive"
         });
       }
     };
 
-    fetchSkills();
-  }, [selectedCategory, fighterId, toast]);
+    fetchAllData();
+  }, [fighterId, toast]);
+
+  // Filter skills when category is selected
+  const filteredSkills = selectedCategory && skillsData 
+    ? skillsData.skills.filter((skill: SkillData) => skill.skill_type_id === selectedCategory)
+    : [];
 
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
 
-    try {
-      // Check for session
-      if (!session) {
-        toast({
-          description: "Authentication required. Please log in again.",
-          variant: "destructive"
-        });
-        return false;
-      }
-
-      console.log("Adding skill with ID:", selectedSkill);
-      
-      const result = await addSkillAdvancement({
-        fighter_id: fighterId,
-        skill_id: selectedSkill,
-        xp_cost: 0,
-        credits_increase: 0,
-        is_advance: false
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add skill');
-      }
-
-      console.log("Skill added successfully:", result);
-
+    // Check for session
+    if (!session) {
       toast({
-        description: "Skill successfully added",
-        variant: "default"
-      });
-
-      onSkillAdded();
-      onClose();
-      return true;
-    } catch (error) {
-      console.error('Error adding skill:', error);
-      toast({
-        description: `Failed to add skill: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: "Authentication required. Please log in again.",
         variant: "destructive"
       });
       return false;
     }
+
+    console.log("Adding skill with ID:", selectedSkill);
+    
+    // Get the selected skill data for optimistic update
+    const selectedSkillData = filteredSkills.find(skill => skill.skill_id === selectedSkill);
+    if (!selectedSkillData) {
+      toast({
+        description: "Selected skill not found",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    // Close modal immediately for better UX
+    onClose();
+    
+    // Trigger the mutation with optimistic updates
+    onAddSkill({
+      fighter_id: fighterId,
+      skill_id: selectedSkill,
+      xp_cost: 0,
+      credits_increase: 0,
+      is_advance: false,
+      skillName: selectedSkillData.skill_name
+    });
+
+    return true;
   };
 
   const modalContent = (
@@ -308,7 +253,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         </select>
       </div>
 
-      {selectedCategory && skillsData && (
+      {selectedCategory && filteredSkills.length > 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Skill</label>
           <select
@@ -317,7 +262,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             className="w-full p-2 border rounded"
           >
             <option key="placeholder-skill" value="">Select a skill</option>
-            {skillsData.skills.map((skill) => {
+            {filteredSkills.map((skill) => {
               const isAvailable = skill.available;
               return (
                 <option 
@@ -354,17 +299,181 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 // Main SkillsList component that wraps the table with management functionality
 export function SkillsList({ 
   skills = {}, 
-  onSkillDeleted,
   fighterId,
-  fighterXp,
-  onSkillAdded,
   free_skill,
   userPermissions
 }: SkillsListProps) {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingSkills, setPendingSkills] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Use TanStack Query cache for optimistic updates, initializing with props
+  React.useEffect(() => {
+    queryClient.setQueryData(['fighter-skills', fighterId], { skills });
+  }, [queryClient, fighterId, skills]);
+
+  // Get skills from cache, fallback to props
+  const cachedData = queryClient.getQueryData(['fighter-skills', fighterId]) as { skills: any } | undefined;
+  const currentSkills = cachedData?.skills || skills;
+
+  // Add skill mutation with optimistic updates
+  const addSkillMutation = useMutation({
+    mutationFn: async (skillData: { 
+      fighter_id: string; 
+      skill_id: string; 
+      xp_cost: number; 
+      credits_increase: number; 
+      is_advance: boolean;
+      skillName: string;
+    }) => {
+      const result = await addSkillAdvancement({
+        fighter_id: skillData.fighter_id,
+        skill_id: skillData.skill_id,
+        xp_cost: skillData.xp_cost,
+        credits_increase: skillData.credits_increase,
+        is_advance: skillData.is_advance
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add skill');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['fighter-skills', fighterId] });
+      
+      // Add skill to pending set
+      setPendingSkills(prev => new Set(prev).add(variables.skillName));
+      
+      // Snapshot the previous value
+      const previousData = queryClient.getQueryData(['fighter-skills', fighterId]);
+      
+      // Optimistically add skill to cache
+      queryClient.setQueryData(['fighter-skills', fighterId], (old: any) => {
+        if (!old) return { skills: {} };
+        
+        // Add the new skill to the skills object
+        const newSkill = {
+          id: `temp-${Date.now()}`, // Temporary ID
+          xp_cost: variables.xp_cost,
+          credits_increase: variables.credits_increase,
+          acquired_at: new Date().toISOString(),
+          is_advance: variables.is_advance,
+          fighter_injury_id: null,
+          isPending: true // Mark as pending
+        };
+        
+        return {
+          ...old,
+          skills: {
+            ...old.skills,
+            [variables.skillName]: newSkill
+          }
+        };
+      });
+      
+      // Return context object with the snapshot
+      return { previousData };
+    },
+    onSuccess: (_, variables) => {
+      // Remove skill from pending set
+      setPendingSkills(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(variables.skillName);
+        return newSet;
+      });
+      
+      toast({
+        description: "Skill successfully added",
+        variant: "default"
+      });
+      // Invalidate queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['fighter-skills'] });
+    },
+    onError: (error: Error, variables, context) => {
+      // Remove skill from pending set
+      setPendingSkills(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(variables.skillName);
+        return newSet;
+      });
+      
+      console.error('Error adding skill:', error);
+      toast({
+        description: `Failed to add skill: ${error.message}`,
+        variant: "destructive"
+      });
+      // Rollback optimistic update
+      if (context?.previousData) {
+        queryClient.setQueryData(['fighter-skills', fighterId], context.previousData);
+      }
+    }
+  });
+
+  // Delete skill mutation with optimistic updates
+  const deleteSkillMutation = useMutation({
+    mutationFn: async (skillData: { 
+      fighter_id: string; 
+      advancement_id: string; 
+      advancement_type: 'skill' | 'characteristic'; 
+      skillName: string;
+    }) => {
+      const result = await deleteAdvancement({
+        fighter_id: skillData.fighter_id,
+        advancement_id: skillData.advancement_id,
+        advancement_type: skillData.advancement_type
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete skill');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['fighter-skills', fighterId] });
+      
+      // Snapshot the previous value
+      const previousData = queryClient.getQueryData(['fighter-skills', fighterId]);
+      
+      // Optimistically remove skill from cache
+      queryClient.setQueryData(['fighter-skills', fighterId], (old: any) => {
+        if (!old) return { skills: {} };
+        
+        // Remove the skill from the skills object
+        const updatedSkills = { ...old.skills };
+        delete updatedSkills[variables.skillName];
+        
+        return {
+          ...old,
+          skills: updatedSkills
+        };
+      });
+      
+      // Return context object with the snapshot
+      return { previousData };
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        description: `${variables.skillName} removed successfully`,
+        variant: "default"
+      });
+      // Invalidate queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['fighter-skills'] });
+    },
+    onError: (error: Error, variables, context) => {
+      console.error('Error deleting skill:', error);
+      toast({
+        description: `Failed to delete ${variables.skillName}`,
+        variant: "destructive"
+      });
+      // Rollback optimistic update
+      if (context?.previousData) {
+        queryClient.setQueryData(['fighter-skills', fighterId], context.previousData);
+      }
+    }
+  });
 
   const handleDeleteClick = (skillId: string, skillName: string) => {
     setSkillToDelete({ id: skillId, name: skillName });
@@ -373,37 +482,21 @@ export function SkillsList({
   const handleConfirmDelete = async () => {
     if (!skillToDelete) return;
 
-    try {
-      const result = await deleteAdvancement({
-        fighter_id: fighterId,
-        advancement_id: skillToDelete.id,
-        advancement_type: 'skill'
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete skill');
-      }
-
-      // Call the callback to refresh data in parent component
-      onSkillDeleted?.();
-      
-      toast({
-        description: `${skillToDelete.name} removed successfully`,
-        variant: "default"
-      });
-    } catch (error) {
-      console.error('Error deleting skill:', error);
-      toast({
-        description: 'Failed to delete skill',
-        variant: "destructive"
-      });
-    } finally {
-      setSkillToDelete(null);
-    }
+    // Close modal immediately for better UX
+    const skillToDeleteCopy = skillToDelete;
+    setSkillToDelete(null);
+    
+    // Trigger the mutation with optimistic updates
+    deleteSkillMutation.mutate({
+      fighter_id: fighterId,
+      advancement_id: skillToDeleteCopy.id,
+      advancement_type: 'skill' as const,
+      skillName: skillToDeleteCopy.name
+    });
   };
 
   // Transform skills object into array for table display
-  const skillsArray = Object.entries(skills).map(([name, data]) => {
+  const skillsArray = Object.entries(currentSkills).map(([name, data]) => {
     const typedData = data as any;
     return {
       id: typedData.id,
@@ -440,7 +533,7 @@ export function SkillsList({
             key: 'action_info',
             label: 'Source',
             align: 'right',
-            render: (value, item) => {
+            render: (_, item) => {
               if (item.fighter_injury_id) {
                 return (
                   <span className="text-gray-500 text-sm italic whitespace-nowrap">
@@ -465,7 +558,11 @@ export function SkillsList({
             title: "Delete",
             variant: 'destructive' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
-            disabled: (item: any) => !!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit
+            disabled: (item: any) => 
+              !!item.fighter_injury_id || 
+              !!item.is_advance || 
+              !userPermissions.canEdit ||
+              pendingSkills.has(item.name) // Disable if skill is pending
           }
         ]}
         onAdd={() => setIsAddSkillModalOpen(true)}
@@ -494,8 +591,8 @@ export function SkillsList({
         <SkillModal
           fighterId={fighterId}
           onClose={() => setIsAddSkillModalOpen(false)}
-          onSkillAdded={onSkillAdded || (() => {})}
-          isSubmitting={isSubmitting}
+          isSubmitting={addSkillMutation.isPending}
+          onAddSkill={(skillData) => addSkillMutation.mutate(skillData)}
         />
       )}
     </>
