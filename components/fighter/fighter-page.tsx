@@ -721,7 +721,10 @@ export default function FighterPage({
           <SkillsList
             key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
             skills={fighterData.fighter?.skills || {}}
+            onSkillDeleted={() => router.refresh()}
             fighterId={fighterData.fighter?.id || ''}
+            fighterXp={fighterData.fighter?.xp || 0}
+            onSkillAdded={() => router.refresh()}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
           />
