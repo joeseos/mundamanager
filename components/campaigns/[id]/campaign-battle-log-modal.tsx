@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/lib/campaigns/[id]/battle-logs";
 
 interface Scenario {
@@ -581,29 +582,45 @@ const CampaignBattleLogModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Scenario *
             </label>
-            <select 
-              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
-              value={selectedScenario}
-              onChange={(e) => setSelectedScenario(e.target.value)}
-              disabled={isLoadingBattleData}
-            >
-              <option value="">Select scenario</option>
-              <option value="custom">Custom scenario</option>
-              {scenarios.map(scenario => (
-                <option key={scenario.id} value={scenario.id}>
-                  {scenario.scenario_number !== null 
+            <Combobox
+              options={[
+                { value: 'custom', label: 'Custom' },
+                ...scenarios.map(scenario => ({
+                  value: scenario.id,
+                  label: scenario.scenario_number !== null 
                     ? `${scenario.scenario_number}. ${scenario.scenario_name}`
-                    : scenario.scenario_name}
-                </option>
-              ))}
-            </select>
+                    : scenario.scenario_name
+                }))
+              ]}
+              value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
+              onValueChange={(value) => {
+                if (value === 'custom') {
+                  setSelectedScenario('custom');
+                  setCustomScenario('');
+                } else {
+                  // Check if the value is a custom scenario (not in the options list)
+                  const isCustomValue = !scenarios.some(scenario => scenario.id === value);
+                  
+                  if (isCustomValue) {
+                    setSelectedScenario('custom');
+                    setCustomScenario(value);
+                  } else {
+                    setSelectedScenario(value);
+                    setCustomScenario('');
+                  }
+                }
+              }}
+              placeholder="Select or search for a Scenario..."
+              disabled={isLoadingBattleData}
+              allowCustom={true}
+            />
             
             {selectedScenario === 'custom' && (
               <div className="mt-2">
                 <input
                   type="text"
                   className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
-                  placeholder="Enter custom scenario name"
+                  placeholder="Enter custom Scenario name"
                   value={customScenario}
                   onChange={(e) => setCustomScenario(e.target.value)}
                   disabled={isLoadingBattleData}
@@ -777,7 +794,7 @@ const CampaignBattleLogModal = ({
       }
       onClose={handleClose}
       onConfirm={handleSaveBattle}
-      confirmText={isEditMode ? "Update" : "Save"}
+      confirmText={isEditMode ? "Update" : "Add Battle Report"}
       confirmDisabled={isLoadingBattleData || !formValid}
     />
   );
