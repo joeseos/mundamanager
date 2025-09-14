@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface AssignVehicleToFighterParams {
   vehicleId: string;
@@ -22,6 +23,16 @@ interface AssignVehicleToFighterResult {
 export async function assignVehicleToFighter(params: AssignVehicleToFighterParams): Promise<AssignVehicleToFighterResult> {
   try {
     const supabase = await createClient();
+    
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
+
+    // Capture pre-state
+    const { data: beforeVehicle } = await supabase
+      .from('vehicles')
+      .select('fighter_id')
+      .eq('id', params.vehicleId)
+      .single();
 
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
@@ -37,7 +48,33 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Get vehicle cost data to return to frontend for immediate UI update
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
-    // No need to manually update gang rating - fighter cost calculation already includes assigned vehicles
+    // Capture post-state
+    const { data: afterVehicle } = await supabase
+      .from('vehicles')
+      .select('fighter_id')
+      .eq('id', params.vehicleId)
+      .single();
+
+    // Rating delta: only when previously unassigned and now assigned
+    const wasUnassigned = !beforeVehicle?.fighter_id;
+    const isAssigned = !!afterVehicle?.fighter_id;
+    if (wasUnassigned && isAssigned && vehicleCost > 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', params.gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating + vehicleCost) })
+          .eq('id', params.gangId);
+        invalidateGangRating(params.gangId);
+      } catch (e) {
+        console.error('Failed to update gang rating after vehicle assignment:', e);
+      }
+    }
 
     // Invalidate cache for the fighter and gang
     invalidateFighterVehicleData(params.fighterId, params.gangId);
