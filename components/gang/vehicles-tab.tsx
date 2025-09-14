@@ -29,6 +29,7 @@ interface GangVehiclesProps {
   userPermissions?: UserPermissions;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
+  currentRating?: number;
 }
 
 // Update the type to match VehicleProps
@@ -37,8 +38,8 @@ type CombinedVehicleProps = VehicleProps & {
   // Remove fighter_id since it's already in VehicleProps with the correct type
 };
 
-export default function GangVehicles({ 
-  vehicles, 
+export default function GangVehicles({
+  vehicles,
   fighters,
   gangId,
   title = 'Vehicles',
@@ -46,7 +47,8 @@ export default function GangVehicles({
   onFighterUpdate,
   userPermissions,
   onGangCreditsUpdate,
-  onGangRatingUpdate
+  onGangRatingUpdate,
+  currentRating
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -86,13 +88,21 @@ export default function GangVehicles({
     // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
+    const originalRating = currentRating || 0;
 
     try {
+      // Calculate vehicle cost for rating update
+      const vehicleCost = calculateVehicleTotalValue(vehicle);
+
       // Optimistic updates
-      // 1) Remove from fighter
+      // 1) Remove from fighter and adjust fighter credits
       const assignedFighter = fighters.find(f => f.fighter_name === vehicle.assigned_to);
       if (assignedFighter && onFighterUpdate) {
-        const fighterWithoutVehicle = { ...assignedFighter, vehicles: [] };
+        const fighterWithoutVehicle = {
+          ...assignedFighter,
+          vehicles: [],
+          credits: Math.max(0, (assignedFighter.credits || 0) - vehicleCost)
+        };
         onFighterUpdate(fighterWithoutVehicle, true);
       }
 
@@ -106,11 +116,17 @@ export default function GangVehicles({
           equipment: vehicle.equipment || [],
           special_rules: vehicle.special_rules || [],
         } as VehicleProps;
-        
+
         // Add to existing unassigned vehicles and deduplicate
         const updatedVehicles = [...originalVehicles, cleanVehicle];
         const deduped = Array.from(new Map(updatedVehicles.map(v => [v.id, v])).values());
         onVehicleUpdate(deduped);
+      }
+
+      // 3) Update gang rating optimistically (subtract vehicle cost)
+      if (onGangRatingUpdate && vehicleCost > 0) {
+        const newRating = Math.max(0, originalRating - vehicleCost);
+        onGangRatingUpdate(newRating);
       }
 
       // Server call
@@ -118,8 +134,6 @@ export default function GangVehicles({
       if (!result.success) {
         throw new Error(result.error || 'Failed to unassign vehicle');
       }
-
-      // Gang rating will be recalculated automatically from fighter costs
 
       toast({ title: 'Success', description: `${vehicle.vehicle_name || vehicle.vehicle_type} unassigned` });
     } catch (error) {
@@ -132,6 +146,10 @@ export default function GangVehicles({
       if (onFighterUpdate && vehicle.assigned_to) {
         const originalFighter = originalFighters.find(f => f.fighter_name === vehicle.assigned_to);
         if (originalFighter) onFighterUpdate(originalFighter, true);
+      }
+      // Rollback gang rating
+      if (onGangRatingUpdate) {
+        onGangRatingUpdate(originalRating);
       }
 
       toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to unassign vehicle', variant: 'destructive' });

@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 interface UnassignVehicleParams {
   vehicleId: string;
@@ -20,6 +21,9 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
   try {
     const supabase = await createClient();
 
+    // Get the current user with optimized getClaims()
+    const user = await getAuthenticatedUser(supabase);
+
     // Capture current assignment before unassigning
     const { data: beforeVehicle } = await supabase
       .from('vehicles')
@@ -34,6 +38,9 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       return { success: true, data: { previous_fighter_id: null } };
     }
 
+    // Get vehicle cost data before unassigning for rating calculation
+    const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
+
     // Unassign vehicle
     const { error: updateError } = await supabase
       .from('vehicles')
@@ -45,7 +52,24 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       throw new Error(updateError.message || 'Failed to unassign vehicle');
     }
 
-    // No need to manually update gang rating - fighter cost calculation already excludes unassigned vehicles
+    // Rating delta: when vehicle was assigned and now becomes unassigned, reduce gang rating
+    if (previousFighterId && vehicleCost > 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', params.gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        await supabase
+          .from('gangs')
+          .update({ rating: Math.max(0, currentRating - vehicleCost) })
+          .eq('id', params.gangId);
+        invalidateGangRating(params.gangId);
+      } catch (e) {
+        console.error('Failed to update gang rating after vehicle unassignment:', e);
+      }
+    }
 
     // Invalidate cache for the fighter and gang
     if (previousFighterId) {
@@ -68,5 +92,41 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
   }
 }
 
+/**
+ * Calculate the total cost of a vehicle including equipment and effects
+ */
+async function calculateVehicleCost(vehicleId: string, supabase: any): Promise<number> {
+  // Get base vehicle cost
+  const { data: vehicleData, error: vehicleError } = await supabase
+    .from('vehicles')
+    .select('cost')
+    .eq('id', vehicleId)
+    .single();
 
+  if (vehicleError) {
+    console.error('Error getting vehicle cost:', vehicleError);
+    return 0;
+  }
 
+  const baseCost = vehicleData?.cost || 0;
+
+  // Get equipment cost
+  const { data: equipmentData } = await supabase
+    .from('fighter_equipment')
+    .select('purchase_cost')
+    .eq('vehicle_id', vehicleId);
+
+  const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
+
+  // Get effects cost
+  const { data: effectsData } = await supabase
+    .from('fighter_effects')
+    .select('type_specific_data')
+    .eq('vehicle_id', vehicleId);
+
+  const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
+    return sum + (effect.type_specific_data?.credits_increase || 0);
+  }, 0) || 0;
+
+  return baseCost + equipmentCost + effectsCost;
+}
