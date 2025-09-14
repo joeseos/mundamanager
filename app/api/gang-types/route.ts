@@ -11,11 +11,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: gangTypes, error } = await supabase
+    // Check if user is admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_role')
+      .eq('id', user.id)
+      .single();
+
+    const isAdmin = profile?.user_role === 'admin';
+
+    // Build query - include hidden gang types if user is admin
+    let query = supabase
       .from('gang_types')
       .select('gang_type_id, gang_type, alignment, image_url, affiliation')
-      .eq('is_hidden', false)
-      .order('gang_type')
+      .order('gang_type');
+
+    // Only filter out hidden types if user is not admin
+    if (!isAdmin) {
+      query = query.eq('is_hidden', false);
+    }
+
+    const { data: gangTypes, error } = await query;
 
     if (error) throw error;
 
