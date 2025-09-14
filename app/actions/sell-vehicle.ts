@@ -2,8 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateFighterVehicleData, invalidateGangFinancials, CACHE_TAGS } from '@/utils/cache-tags';
-import { revalidateTag } from 'next/cache';
+import { invalidateFighterVehicleData, invalidateGangFinancials, invalidateGangRating } from '@/utils/cache-tags';
 
 interface SellVehicleParams {
   vehicleId: string;
@@ -16,6 +15,7 @@ interface SellVehicleResult {
   data?: {
     gang: { id: string; credits: number };
     vehicle_cost?: number;
+    updated_gang_rating?: number;
   };
   error?: string;
 }
@@ -39,6 +39,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     }
 
     const gangId = params.gangId || vehicle.gang_id;
+    const isAssigned = !!vehicle.fighter_id;
 
     // Permission: ensure current user owns the gang
     const { data: gangRow, error: gangFetchError } = await supabase
@@ -98,22 +99,39 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
       throw new Error(`Failed to update gang credits: ${gangUpdateError?.message}`);
     }
 
-    // No need to manually update gang rating - fighter cost calculations will automatically reflect vehicle removal
+    // If it was assigned to a fighter, subtract its total cost from gang rating
+    let updatedGangRating: number | undefined = undefined;
+    if (isAssigned && vehicleCost > 0) {
+      try {
+        const { data: ratingRow } = await supabase
+          .from('gangs')
+          .select('rating')
+          .eq('id', gangId)
+          .single();
+        const currentRating = (ratingRow?.rating ?? 0) as number;
+        updatedGangRating = Math.max(0, currentRating - vehicleCost);
+        await supabase
+          .from('gangs')
+          .update({ rating: updatedGangRating })
+          .eq('id', gangId);
+        invalidateGangRating(gangId);
+      } catch (e) {
+        console.error('Failed to update gang rating after selling vehicle:', e);
+      }
+    }
 
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
     invalidateGangFinancials(gangId);
     if (vehicle.fighter_id) {
       invalidateFighterVehicleData(vehicle.fighter_id, gangId);
     }
-    
-    // Always refresh the gang vehicles list (covers assigned and unassigned views)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
 
     return {
       success: true,
       data: {
         gang: { id: updatedGang.id, credits: updatedGang.credits },
-        vehicle_cost: vehicleCost
+        vehicle_cost: vehicleCost,
+        updated_gang_rating: updatedGangRating
       }
     };
   } catch (error) {
