@@ -22,6 +22,7 @@ import { LuUndo2 } from 'react-icons/lu';
 interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
+  fighterClass: string;
   onClose: () => void;
   onAdvancementAdded?: (remainingXp: number, creditsIncrease: number) => void;
 }
@@ -133,6 +134,7 @@ interface AdvancementsListProps {
   fighterXp: number;
   fighterChanges?: FighterChanges;
   fighterId: string;
+  fighterClass: string;
   onAdvancementDeleted?: () => void;
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
@@ -166,7 +168,7 @@ interface SkillAccess {
 }
 
 // AdvancementModal Component
-export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementAdded }: AdvancementModalProps) {
+export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, onAdvancementAdded }: AdvancementModalProps) {
   const { toast } = useToast();
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -582,7 +584,17 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
               >
                 <option key="default" value="">Select Advancement Type</option>
                 <option key="characteristic" value="characteristic">Characteristic</option>
-                <option key="skill" value="skill">Skill</option>
+                <option
+                  key="skill"
+                  value="skill"
+                  disabled={fighterClass === 'Ganger'}
+                  style={{
+                    color: fighterClass === 'Ganger' ? '#9CA3AF' : 'inherit',
+                    fontStyle: fighterClass === 'Ganger' ? 'italic' : 'normal'
+                  }}
+                >
+                  Skill{fighterClass === 'Ganger' ? ' (Not available for Gangers)' : ''}
+                </option>
               </select>
             </div>
 
@@ -873,10 +885,11 @@ export function AdvancementModal({ fighterId, currentXp, onClose, onAdvancementA
 }
 
 // AdvancementsList Component
-export function AdvancementsList({ 
+export function AdvancementsList({
   fighterXp,
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
+  fighterClass,
   onAdvancementDeleted,
   advancements = [],
   skills = {},
@@ -1080,6 +1093,7 @@ export function AdvancementsList({
         <AdvancementModal
           fighterId={fighterId}
           currentXp={fighterXp}
+          fighterClass={fighterClass}
           onClose={() => setIsAdvancementModalOpen(false)}
           onAdvancementAdded={handleAdvancementAdded}
         />
