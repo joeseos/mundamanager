@@ -733,6 +733,7 @@ export default function FighterPage({
             key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
+            fighterClass={fighterData.fighter?.fighter_class || ''}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             onDeleteAdvancement={async () => {
