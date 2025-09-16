@@ -30,6 +30,8 @@ import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
+import { TbDiamondFilled } from "react-icons/tb";
+import { getPatreonTierColor } from "@/utils/patreon";
 
 
 interface GangProps {
@@ -82,6 +84,9 @@ interface GangProps {
   vehicles?: VehicleProps[];
   userPermissions?: UserPermissions;
   username?: string;
+  patreon_tier_id?: string;
+  patreon_tier_title?: string;
+  patron_status?: string;
 }
 
 export default function Gang({ 
@@ -119,9 +124,13 @@ export default function Gang({
   vehicles,
   userPermissions,
   username,
+  patreon_tier_id,
+  patreon_tier_title,
+  patron_status,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
+  
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(initialName)
@@ -701,7 +710,16 @@ export default function Gang({
               </div>
               {username && (
                 <div className="flex items-center gap-1 text-sm mt-1">
-                  Owner: <Badge variant="outline">{username}</Badge>
+                  Owner: <Badge variant="outline" className="flex items-center gap-1">
+                    {patreon_tier_id && (
+                      <TbDiamondFilled 
+                        size={14} 
+                        color={getPatreonTierColor(patreon_tier_id)}
+                        title={patreon_tier_title || `Patreon Tier ${patreon_tier_id}`}
+                      />
+                    )}
+                    {username}
+                  </Badge>
                 </div>
               )}
             </div>

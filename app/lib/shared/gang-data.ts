@@ -908,15 +908,20 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
 };
 
 /**
- * Get username from user_id
+ * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ username: string } | null> => {
+export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+  username: string;
+  patreon_tier_id?: string;
+  patreon_tier_title?: string;
+  patron_status?: string;
+} | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, patreon_tier_id, patreon_tier_title, patron_status')
         .eq('id', userId)
         .single();
 
