@@ -58,6 +58,18 @@ export interface AdvancementResult {
     credits_increase: number;
   };
   remaining_xp?: number;
+  effect?: {
+    id: string;
+    effect_name: string;
+    type_specific_data: any;
+    created_at: string;
+    fighter_effect_modifiers: Array<{
+      id: string;
+      fighter_effect_id: string;
+      stat_name: string;
+      numeric_value: number;
+    }>;
+  } | null;
 }
 
 export async function addCharacteristicAdvancement(
@@ -166,7 +178,7 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to insert effect modifier' };
     }
 
-    // Update fighter's XP
+    // Update fighter's XP only (characteristic is handled by effect modifiers)
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
       .update({ 
@@ -216,12 +228,30 @@ export async function addCharacteristicAdvancement(
       include_gang_rating: true
     });
 
-    // Invalidate cache for fighter advancement
+    // Invalidate cache for fighter advancement (effects for characteristic advancements)
     invalidateFighterAdvancement({
       fighterId: params.fighter_id,
       gangId: fighter.gang_id,
-      advancementType: 'stat'
+      advancementType: 'effect'
     });
+
+    // Get the created effect data for the response
+    const { data: createdEffect, error: effectError } = await supabase
+      .from('fighter_effects')
+      .select(`
+        id,
+        effect_name,
+        type_specific_data,
+        created_at,
+        fighter_effect_modifiers (
+          id,
+          fighter_effect_id,
+          stat_name,
+          numeric_value
+        )
+      `)
+      .eq('id', insertedEffect.id)
+      .single();
 
     return {
       success: true,
@@ -229,7 +259,8 @@ export async function addCharacteristicAdvancement(
       advancement: {
         credits_increase: params.credits_increase
       },
-      remaining_xp: updatedFighter.xp
+      remaining_xp: updatedFighter.xp,
+      effect: createdEffect || null
     };
 
   } catch (error) {
@@ -520,6 +551,17 @@ export async function deleteAdvancement(
         ratingDelta -= (typeData.credits_increase || 0);
       }
 
+      // Get the effect details before deleting to know which characteristic to decrease
+      const { data: effectDetails, error: effectDetailsError } = await supabase
+        .from('fighter_effects')
+        .select('effect_name, fighter_effect_modifiers(stat_name)')
+        .eq('id', params.advancement_id)
+        .single();
+
+      if (effectDetailsError || !effectDetails) {
+        return { success: false, error: 'Failed to get effect details' };
+      }
+
       // Delete the effect (this will cascade delete the modifiers)
       const { error: deleteError } = await supabase
         .from('fighter_effects')
@@ -529,6 +571,9 @@ export async function deleteAdvancement(
       if (deleteError) {
         return { success: false, error: 'Failed to delete effect' };
       }
+
+      // Characteristic changes are handled by effect modifiers only
+      // No need to update base fighter characteristics
 
       // For effects, free_skill status doesn't change
       newFreeSkillStatus = fighter.free_skill;

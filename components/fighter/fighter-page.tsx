@@ -719,29 +719,65 @@ export default function FighterPage({
           />
 
           <SkillsList
-            key={`skills-${Object.keys(fighterData.fighter?.skills || {}).length}`}
             skills={fighterData.fighter?.skills || {}}
-            onSkillDeleted={() => router.refresh()}
             fighterId={fighterData.fighter?.id || ''}
             fighterXp={fighterData.fighter?.xp || 0}
-            onSkillAdded={() => router.refresh()}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
+            onSkillsUpdate={(updatedSkills) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  skills: updatedSkills
+                } : null
+              }));
+            }}
           />
 
           <AdvancementsList
-            key={`advancements-${Object.keys(fighterData.fighter?.skills || {}).length}`}
             fighterXp={fighterData.fighter?.xp || 0}
             fighterId={fighterData.fighter?.id || ''}
             fighterClass={fighterData.fighter?.fighter_class || ''}
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
-            onDeleteAdvancement={async () => {
-              // Trigger server component re-execution to get fresh data
-              router.refresh();
-            }}
-            onAdvancementAdded={() => router.refresh()}
             userPermissions={userPermissions}
+            onAdvancementUpdate={(updatedAdvancements) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  effects: {
+                    ...prev.fighter.effects,
+                    advancements: updatedAdvancements
+                  }
+                } : null
+              }));
+            }}
+            onSkillUpdate={(updatedSkills) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  skills: updatedSkills
+                } : null
+              }));
+            }}
+            onXpCreditsUpdate={(xpChange, creditsChange) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  xp: (prev.fighter.xp || 0) + xpChange,
+                  credits: (prev.fighter.credits || 0) + creditsChange
+                } : null
+              }));
+            }}
+            onCharacteristicUpdate={(characteristicName, changeAmount) => {
+              // Characteristics are now updated through effect modifiers
+              // The stats calculation will handle the display automatically
+              // No direct characteristic updates needed
+            }}
           />
 
           <InjuriesList

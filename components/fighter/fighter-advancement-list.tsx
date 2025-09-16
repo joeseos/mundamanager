@@ -11,6 +11,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -23,8 +24,14 @@ interface AdvancementModalProps {
   fighterId: string;
   currentXp: number;
   fighterClass: string;
+  advancements: Array<FighterEffectType>;
+  skills: Record<string, any>;
   onClose: () => void;
-  onAdvancementAdded?: (remainingXp: number, creditsIncrease: number) => void;
+  onAdvancementAdded: (advancement: FighterEffectType) => void;
+  onSkillUpdate?: (updatedSkills: Record<string, any>) => void;
+  onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
+  onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
+  onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
 }
 
 interface StatChangeCategory {
@@ -135,12 +142,13 @@ interface AdvancementsListProps {
   fighterChanges?: FighterChanges;
   fighterId: string;
   fighterClass: string;
-  onAdvancementDeleted?: () => void;
   advancements: Array<FighterEffectType>;
   skills: FighterSkills;
-  onDeleteAdvancement: (advancementId: string) => Promise<void>;
-  onAdvancementAdded: () => void;
   userPermissions: UserPermissions;
+  onAdvancementUpdate: (updatedAdvancements: Array<FighterEffectType>) => void;
+  onSkillUpdate?: (updatedSkills: FighterSkills) => void;
+  onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
+  onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
 }
 
 interface TransformedAdvancement {
@@ -168,7 +176,7 @@ interface SkillAccess {
 }
 
 // AdvancementModal Component
-export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, onAdvancementAdded }: AdvancementModalProps) {
+export function AdvancementModal({ fighterId, currentXp, fighterClass, advancements, skills, onClose, onAdvancementAdded, onSkillUpdate, onXpCreditsUpdate, onAdvancementUpdate, onCharacteristicUpdate }: AdvancementModalProps) {
   const { toast } = useToast();
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -183,6 +191,162 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, 
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
+  const queryClient = useQueryClient();
+
+  // TanStack Query mutations
+  const addCharacteristicMutation = useMutation({
+    mutationFn: async (variables: { fighter_id: string; fighter_effect_type_id: string; xp_cost: number; credits_increase: number }) => {
+      const result = await addCharacteristicAdvancement(variables);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add characteristic advancement');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      if (!selectedAdvancement) return {};
+
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ['fighter-effects', fighterId] });
+
+      // Snapshot the previous value for rollback
+      const previousAdvancements = [...advancements];
+
+      // Create optimistic advancement with predictable structure
+      const advancementName = `Characteristic: ${selectedAdvancement.stat_change_name}`;
+      const optimisticId = `optimistic-char-${fighterId}-${selectedAdvancement.stat_change_name?.replace(/\s+/g, '-').toLowerCase()}`;
+      const optimisticAdvancement = {
+        id: optimisticId,
+        effect_name: advancementName,
+        fighter_effect_modifiers: [{
+          id: `${optimisticId}-modifier`,
+          fighter_effect_id: optimisticId,
+          stat_name: (selectedAdvancement.stat_change_name || '').toLowerCase().replace(' ', '_'),
+          numeric_value: 1
+        }],
+        created_at: new Date().toISOString(),
+        type_specific_data: {
+          xp_cost: variables.xp_cost,
+          credits_increase: variables.credits_increase,
+          advancement_type: 'characteristic'
+        }
+      };
+
+      // Optimistically update the advancements list
+      const updatedAdvancements = [...advancements, optimisticAdvancement];
+      onAdvancementUpdate(updatedAdvancements);
+
+      // Update XP and credits immediately
+      if (onXpCreditsUpdate) {
+        onXpCreditsUpdate(-variables.xp_cost, variables.credits_increase);
+      }
+
+      return { 
+        previousAdvancements,
+        optimisticAdvancement,
+        xpCost: variables.xp_cost,
+        creditsIncrease: variables.credits_increase
+      };
+    },
+    onSuccess: (result, variables, context) => {
+      // Don't manually replace - let the cache invalidation handle it
+      // This prevents race conditions between manual updates and cache refresh
+      
+      toast({
+        title: "Success!",
+        description: `Successfully added ${selectedAdvancement?.stat_change_name}`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic advancement update
+      if (context?.previousAdvancements) {
+        onAdvancementUpdate(context.previousAdvancements);
+      }
+
+      // Rollback XP and credits
+      if (context?.xpCost || context?.creditsIncrease) {
+        if (onXpCreditsUpdate) {
+          onXpCreditsUpdate(context.xpCost || 0, -(context.creditsIncrease || 0));
+        }
+      }
+
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to add advancement',
+        variant: "destructive"
+      });
+    },
+    // Let server action handle cache invalidation naturally
+    onSettled: () => {
+      // Small delay to let optimistic update be visible before cache refresh
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['fighter-effects', fighterId] });
+      }, 100);
+    }
+  });
+
+  const addSkillMutation = useMutation({
+    mutationFn: async (variables: { fighter_id: string; skill_id: string; xp_cost: number; credits_increase: number; is_advance: boolean }) => {
+      const result = await addSkillAdvancement(variables);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add skill advancement');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      if (!selectedAdvancement) return {};
+
+      const skillName = selectedAdvancement?.stat_change_name || 'Unknown Skill';
+      
+      // Store previous states for rollback
+      const previousAdvancements = [...advancements];
+      const previousSkills = skills;
+      
+      // For skill advancements, ONLY add to skills list
+      // The advancement list will show it via advancementSkills derived from skills
+      if (onSkillUpdate) {
+        const optimisticSkillId = `temp-${Date.now()}`;
+        const updatedSkills = {
+          ...skills,
+          [skillName]: {
+            id: optimisticSkillId,
+            credits_increase: variables.credits_increase,
+            xp_cost: variables.xp_cost,
+            is_advance: true,
+            acquired_at: new Date().toISOString(),
+            fighter_injury_id: null,
+            injury_name: undefined
+          }
+        };
+        onSkillUpdate(updatedSkills);
+      }
+
+      // Update XP and credits immediately
+      if (onXpCreditsUpdate) {
+        onXpCreditsUpdate(-variables.xp_cost, variables.credits_increase);
+      }
+
+      return { previousAdvancements, previousSkills, skillName };
+    },
+    onSuccess: (result, variables, context) => {
+      // Don't do anything - let the cache refresh handle the real data
+      // The optimistic update will be replaced naturally when the cache refreshes
+      
+      toast({
+        title: "Success!",
+        description: `Successfully added ${selectedAdvancement?.stat_change_name}`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback skills update
+      if (context?.previousSkills && onSkillUpdate) {
+        onSkillUpdate(context.previousSkills);
+      }
+      
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to add advancement',
+        variant: "destructive"
+      });
+    }
+  });
 
   // Fetch stat change categories
   useEffect(() => {
@@ -451,51 +615,26 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, 
   const handleAdvancementPurchase = async () => {
     if (!selectedAdvancement) return;
 
-    try {
-      setIsSubmitting(true);
+    // Close modal immediately for instant UX
+    onClose();
 
-      let result;
+    const mutationParams = {
+      fighter_id: fighterId,
+      xp_cost: editableXpCost,
+      credits_increase: editableCreditsIncrease
+    };
 
-      if (advancementType === 'characteristic') {
-        result = await addCharacteristicAdvancement({
-          fighter_id: fighterId,
-          fighter_effect_type_id: selectedAdvancement.id,
-          xp_cost: editableXpCost,
-          credits_increase: editableCreditsIncrease
-        });
-      } else {
-        result = await addSkillAdvancement({
-          fighter_id: fighterId,
-          skill_id: selectedAdvancement.id,
-          xp_cost: editableXpCost,
-          credits_increase: editableCreditsIncrease
-        });
-      }
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add advancement');
-      }
-
-      toast({
-        title: "Success!",
-        description: `Successfully added ${selectedAdvancement.stat_change_name}`
+    if (advancementType === 'characteristic') {
+      addCharacteristicMutation.mutate({
+        ...mutationParams,
+        fighter_effect_type_id: selectedAdvancement.id
       });
-
-      // Use the remaining XP from the server action response
-      const remainingXp = result.remaining_xp || result.fighter?.xp || 0;
-      const creditsIncrease = result.advancement?.credits_increase || editableCreditsIncrease;
-      onAdvancementAdded?.(remainingXp, creditsIncrease);
-
-    } catch (error) {
-      console.error('Error purchasing advancement:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to purchase advancement",
-        variant: "destructive"
+    } else {
+      addSkillMutation.mutate({
+        ...mutationParams,
+        skill_id: selectedAdvancement.id,
+        is_advance: true
       });
-    } finally {
-      setIsSubmitting(false);
-      onClose();
     }
   };
 
@@ -855,9 +994,9 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, 
             <div className="border-t pt-2 flex justify-end gap-2">
             <button
                 onClick={onClose}
-                disabled={isSubmitting}
+                disabled={addCharacteristicMutation.isPending || addSkillMutation.isPending}
                 className={`px-4 py-2 border rounded hover:bg-gray-100 ${
-                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                  (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 Cancel
@@ -865,13 +1004,15 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, onClose, 
               <Button
                 onClick={handleAdvancementPurchase}
                 className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
-                (isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+                (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
                 disabled={
                   !selectedAdvancement ||
                   (advancementType === 'skill' && !skillAcquisitionType) ||
                   !selectedAdvancement.has_enough_xp ||
-                  editableXpCost < 0 // Changed from <= 0 to < 0 to allow 0 XP cost
+                  editableXpCost < 0 ||
+                  addCharacteristicMutation.isPending ||
+                  addSkillMutation.isPending
                 }
               >
                 Buy Advancement
@@ -890,17 +1031,116 @@ export function AdvancementsList({
   fighterChanges = { advancement: [], characteristics: [], skills: [] },
   fighterId,
   fighterClass,
-  onAdvancementDeleted,
   advancements = [],
   skills = {},
-  onDeleteAdvancement,
-  onAdvancementAdded,
-  userPermissions
+  userPermissions,
+  onAdvancementUpdate,
+  onSkillUpdate,
+  onXpCreditsUpdate,
+  onCharacteristicUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+
+  // TanStack Query delete mutation
+  const deleteAdvancementMutation = useMutation({
+    mutationFn: async (variables: { fighter_id: string; advancement_id: string; advancement_type: 'characteristic' | 'skill' }) => {
+      const result = await deleteAdvancement(variables);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete advancement');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Find the advancement being deleted from the combined list
+      const advancementToDelete = allAdvancements.find(adv => adv.id === variables.advancement_id);
+      if (!advancementToDelete) return {};
+
+      // Store previous states for rollback
+      const previousAdvancements = [...advancements];
+      const previousSkills = { ...skills };
+      
+      // Determine if this is a skill or characteristic advancement
+      const isSkill = variables.advancement_type === 'skill' || advancementToDelete.effect_name.startsWith('Skill: ');
+      
+      if (isSkill) {
+        // For skill advancements, remove from skills object
+        const skillName = advancementToDelete.effect_name.replace('Skill: ', '');
+        const updatedSkills = { ...skills };
+        delete updatedSkills[skillName];
+        
+        if (onSkillUpdate) {
+          onSkillUpdate(updatedSkills);
+        }
+      } else {
+        // For characteristic advancements, remove from advancements array
+        const updatedAdvancements = advancements.filter(adv => adv.id !== variables.advancement_id);
+        onAdvancementUpdate(updatedAdvancements);
+      }
+
+      // Get XP and credits to refund from the advancement data
+      const typeSpecificData = typeof advancementToDelete.type_specific_data === 'string'
+        ? JSON.parse(advancementToDelete.type_specific_data || '{}')
+        : (advancementToDelete.type_specific_data || {});
+      
+      const xpToRefund = typeSpecificData.xp_cost || 0;
+      const creditsToDeduct = typeSpecificData.credits_increase || 0;
+
+      // Don't update characteristic optimistically for deletes - server handles this
+      // The server action will decrease the characteristic value correctly
+      let characteristicName: string | undefined;
+      if (!isSkill) {
+        characteristicName = advancementToDelete.effect_name.replace('Characteristic: ', '').toLowerCase().replace(' ', '_');
+      }
+
+      // Update XP and credits immediately (refund XP, deduct credits)
+      if (onXpCreditsUpdate && (xpToRefund > 0 || creditsToDeduct > 0)) {
+        onXpCreditsUpdate(xpToRefund, -creditsToDeduct);
+      }
+
+      return { 
+        advancementToDelete, 
+        previousAdvancements, 
+        previousSkills, 
+        isSkill, 
+        xpToRefund, 
+        creditsToDeduct,
+        characteristicName
+      };
+    },
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `${context?.advancementToDelete?.effect_name || 'Advancement'} removed successfully`,
+        variant: "default"
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic updates
+      if (context?.isSkill && context?.previousSkills && onSkillUpdate) {
+        onSkillUpdate(context.previousSkills);
+      } else if (!context?.isSkill && context?.previousAdvancements) {
+        onAdvancementUpdate(context.previousAdvancements);
+      }
+
+      // Rollback XP and credits changes
+      if (context?.xpToRefund || context?.creditsToDeduct) {
+        if (onXpCreditsUpdate) {
+          onXpCreditsUpdate(-context.xpToRefund, context.creditsToDeduct);
+        }
+      }
+
+      // No characteristic rollback needed since server handles characteristic updates
+
+      toast({
+        description: 'Failed to delete advancement',
+        variant: "destructive"
+      });
+    }
+  });
 
   // Memoize the entire data transformation
   const { characteristics, skills: transformedSkills } = useMemo(() => {
@@ -973,53 +1213,49 @@ export function AdvancementsList({
     return [...advancements, ...advancementSkills];
   }, [advancements, advancementSkills]);
 
-  const handleDeleteAdvancement = async (advancementId: string, advancementName: string, advancementType?: string) => {
-    try {
-      setIsDeleting(advancementId);
-      
-      // Determine if this is a skill or characteristic based on the advancement type or name
-      const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
-      
-      const result = await deleteAdvancement({
-        fighter_id: fighterId,
-        advancement_id: advancementId,
-        advancement_type: isSkill ? 'skill' : 'characteristic'
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete advancement');
-      }
-
-      // Call the callback to update parent component state and wait for it to complete
-      await onDeleteAdvancement(advancementId);
-      
-      toast({
-        description: `${advancementName} removed successfully`,
-        variant: "default"
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting advancement:', error);
-      toast({
-        description: 'Failed to delete advancement',
-        variant: "destructive"
-      });
-      return false;
-    } finally {
-      setIsDeleting(null);
-      setDeleteModalData(null);
-    }
+  const handleDeleteAdvancement = (advancementId: string, advancementName: string, advancementType?: string) => {
+    // Determine if this is a skill or characteristic based on the advancement type or name
+    const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
+    
+    // Close modal immediately for instant UX
+    setDeleteModalData(null);
+    
+    // Fire mutation with optimistic updates
+    deleteAdvancementMutation.mutate({
+      fighter_id: fighterId,
+      advancement_id: advancementId,
+      advancement_type: isSkill ? 'skill' : 'characteristic'
+    });
   };
 
-  const handleAdvancementAdded = (remainingXp: number, creditsIncrease: number) => {
-    // Call the parent component's callback
-    onAdvancementAdded();
+
+  const handleAdvancementAdded = (advancement: FighterEffectType) => {
+    // This is called by the modal when an advancement is added
+    // The optimistic update is already handled in the mutation's onMutate
+    // So we don't need to do anything here
   };
+
+
 
   // Transform advancements for the List component
   const transformedAdvancements = useMemo(() => {
-    return allAdvancements
+    // Filter out optimistic entries if real server data exists for the same advancement
+    const filteredAdvancements = allAdvancements.filter((advancement) => {
+      // If this is not an optimistic entry, keep it
+      if (!advancement.id?.startsWith('optimistic-')) {
+        return true;
+      }
+      
+      // If this is an optimistic entry, only keep it if there's no real server entry with the same effect_name
+      const hasRealServerEntry = allAdvancements.some(other => 
+        !other.id?.startsWith('optimistic-') && 
+        other.effect_name === advancement.effect_name
+      );
+      
+      return !hasRealServerEntry;
+    });
+
+    return filteredAdvancements
       .sort((a, b) => {
         const dateA = a.created_at || ''; 
         const dateB = b.created_at || '';
@@ -1079,7 +1315,7 @@ export function AdvancementsList({
               name: item.name,
               type: item.advancement_type
             }) : null,
-            disabled: (item) => isDeleting === item.advancement_id || !item.advancement_id || !userPermissions.canEdit
+            disabled: (item) => deleteAdvancementMutation.isPending || !item.advancement_id || !userPermissions.canEdit
           }
         ]}
         onAdd={() => setIsAdvancementModalOpen(true)}
@@ -1094,8 +1330,14 @@ export function AdvancementsList({
           fighterId={fighterId}
           currentXp={fighterXp}
           fighterClass={fighterClass}
+          advancements={advancements}
+          skills={skills}
           onClose={() => setIsAdvancementModalOpen(false)}
           onAdvancementAdded={handleAdvancementAdded}
+          onSkillUpdate={onSkillUpdate}
+          onXpCreditsUpdate={onXpCreditsUpdate}
+          onAdvancementUpdate={onAdvancementUpdate}
+          onCharacteristicUpdate={onCharacteristicUpdate}
         />
       )}
 
