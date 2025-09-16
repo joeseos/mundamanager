@@ -368,7 +368,10 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gang_affiliation: gangBasic.gang_affiliation,
       gang_types: gangBasic.gang_types,
       user_id: gangBasic.user_id,
-      username: userProfile?.username
+      username: userProfile?.username,
+      patreon_tier_id: userProfile?.patreon_tier_id,
+      patreon_tier_title: userProfile?.patreon_tier_title,
+      patron_status: userProfile?.patron_status
     };
 
     // Process the data server-side

@@ -56,6 +56,9 @@ interface GangDataState {
     campaigns: any[];
     gang_variants: Array<{id: string, variant: string}>;
     username?: string;
+    patreon_tier_id?: string;
+    patreon_tier_title?: string;
+    patron_status?: string;
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;

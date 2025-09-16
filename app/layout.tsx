@@ -100,17 +100,23 @@ export default async function RootLayout({
     user = await getAuthenticatedUser(supabase);
   } catch {}
 
-  // Fetch profile details for header (username, admin flag)
+  // Fetch profile details for header (username, admin flag, patreon tier)
   let username: string | undefined = undefined;
   let isAdmin = false;
+  let patreonTierId: string | undefined = undefined;
+  let patreonTierTitle: string | undefined = undefined;
+  let patronStatus: string | undefined = undefined;
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('user_role, username')
+      .select('user_role, username, patreon_tier_id, patreon_tier_title, patron_status')
       .eq('id', user.id)
       .single();
     username = profile?.username;
     isAdmin = profile?.user_role === 'admin';
+    patreonTierId = profile?.patreon_tier_id;
+    patreonTierTitle = profile?.patreon_tier_title;
+    patronStatus = profile?.patron_status;
   }
 
   return (
@@ -158,7 +164,14 @@ export default async function RootLayout({
                 {/* Fetch minimal profile info for header */}
                 {/* We intentionally avoid an extra auth call here and use claims (done above) */}
                 {/* SettingsModal expects a Supabase user-like object */}
-                <SettingsModal user={{ id: user.id, email: user.email } as any} isAdmin={isAdmin} username={username} />
+                <SettingsModal 
+                  user={{ id: user.id, email: user.email } as any} 
+                  isAdmin={isAdmin} 
+                  username={username}
+                  patreonTierId={patreonTierId}
+                  patreonTierTitle={patreonTierTitle}
+                  patronStatus={patronStatus}
+                />
               </div>
             ) : null}
           </div>

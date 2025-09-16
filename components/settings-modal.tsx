@@ -21,6 +21,8 @@ import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { FiMap } from "react-icons/fi";
 import { MdOutlineColorLens } from "react-icons/md";
+import { TbDiamondFilled } from "react-icons/tb";
+import { getPatreonTierColor } from "@/utils/patreon";
 
 // Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
@@ -36,9 +38,12 @@ interface SettingsModalProps {
   user: SupabaseUser;
   isAdmin?: boolean;
   username?: string;
+  patreonTierId?: string;
+  patreonTierTitle?: string;
+  patronStatus?: string;
 }
 
-export default function SettingsModal({ user, isAdmin, username }: SettingsModalProps) {
+export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -109,8 +114,16 @@ export default function SettingsModal({ user, isAdmin, username }: SettingsModal
           collisionPadding={20}
         >
           <div className="px-2 py-1.5 text-sm text-gray-500">
-
-            <span className="text-xl font-medium text-gray-900">{username || user.email}</span>
+            <div className="flex items-center gap-1">
+              {patreonTierId && (
+                <TbDiamondFilled 
+                  size={16} 
+                  color={getPatreonTierColor(patreonTierId)}
+                  title={patreonTierTitle || `Patreon Tier ${patreonTierId}`}
+                />
+              )}
+              <span className="text-xl font-medium text-gray-900">{username || user.email}</span>
+            </div>
           </div>
 
           <DropdownMenuSeparator />
