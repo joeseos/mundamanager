@@ -280,6 +280,11 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
   }[]>([]);
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
+  // Default skills state
+  const [skills, setSkills] = useState<Array<{id: string, skill_name: string, skill_type_id: string}>>([]);
+  const [selectedSkillType, setSelectedSkillType] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+
   // Check if selected fighter class is Crew (simplified stats)
   const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
 
@@ -400,6 +405,46 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     }
   }, [isAddModalOpen, toast]);
 
+  // useEffect to fetch skills based on selected skill type
+  useEffect(() => {
+    const fetchSkills = async () => {
+      if (!selectedSkillType) {
+        setSkills([]);
+        return;
+      }
+
+      try {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+
+        const { data, error } = await supabase
+          .from('skills')
+          .select('id, name, skill_type_id')
+          .eq('skill_type_id', selectedSkillType)
+          .order('name');
+
+        if (error) throw error;
+
+        // Transform to match the expected format
+        const transformedSkills = data.map(skill => ({
+          id: skill.id,
+          skill_name: skill.name,
+          skill_type_id: skill.skill_type_id
+        }));
+
+        setSkills(transformedSkills);
+      } catch (error) {
+        console.error('Error fetching skills:', error);
+        toast({
+          description: 'Failed to load skills',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    fetchSkills();
+  }, [selectedSkillType, toast]);
+
 
   const resetForm = () => {
     setFighterType('');
@@ -423,6 +468,9 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     setFreeSkill(false);
     setSkillAccess([]);
     setSkillTypeToAdd('');
+    setSelectedSkills([]);
+    setSelectedSkillType('');
+    setSkills([]);
   };
 
   const handleEdit = async (fighter: CustomFighterType) => {
@@ -477,6 +525,18 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
       await fetchSkillTypes();
     }
 
+    // Load existing default skills if they exist - use data from server
+    if (fighter.default_skills && fighter.default_skills.length > 0) {
+      // Transform the existing skill data to match the expected format
+      const existingSkills = fighter.default_skills.map(skill => ({
+        id: skill.skill_id,
+        skill_name: skill.skill_name,
+        skill_type_id: '' // We don't have this from the server data, but it's not needed for display
+      }));
+
+      setSkills(existingSkills);
+    }
+
     // Pre-populate the form with existing data
     setFighterType(fighter.fighter_type);
     setCost(fighter.cost?.toString() || '');
@@ -496,6 +556,14 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     setSpecialRules(fighter.special_rules || []);
     setFreeSkill(fighter.free_skill || false);
     setSkillAccess(fighter.skill_access || []);
+
+    // Set selected skills from existing data
+    if (fighter.default_skills && fighter.default_skills.length > 0) {
+      setSelectedSkills(fighter.default_skills.map(skill => skill.skill_id));
+    } else {
+      setSelectedSkills([]);
+    }
+    setSelectedSkillType('');
 
     // Fighter class will be set by useEffect when fighterClasses are loaded
   };
@@ -568,6 +636,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
       special_rules: specialRules,
       free_skill: freeSkill,
       skill_access: skillAccess,
+      default_skills: selectedSkills,
     };
 
     // Check if we're editing or creating
@@ -882,6 +951,72 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
               </div>
             </div>
 
+            {/* Default Skills */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Default Skills
+              </label>
+              <div className="space-y-2">
+                <select
+                  value={selectedSkillType}
+                  onChange={(e) => setSelectedSkillType(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select a skill set</option>
+                  {skillTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.skill_type}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !selectedSkills.includes(value)) {
+                      setSelectedSkills([...selectedSkills, value]);
+                    }
+                    e.target.value = "";
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedSkillType}
+                >
+                  <option value="">Select a skill to add</option>
+                  {skills
+                    .filter(skill => !selectedSkills.includes(skill.id))
+                    .map((skill) => (
+                      <option key={skill.id} value={skill.id}>
+                        {skill.skill_name}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedSkills.map((skillId) => {
+                    const skill = skills.find(s => s.id === skillId);
+                    if (!skill) return null;
+
+                    return (
+                      <div
+                        key={skill.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{skill.skill_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             {/* Free Skill Checkbox */}
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -1146,6 +1281,72 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                 >
                   Add
                 </Button>
+              </div>
+            </div>
+
+            {/* Default Skills */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Default Skills
+              </label>
+              <div className="space-y-2">
+                <select
+                  value={selectedSkillType}
+                  onChange={(e) => setSelectedSkillType(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select a skill set</option>
+                  {skillTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.skill_type}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !selectedSkills.includes(value)) {
+                      setSelectedSkills([...selectedSkills, value]);
+                    }
+                    e.target.value = "";
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedSkillType}
+                >
+                  <option value="">Select a skill to add</option>
+                  {skills
+                    .filter(skill => !selectedSkills.includes(skill.id))
+                    .map((skill) => (
+                      <option key={skill.id} value={skill.id}>
+                        {skill.skill_name}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedSkills.map((skillId) => {
+                    const skill = skills.find(s => s.id === skillId);
+                    if (!skill) return null;
+
+                    return (
+                      <div
+                        key={skill.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{skill.skill_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

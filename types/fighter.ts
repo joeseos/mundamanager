@@ -294,6 +294,10 @@ export interface CustomFighterType {
     access_level: 'primary' | 'secondary' | 'allowed';
     skill_type_name?: string;
   }[];
+  default_skills?: {
+    skill_id: string;
+    skill_name: string;
+  }[];
   created_at: string;
   updated_at?: string;
 }

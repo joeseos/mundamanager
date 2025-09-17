@@ -257,9 +257,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     const fighterId = insertedFighter.id;
 
-    // Get default skills from fighter_defaults table (only for regular fighters)
+    // Get default skills from fighter_defaults table
     let fighterDefaultsData: any[] = [];
-    if (!isCustomFighter) {
+    if (isCustomFighter) {
+      // For custom fighters, use custom_fighter_type_id
+      const { data: defaultsData } = await supabase
+        .from('fighter_defaults')
+        .select(`
+          skill_id,
+          skills!skill_id(
+            id,
+            name
+          )
+        `)
+        .eq('custom_fighter_type_id', params.fighter_type_id)
+        .not('skill_id', 'is', null);
+      fighterDefaultsData = defaultsData || [];
+    } else {
+      // For regular fighters, use fighter_type_id
       const { data: defaultsData } = await supabase
         .from('fighter_defaults')
         .select(`

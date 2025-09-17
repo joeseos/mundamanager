@@ -34,9 +34,27 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     `)
     .in('custom_fighter_type_id', fighterIds);
 
+  // Fetch default skills for all custom fighter types
+  const { data: defaultSkillsData, error: defaultSkillsError } = await supabase
+    .from('fighter_defaults')
+    .select(`
+      custom_fighter_type_id,
+      skill_id,
+      skills (
+        id,
+        name
+      )
+    `)
+    .in('custom_fighter_type_id', fighterIds);
+
   if (skillAccessError) {
     console.error('Error fetching skill access:', skillAccessError);
     throw new Error(`Failed to fetch skill access: ${skillAccessError.message}`);
+  }
+
+  if (defaultSkillsError) {
+    console.error('Error fetching default skills:', defaultSkillsError);
+    throw new Error(`Failed to fetch default skills: ${defaultSkillsError.message}`);
   }
 
   // Group skill access by custom fighter type ID
@@ -52,11 +70,24 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     return acc;
   }, {} as Record<string, { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed'; skill_type_name: string }[]>);
 
-  // Combine fighter data with skill access
-  const fightersWithSkillAccess = customFighterTypes.map(fighter => ({
+  // Group default skills by custom fighter type ID
+  const defaultSkillsByFighter = (defaultSkillsData || []).reduce((acc, row) => {
+    if (!acc[row.custom_fighter_type_id]) {
+      acc[row.custom_fighter_type_id] = [];
+    }
+    acc[row.custom_fighter_type_id].push({
+      skill_id: row.skill_id,
+      skill_name: (row.skills as any)?.name || 'Unknown'
+    });
+    return acc;
+  }, {} as Record<string, { skill_id: string; skill_name: string }[]>);
+
+  // Combine fighter data with skill access and default skills
+  const fightersWithExtendedData = customFighterTypes.map(fighter => ({
     ...fighter,
-    skill_access: skillAccessByFighter[fighter.id] || []
+    skill_access: skillAccessByFighter[fighter.id] || [],
+    default_skills: defaultSkillsByFighter[fighter.id] || []
   }));
 
-  return fightersWithSkillAccess;
+  return fightersWithExtendedData;
 }
