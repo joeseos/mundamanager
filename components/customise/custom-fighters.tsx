@@ -31,88 +31,217 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<CustomFighterType | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for creating custom fighters
   const createFighterMutation = useMutation({
     mutationFn: createCustomFighter,
-    onSuccess: (result) => {
+    onMutate: async (newFighterData) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['customFighters'] });
+
+      // Snapshot the previous value
+      const previousFighters = fighters;
+
+      // Optimistically update the UI
+      const optimisticFighter: CustomFighterType = {
+        id: `temp-${Date.now()}`, // Temporary ID
+        user_id: 'current-user',
+        fighter_type: newFighterData.fighter_type,
+        gang_type: newFighterData.gang_type,
+        gang_type_id: newFighterData.gang_type_id,
+        cost: newFighterData.cost,
+        movement: newFighterData.movement,
+        weapon_skill: newFighterData.weapon_skill,
+        ballistic_skill: newFighterData.ballistic_skill,
+        strength: newFighterData.strength,
+        toughness: newFighterData.toughness,
+        wounds: newFighterData.wounds,
+        initiative: newFighterData.initiative,
+        attacks: newFighterData.attacks,
+        leadership: newFighterData.leadership,
+        cool: newFighterData.cool,
+        willpower: newFighterData.willpower,
+        intelligence: newFighterData.intelligence,
+        special_rules: newFighterData.special_rules,
+        free_skill: newFighterData.free_skill,
+        fighter_class: newFighterData.fighter_class,
+        fighter_class_id: newFighterData.fighter_class_id,
+        skill_access: newFighterData.skill_access,
+        created_at: new Date().toISOString(),
+      };
+
+      setFighters(prev => [...prev, optimisticFighter]);
+
+      // Return a context object with the snapshotted value
+      return { previousFighters };
+    },
+    onSuccess: (result, _, context) => {
       if (result.success && result.data) {
-        setFighters(prev => [...prev, result.data!]);
+        // Replace the optimistic fighter with the real one
+        setFighters(prev => prev.map(f =>
+          f.id.startsWith('temp-') ? result.data! : f
+        ));
         setIsAddModalOpen(false);
         resetForm();
         toast({
           description: 'Custom fighter type created successfully',
           variant: 'default',
         });
-        queryClient.invalidateQueries({ queryKey: ['customFighters'] });
       } else {
+        // Rollback on server error
+        if (context?.previousFighters) {
+          setFighters(context.previousFighters);
+        }
         toast({
           description: result.error || 'Failed to create custom fighter type',
           variant: 'destructive',
         });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _, context) => {
+      // Rollback to the previous state
+      if (context?.previousFighters) {
+        setFighters(context.previousFighters);
+      }
       toast({
         description: error.message || 'Failed to create custom fighter type',
         variant: 'destructive',
       });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['customFighters'] });
     }
   });
 
   // TanStack Query mutation for deleting custom fighters
   const deleteFighterMutation = useMutation({
     mutationFn: deleteCustomFighter,
-    onSuccess: (result, deletedId) => {
+    onMutate: async (deletedId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['customFighters'] });
+
+      // Snapshot the previous value
+      const previousFighters = fighters;
+
+      // Optimistically remove the fighter from UI
+      setFighters(prev => prev.filter(f => f.id !== deletedId));
+
+      // Return a context object with the snapshotted value
+      return { previousFighters };
+    },
+    onSuccess: (result, _, context) => {
       if (result.success) {
-        setFighters(prev => prev.filter(f => f.id !== deletedId));
         toast({
           description: 'Custom fighter type deleted successfully',
           variant: 'default',
         });
-        queryClient.invalidateQueries({ queryKey: ['customFighters'] });
       } else {
+        // Rollback on server error
+        if (context?.previousFighters) {
+          setFighters(context.previousFighters);
+        }
         toast({
           description: result.error || 'Failed to delete custom fighter type',
           variant: 'destructive',
         });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _, context) => {
+      // Rollback to the previous state
+      if (context?.previousFighters) {
+        setFighters(context.previousFighters);
+      }
       toast({
         description: error.message || 'Failed to delete custom fighter type',
         variant: 'destructive',
       });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['customFighters'] });
     }
   });
 
   // TanStack Query mutation for updating custom fighters
   const updateFighterMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateCustomFighter(id, data),
-    onSuccess: (result) => {
+    onMutate: async ({ id, data }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['customFighters'] });
+
+      // Snapshot the previous value
+      const previousFighters = fighters;
+
+      // Optimistically update the fighter in UI
+      const updatedFighter: CustomFighterType = {
+        ...fighters.find(f => f.id === id)!,
+        fighter_type: data.fighter_type,
+        gang_type: data.gang_type,
+        gang_type_id: data.gang_type_id,
+        cost: data.cost,
+        movement: data.movement,
+        weapon_skill: data.weapon_skill,
+        ballistic_skill: data.ballistic_skill,
+        strength: data.strength,
+        toughness: data.toughness,
+        wounds: data.wounds,
+        initiative: data.initiative,
+        attacks: data.attacks,
+        leadership: data.leadership,
+        cool: data.cool,
+        willpower: data.willpower,
+        intelligence: data.intelligence,
+        special_rules: data.special_rules,
+        free_skill: data.free_skill,
+        fighter_class: data.fighter_class,
+        fighter_class_id: data.fighter_class_id,
+        skill_access: data.skill_access,
+        updated_at: new Date().toISOString(),
+      };
+
+      setFighters(prev => prev.map(f => f.id === id ? updatedFighter : f));
+
+      // Return a context object with the snapshotted value
+      return { previousFighters };
+    },
+    onSuccess: (result, { id }, context) => {
       if (result.success && result.data) {
-        setFighters(prev => prev.map(f => f.id === editModalData?.id ? { ...f, ...result.data! } : f));
+        // Replace with the real data from server
+        setFighters(prev => prev.map(f => f.id === id ? result.data! : f));
         setEditModalData(null);
         resetForm();
         toast({
           description: 'Custom fighter type updated successfully',
           variant: 'default',
         });
-        queryClient.invalidateQueries({ queryKey: ['customFighters'] });
       } else {
+        // Rollback on server error
+        if (context?.previousFighters) {
+          setFighters(context.previousFighters);
+        }
         toast({
           description: result.error || 'Failed to update custom fighter type',
           variant: 'destructive',
         });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _, context) => {
+      // Rollback to the previous state
+      if (context?.previousFighters) {
+        setFighters(context.previousFighters);
+      }
       toast({
         description: error.message || 'Failed to update custom fighter type',
         variant: 'destructive',
       });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['customFighters'] });
     }
   });
 
@@ -360,11 +489,19 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
   };
 
   const handleDelete = (fighter: CustomFighterType) => {
-    if (!confirm(`Are you sure you want to delete "${fighter.fighter_type}"?`)) {
-      return;
-    }
+    setDeleteModalData(fighter);
+  };
 
-    deleteFighterMutation.mutate(fighter.id);
+  const handleDeleteModalClose = () => {
+    setDeleteModalData(null);
+  };
+
+  const handleDeleteModalConfirm = async () => {
+    if (!deleteModalData) return false;
+
+    deleteFighterMutation.mutate(deleteModalData.id);
+    setDeleteModalData(null);
+    return true; // Return true to close modal
   };
 
   const handleSubmit = () => {
@@ -476,7 +613,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
         onAdd={() => setIsAddModalOpen(true)}
         addButtonText="Add"
         addButtonDisabled={createFighterMutation.isPending || deleteFighterMutation.isPending || updateFighterMutation.isPending}
-        emptyMessage="No custom fighter types yet. Create your first custom fighter type!"
+        emptyMessage="No custom fighters created yet."
         isLoading={deleteFighterMutation.isPending}
       />
 
@@ -995,6 +1132,23 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {deleteModalData && (
+        <Modal
+          title="Delete Fighter"
+          content={
+            <div className="space-y-4">
+              <p>Are you sure you want to delete <strong>{deleteModalData.fighter_type}</strong>?</p>
+              <p className="text-sm text-red-600">
+                <strong>Warning:</strong> This custom fighter will be permanently deleted and cannot be recovered.
+              </p>
+            </div>
+          }
+          onClose={handleDeleteModalClose}
+          onConfirm={handleDeleteModalConfirm}
+          confirmText="Delete"
+        />
       )}
     </>
   );
