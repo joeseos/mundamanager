@@ -1,36 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-
-export interface CustomFighterType {
-  id: string;
-  user_id: string;
-  fighter_type: string;
-  gang_type: string;
-  cost: number;
-  movement?: number;
-  weapon_skill?: number;
-  ballistic_skill?: number;
-  strength?: number;
-  toughness?: number;
-  wounds?: number;
-  initiative?: number;
-  attacks?: number;
-  leadership?: number;
-  cool?: number;
-  willpower?: number;
-  intelligence?: number;
-  gang_type_id?: string;
-  special_rules?: string[];
-  free_skill?: boolean;
-  fighter_class?: string;
-  fighter_class_id?: string;
-  skill_access?: {
-    skill_type_id: string;
-    access_level: 'primary' | 'secondary' | 'allowed';
-    skill_type_name?: string;
-  }[];
-  created_at: string;
-  updated_at?: string;
-}
+import { CustomFighterType } from "@/types/fighter";
 
 export async function getUserCustomFighterTypes(userId: string): Promise<CustomFighterType[]> {
   const supabase = await createClient();

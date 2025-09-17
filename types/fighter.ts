@@ -141,6 +141,8 @@ export interface FighterProps {
   fighter_name: string;
   fighter_type: string;
   fighter_type_id?: string;
+  custom_fighter_type_id?: string | null;
+  is_custom_fighter?: boolean;
   alliance_crew_name?: string;
   label?: string;
   credits: number;
@@ -262,4 +264,37 @@ export const FIGHTER_CLASSES = [
 ] as const;
 
 export type FighterClass = typeof FIGHTER_CLASSES[number];
+
+// Custom Fighter Type interface
+export interface CustomFighterType {
+  id: string;
+  user_id: string;
+  fighter_type: string;
+  gang_type: string;
+  cost: number;
+  movement?: number;
+  weapon_skill?: number;
+  ballistic_skill?: number;
+  strength?: number;
+  toughness?: number;
+  wounds?: number;
+  initiative?: number;
+  attacks?: number;
+  leadership?: number;
+  cool?: number;
+  willpower?: number;
+  intelligence?: number;
+  gang_type_id?: string;
+  special_rules?: string[];
+  free_skill?: boolean;
+  fighter_class?: string;
+  fighter_class_id?: string;
+  skill_access?: {
+    skill_type_id: string;
+    access_level: 'primary' | 'secondary' | 'allowed';
+    skill_type_name?: string;
+  }[];
+  created_at: string;
+  updated_at?: string;
+}
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
-import { CustomFighterType } from '@/app/lib/customise/custom-fighters';
+import { CustomFighterType } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';

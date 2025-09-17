@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
-import { CustomFighterType } from '@/app/lib/customise/custom-fighters';
+import { CustomFighterType } from '@/types/fighter';
 
 export interface CreateCustomFighterData {
   fighter_type: string;
