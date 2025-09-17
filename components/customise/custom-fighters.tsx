@@ -641,7 +641,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                   type="text"
                   value={fighterType}
                   onChange={(e) => setFighterType(e.target.value)}
-                  placeholder="e.g. Custom Warrior"
+                  placeholder="e.g. Subtek or Bully"
                   className="w-full"
                 />
               </div>
