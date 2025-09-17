@@ -7,6 +7,7 @@ import Modal from '@/components/ui/modal';
 import { FighterType } from '@/types/fighter-type';
 import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { fighterTypeRank } from "@/utils/fighterTypeRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -293,7 +294,8 @@ export default function AddFighter({
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
         fighter_sub_type_id: type.sub_type?.id,
-        available_legacies: type.available_legacies || []
+        available_legacies: type.available_legacies || [],
+        is_custom_fighter: type.is_custom_fighter || false
       }));
       
       setFighterTypes(transformedData);
@@ -1150,10 +1152,10 @@ export default function AddFighter({
           {(() => {
             // Create a map to group fighters by type+class and find default/cheapest for each
             const typeClassMap = new Map();
-            
+
             fighterTypes.forEach(fighter => {
               const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
-              
+
               if (!typeClassMap.has(key)) {
                 typeClassMap.set(key, {
                   fighter: fighter,
@@ -1161,7 +1163,7 @@ export default function AddFighter({
                 });
               } else {
                 const current = typeClassMap.get(key);
-                
+
                 // If this fighter has no sub-type, prefer it as default
                 if (!fighter.sub_type && current.fighter.sub_type) {
                   typeClassMap.set(key, {
@@ -1178,22 +1180,58 @@ export default function AddFighter({
                 }
               }
             });
-            
-            // Convert the map values to an array and sort
-            return Array.from(typeClassMap.values())
+
+            // Group fighters by type (regular vs custom)
+            const groupedByType = Array.from(typeClassMap.values()).reduce((groups, { fighter, cost }) => {
+              const isCustom = (fighter as any).is_custom_fighter;
+              const groupKey = isCustom ? "custom" : "regular";
+
+              if (!groups[groupKey]) {
+                groups[groupKey] = [];
+              }
+              groups[groupKey].push({ fighter, cost });
+              return groups;
+            }, {} as Record<string, Array<{ fighter: any; cost: number }>>);
+
+            // Define group display names
+            const groupDisplayNames: Record<string, string> = {
+              "regular": "Fighter Types",
+              "custom": "Custom Fighter Types",
+            };
+
+            // Check if we have both regular and custom fighters
+            const hasMultipleGroups = Object.keys(groupedByType).length > 1;
+
+            // Sort groups by rank, then sort fighters within each group
+            const sortedGroups = Object.keys(groupedByType)
               .sort((a, b) => {
-                const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
-                const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                const rankA = fighterTypeRank[a] ?? 999;
+                const rankB = fighterTypeRank[b] ?? 999;
+                return rankA - rankB;
+              });
 
-                if (classRankA !== classRankB) {
-                  return classRankA - classRankB;
-                }
+            // If no groups, return empty array
+            if (sortedGroups.length === 0) {
+              return [];
+            }
 
-                return a.cost - b.cost;
-              })
-              .map(({ fighter, cost }) => {
-                const customLabel = (fighter as any).is_custom_fighter ? ' (Custom)' : '';
-                const displayName = `${fighter.fighter_type} (${fighter.fighter_class})${customLabel} - ${cost} credits`;
+            if (!hasMultipleGroups) {
+              // If only one group, don't use optgroups - just show options directly
+              const groupKey = sortedGroups[0];
+              const fighters = (groupedByType[groupKey] || [])
+                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
+                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                  if (classRankA !== classRankB) {
+                    return classRankA - classRankB;
+                  }
+
+                  return a.cost - b.cost;
+                });
+
+              return fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
+                const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
 
                 return (
                   <option key={fighter.id} value={fighter.id}>
@@ -1201,6 +1239,36 @@ export default function AddFighter({
                   </option>
                 );
               });
+            }
+
+            // If multiple groups, use optgroups
+            return sortedGroups.map((groupKey) => {
+              const fighters = (groupedByType[groupKey] || [])
+                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
+                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                  if (classRankA !== classRankB) {
+                    return classRankA - classRankB;
+                  }
+
+                  return a.cost - b.cost;
+                });
+
+              return (
+                <optgroup key={groupKey} label={groupDisplayNames[groupKey]}>
+                  {fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
+                    const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+
+                    return (
+                      <option key={fighter.id} value={fighter.id}>
+                        {displayName}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              );
+            });
           })()}
         </select>
       </div>
