@@ -254,7 +254,8 @@ export default function AddFighter({
       // Use the API route instead of server action
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
       const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}`);
+      const includeAllParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

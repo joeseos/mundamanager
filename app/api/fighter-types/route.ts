@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const gangTypeId = searchParams.get('gang_type_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
   const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
+  const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
 
 
   if (!gangId && !isGangAddition) {
@@ -125,7 +126,15 @@ export async function GET(request: Request) {
 
         // Transform custom fighters to match the FighterType interface
         const transformedCustomFighters = customFighters
-          .filter(cf => cf.gang_type_id === gangTypeId) // Only include custom fighters for the current gang type
+          .filter(cf => {
+            // Include custom fighters for the current gang type
+            if (cf.gang_type_id === gangTypeId) return true;
+
+            // If includeAllGangType is true, also include "All" gang type fighters
+            if (includeAllGangType && cf.gang_type === 'All') return true;
+
+            return false;
+          })
           .map(cf => ({
             id: cf.id,
             fighter_type: cf.fighter_type,

@@ -11,7 +11,8 @@ import { X, Edit } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';
 import Modal from '@/components/ui/modal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/custom-fighters';
+import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
+import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 
 interface CustomiseFightersProps {
   initialFighters: CustomFighterType[];
@@ -326,7 +327,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     if (isAddModalOpen) {
       const fetchGangTypes = async () => {
         try {
-          const response = await fetch('/api/admin/gang-types');
+          const response = await fetch('/api/gang-types?includeAll=true');
           if (!response.ok) throw new Error('Failed to fetch gang types');
           const data = await response.json();
           setGangTypes(data);
@@ -347,10 +348,10 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     if (isAddModalOpen) {
       const fetchFighterClasses = async () => {
         try {
-          const response = await fetch('/api/admin/fighter-classes');
+          const response = await fetch('/api/fighter-classes');
           if (!response.ok) throw new Error('Failed to fetch fighter classes');
           const data = await response.json();
-          setFighterClasses(data);
+          setFighterClasses(filterAllowedFighterClasses(data));
         } catch (error) {
           console.error('Error fetching fighter classes:', error);
           toast({
@@ -418,7 +419,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     if (gangTypes.length === 0) {
       const fetchGangTypes = async () => {
         try {
-          const response = await fetch('/api/admin/gang-types');
+          const response = await fetch('/api/gang-types?includeAll=true');
           if (!response.ok) throw new Error('Failed to fetch gang types');
           const data = await response.json();
           setGangTypes(data);
@@ -432,10 +433,10 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     if (fighterClasses.length === 0) {
       const fetchFighterClasses = async () => {
         try {
-          const response = await fetch('/api/admin/fighter-classes');
+          const response = await fetch('/api/fighter-classes');
           if (!response.ok) throw new Error('Failed to fetch fighter classes');
           const data = await response.json();
-          setFighterClasses(data);
+          setFighterClasses(filterAllowedFighterClasses(data));
         } catch (error) {
           console.error('Error fetching fighter classes:', error);
         }
