@@ -30,8 +30,7 @@ import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
-import { TbDiamondFilled } from "react-icons/tb";
-import { getPatreonTierColor } from "@/utils/patreon";
+import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
 
 
 interface GangProps {
@@ -710,16 +709,15 @@ export default function Gang({
               </div>
               {username && (
                 <div className="flex items-center gap-1 text-sm mt-1">
-                  Owner: <Badge variant="outline" className="flex items-center gap-1">
-                    {patreon_tier_id && (
-                      <TbDiamondFilled 
-                        size={14} 
-                        color={getPatreonTierColor(patreon_tier_id)}
-                        title={patreon_tier_title || `Patreon Tier ${patreon_tier_id}`}
-                      />
-                    )}
-                    {username}
-                  </Badge>
+                  Owner: {patreon_tier_id ? (
+                    <PatreonSupporterBadge
+                      username={username || ''}
+                      patreonTierId={patreon_tier_id}
+                      patreonTierTitle={patreon_tier_title}
+                    />
+                  ) : (
+                    <Badge variant="outline">{username}</Badge>
+                  )}
                 </div>
               )}
             </div>

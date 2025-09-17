@@ -1,13 +1,47 @@
 import type { JSX } from "react";
+import { TbDiamondFilled } from "react-icons/tb";
+import { getPatreonTierConfig } from "@/utils/patreon";
+import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
 
 type FAQItem = {
   q: string;
   a: string | JSX.Element;
 };
 
-export default function AboutMundaManager() {
+type PatreonSupporter = {
+  username: string;
+  patreon_tier_id: string;
+  patreon_tier_title?: string;
+};
+
+type AboutMundaManagerProps = {
+  patreonSupporters?: PatreonSupporter[];
+};
+
+export default function AboutMundaManager({ patreonSupporters = [] }: AboutMundaManagerProps) {
   const patreonUrl = "https://www.patreon.com/c/mundamanager/membership";
   const buyMeACoffeeUrl = "https://buymeacoffee.com/mundamanager";
+
+  // Get tier configuration from utility function
+  const tierConfig = getPatreonTierConfig();
+
+  // Helper function to render supporter badges
+  const renderSupporterBadges = (tierId: string) => {
+    const supporters = patreonSupporters.filter(supporter => supporter.patreon_tier_id === tierId);
+    
+    if (supporters.length === 0) {
+      return <p className="text-gray-500 text-sm italic">No supporters yet</p>;
+    }
+
+    return supporters.map((supporter, index) => (
+      <PatreonSupporterBadge
+        key={index}
+        username={supporter.username}
+        patreonTierId={supporter.patreon_tier_id}
+        patreonTierTitle={supporter.patreon_tier_title}
+      />
+    ));
+  };
 
   const faqItems: FAQItem[] = [
     {
@@ -59,6 +93,28 @@ export default function AboutMundaManager() {
           </a>.
         </p>
       </section>
+
+      {patreonSupporters.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold mb-2">Patreon Supporters</h2>
+          <p className="text-gray-700 mb-4">
+            Thank you to our amazing Patreon supporters who help keep Munda Manager running!
+          </p>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             {tierConfig.map((tier) => (
+               <div key={tier.id} className="space-y-2">
+                 <h3 className="font-semibold text-lg flex items-center gap-2">
+                   <TbDiamondFilled size={20} color={tier.color} />
+                   {tier.name}
+                 </h3>
+                 <div className="flex flex-wrap gap-1">
+                   {renderSupporterBadges(tier.id)}
+                 </div>
+               </div>
+             ))}
+           </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-xl font-semibold mb-2">Contact</h2>
