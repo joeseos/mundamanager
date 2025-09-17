@@ -276,11 +276,24 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
   const [skillAccess, setSkillAccess] = useState<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
+    skill_type_name?: string;
   }[]>([]);
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
   // Check if selected fighter class is Crew (simplified stats)
   const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
+
+  // Set fighter class when editing and fighter classes are loaded
+  useEffect(() => {
+    if (editModalData && fighterClasses.length > 0 && !selectedFighterClass) {
+      const fighterClass = fighterClasses.find(fc =>
+        fc.id === editModalData.fighter_class_id || fc.class_name === editModalData.fighter_class
+      );
+      if (fighterClass) {
+        setSelectedFighterClass(fighterClass);
+      }
+    }
+  }, [editModalData, fighterClasses, selectedFighterClass]);
 
   const columns: ListColumn[] = [
     {
@@ -484,9 +497,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
     setFreeSkill(fighter.free_skill || false);
     setSkillAccess(fighter.skill_access || []);
 
-    // Find and set the fighter class
-    const fighterClass = fighterClasses.find(fc => fc.id === fighter.fighter_class_id || fc.class_name === fighter.fighter_class);
-    setSelectedFighterClass(fighterClass || '');
+    // Fighter class will be set by useEffect when fighterClasses are loaded
   };
 
   const handleDelete = (fighter: CustomFighterType) => {
@@ -784,9 +795,10 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                   <tbody>
                     {skillAccess.map((row, idx) => {
                       const skillType = skillTypes.find(st => st.id === row.skill_type_id);
+                      const skillTypeName = row.skill_type_name || skillType?.skill_type || 'Unknown';
                       return (
                         <tr key={row.skill_type_id} className="border-b last:border-0">
-                          <td className="px-4 py-2">{skillType?.skill_type || 'Unknown'}</td>
+                          <td className="px-4 py-2">{skillTypeName}</td>
                           <td className="px-4 py-2">
                             <select
                               value={row.access_level}
@@ -1042,9 +1054,10 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                   <tbody>
                     {skillAccess.map((row, idx) => {
                       const skillType = skillTypes.find(st => st.id === row.skill_type_id);
+                      const skillTypeName = row.skill_type_name || skillType?.skill_type || 'Unknown';
                       return (
                         <tr key={row.skill_type_id} className="border-b last:border-0">
-                          <td className="px-4 py-2">{skillType?.skill_type || 'Unknown'}</td>
+                          <td className="px-4 py-2">{skillTypeName}</td>
                           <td className="px-4 py-2">
                             <select
                               value={row.access_level}

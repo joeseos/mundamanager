@@ -26,6 +26,7 @@ export interface CustomFighterType {
   skill_access?: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
+    skill_type_name?: string;
   }[];
   created_at: string;
   updated_at?: string;
@@ -49,11 +50,19 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     return [];
   }
 
-  // Fetch skill access for all custom fighter types
+  // Fetch skill access for all custom fighter types with skill type names
   const fighterIds = customFighterTypes.map(f => f.id);
   const { data: skillAccessData, error: skillAccessError } = await supabase
     .from('fighter_type_skill_access')
-    .select('custom_fighter_type_id, skill_type_id, access_level')
+    .select(`
+      custom_fighter_type_id,
+      skill_type_id,
+      access_level,
+      skill_types (
+        id,
+        name
+      )
+    `)
     .in('custom_fighter_type_id', fighterIds);
 
   if (skillAccessError) {
@@ -68,10 +77,11 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     }
     acc[row.custom_fighter_type_id].push({
       skill_type_id: row.skill_type_id,
-      access_level: row.access_level
+      access_level: row.access_level,
+      skill_type_name: (row.skill_types as any)?.name || 'Unknown'
     });
     return acc;
-  }, {} as Record<string, { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed' }[]>);
+  }, {} as Record<string, { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed'; skill_type_name: string }[]>);
 
   // Combine fighter data with skill access
   const fightersWithSkillAccess = customFighterTypes.map(fighter => ({

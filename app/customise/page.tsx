@@ -31,7 +31,7 @@ export default async function CustomizePage() {
           <div className="space-y-6">
             <section>
               <p className="text-gray-700">
-                Here you can create your own Equipment and Territories for your campaigns.
+                Here you can create your own Equipment, Fighters and Territories for your campaigns.
               </p>
             </section>
 
