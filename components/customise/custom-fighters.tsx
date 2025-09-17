@@ -15,6 +15,7 @@ import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 
 interface CustomiseFightersProps {
+  className?: string;
   initialFighters: CustomFighterType[];
 }
 
@@ -28,7 +29,7 @@ interface FighterClass {
   class_name: string;
 }
 
-export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
@@ -685,7 +686,7 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
   );
 
   return (
-    <>
+    <div className={className}>
       <List
         title="Fighters"
         items={fighters}
@@ -1381,6 +1382,6 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
           confirmText="Delete"
         />
       )}
-    </>
+    </div>
   );
 }
