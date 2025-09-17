@@ -130,8 +130,8 @@ export async function GET(request: Request) {
             // Include custom fighters for the current gang type
             if (cf.gang_type_id === gangTypeId) return true;
 
-            // If includeAllGangType is true, also include "All" gang type fighters
-            if (includeAllGangType && cf.gang_type === 'All') return true;
+            // If includeAllGangType is true, also include "Available To All" gang type fighters
+            if (includeAllGangType && cf.gang_type === 'Available To All') return true;
 
             return false;
           })

@@ -692,11 +692,19 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select gang type</option>
-                  {gangTypes.map((type) => (
-                    <option key={type.gang_type_id} value={type.gang_type_id}>
-                      {type.gang_type}
-                    </option>
-                  ))}
+                  {gangTypes
+                    .sort((a, b) => {
+                      // Put "Available To All" first
+                      if (a.gang_type === 'Available To All') return -1;
+                      if (b.gang_type === 'Available To All') return 1;
+                      // Sort the rest alphabetically
+                      return a.gang_type.localeCompare(b.gang_type);
+                    })
+                    .map((type) => (
+                      <option key={type.gang_type_id} value={type.gang_type_id}>
+                        {type.gang_type}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -952,11 +960,19 @@ export function CustomiseFighters({ initialFighters }: CustomiseFightersProps) {
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select gang type</option>
-                  {gangTypes.map((type) => (
-                    <option key={type.gang_type_id} value={type.gang_type_id}>
-                      {type.gang_type}
-                    </option>
-                  ))}
+                  {gangTypes
+                    .sort((a, b) => {
+                      // Put "Available To All" first
+                      if (a.gang_type === 'Available To All') return -1;
+                      if (b.gang_type === 'Available To All') return 1;
+                      // Sort the rest alphabetically
+                      return a.gang_type.localeCompare(b.gang_type);
+                    })
+                    .map((type) => (
+                      <option key={type.gang_type_id} value={type.gang_type_id}>
+                        {type.gang_type}
+                      </option>
+                    ))}
                 </select>
               </div>
 
