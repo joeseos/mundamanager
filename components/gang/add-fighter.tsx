@@ -223,6 +223,7 @@ export default function AddFighter({
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
+  const [includeCustomFighters, setIncludeCustomFighters] = useState<boolean>(false);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
   
@@ -240,11 +241,19 @@ export default function AddFighter({
     }
   }, [showModal]);
 
+  // Refetch fighter types when includeCustomFighters changes
+  useEffect(() => {
+    if (showModal) {
+      fetchFighterTypes();
+    }
+  }, [includeCustomFighters]);
+
   const fetchFighterTypes = async () => {
     try {
       // Use the API route instead of server action
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}`);
+      const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1108,6 +1117,7 @@ export default function AddFighter({
     setSelectedEquipment([]);  // Reset equipment with costs
     setSelectedLegacyId(''); // Reset legacy selection
     setUseBaseCostForRating(true);
+    setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setFetchError(null);
     setFighterTypes([]); // Reset fighter types
   };
@@ -1182,8 +1192,9 @@ export default function AddFighter({
                 return a.cost - b.cost;
               })
               .map(({ fighter, cost }) => {
-                const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
-                
+                const customLabel = (fighter as any).is_custom_fighter ? ' (Custom)' : '';
+                const displayName = `${fighter.fighter_type} (${fighter.fighter_class})${customLabel} - ${cost} credits`;
+
                 return (
                   <option key={fighter.id} value={fighter.id}>
                     {displayName}
@@ -1302,6 +1313,26 @@ export default function AddFighter({
           <ImInfo />
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
             When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2 mb-4">
+        <Checkbox
+          id="include-custom-fighters"
+          checked={includeCustomFighters}
+          onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
+        />
+        <label
+          htmlFor="include-custom-fighters"
+          className="text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          Include Custom Fighter Types
+        </label>
+        <div className="relative group">
+          <ImInfo />
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
           </div>
         </div>
       </div>

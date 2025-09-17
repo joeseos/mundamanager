@@ -35,6 +35,7 @@ interface ItemModalProps {
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
   isStashMode?: boolean;
+  isCustomFighter?: boolean;
   onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
 }
 
@@ -315,6 +316,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   isVehicleEquipment,
   allowedCategories,
   isStashMode,
+  isCustomFighter = false,
   onEquipmentBought
 }) => {
   const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
@@ -330,7 +332,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [session, setSession] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
-    isStashMode ? "fighters-tradingpost" : "fighters-list"
+    isStashMode || isCustomFighter ? "fighters-tradingpost" : "fighters-list"
   );
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -436,24 +438,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
       ? localVehicleTypeId || vehicleTypeId 
       : fighterTypeId;
 
-    // For gang-level access (when fighterId is empty), we don't need fighter type validation
+    // For gang-level access (when fighterId is empty) or custom fighters, we don't need fighter type validation
     const isGangLevelAccess = !fighterId || fighterId === '';
+    const skipFighterTypeValidation = isGangLevelAccess || isCustomFighter;
 
-    if (!gangTypeId || (!typeIdToUse && !isGangLevelAccess)) {
+    if (!gangTypeId || (!typeIdToUse && !skipFighterTypeValidation)) {
       const errorMessage = isVehicleEquipment && !typeIdToUse
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId && !isGangLevelAccess
+        : !fighterTypeId && !skipFighterTypeValidation
         ? 'Fighter type information is missing'
         : 'Required information is missing';
-
-      console.log('Missing type info debug:', {
-        isVehicleEquipment,
-        vehicleTypeId,
-        localVehicleTypeId,
-        fighterTypeId,
-        gangTypeId,
-        isGangLevelAccess
-      });
 
       setError(errorMessage);
       return;
@@ -872,7 +866,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   />
                 </label>
               )}
-              {!isStashMode && (
+              {!isStashMode && !isCustomFighter && (
                 <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
                   <input
                     type="radio"
