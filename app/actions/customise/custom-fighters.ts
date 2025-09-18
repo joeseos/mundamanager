@@ -31,6 +31,7 @@ export interface CreateCustomFighterData {
     access_level: 'primary' | 'secondary' | 'allowed';
   }[];
   default_skills?: string[];
+  default_equipment?: string[];
 }
 
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
@@ -106,6 +107,24 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
       if (defaultSkillsError) {
         console.error('Error inserting default skills:', defaultSkillsError);
         return { success: false, error: `Failed to create default skills: ${defaultSkillsError.message}` };
+      }
+    }
+
+    // Handle default equipment if provided
+    if (data.default_equipment && Array.isArray(data.default_equipment) && data.default_equipment.length > 0) {
+      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => ({
+        custom_fighter_type_id: newCustomFighter.id,
+        fighter_type_id: null,
+        equipment_id: equipmentId
+      }));
+
+      const { error: defaultEquipmentError } = await supabase
+        .from('fighter_defaults')
+        .insert(defaultEquipmentRows);
+
+      if (defaultEquipmentError) {
+        console.error('Error inserting default equipment:', defaultEquipmentError);
+        return { success: false, error: `Failed to create default equipment: ${defaultEquipmentError.message}` };
       }
     }
 
@@ -248,15 +267,15 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       }
     }
 
-    // Delete existing default skills (will be replaced with new ones)
-    const { error: deleteDefaultSkillsError } = await supabase
+    // Delete existing default skills and equipment (will be replaced with new ones)
+    const { error: deleteDefaultsError } = await supabase
       .from('fighter_defaults')
       .delete()
       .eq('custom_fighter_type_id', id);
 
-    if (deleteDefaultSkillsError) {
-      console.error('Error deleting existing default skills:', deleteDefaultSkillsError);
-      return { success: false, error: `Failed to update default skills: ${deleteDefaultSkillsError.message}` };
+    if (deleteDefaultsError) {
+      console.error('Error deleting existing defaults:', deleteDefaultsError);
+      return { success: false, error: `Failed to update defaults: ${deleteDefaultsError.message}` };
     }
 
     // Handle default skills if provided
@@ -274,6 +293,24 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       if (defaultSkillsError) {
         console.error('Error inserting default skills:', defaultSkillsError);
         return { success: false, error: `Failed to update default skills: ${defaultSkillsError.message}` };
+      }
+    }
+
+    // Handle default equipment if provided
+    if (data.default_equipment && Array.isArray(data.default_equipment) && data.default_equipment.length > 0) {
+      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => ({
+        custom_fighter_type_id: id,
+        fighter_type_id: null,
+        equipment_id: equipmentId
+      }));
+
+      const { error: defaultEquipmentError } = await supabase
+        .from('fighter_defaults')
+        .insert(defaultEquipmentRows);
+
+      if (defaultEquipmentError) {
+        console.error('Error inserting default equipment:', defaultEquipmentError);
+        return { success: false, error: `Failed to update default equipment: ${defaultEquipmentError.message}` };
       }
     }
 

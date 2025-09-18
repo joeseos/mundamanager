@@ -281,16 +281,29 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
   }[]>([]);
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
+  // Equipment state
+  const [equipment, setEquipment] = useState<Array<{id: string, equipment_name: string, equipment_category: string}>>([]);
+
+  // Loading states to prevent duplicate API calls
+  const [isLoadingDropdownData, setIsLoadingDropdownData] = useState(false);
+
   // Default skills state
   const [skills, setSkills] = useState<Array<{id: string, skill_name: string, skill_type_id: string}>>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
-  // Check if selected fighter class is Crew (simplified stats)
-  const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
+  // Default equipment state
+  const [selectedEquipmentCategory, setSelectedEquipmentCategory] = useState('');
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
 
-  // Clear disabled stats when switching to/from Crew class
+  // Check if selected fighter class is Crew (simplified stats)
+  const isCrew = Boolean(selectedFighterClass && selectedFighterClass.class_name === 'Crew');
+
+  // Clear disabled stats when switching to/from Crew class (but not when loading edit data)
   useEffect(() => {
+    // Don't clear stats if we're currently loading edit data
+    if (editModalData) return;
+
     if (isCrew) {
       // Clear the fields for Crew class (they'll be disabled and show empty)
       setMovement('');
@@ -310,7 +323,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       setInitiative('');
       setAttacks('');
     }
-  }, [isCrew]);
+  }, [isCrew, editModalData]);
 
   // Set fighter class when editing and fighter classes are loaded
   useEffect(() => {
@@ -366,7 +379,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
   ];
 
   useEffect(() => {
-    if (isAddModalOpen) {
+    if ((isAddModalOpen || editModalData) && gangTypes.length === 0) {
       const fetchGangTypes = async () => {
         try {
           const response = await fetch('/api/gang-types?includeAll=true');
@@ -384,50 +397,71 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
       fetchGangTypes();
     }
-  }, [isAddModalOpen, toast]);
+  }, [isAddModalOpen, editModalData, toast, gangTypes.length]);
 
   useEffect(() => {
-    if (isAddModalOpen) {
-      const fetchFighterClasses = async () => {
+    if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterClasses.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
+      const fetchData = async () => {
+        setIsLoadingDropdownData(true);
         try {
-          const response = await fetch('/api/fighter-classes');
-          if (!response.ok) throw new Error('Failed to fetch fighter classes');
-          const data = await response.json();
-          setFighterClasses(filterAllowedFighterClasses(data));
+          const promises = [];
+
+          // Fetch fighter classes if not loaded
+          if (fighterClasses.length === 0) {
+            promises.push(
+              fetch('/api/fighter-classes').then(async (response) => {
+                if (response.ok) {
+                  const classData = await response.json();
+                  setFighterClasses(filterAllowedFighterClasses(classData));
+                }
+              })
+            );
+          }
+
+          // Fetch skill types if not loaded
+          if (skillTypes.length === 0) {
+            promises.push(
+              fetch('/api/skill-types').then(async (response) => {
+                if (response.ok) {
+                  const skillData = await response.json();
+                  const transformedData = skillData.map((type: any) => ({
+                    id: type.id,
+                    skill_type: type.name || type.skill_type,
+                    name: type.name
+                  }));
+                  setSkillTypes(transformedData);
+                }
+              })
+            );
+          }
+
+          // Fetch equipment if not loaded
+          if (equipment.length === 0) {
+            promises.push(
+              fetch('/api/equipment').then(async (response) => {
+                if (response.ok) {
+                  const equipData = await response.json();
+                  setEquipment(equipData);
+                }
+              })
+            );
+          }
+
+          await Promise.all(promises);
         } catch (error) {
-          console.error('Error fetching fighter classes:', error);
+          console.error('Error fetching dropdown data:', error);
           toast({
-            description: 'Failed to load fighter classes',
+            description: 'Failed to load some dropdown options',
             variant: 'destructive'
           });
+        } finally {
+          setIsLoadingDropdownData(false);
         }
       };
 
-      const fetchSkillTypes = async () => {
-        try {
-          const response = await fetch('/api/skill-types');
-          if (!response.ok) throw new Error('Failed to fetch skill types');
-          const data = await response.json();
-          // Transform the data to match the expected format
-          const transformedData = data.map((type: any) => ({
-            id: type.id,
-            skill_type: type.name || type.skill_type,
-            name: type.name
-          }));
-          setSkillTypes(transformedData);
-        } catch (error) {
-          console.error('Error fetching skill types:', error);
-          toast({
-            description: 'Failed to load skill types',
-            variant: 'destructive'
-          });
-        }
-      };
-
-      fetchFighterClasses();
-      fetchSkillTypes();
+      fetchData();
     }
-  }, [isAddModalOpen, toast]);
+  }, [isAddModalOpen, editModalData, fighterClasses.length, skillTypes.length, equipment.length, isLoadingDropdownData, toast]);
 
   // useEffect to fetch skills based on selected skill type
   useEffect(() => {
@@ -495,59 +529,12 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     setSelectedSkills([]);
     setSelectedSkillType('');
     setSkills([]);
+    setSelectedEquipment([]);
+    setSelectedEquipmentCategory('');
   };
 
   const handleEdit = async (fighter: CustomFighterType) => {
     setEditModalData(fighter);
-
-    // Fetch data if not already loaded
-    if (gangTypes.length === 0) {
-      const fetchGangTypes = async () => {
-        try {
-          const response = await fetch('/api/gang-types?includeAll=true');
-          if (!response.ok) throw new Error('Failed to fetch gang types');
-          const data = await response.json();
-          setGangTypes(data);
-        } catch (error) {
-          console.error('Error fetching gang types:', error);
-        }
-      };
-      await fetchGangTypes();
-    }
-
-    if (fighterClasses.length === 0) {
-      const fetchFighterClasses = async () => {
-        try {
-          const response = await fetch('/api/fighter-classes');
-          if (!response.ok) throw new Error('Failed to fetch fighter classes');
-          const data = await response.json();
-          setFighterClasses(filterAllowedFighterClasses(data));
-        } catch (error) {
-          console.error('Error fetching fighter classes:', error);
-        }
-      };
-      await fetchFighterClasses();
-    }
-
-    if (skillTypes.length === 0) {
-      const fetchSkillTypes = async () => {
-        try {
-          const response = await fetch('/api/skill-types');
-          if (!response.ok) throw new Error('Failed to fetch skill types');
-          const data = await response.json();
-          // Transform the data to match the expected format
-          const transformedData = data.map((type: any) => ({
-            id: type.id,
-            skill_type: type.name || type.skill_type,
-            name: type.name
-          }));
-          setSkillTypes(transformedData);
-        } catch (error) {
-          console.error('Error fetching skill types:', error);
-        }
-      };
-      await fetchSkillTypes();
-    }
 
     // Load existing default skills if they exist - use data from server
     if (fighter.default_skills && fighter.default_skills.length > 0) {
@@ -561,21 +548,37 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       setSkills(existingSkills);
     }
 
+    // Load existing default equipment if they exist - use data from server
+    if (fighter.default_equipment && fighter.default_equipment.length > 0) {
+      // Transform the existing equipment data to match the expected format
+      const existingEquipment = fighter.default_equipment.map(equip => ({
+        id: equip.equipment_id,
+        equipment_name: equip.equipment_name,
+        equipment_category: '' // We don't have this from the server data, but it's not needed for display
+      }));
+
+      // Merge with any already loaded equipment to avoid duplicates
+      setEquipment(prevEquipment => {
+        const existingIds = existingEquipment.map(e => e.id);
+        const filteredPrevious = prevEquipment.filter(e => !existingIds.includes(e.id));
+        return [...filteredPrevious, ...existingEquipment];
+      });
+    }
+
     // Pre-populate the form with existing data
     setFighterType(fighter.fighter_type);
     setCost(fighter.cost?.toString() || '');
     setSelectedGangType(fighter.gang_type_id || '');
 
-    // For Crew fighters, show empty disabled fields, otherwise use existing values
-    const isEditingCrew = fighter.fighter_class === 'Crew';
-    setMovement(isEditingCrew ? '' : (fighter.movement?.toString() || ''));
-    setWeaponSkill(isEditingCrew ? '' : (fighter.weapon_skill?.toString() || ''));
+    // Load all values from database (Crew fighters will have 0s, which is fine to display)
+    setMovement(fighter.movement?.toString() || '');
+    setWeaponSkill(fighter.weapon_skill?.toString() || '');
     setBallisticSkill(fighter.ballistic_skill?.toString() || '');
-    setStrength(isEditingCrew ? '' : (fighter.strength?.toString() || ''));
-    setToughness(isEditingCrew ? '' : (fighter.toughness?.toString() || ''));
-    setWounds(isEditingCrew ? '' : (fighter.wounds?.toString() || ''));
-    setInitiative(isEditingCrew ? '' : (fighter.initiative?.toString() || ''));
-    setAttacks(isEditingCrew ? '' : (fighter.attacks?.toString() || ''));
+    setStrength(fighter.strength?.toString() || '');
+    setToughness(fighter.toughness?.toString() || '');
+    setWounds(fighter.wounds?.toString() || '');
+    setInitiative(fighter.initiative?.toString() || '');
+    setAttacks(fighter.attacks?.toString() || '');
 
     setLeadership(fighter.leadership?.toString() || '');
     setCool(fighter.cool?.toString() || '');
@@ -592,6 +595,14 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       setSelectedSkills([]);
     }
     setSelectedSkillType('');
+
+    // Set selected equipment from existing data
+    if (fighter.default_equipment && fighter.default_equipment.length > 0) {
+      setSelectedEquipment(fighter.default_equipment.map(equip => equip.equipment_id));
+    } else {
+      setSelectedEquipment([]);
+    }
+    setSelectedEquipmentCategory('');
 
     // Fighter class will be set by useEffect when fighterClasses are loaded
   };
@@ -674,6 +685,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       free_skill: freeSkill,
       skill_access: skillAccess,
       default_skills: selectedSkills,
+      default_equipment: selectedEquipment,
     };
 
     // Check if we're editing or creating
@@ -1055,6 +1067,74 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               </div>
             </div>
 
+            {/* Default Equipment */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Default Equipment
+              </label>
+              <div className="space-y-2">
+                <select
+                  value={selectedEquipmentCategory}
+                  onChange={(e) => setSelectedEquipmentCategory(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select an equipment category</option>
+                  {Array.from(new Set(equipment.map(eq => eq.equipment_category)))
+                    .sort()
+                    .map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                </select>
+
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !selectedEquipment.includes(value)) {
+                      setSelectedEquipment([...selectedEquipment, value]);
+                    }
+                    e.target.value = "";
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedEquipmentCategory}
+                >
+                  <option value="">Select equipment to add</option>
+                  {equipment
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
+                    .map((eq) => (
+                      <option key={eq.id} value={eq.id}>
+                        {eq.equipment_name}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedEquipment.map((equipmentId) => {
+                    const eq = equipment.find(e => e.id === equipmentId);
+                    if (!eq) return null;
+
+                    return (
+                      <div
+                        key={eq.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{eq.equipment_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== eq.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             {/* Free Skill Checkbox */}
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -1377,6 +1457,74 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                         <button
                           type="button"
                           onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
+                          className="hover:text-red-500 focus:outline-none"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Default Equipment */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Default Equipment
+              </label>
+              <div className="space-y-2">
+                <select
+                  value={selectedEquipmentCategory}
+                  onChange={(e) => setSelectedEquipmentCategory(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select an equipment category</option>
+                  {Array.from(new Set(equipment.map(eq => eq.equipment_category)))
+                    .sort()
+                    .map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                </select>
+
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !selectedEquipment.includes(value)) {
+                      setSelectedEquipment([...selectedEquipment, value]);
+                    }
+                    e.target.value = "";
+                  }}
+                  className="w-full p-2 border rounded-md"
+                  disabled={!selectedEquipmentCategory}
+                >
+                  <option value="">Select equipment to add</option>
+                  {equipment
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
+                    .map((eq) => (
+                      <option key={eq.id} value={eq.id}>
+                        {eq.equipment_name}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedEquipment.map((equipmentId) => {
+                    const eq = equipment.find(e => e.id === equipmentId);
+                    if (!eq) return null;
+
+                    return (
+                      <div
+                        key={eq.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                      >
+                        <span>{eq.equipment_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== eq.id))}
                           className="hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />

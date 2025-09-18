@@ -257,36 +257,68 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     const fighterId = insertedFighter.id;
 
-    // Get default skills from fighter_defaults table
+    // Get default skills and equipment from fighter_defaults table
     let fighterDefaultsData: any[] = [];
+    let fighterDefaultEquipmentData: any[] = [];
+
     if (isCustomFighter) {
       // For custom fighters, use custom_fighter_type_id
-      const { data: defaultsData } = await supabase
-        .from('fighter_defaults')
-        .select(`
-          skill_id,
-          skills!skill_id(
-            id,
-            name
-          )
-        `)
-        .eq('custom_fighter_type_id', params.fighter_type_id)
-        .not('skill_id', 'is', null);
-      fighterDefaultsData = defaultsData || [];
+      const [skillsResult, equipmentResult] = await Promise.all([
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            skill_id,
+            skills!skill_id(
+              id,
+              name
+            )
+          `)
+          .eq('custom_fighter_type_id', params.fighter_type_id)
+          .not('skill_id', 'is', null),
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            equipment_id,
+            equipment!equipment_id(
+              id,
+              equipment_name,
+              cost
+            )
+          `)
+          .eq('custom_fighter_type_id', params.fighter_type_id)
+          .not('equipment_id', 'is', null)
+      ]);
+      fighterDefaultsData = skillsResult.data || [];
+      fighterDefaultEquipmentData = equipmentResult.data || [];
     } else {
       // For regular fighters, use fighter_type_id
-      const { data: defaultsData } = await supabase
-        .from('fighter_defaults')
-        .select(`
-          skill_id,
-          skills!skill_id(
-            id,
-            name
-          )
-        `)
-        .eq('fighter_type_id', params.fighter_type_id)
-        .not('skill_id', 'is', null);
-      fighterDefaultsData = defaultsData || [];
+      const [skillsResult, equipmentResult] = await Promise.all([
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            skill_id,
+            skills!skill_id(
+              id,
+              name
+            )
+          `)
+          .eq('fighter_type_id', params.fighter_type_id)
+          .not('skill_id', 'is', null),
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            equipment_id,
+            equipment!equipment_id(
+              id,
+              equipment_name,
+              cost
+            )
+          `)
+          .eq('fighter_type_id', params.fighter_type_id)
+          .not('equipment_id', 'is', null)
+      ]);
+      fighterDefaultsData = skillsResult.data || [];
+      fighterDefaultEquipmentData = equipmentResult.data || [];
     }
 
     // Prepare equipment insertions
@@ -298,6 +330,20 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       gang_id: string;
       user_id: string;
     }> = [];
+
+    // Add default equipment from fighter_defaults table
+    if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
+      fighterDefaultEquipmentData.forEach((defaultEquipment) => {
+        equipmentInserts.push({
+          fighter_id: fighterId,
+          equipment_id: defaultEquipment.equipment_id,
+          original_cost: (defaultEquipment.equipment as any)?.cost || 0,
+          purchase_cost: 0, // Default equipment is free
+          gang_id: params.gang_id,
+          user_id: gangData.user_id
+        });
+      });
+    }
 
     // Add default equipment (from params.default_equipment)
     if (params.default_equipment && params.default_equipment.length > 0) {
