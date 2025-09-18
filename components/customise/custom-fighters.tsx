@@ -548,22 +548,9 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       setSkills(existingSkills);
     }
 
-    // Load existing default equipment if they exist - use data from server
-    if (fighter.default_equipment && fighter.default_equipment.length > 0) {
-      // Transform the existing equipment data to match the expected format
-      const existingEquipment = fighter.default_equipment.map(equip => ({
-        id: equip.equipment_id,
-        equipment_name: equip.equipment_name,
-        equipment_category: '' // We don't have this from the server data, but it's not needed for display
-      }));
-
-      // Merge with any already loaded equipment to avoid duplicates
-      setEquipment(prevEquipment => {
-        const existingIds = existingEquipment.map(e => e.id);
-        const filteredPrevious = prevEquipment.filter(e => !existingIds.includes(e.id));
-        return [...filteredPrevious, ...existingEquipment];
-      });
-    }
+    // Note: We don't add existing equipment to the equipment state here
+    // because it would interfere with the API call that fetches full equipment list with categories
+    // The selected equipment IDs will be set below, and the equipment list will be loaded via API
 
     // Pre-populate the form with existing data
     setFighterType(fighter.fighter_type);

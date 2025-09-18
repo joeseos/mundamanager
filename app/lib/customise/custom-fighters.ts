@@ -48,19 +48,37 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     .in('custom_fighter_type_id', fighterIds)
     .not('skill_id', 'is', null);
 
-  // Fetch default equipment for all custom fighter types
-  const { data: defaultEquipmentData, error: defaultEquipmentError } = await supabase
-    .from('fighter_defaults')
-    .select(`
-      custom_fighter_type_id,
-      equipment_id,
-      equipment (
-        id,
-        equipment_name
-      )
-    `)
-    .in('custom_fighter_type_id', fighterIds)
-    .not('equipment_id', 'is', null);
+  // Fetch default equipment for all custom fighter types (both regular and custom equipment)
+  const [defaultEquipmentResult, defaultCustomEquipmentResult] = await Promise.all([
+    // Fetch regular equipment
+    supabase
+      .from('fighter_defaults')
+      .select(`
+        custom_fighter_type_id,
+        equipment_id,
+        equipment (
+          id,
+          equipment_name
+        )
+      `)
+      .in('custom_fighter_type_id', fighterIds)
+      .not('equipment_id', 'is', null),
+    // Fetch custom equipment
+    supabase
+      .from('fighter_defaults')
+      .select(`
+        custom_fighter_type_id,
+        custom_equipment_id,
+        custom_equipment (
+          id,
+          equipment_name
+        )
+      `)
+      .in('custom_fighter_type_id', fighterIds)
+      .not('custom_equipment_id', 'is', null)
+  ]);
+
+  const defaultEquipmentError = defaultEquipmentResult.error || defaultCustomEquipmentResult.error;
 
   if (skillAccessError) {
     console.error('Error fetching skill access:', skillAccessError);
@@ -102,17 +120,30 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     return acc;
   }, {} as Record<string, { skill_id: string; skill_name: string }[]>);
 
-  // Group default equipment by custom fighter type ID
-  const defaultEquipmentByFighter = (defaultEquipmentData || []).reduce((acc, row) => {
-    if (!acc[row.custom_fighter_type_id]) {
-      acc[row.custom_fighter_type_id] = [];
+  // Group default equipment by custom fighter type ID (combine regular and custom equipment)
+  const defaultEquipmentByFighter: Record<string, { equipment_id: string; equipment_name: string }[]> = {};
+
+  // Process regular equipment
+  (defaultEquipmentResult.data || []).forEach((row) => {
+    if (!defaultEquipmentByFighter[row.custom_fighter_type_id]) {
+      defaultEquipmentByFighter[row.custom_fighter_type_id] = [];
     }
-    acc[row.custom_fighter_type_id].push({
+    defaultEquipmentByFighter[row.custom_fighter_type_id].push({
       equipment_id: row.equipment_id,
       equipment_name: (row.equipment as any)?.equipment_name || 'Unknown'
     });
-    return acc;
-  }, {} as Record<string, { equipment_id: string; equipment_name: string }[]>);
+  });
+
+  // Process custom equipment (prefix ID to match API format)
+  (defaultCustomEquipmentResult.data || []).forEach((row) => {
+    if (!defaultEquipmentByFighter[row.custom_fighter_type_id]) {
+      defaultEquipmentByFighter[row.custom_fighter_type_id] = [];
+    }
+    defaultEquipmentByFighter[row.custom_fighter_type_id].push({
+      equipment_id: `custom_${row.custom_equipment_id}`,
+      equipment_name: `${(row.custom_equipment as any)?.equipment_name || 'Unknown'} (Custom)`
+    });
+  });
 
   // Combine fighter data with skill access, default skills, and default equipment
   const fightersWithExtendedData = customFighterTypes.map(fighter => ({

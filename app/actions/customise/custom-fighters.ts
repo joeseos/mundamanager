@@ -112,11 +112,17 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
 
     // Handle default equipment if provided
     if (data.default_equipment && Array.isArray(data.default_equipment) && data.default_equipment.length > 0) {
-      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => ({
-        custom_fighter_type_id: newCustomFighter.id,
-        fighter_type_id: null,
-        equipment_id: equipmentId
-      }));
+      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => {
+        // Check if this is a custom equipment ID (prefixed with 'custom_')
+        const isCustomEquipment = equipmentId.startsWith('custom_');
+
+        return {
+          custom_fighter_type_id: newCustomFighter.id,
+          fighter_type_id: null,
+          equipment_id: isCustomEquipment ? null : equipmentId,
+          custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
+        };
+      });
 
       const { error: defaultEquipmentError } = await supabase
         .from('fighter_defaults')
@@ -298,11 +304,17 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
 
     // Handle default equipment if provided
     if (data.default_equipment && Array.isArray(data.default_equipment) && data.default_equipment.length > 0) {
-      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => ({
-        custom_fighter_type_id: id,
-        fighter_type_id: null,
-        equipment_id: equipmentId
-      }));
+      const defaultEquipmentRows = data.default_equipment.map((equipmentId) => {
+        // Check if this is a custom equipment ID (prefixed with 'custom_')
+        const isCustomEquipment = equipmentId.startsWith('custom_');
+
+        return {
+          custom_fighter_type_id: id,
+          fighter_type_id: null,
+          equipment_id: isCustomEquipment ? null : equipmentId,
+          custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
+        };
+      });
 
       const { error: defaultEquipmentError } = await supabase
         .from('fighter_defaults')

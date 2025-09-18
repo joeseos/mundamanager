@@ -263,7 +263,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     if (isCustomFighter) {
       // For custom fighters, use custom_fighter_type_id
-      const [skillsResult, equipmentResult] = await Promise.all([
+      const [skillsResult, equipmentResult, customEquipmentResult] = await Promise.all([
         supabase
           .from('fighter_defaults')
           .select(`
@@ -286,13 +286,36 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             )
           `)
           .eq('custom_fighter_type_id', params.fighter_type_id)
-          .not('equipment_id', 'is', null)
+          .not('equipment_id', 'is', null),
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            custom_equipment_id,
+            custom_equipment!custom_equipment_id(
+              id,
+              equipment_name,
+              cost
+            )
+          `)
+          .eq('custom_fighter_type_id', params.fighter_type_id)
+          .not('custom_equipment_id', 'is', null)
       ]);
       fighterDefaultsData = skillsResult.data || [];
-      fighterDefaultEquipmentData = equipmentResult.data || [];
+
+      // Combine regular and custom equipment
+      const regularEquipment = equipmentResult.data || [];
+      const customEquipment = (customEquipmentResult.data || []).map(item => ({
+        equipment_id: `custom_${item.custom_equipment_id}`,
+        equipment: {
+          id: `custom_${item.custom_equipment_id}`,
+          equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
+          cost: (item.custom_equipment as any)?.cost || 0
+        }
+      }));
+      fighterDefaultEquipmentData = [...regularEquipment, ...customEquipment];
     } else {
       // For regular fighters, use fighter_type_id
-      const [skillsResult, equipmentResult] = await Promise.all([
+      const [skillsResult, equipmentResult, customEquipmentResult] = await Promise.all([
         supabase
           .from('fighter_defaults')
           .select(`
@@ -315,16 +338,40 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             )
           `)
           .eq('fighter_type_id', params.fighter_type_id)
-          .not('equipment_id', 'is', null)
+          .not('equipment_id', 'is', null),
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            custom_equipment_id,
+            custom_equipment!custom_equipment_id(
+              id,
+              equipment_name,
+              cost
+            )
+          `)
+          .eq('fighter_type_id', params.fighter_type_id)
+          .not('custom_equipment_id', 'is', null)
       ]);
       fighterDefaultsData = skillsResult.data || [];
-      fighterDefaultEquipmentData = equipmentResult.data || [];
+
+      // Combine regular and custom equipment
+      const regularEquipment = equipmentResult.data || [];
+      const customEquipment = (customEquipmentResult.data || []).map(item => ({
+        equipment_id: `custom_${item.custom_equipment_id}`,
+        equipment: {
+          id: `custom_${item.custom_equipment_id}`,
+          equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
+          cost: (item.custom_equipment as any)?.cost || 0
+        }
+      }));
+      fighterDefaultEquipmentData = [...regularEquipment, ...customEquipment];
     }
 
     // Prepare equipment insertions
     const equipmentInserts: Array<{
       fighter_id: string;
-      equipment_id: string;
+      equipment_id: string | null;
+      custom_equipment_id?: string | null;
       original_cost: number;
       purchase_cost: number;
       gang_id: string;
@@ -334,9 +381,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Add default equipment from fighter_defaults table
     if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
       fighterDefaultEquipmentData.forEach((defaultEquipment) => {
+        const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
+
         equipmentInserts.push({
           fighter_id: fighterId,
-          equipment_id: defaultEquipment.equipment_id,
+          equipment_id: isCustomEquipment ? null : defaultEquipment.equipment_id,
+          custom_equipment_id: isCustomEquipment ? defaultEquipment.equipment_id.replace('custom_', '') : null,
           original_cost: (defaultEquipment.equipment as any)?.cost || 0,
           purchase_cost: 0, // Default equipment is free
           gang_id: params.gang_id,
@@ -349,9 +399,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (params.default_equipment && params.default_equipment.length > 0) {
       params.default_equipment.forEach((defaultItem) => {
         for (let i = 0; i < (defaultItem.quantity || 1); i++) {
+          const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
+
           equipmentInserts.push({
             fighter_id: fighterId,
-            equipment_id: defaultItem.equipment_id,
+            equipment_id: isCustomEquipment ? null : defaultItem.equipment_id,
+            custom_equipment_id: isCustomEquipment ? defaultItem.equipment_id.replace('custom_', '') : null,
             original_cost: defaultItem.cost || 0,
             purchase_cost: 0, // Default equipment is free
             gang_id: params.gang_id,
@@ -365,9 +418,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     if (params.selected_equipment && params.selected_equipment.length > 0) {
       params.selected_equipment.forEach((selectedItem) => {
         for (let i = 0; i < (selectedItem.quantity || 1); i++) {
+          const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
+
           equipmentInserts.push({
             fighter_id: fighterId,
-            equipment_id: selectedItem.equipment_id,
+            equipment_id: isCustomEquipment ? null : selectedItem.equipment_id,
+            custom_equipment_id: isCustomEquipment ? selectedItem.equipment_id.replace('custom_', '') : null,
             original_cost: selectedItem.cost,
             purchase_cost: 0, // Equipment selections are already paid for in the fighter cost
             gang_id: params.gang_id,
