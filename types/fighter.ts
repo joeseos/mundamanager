@@ -298,6 +298,10 @@ export interface CustomFighterType {
     skill_id: string;
     skill_name: string;
   }[];
+  default_equipment?: {
+    equipment_id: string;
+    equipment_name: string;
+  }[];
   created_at: string;
   updated_at?: string;
 }
