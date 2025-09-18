@@ -240,7 +240,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
           content={
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Territory Name *
                 </label>
                 <input
@@ -283,7 +283,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
           content={
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Territory Name *
                 </label>
                 <input

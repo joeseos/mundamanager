@@ -137,7 +137,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 type="text"
                 placeholder="your_username"
                 required
-                className="text-black mt-1"
+                className="text-foreground mt-1"
                 minLength={3}
                 maxLength={20}
                 autoComplete="username"
@@ -155,7 +155,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 type="email"
                 placeholder="you@example.com" 
                 required 
-                className="text-black mt-1" 
+                className="text-foreground mt-1" 
                 autoComplete="email"
               />
               {emailError && (
@@ -171,7 +171,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 type="email"
                 placeholder="you@example.com" 
                 required 
-                className="text-black mt-1" 
+                className="text-foreground mt-1" 
                 autoComplete="email"
               />
               {emailConfirmError && (
@@ -188,7 +188,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 placeholder="••••••••"
                 minLength={6}
                 required
-                className="text-black mt-1"
+                className="text-foreground mt-1"
                 onChange={(e) => checkPasswordRequirements(e.target.value)}
                 autoComplete="new-password"
               />
@@ -216,7 +216,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
             <button 
               type="submit" 
-              className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-neutral-900 text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Signing up...' : 'Sign up'}

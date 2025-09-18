@@ -684,15 +684,15 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900">Advancements</h3>
+          <h3 className="text-xl md:text-2xl font-bold text-foreground">Advancements</h3>
           <div className="flex items-center">
-            <span className="mr-2 text-sm text-gray-600">Current XP</span>
+            <span className="mr-2 text-sm text-muted-foreground">Current XP</span>
             <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
             <button
               onClick={onClose}
-              className="ml-3 text-gray-500 hover:text-gray-700 text-xl"
+              className="ml-3 text-muted-foreground hover:text-muted-foreground text-xl"
             >
               ×
             </button>
@@ -701,10 +701,10 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
         <div className="p-2 overflow-y-auto flex-grow">
           <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-muted-foreground mb-2">
               XP cost and rating increase are automatically calculated based on the type and number of advancements.
             </p>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               Gangers and Exotic Beasts have access to a restricted selection.
             </p>
           </div>
@@ -950,7 +950,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   XP Cost
                 </label>
                 <input
@@ -965,7 +965,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost Increase in Credits
                 </label>
                 <input
@@ -995,7 +995,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             <button
                 onClick={onClose}
                 disabled={addCharacteristicMutation.isPending || addSkillMutation.isPending}
-                className={`px-4 py-2 border rounded hover:bg-gray-100 ${
+                className={`px-4 py-2 border rounded hover:bg-muted ${
                   (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >

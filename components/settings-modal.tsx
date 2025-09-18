@@ -23,6 +23,7 @@ import { FiMap } from "react-icons/fi";
 import { MdOutlineColorLens } from "react-icons/md";
 import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierColor } from "@/utils/patreon";
+import { ThemeToggleDropdown } from "@/components/theme-toggle";
 
 // Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
@@ -93,8 +94,8 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           <Button
             variant="ghost"
             size="icon"
-            className="hover:bg-primary hover:text-white data-[state=open]:bg-primary data-[state=open]:text-white rounded-full focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:ring-offset-0"
-            aria-label="Open menu"
+            className="hover:bg-neutral-800 hover:text-white data-[state=open]:bg-neutral-800 data-[state=open]:text-white rounded-full focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:ring-offset-0"
+            aria-label="Open Settings Menu"
           >
             <Menu className="h-5 w-5" />
           </Button>
@@ -113,7 +114,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           sideOffset={8}
           collisionPadding={20}
         >
-          <div className="px-2 py-1.5 text-sm text-gray-500">
+          <div className="px-2 py-1.5 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               {patreonTierId && (
                 <TbDiamondFilled 
@@ -122,7 +123,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
                   title={patreonTierTitle || `Patreon Tier ${patreonTierId}`}
                 />
               )}
-              <span className="text-xl font-medium text-gray-900">{username || user.email}</span>
+              <span className="text-xl font-medium text-foreground">{username || user.email}</span>
             </div>
           </div>
 
@@ -162,6 +163,17 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
               Customise
             </Link>
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <div className="px-2 py-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Theme</span>
+              <ThemeToggleDropdown />
+            </div>
+          </div>
+
+          <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/about" className="w-full cursor-pointer">

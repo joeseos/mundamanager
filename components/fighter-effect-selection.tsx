@@ -270,7 +270,7 @@ const FighterEffectSelection = React.forwardRef<
   return (
     <div className="p-4 max-h-96 overflow-y-auto">
       {!hasSelectableEffects && (
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           This equipment has automatic effects that will be applied.
         </p>
       )}
@@ -313,7 +313,7 @@ const FighterEffectSelection = React.forwardRef<
                 return (
                   <div key={`${categoryName}-${groupKey}`} className="space-y-2 mb-4">
                     {groupInstruction && (
-                      <p className="text-sm font-medium text-gray-700 mb-2">{groupInstruction}</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">{groupInstruction}</p>
                     )}
                     
                     {groupEffects.map(effect => {
@@ -346,7 +346,7 @@ const FighterEffectSelection = React.forwardRef<
                           
                           <div className="flex-1">
                             {effect.modifiers.length > 0 ? (
-                              <div className="text-gray-600">
+                              <div className="text-muted-foreground">
                                 {renderEffectModifiers(effect.modifiers)}
                               </div>
                             ) : (

@@ -105,7 +105,7 @@ function NoteEditor({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+    <div className="bg-card rounded-lg shadow-md p-4 mb-6">
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
@@ -147,16 +147,18 @@ function NoteEditor({
         )}
 
         {isEditing ? (
-          <RichTextEditor
-            content={content}
-            onChange={onContentChange}
-            placeholder={placeholder}
-            className="min-h-[200px]"
-            charLimit={charLimit}
-          />
+          <div className="bg-white rounded-md">
+            <RichTextEditor
+              content={content}
+              onChange={onContentChange}
+              placeholder={placeholder}
+              className="min-h-[200px]"
+              charLimit={charLimit}
+            />
+          </div>
         ) : (
           <div 
-            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm break-words' : 'text-gray-500 italic text-center'}`}
+            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm break-words' : 'text-muted-foreground italic text-center'}`}
             dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
           />
         )}

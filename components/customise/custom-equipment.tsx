@@ -422,7 +422,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Equipment Name *
                   </label>
                   <input
@@ -435,7 +435,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Equipment Type *
                   </label>
                   <select
@@ -449,7 +449,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Category *
                   </label>
                   <select
@@ -467,7 +467,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Availability *
                   </label>
                   <div className="flex gap-2">
@@ -496,7 +496,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                         }
                       }}
                       disabled={editForm.availability_letter === 'C' || editForm.availability_letter === 'E'}
-                      className="flex-1 p-2 border rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
                       placeholder="1-20"
                       min="1"
                       max="20"
@@ -505,7 +505,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Cost *
                   </label>
                   <input
@@ -572,7 +572,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Equipment Name *
                   </label>
                   <input
@@ -585,7 +585,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Equipment Type *
                   </label>
                   <select
@@ -599,7 +599,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Category *
                   </label>
                   <select
@@ -617,7 +617,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Availability *
                   </label>
                   <div className="flex gap-2">
@@ -646,7 +646,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                         }
                       }}
                       disabled={createForm.availability_letter === 'C' || createForm.availability_letter === 'E'}
-                      className="flex-1 p-2 border rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
                       placeholder="1-20"
                       min="1"
                       max="20"
@@ -655,7 +655,7 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
                 </div>
 
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Cost *
                   </label>
                   <input

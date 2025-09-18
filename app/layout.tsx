@@ -12,6 +12,7 @@ import ClientToaster from "@/components/ui/client-toaster";
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
+import { ClientThemeProvider } from "@/components/client-theme-provider";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -120,11 +121,25 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const theme = localStorage.getItem('mundamanager-theme');
+                  const isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  const currentClass = document.documentElement.className;
+                  document.documentElement.className = currentClass + (isDark ? ' dark' : '');
+                } catch (_) {}
+              })();
+            `,
+          }}
+        />
         {process.env.NODE_ENV === 'development' && (
           <script
             dangerouslySetInnerHTML={{
@@ -143,9 +158,16 @@ export default async function RootLayout({
         )}
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
-        <QueryClientProviderWrapper>
+        <ClientThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          storageKey="mundamanager-theme"
+        >
+          <QueryClientProviderWrapper>
           <BackgroundImage />
-          <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 print:hidden">
+          <header className="fixed top-0 left-0 right-0 bg-background border-b border-border shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">
               <Image
@@ -192,7 +214,8 @@ export default async function RootLayout({
           </div>
         </main>
         <ClientToaster />
-        </QueryClientProviderWrapper>
+          </QueryClientProviderWrapper>
+        </ClientThemeProvider>
       </body>
     </html>
   );

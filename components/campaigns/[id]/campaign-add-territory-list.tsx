@@ -231,7 +231,7 @@ export default function TerritoryList({
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b">
+              <tr className="bg-muted border-b">
                 <th className="w-2/4 px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
                 <th className="w-3/4 px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
                 <th className="w-1/4 px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
@@ -251,12 +251,12 @@ export default function TerritoryList({
                     <td className="w-2/4 px-2 md:px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
                     </td>
-                    <td className="w-3/4 px-1 py-2 text-gray-500">{typeName}</td>
+                    <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
                     <td className="w-1/4 px-2 py-2 text-center">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         territoryCount > 0 
                           ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-gray-100 text-gray-600'
+                          : 'bg-muted text-muted-foreground'
                       }`}>
                         {territoryCount}
                       </span>
@@ -280,7 +280,7 @@ export default function TerritoryList({
           </table>
         </div>
       ) : (
-        <div className="text-center py-8 text-gray-500 italic">
+        <div className="text-center py-8 text-muted-foreground italic">
           No territories found for the selected options.
         </div>
       )}

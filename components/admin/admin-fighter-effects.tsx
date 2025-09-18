@@ -353,9 +353,9 @@ export function AdminFighterEffects({
 
       {/* List of Fighter Effect Types */}
       {isLoading ? (
-        <div className="text-sm text-gray-500 italic">Loading...</div>
+        <div className="text-sm text-muted-foreground italic">Loading...</div>
       ) : fighterEffectTypes.length === 0 ? (
-        <div className="text-sm text-gray-500 italic py-4">
+        <div className="text-sm text-muted-foreground italic py-4">
           <p>No fighter effects associated with this equipment.</p>
         </div>
       ) : (
@@ -382,7 +382,7 @@ export function AdminFighterEffects({
                       )}
                     </div>
                     <h4 className="font-medium">{effect.effect_name}</h4>
-                     <p className="text-sm text-gray-500">
+                     <p className="text-sm text-muted-foreground">
                       {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
                     </p>
                   </div>
@@ -415,7 +415,7 @@ export function AdminFighterEffects({
                     <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {effect.modifiers.map((modifier) => (
-                        <div key={modifier.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                        <div key={modifier.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
                           <div>
                             <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
                             <span>
@@ -424,7 +424,7 @@ export function AdminFighterEffects({
                                 : 'N/A'}
                              </span>
                              {modifier.default_numeric_value !== null && (
-                               <span className="text-sm text-gray-500 ml-2">
+                               <span className="text-sm text-muted-foreground ml-2">
                                  (eg. {getShortName(modifier.stat_name)} 4{getValueSuffix(modifier.stat_name)} → {getShortName(modifier.stat_name)} {4 + modifier.default_numeric_value}{getValueSuffix(modifier.stat_name)})
                                </span>
                              )}
@@ -443,7 +443,7 @@ export function AdminFighterEffects({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 italic">No modifiers for this effect.</p>
+                  <p className="text-sm text-muted-foreground italic">No modifiers for this effect.</p>
                 )}
               </div>
             );
@@ -521,14 +521,14 @@ export function AdminFighterEffects({
                   onChange={(e) => setNewEffect(prev => ({ ...prev, max_selections: parseInt(e.target.value) || 1 }))}
                   placeholder="Maximum number of effects user can select"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   This applies to all multiple_select effects on this equipment
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-muted-foreground">
                 Selection Group (optional)
               </label>
               <input
@@ -538,7 +538,7 @@ export function AdminFighterEffects({
                 placeholder="Enter selection group name"
                 className="w-full p-2 border rounded-md"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Effects with the same selection group are mutually exclusive within single_select mode
               </p>
             </div>
@@ -586,7 +586,7 @@ export function AdminFighterEffects({
                 placeholder="Examples: 1, -1, 2"
               />
               {newModifierStatName && newModifierValue && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Example: {getShortName(newModifierStatName)} 4{getValueSuffix(newModifierStatName)} → {getShortName(newModifierStatName)} {4 + parseFloat(newModifierValue)}{getValueSuffix(newModifierStatName)}
                 </p>
               )}

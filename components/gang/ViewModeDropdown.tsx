@@ -13,7 +13,7 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({ viewMode, se
     <select
       value={viewMode}
       onChange={(e) => setViewMode(e.target.value as ViewMode)}
-      className="w-full h-10 p-1 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-sm"
+      className="w-full h-10 p-1 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black text-sm"
     >
       <option value="normal">Page View</option>
       <option value="small">Small Cards</option>

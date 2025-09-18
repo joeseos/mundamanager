@@ -18,8 +18,8 @@ import { ToastProvider } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 
 // Add this CSS class to remove arrows from number inputs while keeping numeric validation
-const numericInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
-const regularInputClass = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2";
+const numericInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+const regularInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2";
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -256,7 +256,7 @@ export default function AdminPage() {
       <ToastProvider>
         <main className="flex min-h-screen flex-col items-center">
           <div className="container mx-auto max-w-4xl w-full space-y-4">
-            <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
+            <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
               <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -264,15 +264,15 @@ export default function AdminPage() {
                   <button
                     key={section.title}
                     onClick={section.action}
-                    className="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow text-left"
+                    className="p-4 bg-card rounded-lg shadow hover:shadow-md transition-shadow text-left"
                   >
                     <div className="flex items-start space-x-3">
-                      <section.icon className="h-6 w-6 text-gray-500 shrink-0" />
+                      <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
                       <div>
                         <h2 className="text-lg md:text-xl font-semibold mb-2">
                           {section.title}
                         </h2>
-                        <p className="text-gray-600">{section.description}</p>
+                        <p className="text-muted-foreground">{section.description}</p>
                       </div>
                     </div>
                   </button>
@@ -344,8 +344,8 @@ export default function AdminPage() {
                   <div className="grid grid-cols-3 gap-4">
                     {/* Vehicle Type - regular input */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Vehicle Type <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Vehicle Type <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
@@ -360,8 +360,8 @@ export default function AdminPage() {
 
                     {/* Gang Type */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Gang Type <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Gang Type <span className="text-muted-foreground">*</span>
                       </label>
                       <select
                         name="gang_type_id"
@@ -382,8 +382,8 @@ export default function AdminPage() {
 
                     {/* Numeric inputs */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Cost <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Cost <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -398,8 +398,8 @@ export default function AdminPage() {
 
                     {/* Movement */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Movement <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Movement <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -414,8 +414,8 @@ export default function AdminPage() {
 
                     {/* Armor Values */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Front Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Front Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -428,8 +428,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Side Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Side Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -442,8 +442,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Rear Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Rear Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -457,8 +457,8 @@ export default function AdminPage() {
 
                     {/* Vehicle Stats */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Hull Points <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Hull Points <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -471,8 +471,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Handling <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Handling <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
@@ -485,8 +485,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Save <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Save <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
@@ -500,8 +500,8 @@ export default function AdminPage() {
 
                     {/* Slots */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Body Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Body Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -514,8 +514,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Drive Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Drive Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -528,8 +528,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Engine Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Engine Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
@@ -543,19 +543,19 @@ export default function AdminPage() {
 
                     {/* Special Rules - Input component */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Special Rules <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Special Rules <span className="text-muted-foreground">*</span>
                       </label>
                       <Input
                         type="text"
                         name="special_rules"
                         value={vehicleForm.special_rules}
                         onChange={handleVehicleFormChange}
-                        className="bg-white"
+                        className="bg-card"
                         placeholder="Enter special rules, separated by commas (e.g. Agile, Wheeled)"
                         required
                       />
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         Separate multiple rules with commas
                       </p>
                     </div>
@@ -625,8 +625,8 @@ export default function AdminPage() {
                   <div className="grid grid-cols-3 gap-4">
                     {/* Vehicle Type Selection Dropdown */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Select Vehicle Type <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Select Vehicle Type <span className="text-muted-foreground">*</span>
                       </label>
                       <select
                         value={selectedVehicle}
@@ -651,15 +651,15 @@ export default function AdminPage() {
 
                     {/* Add Vehicle Type Name Input */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Vehicle Type Name <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Vehicle Type Name <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
                         name="vehicle_type"
                         value={vehicleForm.vehicle_type}
                         onChange={handleVehicleFormChange}
-                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${regularInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         placeholder="e.g. Rockgrinder"
                         required
                         disabled={!selectedVehicle}
@@ -668,14 +668,14 @@ export default function AdminPage() {
 
                     {/* Gang Type */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Gang Type <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Gang Type <span className="text-muted-foreground">*</span>
                       </label>
                       <select
                         name="gang_type_id"
                         value={vehicleForm.gang_type_id}
                         onChange={handleVehicleFormChange}
-                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${regularInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       >
@@ -691,15 +691,15 @@ export default function AdminPage() {
 
                     {/* Cost */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Cost <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Cost <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="cost"
                         value={vehicleForm.cost}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         min="0"
                         disabled={!selectedVehicle}
@@ -708,15 +708,15 @@ export default function AdminPage() {
 
                     {/* Movement */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Movement <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Movement <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="movement"
                         value={vehicleForm.movement}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         min="0"
                         disabled={!selectedVehicle}
@@ -725,15 +725,15 @@ export default function AdminPage() {
 
                     {/* Front Armor */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Front Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Front Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="front"
                         value={vehicleForm.front}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -741,15 +741,15 @@ export default function AdminPage() {
 
                     {/* Side Armor */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Side Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Side Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="side"
                         value={vehicleForm.side}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -757,15 +757,15 @@ export default function AdminPage() {
 
                     {/* Rear Armor */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Rear Armor <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Rear Armor <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="rear"
                         value={vehicleForm.rear}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -773,15 +773,15 @@ export default function AdminPage() {
 
                     {/* Hull Points */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Hull Points <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Hull Points <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="hull_points"
                         value={vehicleForm.hull_points}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -789,15 +789,15 @@ export default function AdminPage() {
 
                     {/* Handling */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Handling <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Handling <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
                         name="handling"
                         value={vehicleForm.handling}
                         onChange={handleVehicleFormChange}
-                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${regularInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -805,15 +805,15 @@ export default function AdminPage() {
 
                     {/* Save */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Save <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Save <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="text"
                         name="save"
                         value={vehicleForm.save}
                         onChange={handleVehicleFormChange}
-                        className={`${regularInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${regularInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -821,15 +821,15 @@ export default function AdminPage() {
 
                     {/* Body Slots */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Body Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Body Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="body_slots"
                         value={vehicleForm.body_slots}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -837,15 +837,15 @@ export default function AdminPage() {
 
                     {/* Drive Slots */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Drive Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Drive Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="drive_slots"
                         value={vehicleForm.drive_slots}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -853,15 +853,15 @@ export default function AdminPage() {
 
                     {/* Engine Slots */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Engine Slots <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Engine Slots <span className="text-muted-foreground">*</span>
                       </label>
                       <input
                         type="number"
                         name="engine_slots"
                         value={vehicleForm.engine_slots}
                         onChange={handleVehicleFormChange}
-                        className={`${numericInputClass} ${!selectedVehicle && 'bg-gray-100'}`}
+                        className={`${numericInputClass} ${!selectedVehicle && 'bg-muted'}`}
                         required
                         disabled={!selectedVehicle}
                       />
@@ -869,7 +869,7 @@ export default function AdminPage() {
 
                     {/* Equipment List */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Equipment List
                       </label>
                       <select
@@ -903,7 +903,7 @@ export default function AdminPage() {
                           return (
                             <div 
                               key={item.id}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
                               <span>{item.equipment_name}</span>
                               <button
@@ -921,19 +921,19 @@ export default function AdminPage() {
 
                     {/* Special Rules */}
                     <div className="col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Special Rules <span className="text-gray-700">*</span>
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Special Rules <span className="text-muted-foreground">*</span>
                       </label>
                       <Input
                         type="text"
                         name="special_rules"
                         value={vehicleForm.special_rules}
                         onChange={handleVehicleFormChange}
-                        className="bg-white"
+                        className="bg-card"
                         placeholder="Enter special rules, separated by commas (e.g. Agile, Wheeled)"
                         required
                       />
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         Separate multiple rules with commas
                       </p>
                     </div>

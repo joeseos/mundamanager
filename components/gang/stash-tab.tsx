@@ -500,7 +500,7 @@ export default function GangInventory({
   return (
     <>
       <div className="container max-w-5xl w-full space-y-4 mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-card rounded-lg shadow-md p-4">
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
             <div className="flex gap-2">
@@ -528,11 +528,11 @@ export default function GangInventory({
           </div>
           
           {stash.length === 0 ? (
-            <p className="text-gray-500 italic text-center">No items in stash.</p>
+            <p className="text-muted-foreground italic text-center">No items in stash.</p>
           ) : (
             <>
               <div className="mb-2">
-                <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
+                <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
                   <div className="w-4 mr-5" />
                   <div className="flex-grow">Name</div>
                   <div className="w-56 text-right">Category</div>
@@ -543,7 +543,7 @@ export default function GangInventory({
                   {stash.map((item, index) => (
                     <label
                       key={index}
-                      className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer hover:bg-gray-100"
+                      className="flex items-center p-2 bg-muted rounded-md cursor-pointer hover:bg-muted"
                     >
                       <Checkbox
                         checked={selectedItems.includes(index)}
@@ -551,7 +551,7 @@ export default function GangInventory({
                         className="mr-3"
                       />
                       <span className="flex-grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
-                      <span className="w-56 overflow-hidden text-ellipsis text-gray-600 whitespace-nowrap text-right">
+                      <span className="w-56 overflow-hidden text-ellipsis text-muted-foreground whitespace-nowrap text-right">
                         {item.type === 'vehicle' 
                           ? 'Vehicle' 
                           : item.equipment_category || 'Equipment'
@@ -607,18 +607,18 @@ export default function GangInventory({
 
               <div className="px-0">
                 <div className="border-t pt-4">
-                  <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
                     Select Fighter or Vehicle
                     {hasSelectedVehicle && (
-                      <span className="text-sm text-gray-500 ml-2">(Only Crew fighters can receive vehicles)</span>
+                      <span className="text-sm text-muted-foreground ml-2">(Only Crew fighters can receive vehicles)</span>
                     )}
                   </label>
                   <select
                     id="fighter-select"
                     value={selectedFighter}
                     onChange={handleFighterSelect}
-                    className={`w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4 
-                      ${selectedItems.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    className={`w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4 
+                      ${selectedItems.length === 0 ? 'bg-muted cursor-not-allowed' : ''}`}
                     disabled={selectedItems.length === 0}
                   >
                     <option value="">
@@ -862,7 +862,7 @@ export default function GangInventory({
                     setSellManualCost(final);
                     toast({ description: `Roll ${r}: -${r * 10} → ${final} credits` });
                   }}
-                  className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800"
+                  className="px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800"
                 >
                   Roll D6
                 </button>
@@ -879,7 +879,7 @@ export default function GangInventory({
                   onChange={(e) => setSellManualCost(Number(e.target.value))}
                   className="w-full p-2 border rounded"
                 />
-                <p className="text-xs text-gray-500 mt-1">Minimum 5 credits</p>
+                <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
               </div>
             </div>
           }

@@ -265,9 +265,9 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   return (
     <div className={`border rounded-md ${className}`} ref={editorRef}>
       {/* Toolbar */}
-      <div className={`border-b p-2 flex flex-wrap gap-[3px] items-center bg-white z-[70] shadow-sm ${
+      <div className={`border-b p-2 flex flex-wrap gap-[3px] items-center bg-card z-[70] shadow-sm ${
         isMobile 
-          ? 'fixed left-0 right-0 border-b-2 border-gray-200' 
+          ? 'fixed left-0 right-0 border-b-2 border-border' 
           : 'sticky top-[90px]'
       }`} style={isMobile ? { 
         top: `${toolbarTop}px`,
@@ -407,13 +407,13 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           </MenuButton>
           
           {showColorPicker && (
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white border rounded-md shadow-xl p-3 z-50 min-w-[120px]">
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-card border rounded-md shadow-xl p-3 z-50 min-w-[120px]">
               <div className="grid grid-cols-3 gap-2 justify-items-center">
                 {colors.map((color) => (
                   <button
                     key={color.value}
                     onClick={() => setColor(color.value)}
-                    className="w-8 h-8 rounded border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    className="w-8 h-8 rounded border-2 border-border hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                     style={{ 
                       backgroundColor: color.value === 'inherit' ? 'transparent' : color.value,
                       borderColor: color.value === 'inherit' ? '#d1d5db' : color.value
@@ -421,12 +421,12 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
                     title={color.name}
                   >
                     {color.value === 'inherit' && (
-                      <span className="text-xs text-gray-500">A</span>
+                      <span className="text-xs text-muted-foreground">A</span>
                     )}
                   </button>
                 ))}
               </div>
-              <div className="mt-2 text-xs text-gray-500 text-center">
+              <div className="mt-2 text-xs text-muted-foreground text-center">
                 Click to apply color
               </div>
             </div>
@@ -455,10 +455,10 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
          {/* Character count */}
          {charLimit && (
            <div className="flex flex-col items-center ml-auto text-xs font-mono">
-             <span className={`leading-none ${isOverLimit ? 'text-red-500' : 'text-gray-500'}`}>
+             <span className={`leading-none ${isOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
                {charCount}/{charLimit}
              </span>
-             <span className={isOverLimit ? 'text-red-500' : 'text-gray-500'}>
+             <span className={isOverLimit ? 'text-red-500' : 'text-muted-foreground'}>
                Characters
              </span>
            </div>
@@ -466,7 +466,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
          
          {/* Link input */}
          {showLinkInput && (
-           <div className="absolute top-full left-1/2 transform -translate-x-1/2  bg-white border rounded-md shadow-xl p-3 z-50 min-w-[300px]" ref={linkInputRef}>
+           <div className="absolute top-full left-1/2 transform -translate-x-1/2  bg-card border rounded-md shadow-xl p-3 z-50 min-w-[300px]" ref={linkInputRef}>
              <div className="flex gap-2">
                <input
                  type="url"

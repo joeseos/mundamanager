@@ -169,7 +169,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
 
               traitsList.sort((a, b) => a.localeCompare(b));
 
-              const bg = blockIdx % 2 === 0 ? 'bg-black/[0.07]' : '';
+              const bg = blockIdx % 2 === 0 ? 'bg-primary/[0.07]' : '';
 
               return (
                 <tr key={`${weaponName}-${isMasterCrafted ? 'mc' : 'reg'}-${rowIdx}`} className={bg}>

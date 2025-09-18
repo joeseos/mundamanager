@@ -498,15 +498,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Edit Equipment</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Edit Equipment</h3>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -515,7 +515,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Select Category *
               </label>
               <select
@@ -536,13 +536,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             </div>
 
             <div className="col-span-3 mb-4 border-b pb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Select Equipment to Edit *
               </label>
               <select
                 value={selectedEquipmentId}
                 onChange={(e) => setSelectedEquipmentId(e.target.value)}
-                className={`w-full p-2 border rounded-md ${!categoryFilter ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                className={`w-full p-2 border rounded-md ${!categoryFilter ? 'bg-muted cursor-not-allowed' : ''}`}
                 disabled={!categoryFilter}
               >
                 <option value="">Select equipment</option>
@@ -559,7 +559,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
             {selectedEquipmentId && !isLoading && (
               <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Equipment Name *
                 </label>
                 <Input
@@ -572,13 +572,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Equipment Category *
                 </label>
                 <select
                   value={equipmentCategory}
                   onChange={(e) => setEquipmentCategory(e.target.value)}
-                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-muted cursor-not-allowed' : ''}`}
                   disabled={!selectedEquipmentId}
                 >
                   <option value="">Select category</option>
@@ -591,7 +591,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Equipment Type *
                 </label>
                 <select
@@ -600,7 +600,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     const newType = e.target.value as EquipmentType;
                     setEquipmentType(newType);
                   }}
-                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-muted cursor-not-allowed' : ''}`}
                   disabled={!selectedEquipmentId}
                 >
                   <option value="">Select equipment type</option>
@@ -615,7 +615,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost (TP default) *
                 </label>
                 <Input
@@ -628,7 +628,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Availability (TP default) *
                 </label>
                 <Input
@@ -647,11 +647,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       type="checkbox"
                       checked={coreEquipment}
                       onChange={(e) => setCoreEquipment(e.target.checked)}
-                      className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-700">Exclusive to a single Fighter</span>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <span className="text-sm font-medium text-muted-foreground">Exclusive to a single Fighter</span>
+                      <p className="text-sm text-muted-foreground mt-1">
                         I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
                       </p>
                     </div>
@@ -661,7 +661,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Cost per Gang
                   </label>
                   <Button
@@ -678,7 +678,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       {gangAdjustedCosts.map((adjusted_cost, index) => (
                         <div
                           key={index}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
                           <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
                           <button
@@ -706,9 +706,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         }
                       }}
                     >
-                      <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                         <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter the adjusted cost</p>
+                        <p className="text-sm text-muted-foreground mb-4">Select a gang and enter the adjusted cost</p>
 
                         <div className="space-y-4">
                           <div>
@@ -805,7 +805,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Availability per Gang
                   </label>
                   <Button
@@ -822,7 +822,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       {equipmentAvailabilities.map((avail, index) => (
                         <div
                           key={index}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
                           <span>{avail.gang_type} (Availability: {avail.availability})</span>
                           <button
@@ -850,9 +850,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         }
                       }}
                     >
-                      <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                      <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                         <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                        <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
+                        <p className="text-sm text-muted-foreground mb-4">Select a gang and enter an availability value</p>
 
                         <div className="space-y-4">
                           <div>
@@ -940,7 +940,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {/* Move Fighter Types with this Equipment to its own row */}
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Types with this Equipment
                   </label>
                   <select
@@ -987,7 +987,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       return (
                         <div
                           key={ft.id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
                           <span>{`${ft.gang_type} - ${ft.fighter_type} (${ft.fighter_class})${ft.fighter_sub_types?.sub_type_name ? ` - ${ft.fighter_sub_types.sub_type_name}` : ''}`}</span>
                           <button
@@ -1037,7 +1037,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {/* Weapon Profiles Section */}
               {equipmentType === 'weapon' && (
                 <div className="col-span-3 space-y-4">
-                  <div className="flex justify-between items-center sticky top-0 bg-white py-2">
+                  <div className="flex justify-between items-center sticky top-0 bg-card py-2">
                     <h4 className="text-lg font-semibold">Weapon Profiles</h4>
                     <Button
                       onClick={addProfile}
@@ -1049,9 +1049,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     </Button>
                   </div>
 
-                  <div className="space-y-4 rounded-lg border border-gray-200 p-4">
+                  <div className="space-y-4 rounded-lg border border-border p-4">
                     {weaponProfiles.map((profile, index) => (
-                      <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
+                      <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-card">
                         <div className="flex justify-between items-center">
                           <h5 className="font-medium">Profile {index + 1}</h5>
                           {index > 0 && (
@@ -1069,7 +1069,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         {/* Profile Name and Sorting */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                           <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Profile Name
                             </label>
                             <Input
@@ -1080,7 +1080,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Sort Order
                             </label>
                             <Input
@@ -1100,10 +1100,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                         {/* Weapon Group */}
                         <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Weapon Group
                           </label>
-                          <p className="text-sm text-gray-500 mt-1">
+                          <p className="text-sm text-muted-foreground mt-1">
                             Attach this profile to an existing weapon, or leave it as is to use with this weapon.
                           </p>
                           <select
@@ -1126,7 +1126,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         {/* Weapon Characteristics */}
                         <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Rng S
                             </label>
                             <Input
@@ -1139,7 +1139,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Rng L
                             </label>
                             <Input
@@ -1152,7 +1152,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Acc S
                             </label>
                             <Input
@@ -1165,7 +1165,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Acc L
                             </label>
                             <Input
@@ -1178,7 +1178,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Strength
                             </label>
                             <Input
@@ -1191,7 +1191,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               AP
                             </label>
                             <Input
@@ -1204,7 +1204,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Damage
                             </label>
                             <Input
@@ -1217,7 +1217,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Am
                             </label>
                             <Input
@@ -1231,7 +1231,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                         </div>
                         <div>
                           <div className="col-span-3">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">
                               Traits
                             </label>
                             <Input
@@ -1252,7 +1252,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           </div>
         </div>
 
-        <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-white rounded-b-lg">
+        <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
           <Button
             variant="outline"
             onClick={onClose}

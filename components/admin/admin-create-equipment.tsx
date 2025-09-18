@@ -267,15 +267,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Add Equipment</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Add Equipment</h3>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -284,7 +284,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         <div className="px-[10px] py-4">
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Equipment Name *
               </label>
               <Input
@@ -297,7 +297,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             </div>
 
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Equipment Category *
               </label>
               <select
@@ -315,7 +315,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Equipment Type *
               </label>
               <select
@@ -342,7 +342,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Cost (TP default) *
               </label>
               <Input
@@ -356,7 +356,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Availability (TP default) *
               </label>
               <Input
@@ -375,13 +375,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                     type="checkbox"
                     checked={coreEquipment}
                     onChange={(e) => setCoreEquipment(e.target.checked)}
-                    className="h-4 w-4 mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-muted-foreground">
                       Exclusive to a single Fighter
                     </span>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
                     </p>
                   </div>
@@ -393,7 +393,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
             {equipmentType && equipmentType !== 'vehicle_upgrade' && (
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost per Gang
                 </label>
                 <Button
@@ -410,7 +410,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                     {gangAdjustedCosts.map((adjusted_cost, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                       >
                         <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
                         <button
@@ -438,9 +438,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       }
                     }}
                   >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                       <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter the adjusted cost</p>
+                      <p className="text-sm text-muted-foreground mb-4">Select a gang and enter the adjusted cost</p>
 
                       <div className="space-y-4">
                         <div>
@@ -527,7 +527,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
             {equipmentType && equipmentType !== 'vehicle_upgrade' && (
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Availability per Gang
                 </label>
                 <Button
@@ -544,7 +544,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                     {equipmentAvailabilities.map((avail, index) => (
                       <div 
                         key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                       >
                         <span>{avail.gang_type} (Availability: {avail.availability})</span>
                         <button
@@ -572,9 +572,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       }
                     }}
                   >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                       <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select a gang and enter an availability value</p>
+                      <p className="text-sm text-muted-foreground mb-4">Select a gang and enter an availability value</p>
                       
                       <div className="space-y-4">
                         <div>
@@ -664,9 +664,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                   </Button>
                 </div>
 
-                <div className="space-y-4 max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 p-4">
+                <div className="space-y-4 max-h-[400px] overflow-y-auto rounded-lg border border-border p-4">
                   {weaponProfiles.map((profile, index) => (
-                    <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-white">
+                    <div key={`profile-${index}`} className="border p-4 rounded-lg space-y-4 bg-card">
                       <div className="flex justify-between items-center">
                         <h5 className="font-medium">Profile {index + 1}</h5>
                         {index > 0 && (
@@ -683,7 +683,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       {/* Profile Name and Sorting */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                         <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Profile Name *
                           </label>
                           <Input
@@ -694,7 +694,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Sort Order
                           </label>
                           <Input
@@ -713,10 +713,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
                       {/* Weapon Group */}
                       <div className="col-span-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">
                           Weapon Group
                         </label>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Attach this profile to an existing weapon, or leave it as is to use with this weapon.
                         </p>
                         <select
@@ -736,7 +736,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       {/* Weapon Characteristics */}
                       <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Rng S
                           </label>
                           <Input
@@ -747,7 +747,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Rng L
                           </label>
                           <Input
@@ -758,7 +758,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Acc S
                           </label>
                           <Input
@@ -769,7 +769,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Acc L
                           </label>
                           <Input
@@ -780,7 +780,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Strength
                           </label>
                           <Input
@@ -791,7 +791,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             AP
                           </label>
                           <Input
@@ -802,7 +802,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Damage
                           </label>
                           <Input
@@ -814,7 +814,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Am
                           </label>
                           <Input
@@ -826,7 +826,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       </div>
                       <div>
                         <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-muted-foreground mb-1">
                             Traits
                           </label>
                           <Input

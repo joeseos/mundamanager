@@ -126,7 +126,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     <div className="w-full">
       <div>
         {notifications.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 border border-dashed rounded-lg">
+          <div className="p-6 text-center text-muted-foreground border border-dashed rounded-lg">
             <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p>No notifications yet</p>
             <p className="text-sm mt-1">When you receive notifications, they will appear here</p>
@@ -139,8 +139,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                 className={cn(
                   "p-4 rounded-lg border transition-colors",
                   notification.dismissed 
-                    ? "bg-gray-50" 
-                    : "hover:bg-gray-50",
+                    ? "bg-muted" 
+                    : "hover:bg-muted",
                   notification.link && notification.type !== 'friend_request' && "cursor-pointer"
                 )}
                 onClick={() => {
@@ -161,7 +161,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     <p className="text-sm mb-1 whitespace-pre-line">
                       {notification.text}
                     </p>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-muted-foreground mb-2">
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>

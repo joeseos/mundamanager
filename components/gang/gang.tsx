@@ -536,7 +536,7 @@ export default function Gang({
       className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
     >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
-        <div id="gang_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
+        <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Gang Image */}
           <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
             {currentGangImageUrl || gang_type_image_url ? (
@@ -551,7 +551,7 @@ export default function Gang({
                 onError={handleImageError}
               />
             ) : (
-              <div className="absolute size-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
+              <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
                 {name.charAt(0)}
               </div>
             )}
@@ -588,7 +588,7 @@ export default function Gang({
                   <Button
                     onClick={handleEditModalOpen}
                     disabled={!userPermissions?.canEdit}
-                    className="bg-black text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Edit
                   </Button>
@@ -662,7 +662,7 @@ export default function Gang({
               </Button>
             </div>
 
-            <div className="text-gray-600 text-sm mb-1">
+            <div className="text-muted-foreground text-sm mb-1">
               <div className="flex flex-wrap gap-2">
                 <div className="flex items-center gap-1">
                   Type: <Badge variant="secondary">{gang_type}</Badge>
@@ -681,7 +681,7 @@ export default function Gang({
                 )}
               </div>
             </div>
-            <div className="text-gray-600 text-sm mb-1">
+            <div className="text-muted-foreground text-sm mb-1">
               <div className="flex flex-wrap gap-4">
                 <div className="flex items-center gap-1 text-sm">
                   Alignment:
@@ -695,7 +695,7 @@ export default function Gang({
                 )}
               </div>
             </div>
-            <div className="text-gray-600 mb-4">
+            <div className="text-muted-foreground mb-4">
               <div className="flex flex-wrap gap-4">
                 {campaigns?.[0] && (
                   <div className="flex items-center gap-1 text-sm">
@@ -728,15 +728,15 @@ export default function Gang({
                 {/* 1st Column */}
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Credits:</span>
+                    <span className="text-muted-foreground">Credits:</span>
                     <span className="font-semibold">{credits != null ? credits : 0}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Rating:</span>
+                    <span className="text-muted-foreground">Rating:</span>
                     <span className="font-semibold">{rating != null ? rating : 0}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Wealth:</span>
+                    <span className="text-muted-foreground">Wealth:</span>
                     <span className="font-semibold">{rating + credits + unassignedVehiclesValue + totalStashValue}</span>
                   </div>
                 </div>
@@ -744,26 +744,26 @@ export default function Gang({
                 {/* 2nd Column */}
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Reputation:</span>
+                    <span className="text-muted-foreground">Reputation:</span>
                     <span className="font-semibold">{reputation != null ? reputation : 0}</span>
                   </div>
                   {campaigns?.[0]?.has_exploration_points && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 hidden sm:inline">Exploration Points:</span>
-                      <span className="text-gray-600 inline sm:hidden">Expl. Pts:</span>
+                      <span className="text-muted-foreground hidden sm:inline">Exploration Points:</span>
+                      <span className="text-muted-foreground inline sm:hidden">Expl. Pts:</span>
                       <span className="font-semibold">{explorationPoints != null ? explorationPoints : 0}</span>
                     </div>
                   )}
                   {campaigns?.[0]?.has_meat && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Meat:</span>
+                      <span className="text-muted-foreground">Meat:</span>
                       <span className="font-semibold">{meat != null ? meat : 0}</span>
                     </div>
                   )}
                   {campaigns?.[0]?.has_scavenging_rolls && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 hidden sm:inline">Scavenging Rolls:</span>
-                      <span className="text-gray-600 inline sm:hidden">Scav. Rolls:</span>
+                      <span className="text-muted-foreground hidden sm:inline">Scavenging Rolls:</span>
+                      <span className="text-muted-foreground inline sm:hidden">Scav. Rolls:</span>
                       <span className="font-semibold">{scavengingRolls != null ? scavengingRolls : 0}</span>
                     </div>
                   )}
@@ -773,14 +773,14 @@ export default function Gang({
                     data-tooltip-id="gang-composition-tooltip"
                     data-tooltip-html={fightersTooltipHtml}
                   >
-                    <span className="text-gray-600">Gang Size:</span>
+                    <span className="text-muted-foreground">Gang Size:</span>
                     <span className="font-semibold">{activeFighters.length}</span>
                   </div>
                 </div>
 
               </div>
             </div>
-            <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
+            <div className="mt-3 flex flex-row item-center justify-between text-xs text-muted-foreground">
               <span>Created: {formatDate(created_at)}</span>
               <span>Last Updated: {formatDate(lastUpdated)}</span>
             </div>
@@ -788,21 +788,21 @@ export default function Gang({
               <Button
                 onClick={handleAddFighterClick}
                 disabled={!userPermissions?.canEdit}
-                className="bg-black text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-neutral-900 text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Fighter
               </Button>
               <Button
                 onClick={handleAddVehicleModalOpen}
                 disabled={!userPermissions?.canEdit}
-                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Vehicle
               </Button>
               <Button
                 onClick={handleGangAdditionsModalOpen}
                 disabled={!userPermissions?.canEdit}
-                className="bg-black text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Gang Additions
               </Button>
@@ -891,7 +891,7 @@ export default function Gang({
           <Tooltip
             id="gang-composition-tooltip"
             place="top"
-            className="!bg-black !text-white !text-xs !z-[2000]"
+            className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
             delayHide={100}
             clickable={true}
             style={{
@@ -905,13 +905,13 @@ export default function Gang({
           />
         </div>
 
-        <div id="gang_card_additional_details" className="hidden print:block bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
+        <div id="gang_card_additional_details" className="hidden print:block bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
           <div className="flex-grow w-full">
             <div className="flex justify-between items-start mb-1">
               <h2 className="text-xl font-bold">Additional Details</h2>
             </div>
 
-            <div className="text-gray-600 mb-4">
+            <div className="text-muted-foreground mb-4">
               <div className="flex flex-wrap gap-4">
                 {campaigns && campaigns[0]?.territories.length > 0 && (
                   <div className="flex gap-1 items-center text-sm flex-wrap">
@@ -1011,7 +1011,7 @@ function StatItem({
 }: StatItemProps) {
   return (
     <div>
-      <p className="text-gray-600 text-sm truncate">{label}:</p>
+      <p className="text-muted-foreground text-sm truncate">{label}:</p>
       {isEditing ? (
         type === 'select' ? (
           <select

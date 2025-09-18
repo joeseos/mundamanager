@@ -18,7 +18,7 @@ interface CampaignTriumphsProps {
 export default function CampaignTriumphs({ triumphs }: CampaignTriumphsProps) {
   if (!triumphs || triumphs.length === 0) {
     return (
-      <div className="text-gray-500 italic text-center p-4">
+      <div className="text-muted-foreground italic text-center p-4">
         No triumphs available for this campaign type.
       </div>
     );
@@ -28,7 +28,7 @@ export default function CampaignTriumphs({ triumphs }: CampaignTriumphsProps) {
     <div className="rounded-md border overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-gray-50 border-b">
+          <tr className="bg-muted border-b">
             <th className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap">Triumph</th>
             <th className="w-3/5 px-4 py-2 text-left font-medium whitespace-nowrap">Criteria</th>
           </tr>

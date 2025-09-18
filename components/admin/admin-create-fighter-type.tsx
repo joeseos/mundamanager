@@ -424,7 +424,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
   const renderStatInput = (label: string, value: string, onChange: (value: string) => void) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
         {label}
       </label>
       <Input
@@ -442,15 +442,15 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Add Fighter Type</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Add Fighter Type</h3>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -459,7 +459,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         <div className="px-[10px] py-4 overflow-y-auto flex-grow">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Gang Type *
               </label>
               <select
@@ -478,7 +478,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
                 <Input
@@ -491,7 +491,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Class *
                 </label>
                 <select
@@ -514,7 +514,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Sub-type
                 </label>
                 <Input
@@ -527,7 +527,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Base Cost *
                 </label>
                 <Input
@@ -543,7 +543,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   M {!isCrew && '*'}
                 </label>
                 <Input
@@ -555,7 +555,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   WS {!isCrew && '*'}
                 </label>
                 <Input
@@ -567,7 +567,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   BS *
                 </label>
                 <Input
@@ -579,7 +579,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   S {!isCrew && '*'}
                 </label>
                 <Input
@@ -591,7 +591,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   T {!isCrew && '*'}
                 </label>
                 <Input
@@ -603,7 +603,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   W {!isCrew && '*'}
                 </label>
                 <Input
@@ -615,7 +615,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   I {!isCrew && '*'}
                 </label>
                 <Input
@@ -627,7 +627,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   A {!isCrew && '*'}
                 </label>
                 <Input
@@ -639,7 +639,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Ld *
                 </label>
                 <Input
@@ -651,7 +651,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Cl *
                 </label>
                 <Input
@@ -663,7 +663,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Wil *
                 </label>
                 <Input
@@ -675,7 +675,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Int *
                 </label>
                 <Input
@@ -688,7 +688,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Special Skills
               </label>
               <Input
@@ -698,13 +698,13 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 placeholder="e.g. Gang Hierarchy (Champion), Tools of the Trade, Combat Chems Stash"
                 className="w-full"
               />
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Separate multiple skills with commas
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Equipment
               </label>
               <select
@@ -737,7 +737,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   return (
                     <div 
                       key={item.id}
-                      className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-sm"
+                      className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full text-sm"
                     >
                       <span>{item.equipment_name}</span>
                       <button
@@ -754,7 +754,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Skills
               </label>
               <div className="space-y-2">
@@ -830,7 +830,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     return (
                       <div 
                         key={skill.id}
-                        className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-sm"
+                        className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full text-sm"
                       >
                         <span>{skill.skill_name}</span>
                         <button
@@ -854,9 +854,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   id="freeSkill"
                   checked={freeSkill}
                   onChange={(e) => setFreeSkill(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                 />
-                <label htmlFor="freeSkill" className="text-sm font-medium text-gray-700">
+                <label htmlFor="freeSkill" className="text-sm font-medium text-muted-foreground">
                   Free Skill
                 </label>
               </div>
@@ -867,16 +867,16 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   id="isGangAddition"
                   checked={isGangAddition}
                   onChange={(e) => setIsGangAddition(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                 />
-                <label htmlFor="isGangAddition" className="text-sm font-medium text-gray-700">
+                <label htmlFor="isGangAddition" className="text-sm font-medium text-muted-foreground">
                   Gang Addition
                 </label>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Fighter's Equipment List
               </label>
               <select
@@ -927,7 +927,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 ).map(([category, items]) => (
                   <div key={category} className="flex flex-col gap-1 p-1">
                     {/* Category Title */}
-                    <div className="text-sm font-bold text-gray-700">{category}</div>
+                    <div className="text-sm font-bold text-muted-foreground">{category}</div>
                     
                     {/* Items under this category */}
                     {items.map(item => {
@@ -939,7 +939,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                       return (
                         <div
                           key={item!.id}
-                          className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
+                          className="flex justify-between items-center gap-2 rounded-full text-sm bg-muted px-2 py-1"
                         >
                           <span>{item!.equipment_name}</span>
                           <div className="flex items-center gap-2">
@@ -961,7 +961,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             </div>
 
             <div className="col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Equipment Adjusted Costs
               </label>
               <Button
@@ -983,7 +983,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     return (
                       <div 
                         key={adjusted_cost.equipment_id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                       >
                         <span>{item.equipment_name} ({adjusted_cost.adjusted_cost} credits)</span>
                         <button
@@ -1011,9 +1011,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                     }
                   }}
                 >
-                  <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                  <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                     <h3 className="text-xl font-bold mb-4">Equipment Adjusted Cost Menu</h3>
-                    <p className="text-sm text-gray-500 mb-4">Select equipment and enter an adjusted cost</p>
+                    <p className="text-sm text-muted-foreground mb-4">Select equipment and enter an adjusted cost</p>
                     
                     <div className="space-y-4">
                       <div>
@@ -1094,7 +1094,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Trading Post
               </label>
               <Button
@@ -1120,20 +1120,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   }
                 }}
               >
-                <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
+                <div className="bg-card p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
                   <h3 className="text-xl font-bold mb-4">Trading Post Options</h3>
-                  <p className="text-sm text-gray-500 mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
+                  <p className="text-sm text-muted-foreground mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
                   
                   <div className="border rounded-lg overflow-hidden">
                     {/* Table header */}
-                    <div className="bg-gray-50 border-b px-4 py-2 font-medium">
+                    <div className="bg-muted border-b px-4 py-2 font-medium">
                       Equipment
                     </div>
                     
                     {/* Equipment categories and list */}
                     <div className="max-h-[50vh] overflow-y-auto">
                       {Object.keys(equipmentByCategory).length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">Loading equipment categories...</div>
+                        <div className="p-4 text-center text-muted-foreground">Loading equipment categories...</div>
                       ) : (
                         Object.entries(equipmentByCategory)
                           .sort(([a], [b]) => a.localeCompare(b))
@@ -1152,7 +1152,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                               <div key={category} className="border-b last:border-b-0">
                                 {/* Category header with checkbox */}
                                 <div 
-                                  className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                                  className="flex items-center justify-between px-4 py-3 bg-muted cursor-pointer hover:bg-muted"
                                   onClick={() => setExpandedCategory(
                                     expandedCategory === category ? null : category
                                   )}
@@ -1162,7 +1162,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                                       type="checkbox"
                                       id={`category-${category}`}
                                       checked={allSelected}
-                                      className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                      className="h-4 w-4 text-foreground border-border rounded focus:ring-black"
                                       onChange={(e) => {
                                         e.stopPropagation();
                                         const itemIds = items.map(item => item.id);
@@ -1190,7 +1190,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                                   </div>
                                   <div className="flex items-center">
                                     {someSelected && !allSelected && (
-                                      <span className="text-xs mr-2 text-gray-500">
+                                      <span className="text-xs mr-2 text-muted-foreground">
                                         {items.filter(item => tradingPostEquipment.includes(item.id)).length} selected
                                       </span>
                                     )}
@@ -1217,7 +1217,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                                           <input
                                             type="checkbox"
                                             id={`trading-post-${item.id}`}
-                                            className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                            className="h-4 w-4 text-foreground border-border rounded focus:ring-black"
                                             checked={tradingPostEquipment.includes(item.id)}
                                             onChange={(e) => {
                                               if (e.target.checked) {

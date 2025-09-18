@@ -510,14 +510,14 @@ export function SkillsList({
             render: (value, item) => {
               if (item.fighter_injury_id) {
                 return (
-                  <span className="text-gray-500 text-sm italic whitespace-nowrap">
+                  <span className="text-muted-foreground text-sm italic whitespace-nowrap">
                     ({item.injury_name || 'Lasting Injury'})
                   </span>
                 );
               }
               if (item.is_advance) {
                 return (
-                  <span className="text-gray-500 text-sm italic whitespace-nowrap">
+                  <span className="text-muted-foreground text-sm italic whitespace-nowrap">
                     (Advancement)
                   </span>
                 );

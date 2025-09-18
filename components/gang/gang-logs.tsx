@@ -174,17 +174,17 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto">
         <div className="border-b px-2 py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Gang Activity Logs</h3>
-            <p className="text-sm text-gray-500">Track all changes made to your gang</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Gang Activity Logs</h3>
+            <p className="text-sm text-muted-foreground">Track all changes made to your gang</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-3xl"
+              className="text-muted-foreground hover:text-muted-foreground text-3xl"
             >
               ×
             </button>
@@ -194,12 +194,12 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
         <div className="px-2 py-4">
           <div className="max-h-[70vh] min-h-[400px] overflow-y-auto">
             <table className="w-full table-auto">
-              <thead className="sticky top-0 bg-white z-10 shadow-sm">
-                <tr className="bg-gray-100">
+              <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                <tr className="bg-muted">
                   {columns.map((column) => (
                     <th 
                       key={column.key}
-                      className={`px-2 sm:px-3 py-1 sm:py-2 text-left text-sm font-medium text-gray-700 border-b-2 border-gray-200 whitespace-nowrap ${
+                      className={`px-2 sm:px-3 py-1 sm:py-2 text-left text-sm font-medium text-muted-foreground border-b-2 border-border whitespace-nowrap ${
                         column.align === 'right' ? 'text-right' : 
                         column.align === 'center' ? 'text-center' : 'text-left'
                       }`}
@@ -215,7 +215,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                   <tr>
                     <td 
                       colSpan={columns.length} 
-                      className="text-gray-500 italic text-center py-8"
+                      className="text-muted-foreground italic text-center py-8"
                     >
                       Loading...
                     </td>
@@ -224,14 +224,14 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                   <tr>
                     <td 
                       colSpan={columns.length} 
-                      className="text-gray-500 italic text-center py-8"
+                      className="text-muted-foreground italic text-center py-8"
                     >
                       No activity logs found for this gang.
                     </td>
                   </tr>
                 ) : (
                   currentLogs.map((log, index) => (
-                    <tr key={log.id} className="border-t hover:bg-gray-50">
+                    <tr key={log.id} className="border-t hover:bg-muted">
                       {columns.map((column) => (
                         <td 
                           key={column.key}
@@ -258,15 +258,15 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
           
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 bg-gray-50">
-              <div className="text-sm text-gray-700">
+            <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted">
+              <div className="text-sm text-muted-foreground">
                 Showing {startIndex + 1} to {Math.min(endIndex, sortedLogs.length)} of {sortedLogs.length} logs
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Prev
                 </button>
@@ -282,10 +282,10 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                     if (!showPage) {
                       // Show ellipsis for gaps
                       if (page === 2 && currentPage > 4) {
-                        return <span key={page} className="px-2 text-gray-500">...</span>;
+                        return <span key={page} className="px-2 text-muted-foreground">...</span>;
                       }
                       if (page === totalPages - 1 && currentPage < totalPages - 3) {
-                        return <span key={page} className="px-2 text-gray-500">...</span>;
+                        return <span key={page} className="px-2 text-muted-foreground">...</span>;
                       }
                       return null;
                     }
@@ -297,7 +297,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                         className={`px-3 py-1 text-sm border rounded-md ${
                           currentPage === page
                             ? 'bg-black text-white border-black'
-                            : 'hover:bg-gray-100'
+                            : 'hover:bg-muted'
                         }`}
                       >
                         {page}
@@ -309,7 +309,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                 <button
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

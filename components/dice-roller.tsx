@@ -96,7 +96,7 @@ export default function DiceRoller<T>({
     <>
       <div className="flex items-center gap-3">
         <button
-          className={`px-3 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 ${className || ''}`}
+          className={`px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 disabled:opacity-50 ${className || ''}`}
           onClick={performRoll}
           disabled={disabled || rolling}
           type="button"

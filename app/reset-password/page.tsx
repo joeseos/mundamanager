@@ -69,7 +69,7 @@ export default function ResetPassword() {
                   type="email"
                   placeholder="you@example.com" 
                   required 
-                  className="text-black mt-1"
+                  className="text-foreground mt-1"
                   autoComplete="email"
                 />
                 <SubmitButton 

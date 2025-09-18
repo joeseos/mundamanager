@@ -343,7 +343,7 @@ export default function GangPageContent({
           onGangRatingUpdate={handleGangRatingUpdate}
           currentRating={gangData.processedData.rating}
         />
-        <div className="bg-white shadow-md rounded-lg p-4">
+        <div className="bg-card shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
           <GangTerritories 
             gangId={gangId} 

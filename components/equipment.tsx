@@ -222,7 +222,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
           <div className="space-y-2">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost
                 </label>
                 <input
@@ -258,7 +258,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
                 />
                 <label 
                   htmlFor="master-crafted" 
-                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                  className="text-sm font-medium text-muted-foreground cursor-pointer"
                 >
                   Master-crafted (+25%)
                 </label>
@@ -273,7 +273,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
               />
               <label 
                 htmlFor="use-base-cost-for-rating" 
-                className="text-sm font-medium text-gray-700 cursor-pointer"
+                className="text-sm font-medium text-muted-foreground cursor-pointer"
               >
                 Use Listed Cost for Rating
               </label>
@@ -836,7 +836,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
         onMouseDown={handleOverlayClick}
       >
-        <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-white shadow-xl">
+        <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-card shadow-xl">
           <div className="relative border-b p-4">
             <Button
               variant="ghost"
@@ -851,7 +851,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             <div className="flex flex-row gap-3 pr-8">
               <h2 className="text-xl font-semibold">{title}</h2>
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-sm text-gray-600">Gang Credits</span>
+                <span className="text-sm text-muted-foreground">Gang Credits</span>
                 <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
                   {gangCredits}
                 </span>
@@ -859,7 +859,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             </div>
             <div className="flex items-center gap-3 justify-center">
               {!isStashMode && !isVehicleEquipment && fighterHasLegacy && (
-                <label className="flex items-center text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8 gap-2">
+                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8 gap-2">
                   <span>Gang Legacy</span>
                   <Switch
                     checked={includeLegacy}
@@ -873,7 +873,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 </label>
               )}
               {!isStashMode && (
-                <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap leading-8">
+                <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
                   <input
                     type="radio"
                     name="equipment-list"
@@ -888,7 +888,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                 </label>
               )}
-              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
@@ -902,7 +902,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 />
                 Trading Post
               </label>
-              <label className="flex text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+              <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                 <input
                   type="radio"
                   name="equipment-list"
@@ -929,7 +929,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black text-xl leading-none"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xl leading-none"
                     aria-label="Clear search"
                   >
                     <LuX size={20} />
@@ -992,7 +992,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   <div key={category.id}>
                     <Button
                       variant="ghost"
-                      className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-gray-50 hover:bg-gray-100 mb-[1px]"
+                      className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-muted hover:bg-muted mb-[1px]"
                       onClick={() => toggleCategory(category)}
                     >
                       <span>{category.category_name}</span>
@@ -1004,7 +1004,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     </Button>
 
                     {expandedCategories.has(category.category_name) && (
-                      <div className="bg-gray-50">
+                      <div className="bg-muted">
                         {categoryLoadingStates[category.category_name] ? (
                           <div className="flex justify-center py-4">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
@@ -1103,7 +1103,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               return (
                                 <div
                                   key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
-                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-gray-50"
+                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted"
                                 >
                                   <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
                                     <span className="text-sm font-medium">
@@ -1154,12 +1154,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                             })
                         ) : (
                           <div className="flex justify-center py-4">
-                            <p className="text-gray-500">No equipment found in this category.</p>
+                            <p className="text-muted-foreground">No equipment found in this category.</p>
                           </div>
                         )}
                       </div>
                     )}
-                    <div className="h-[1px] w-full bg-gray-200" />
+                    <div className="h-[1px] w-full bg-secondary" />
                   </div>
                 ))}
             </div>

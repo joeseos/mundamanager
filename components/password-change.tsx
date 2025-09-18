@@ -97,7 +97,7 @@ export default function PasswordChange() {
             />
             <Button 
               onClick={handleSave}
-              className="bg-black hover:bg-gray-800 text-white"
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
               size="sm"
               disabled={isLoading || !newPassword}
             >
@@ -119,7 +119,7 @@ export default function PasswordChange() {
           {error && (
             <p className="text-sm text-red-500">{error}</p>
           )}
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Password must:
             <ul className="list-disc ml-5 mt-1">
               <li>Be at least 6 characters long</li>
@@ -132,12 +132,12 @@ export default function PasswordChange() {
         </div>
       ) : (
         <div className="flex items-center space-x-2">
-          <div className="text-gray-900 bg-gray-100 rounded-md px-3 py-2 flex-grow">
+          <div className="text-foreground bg-muted rounded-md px-3 py-2 flex-grow">
             ••••••••
           </div>
           <Button 
             onClick={() => setIsEditing(true)}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
             size="sm"
           >
             Change Password
@@ -150,7 +150,7 @@ export default function PasswordChange() {
           title="Password Updated"
           content={
             <div className="text-center">
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Your password has been successfully updated.
               </p>
             </div>

@@ -146,16 +146,18 @@ function NoteEditor({
         )}
 
         {isEditing ? (
-          <RichTextEditor
-            content={content}
-            onChange={onContentChange}
-            placeholder={placeholder}
-            className="min-h-[200px]"
-            charLimit={charLimit}
-          />
+          <div className="bg-white rounded-md">
+            <RichTextEditor
+              content={content}
+              onChange={onContentChange}
+              placeholder={placeholder}
+              className="min-h-[200px]"
+              charLimit={charLimit}
+            />
+          </div>
         ) : (
           <div 
-            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
+            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm' : 'text-muted-foreground italic text-center'}`}
             dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Fighter Notes' ? 'They\'ll appear on the fighter card when printed.' : ''}` }}
           />
         )}
