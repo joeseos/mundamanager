@@ -289,6 +289,29 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
   // Check if selected fighter class is Crew (simplified stats)
   const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
 
+  // Clear disabled stats when switching to/from Crew class
+  useEffect(() => {
+    if (isCrew) {
+      // Clear the fields for Crew class (they'll be disabled and show empty)
+      setMovement('');
+      setWeaponSkill('');
+      setStrength('');
+      setToughness('');
+      setWounds('');
+      setInitiative('');
+      setAttacks('');
+    } else {
+      // Clear the fields when switching away from Crew class
+      setMovement('');
+      setWeaponSkill('');
+      setStrength('');
+      setToughness('');
+      setWounds('');
+      setInitiative('');
+      setAttacks('');
+    }
+  }, [isCrew]);
+
   // Set fighter class when editing and fighter classes are loaded
   useEffect(() => {
     if (editModalData && fighterClasses.length > 0 && !selectedFighterClass) {
@@ -542,18 +565,22 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     setFighterType(fighter.fighter_type);
     setCost(fighter.cost?.toString() || '');
     setSelectedGangType(fighter.gang_type_id || '');
-    setMovement(fighter.movement?.toString() || '');
-    setWeaponSkill(fighter.weapon_skill?.toString() || '');
+
+    // For Crew fighters, show empty disabled fields, otherwise use existing values
+    const isEditingCrew = fighter.fighter_class === 'Crew';
+    setMovement(isEditingCrew ? '' : (fighter.movement?.toString() || ''));
+    setWeaponSkill(isEditingCrew ? '' : (fighter.weapon_skill?.toString() || ''));
     setBallisticSkill(fighter.ballistic_skill?.toString() || '');
-    setStrength(fighter.strength?.toString() || '');
-    setToughness(fighter.toughness?.toString() || '');
-    setWounds(fighter.wounds?.toString() || '');
-    setInitiative(fighter.initiative?.toString() || '');
+    setStrength(isEditingCrew ? '' : (fighter.strength?.toString() || ''));
+    setToughness(isEditingCrew ? '' : (fighter.toughness?.toString() || ''));
+    setWounds(isEditingCrew ? '' : (fighter.wounds?.toString() || ''));
+    setInitiative(isEditingCrew ? '' : (fighter.initiative?.toString() || ''));
+    setAttacks(isEditingCrew ? '' : (fighter.attacks?.toString() || ''));
+
     setLeadership(fighter.leadership?.toString() || '');
     setCool(fighter.cool?.toString() || '');
     setWillpower(fighter.willpower?.toString() || '');
     setIntelligence(fighter.intelligence?.toString() || '');
-    setAttacks(fighter.attacks?.toString() || '');
     setSpecialRules(fighter.special_rules || []);
     setFreeSkill(fighter.free_skill || false);
     setSkillAccess(fighter.skill_access || []);
@@ -595,7 +622,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       return false;
     }
 
-    // For Crew, only validate BS
+    // For Crew, only validate BS (other stats are automatically set to 0)
     if (isCrew && !ballisticSkill) {
       toast({
         description: 'Please fill in Ballistic Skill (BS)',
@@ -613,6 +640,15 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       return false;
     }
 
+    // Validate mandatory stats for all fighter types
+    if (!leadership || !cool || !willpower || !intelligence) {
+      toast({
+        description: 'Please fill in Leadership, Cool, Willpower, and Intelligence',
+        variant: 'destructive'
+      });
+      return false;
+    }
+
     const selectedGang = gangTypes.find(g => g.gang_type_id === selectedGangType);
 
     const requestData = {
@@ -622,18 +658,18 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       gang_type: selectedGang?.gang_type || '',
       fighter_class: selectedFighterClass.class_name,
       fighter_class_id: selectedFighterClass.id,
-      movement: movement ? parseInt(movement) : undefined,
-      weapon_skill: weaponSkill ? parseInt(weaponSkill) : undefined,
+      movement: isCrew ? 0 : (movement ? parseInt(movement) : undefined),
+      weapon_skill: isCrew ? 0 : (weaponSkill ? parseInt(weaponSkill) : undefined),
       ballistic_skill: ballisticSkill ? parseInt(ballisticSkill) : undefined,
-      strength: strength ? parseInt(strength) : undefined,
-      toughness: toughness ? parseInt(toughness) : undefined,
-      wounds: wounds ? parseInt(wounds) : undefined,
-      initiative: initiative ? parseInt(initiative) : undefined,
+      strength: isCrew ? 0 : (strength ? parseInt(strength) : undefined),
+      toughness: isCrew ? 0 : (toughness ? parseInt(toughness) : undefined),
+      wounds: isCrew ? 0 : (wounds ? parseInt(wounds) : undefined),
+      initiative: isCrew ? 0 : (initiative ? parseInt(initiative) : undefined),
       leadership: leadership ? parseInt(leadership) : undefined,
       cool: cool ? parseInt(cool) : undefined,
       willpower: willpower ? parseInt(willpower) : undefined,
       intelligence: intelligence ? parseInt(intelligence) : undefined,
-      attacks: attacks ? parseInt(attacks) : undefined,
+      attacks: isCrew ? 0 : (attacks ? parseInt(attacks) : undefined),
       special_rules: specialRules,
       free_skill: freeSkill,
       skill_access: skillAccess,
@@ -670,7 +706,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
-  const renderStatInput = (label: string, value: string, onChange: (value: string) => void, required = false) => (
+  const renderStatInput = (label: string, value: string, onChange: (value: string) => void, required = false, disabled = false) => (
     <div>
       <label className="block text-xs font-medium text-gray-700 mb-1">
         {label} {required && '*'}
@@ -681,6 +717,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
         onChange={(e) => onChange(e.target.value)}
         className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         min="0"
+        disabled={disabled}
       />
     </div>
   );
@@ -795,18 +832,18 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Combat Stats */}
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-4">
-              {renderStatInput('M', movement, setMovement, !isCrew)}
-              {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew)}
+              {renderStatInput('M', movement, setMovement, !isCrew, isCrew)}
+              {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew, isCrew)}
               {renderStatInput('BS', ballisticSkill, setBallisticSkill, true)}
-              {renderStatInput('S', strength, setStrength, !isCrew)}
-              {renderStatInput('T', toughness, setToughness, !isCrew)}
-              {renderStatInput('W', wounds, setWounds, !isCrew)}
-              {renderStatInput('I', initiative, setInitiative, !isCrew)}
-              {renderStatInput('A', attacks, setAttacks, !isCrew)}
-              {renderStatInput('Ld', leadership, setLeadership)}
-              {renderStatInput('Cl', cool, setCool)}
-              {renderStatInput('Wil', willpower, setWillpower)}
-              {renderStatInput('Int', intelligence, setIntelligence)}
+              {renderStatInput('S', strength, setStrength, !isCrew, isCrew)}
+              {renderStatInput('T', toughness, setToughness, !isCrew, isCrew)}
+              {renderStatInput('W', wounds, setWounds, !isCrew, isCrew)}
+              {renderStatInput('I', initiative, setInitiative, !isCrew, isCrew)}
+              {renderStatInput('A', attacks, setAttacks, !isCrew, isCrew)}
+              {renderStatInput('Ld', leadership, setLeadership, true)}
+              {renderStatInput('Cl', cool, setCool, true)}
+              {renderStatInput('Wil', willpower, setWillpower, true)}
+              {renderStatInput('Int', intelligence, setIntelligence, true)}
             </div>
 
             {/* Special Rules Section */}
@@ -1129,18 +1166,18 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Combat Stats */}
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-4">
-              {renderStatInput('M', movement, setMovement, !isCrew)}
-              {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew)}
+              {renderStatInput('M', movement, setMovement, !isCrew, isCrew)}
+              {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew, isCrew)}
               {renderStatInput('BS', ballisticSkill, setBallisticSkill, true)}
-              {renderStatInput('S', strength, setStrength, !isCrew)}
-              {renderStatInput('T', toughness, setToughness, !isCrew)}
-              {renderStatInput('W', wounds, setWounds, !isCrew)}
-              {renderStatInput('I', initiative, setInitiative, !isCrew)}
-              {renderStatInput('A', attacks, setAttacks, !isCrew)}
-              {renderStatInput('Ld', leadership, setLeadership)}
-              {renderStatInput('Cl', cool, setCool)}
-              {renderStatInput('Wil', willpower, setWillpower)}
-              {renderStatInput('Int', intelligence, setIntelligence)}
+              {renderStatInput('S', strength, setStrength, !isCrew, isCrew)}
+              {renderStatInput('T', toughness, setToughness, !isCrew, isCrew)}
+              {renderStatInput('W', wounds, setWounds, !isCrew, isCrew)}
+              {renderStatInput('I', initiative, setInitiative, !isCrew, isCrew)}
+              {renderStatInput('A', attacks, setAttacks, !isCrew, isCrew)}
+              {renderStatInput('Ld', leadership, setLeadership, true)}
+              {renderStatInput('Cl', cool, setCool, true)}
+              {renderStatInput('Wil', willpower, setWillpower, true)}
+              {renderStatInput('Int', intelligence, setIntelligence, true)}
             </div>
 
             {/* Special Rules Section */}
