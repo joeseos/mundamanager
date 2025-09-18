@@ -251,7 +251,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     if (participants && Array.isArray(participants) && participants.length > 0) {
       // If no gangs with roles, return None
       if (participants.every(p => !p.gang_id)) {
-        return <span className="text-gray-500">None</span>;
+        return <span className="text-muted-foreground">None</span>;
       }
 
       // Create a map of gang IDs to gang names from battle data
@@ -299,13 +299,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
                     {roleLetter}
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                     style={{ color: getGangColour(participant.gang_id) }}
                   >
                     <Link
                       href={`/gang/${participant.gang_id}`}
                       prefetch={false}
-                      className="hover:text-gray-600 transition-colors"
+                      className="hover:text-muted-foreground transition-colors"
                     >
                       {gangName}
                     </Link>
@@ -348,7 +348,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
     
     if (gangs.length === 0) {
-      return <span className="text-gray-500">None</span>;
+      return <span className="text-muted-foreground">None</span>;
     }
 
     gangs.sort((a, b) => {
@@ -373,10 +373,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
                   {roleLetter}
                 </span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
                   <Link
                     href={`/gang/${gang.id}`}
-                    className="hover:text-gray-600 transition-colors"
+                    className="hover:text-muted-foreground transition-colors"
                   >
                     {gang.name}
                   </Link>
@@ -484,7 +484,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 setSelectedBattle(null);
                 setShowBattleModal(true);
               }}
-              className="bg-black hover:bg-gray-800 text-white"
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
               aria-label="Add battle report"
             >
               Add
@@ -499,7 +499,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               setSelectedBattle(null);
               setShowBattleModal(true);
             }}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
             aria-label="Add battle report"
           >
             Add
@@ -509,7 +509,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full text-xs md:text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b">
+            <tr className="bg-muted border-b">
               <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
               <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
@@ -521,7 +521,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 5 : 4} className="text-gray-500 italic text-center">
+                <td colSpan={isAdmin ? 5 : 4} className="text-muted-foreground italic text-center">
                   No battles recorded yet.
                 </td>
               </tr>
@@ -543,12 +543,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   <td className="px-2 py-2 align-top">
                     {battle.winner?.gang_id ? (
                       <span
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                         style={{ color: getGangColour(battle.winner.gang_id) }}
                       >
                         <Link
                           href={`/gang/${battle.winner.gang_id}`}
-                          className="hover:text-gray-600 transition-colors"
+                          className="hover:text-muted-foreground transition-colors"
                         >
                           {battle.winner.gang_name || 'Unknown'}
                         </Link>
@@ -567,7 +567,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                           setActiveNote(battle.note || '');
                           setShowNoteModal(true);
                         }}
-                        className="text-gray-700 hover:text-black"
+                        className="text-muted-foreground hover:text-foreground"
                         aria-label="View note"
                       >
                         <BiSolidNotepad className="text-lg" />
@@ -661,7 +661,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             <div>
               <p className="mb-4">Are you sure you want to delete this battle report?</p>
               {battleToDelete && (
-                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
                   <p><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</p>
                 </div>
@@ -681,7 +681,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         <Modal
           title="Battle Report"
           content={
-            <div className="whitespace-pre-wrap text-sm text-gray-800">
+            <div className="whitespace-pre-wrap text-sm text-foreground">
               {activeNote}
             </div>
           }
@@ -702,7 +702,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Return with or without a container based on prop
   return noContainer ? content : (
-    <div className="bg-white shadow-md rounded-lg p-4">
+    <div className="bg-card shadow-md rounded-lg p-4">
       {content}
     </div>
   );

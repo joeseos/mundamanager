@@ -1,6 +1,6 @@
 /* Text Rendering - Override prose for read-only content */
 .prose {
-  color: #000000;
+  color: hsl(var(--primary));
 }
 
 /* Ensure bold text is properly colored in read-only mode */

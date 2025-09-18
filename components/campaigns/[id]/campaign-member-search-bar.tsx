@@ -168,13 +168,13 @@ export default function MemberSearchBar({
         </div>
       )}
       {searchResults.length > 0 && query && (
-        <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
+        <div className="absolute mt-1 w-full bg-card rounded-lg border shadow-lg z-10">
           <ul className="py-2">
             {searchResults.map(profile => (
               <li key={profile.user_id}>
                 <button
                   onClick={() => handleAddMember(profile)}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-100"
+                  className="w-full px-4 py-2 text-left hover:bg-muted"
                   disabled={isAdding}
                 >
                   <span className="font-medium">{profile.username}</span>

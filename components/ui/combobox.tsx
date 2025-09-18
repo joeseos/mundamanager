@@ -127,8 +127,8 @@ export function Combobox({
         <input
           type="text"
           className={cn(
-            "flex h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm",
-            "placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
+            "flex h-10 w-full rounded-md border border-border bg-muted px-3 py-2 text-sm",
+            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
             "pr-10"
           )}
@@ -141,7 +141,7 @@ export function Combobox({
         />
         <button
           type="button"
-          className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-gray-200 rounded-r-md"
+          className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-secondary rounded-r-md"
           onClick={() => setOpen(!open)}
           disabled={disabled}
         >
@@ -150,7 +150,7 @@ export function Combobox({
       </div>
 
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto">
           {filteredOptions.length > 0 ? (
             <div className="py-1">
               {filteredOptions.map((option) => (
@@ -158,9 +158,9 @@ export function Combobox({
                   key={option.value}
                   type="button"
                   className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none",
+                    "w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none",
                     "flex items-center justify-between",
-                    value === option.value && "bg-gray-100"
+                    value === option.value && "bg-muted"
                   )}
                   onClick={() => handleSelect(option.value)}
                 >
@@ -172,16 +172,16 @@ export function Combobox({
               ))}
             </div>
           ) : (
-            <div className="px-3 py-2 text-sm text-gray-500">
+            <div className="px-3 py-2 text-sm text-muted-foreground">
               No options found
             </div>
           )}
           
           {allowCustom && searchValue.trim() && (
-            <div className="border-t border-gray-200">
+            <div className="border-t border-border">
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none flex items-center"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none flex items-center"
                 onClick={handleCustomValue}
               >
                 <span className="text-blue-600">Custom: "{searchValue}"</span>

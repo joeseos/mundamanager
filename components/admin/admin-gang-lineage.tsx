@@ -433,7 +433,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const createModalContent = (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           Type *
         </label>
         <select
@@ -448,7 +448,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           {getTypeLabel(lineageType)} Name *
         </label>
         <Input
@@ -461,7 +461,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           Gang Type *
         </label>
         <select
@@ -479,7 +479,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           Associated Fighter Type *
         </label>
         <select
@@ -502,12 +502,12 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       {/* Fighter Type Access - Only show for legacy type */}
       {lineageType === 'legacy' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
             Fighter Type Access
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Gang Type for Access Rules
               </label>
               <select
@@ -525,7 +525,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Add Fighter Type Access
               </label>
               <select
@@ -565,10 +565,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
               return (
                 <div
                   key={fighterTypeId}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                 >
                   <span>{fighterType.fighter_type}</span>
-                  <span className="text-gray-600">({fighterType.gang_type})</span>
+                  <span className="text-muted-foreground">({fighterType.gang_type})</span>
                   <button
                     type="button"
                     onClick={() => removeFighterTypeAccess(fighterTypeId)}
@@ -590,14 +590,14 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Affiliations & Legacies</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Affiliations & Legacies</h3>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -608,7 +608,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
             {/* Type and Gang Lineage Selection */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Type
                 </label>
                 <select
@@ -624,7 +624,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Gang Affiliation or Legacy
                 </label>
                 <select
@@ -687,7 +687,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       {getTypeLabel(lineageType)} Name *
                     </label>
                     <Input
@@ -701,7 +701,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Gang Type *
                     </label>
                     <select
@@ -720,7 +720,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Associated Fighter Type *
                     </label>
                     <select
@@ -744,16 +744,16 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                 {/* Fighter Type Access Management - Only show for legacy type */}
                 {lineageType === 'legacy' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Fighter Type Access Rules
                     </label>
-                    <p className="text-sm text-gray-500 mb-3">
+                    <p className="text-sm text-muted-foreground mb-3">
                       {`Select which fighter types can access this ${getTypeTerm(lineageType)}.`}
                     </p>
 
                     <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">
                           Gang Type for Access Rules
                         </label>
                         <select
@@ -772,7 +772,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">
                           Add Fighter Type Access
                         </label>
                         <select
@@ -806,7 +806,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
                     <div className="mt-2 flex flex-wrap gap-2">
                       {fighterTypeAccess.length === 0 ? (
-                        <p className="text-gray-500 text-sm italic">No fighter types have access to this lineage yet.</p>
+                        <p className="text-muted-foreground text-sm italic">No fighter types have access to this lineage yet.</p>
                       ) : (
                         fighterTypeAccess.map((fighterTypeId) => {
                           const fighterType = fighterTypes.find(ft => ft.id === fighterTypeId);
@@ -815,10 +815,10 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                           return (
                             <div
                               key={fighterTypeId}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
                               <span>{fighterType.fighter_type}</span>
-                              <span className="text-gray-600">({fighterType.gang_type})</span>
+                              <span className="text-muted-foreground">({fighterType.gang_type})</span>
                               <button
                                 type="button"
                                 onClick={() => removeFighterTypeAccess(fighterTypeId)}
@@ -851,7 +851,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           <Button
             onClick={handleUpdateGangLineage}
             disabled={isLoading || !selectedGangLineage || !gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType}
-            className="bg-black hover:bg-gray-800 text-white disabled:bg-gray-400 disabled:text-gray-600"
+            className="bg-black hover:bg-gray-800 text-white disabled:bg-gray-400 disabled:text-muted-foreground"
           >
             {isLoading ? 'Updating...' : 'Update'}
           </Button>

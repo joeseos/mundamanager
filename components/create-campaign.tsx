@@ -152,29 +152,29 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Campaign</h2>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button 
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-muted-foreground hover:text-muted-foreground"
           >
             ×
           </button>
         </div>
         <div className="space-y-4">
           <div>
-            <label htmlFor="campaign-type" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="campaign-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Campaign Type *
             </label>
             <select
               id="campaign-type"
               value={campaignType}
               onChange={(e) => setCampaignType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
               {campaignTypes.map((type) => (
@@ -185,7 +185,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
             </select>
           </div>
           <div>
-            <label htmlFor="campaign-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="campaign-name" className="block text-sm font-medium text-muted-foreground mb-1">
               Campaign Name *
             </label>
             <Input
@@ -271,11 +271,11 @@ export default function CreateCampaign({ initialCampaignTypes, userId }: { initi
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4">
+    <div className="bg-card shadow-md rounded-lg p-4">
       <h2 className="text-xl md:text-2xl font-bold mb-4">Create a New Campaign</h2>
       <div className="space-y-4">
         <div>
-          <label htmlFor="campaign-name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="campaign-name" className="block text-sm font-medium text-muted-foreground mb-1">
             Campaign Name
           </label>
           <Input
@@ -287,14 +287,14 @@ export default function CreateCampaign({ initialCampaignTypes, userId }: { initi
           />
         </div>
         <div>
-          <label htmlFor="campaign-type" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="campaign-type" className="block text-sm font-medium text-muted-foreground mb-1">
             Campaign Type
           </label>
           <select
             id="campaign-type"
             value={campaignType}
             onChange={(e) => setCampaignType(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">Select campaign type</option>
             {campaignTypes.map((type) => (

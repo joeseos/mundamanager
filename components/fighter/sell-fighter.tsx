@@ -76,7 +76,7 @@ export function SellFighterModal({
       confirmDisabled={isSubmitting}
     >
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           {isEnslaved 
             ? `Are you sure you want to rescue "${fighterName}" from the Guilders?`
             : `Are you sure you want to sell "${fighterName}" to the Guilders?`
@@ -95,7 +95,7 @@ export function SellFighterModal({
                 min={0}
                 className="w-full"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Fighter's total value: {fighterValue} credits
               </p>
             </div>

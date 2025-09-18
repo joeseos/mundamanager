@@ -206,7 +206,7 @@ export default function FriendsSearchBar({
         <div className="mb-4">
           <ul className="flex flex-wrap gap-2">
             {acceptedFriends.map(friend => (
-              <li key={friend.id} className="bg-gray-100 rounded px-3 py-1 text-sm flex items-center gap-1">
+              <li key={friend.id} className="bg-muted rounded px-3 py-1 text-sm flex items-center gap-1">
                 {friend.username}
                 <button
                   className="ml-1 text-gray-400 hover:text-red-500"
@@ -237,8 +237,8 @@ export default function FriendsSearchBar({
         <div className="mb-2">
           <ul className="flex flex-wrap gap-2">
             {pendingOutgoing.map(friend => (
-              <li key={friend.id} className="bg-gray-50 border border-gray-200 rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username} <span className="text-xs text-gray-500">(pending)</span>
+              <li key={friend.id} className="bg-muted border border-border rounded px-3 py-1 text-sm flex items-center gap-1">
+                {friend.username} <span className="text-xs text-muted-foreground">(pending)</span>
                 <button
                   className="ml-1 text-gray-400 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
@@ -265,13 +265,13 @@ export default function FriendsSearchBar({
         </div>
       )}
       {searchResults.length > 0 && query && (
-        <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
+        <div className="absolute mt-1 w-full bg-card rounded-lg border shadow-lg z-10">
           <ul className="py-2">
             {searchResults.map(friend => (
               <li key={friend.id}>
                 <button
                   onClick={() => handleAddFriend(friend)}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-100"
+                  className="w-full px-4 py-2 text-left hover:bg-muted"
                   disabled={isAdding}
                 >
                   <span className="font-medium">{friend.username}</span>

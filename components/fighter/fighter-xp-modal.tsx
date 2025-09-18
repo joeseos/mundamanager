@@ -238,7 +238,7 @@ export function FighterXpModal({
       title="Add XP"
       headerContent={
         <div className="flex items-center">
-          <span className="mr-2 text-sm text-gray-600">Fighter XP</span>
+          <span className="mr-2 text-sm text-muted-foreground">Fighter XP</span>
           <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
             {currentXp}
           </span>
@@ -250,7 +250,7 @@ export function FighterXpModal({
             {/* Repeatable XP with counters */}
             {xpCountCases.map((xpCase) => (
               <div key={xpCase.id} className="flex items-center justify-between">
-                <label className="text-sm text-gray-800">
+                <label className="text-sm text-foreground">
                   {xpCase.label} (+{xpCase.xp} XP each)
                   {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
                     <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
@@ -279,13 +279,13 @@ export function FighterXpModal({
             ))}
 
             {/* Separator after the first cases */}
-            <hr className="my-2 border-gray-300" />
+            <hr className="my-2 border-border" />
 
             {/* Single XP Checkboxes */}
             {xpCheckboxCases.map((xpCase, idx, arr) => (
               <div key={xpCase.id}>
                 <div className="flex items-center justify-between mb-2 mr-[52px]">
-                  <label htmlFor={xpCase.id} className="text-sm text-gray-800">
+                  <label htmlFor={xpCase.id} className="text-sm text-foreground">
                     {xpCase.label} (+{xpCase.xp} XP)
                   </label>
                   <Checkbox
@@ -296,13 +296,13 @@ export function FighterXpModal({
                   />
                 </div>
                 {/* Only show a separator if it's not the last item in this slice */}
-                {idx < arr.length - 1 && <hr className="my-2 border-gray-300" />}
+                {idx < arr.length - 1 && <hr className="my-2 border-border" />}
               </div>
             ))}
           </div>
 
           {/* XP Summary */}
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-muted-foreground">
             <div>Total XP: {totalXpFromCountsAndCheckboxes}</div>
             <div>Below value can be overridden (use a negative value to subtract)</div>
           </div>

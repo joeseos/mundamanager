@@ -327,13 +327,13 @@ export default function CampaignPageContent({
     <main className="flex min-h-screen flex-col items-center">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
-        <div className="bg-white rounded-lg mb-4 flex">
+        <div className="bg-card rounded-lg mb-4 flex">
           <button
             onClick={() => setActiveTab(0)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 0
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <FiMap className="h-5 w-5" />
@@ -343,8 +343,8 @@ export default function CampaignPageContent({
             onClick={() => setActiveTab(1)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 1
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <MdFactory className="h-5 w-5" />
@@ -354,8 +354,8 @@ export default function CampaignPageContent({
             onClick={() => setActiveTab(2)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 2
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <LuSwords className="h-5 w-5" />
@@ -365,8 +365,8 @@ export default function CampaignPageContent({
             onClick={() => setActiveTab(3)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 3
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <LuClipboard className="h-5 w-5" />
@@ -376,8 +376,8 @@ export default function CampaignPageContent({
             onClick={() => setActiveTab(4)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 4
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <LuTrophy className="h-5 w-5" />
@@ -391,7 +391,7 @@ export default function CampaignPageContent({
         {activeTab === 0 && (
           <>
           {/* Campaign header with the Edit button */}
-          <div id="campaign_card" className="bg-white shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
+          <div id="campaign_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
             {/* Left Section: Campaign Image */}
             <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
               {campaignData.image_url || campaignData.campaign_type_image_url ? (
@@ -406,8 +406,8 @@ export default function CampaignPageContent({
                   onError={handleImageError}
                 />
               ) : (
-                <div className="absolute w-[180px] h-[180px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
-                  <FiMap className="size-[80px] text-gray-600" />
+                <div className="absolute w-[180px] h-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
+                  <FiMap className="size-[80px] text-muted-foreground" />
                 </div>
               )}
               {canEditImage && (
@@ -436,7 +436,7 @@ export default function CampaignPageContent({
                    {safePermissions.canEditCampaign && (
                      <Button
                        onClick={() => setShowEditModal(true)}
-                       className="bg-black text-white hover:bg-gray-800 print:hidden"
+                       className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
                      >
                        Edit
                      </Button>
@@ -468,7 +468,7 @@ export default function CampaignPageContent({
                  </Button>
                </div>
 
-              <div className="text-gray-600 text-sm mb-4">
+              <div className="text-muted-foreground text-sm mb-4">
                 <div className="flex flex-wrap gap-2 mb-1">
                   <div className="flex items-center gap-1">
                     Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
@@ -506,7 +506,7 @@ export default function CampaignPageContent({
                 </div>
               </div>
 
-              <div className="text-gray-600 mb-4">
+              <div className="text-muted-foreground mb-4">
                 <div className="whitespace-pre-wrap break-words">
                   {campaignData.description}
                 </div>
@@ -517,7 +517,7 @@ export default function CampaignPageContent({
                   {/* 1st Column */}
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Players:</span>
+                      <span className="text-muted-foreground">Players:</span>
                       <span className="font-semibold">
                         {(() => {
                           const uniqueUsernames = campaignData.members
@@ -528,7 +528,7 @@ export default function CampaignPageContent({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Gangs:</span>
+                      <span className="text-muted-foreground">Gangs:</span>
                       <span className="font-semibold">
                         {campaignData.members.reduce((total, member) => total + (member.gangs?.length || 0), 0)}
                       </span>
@@ -538,18 +538,18 @@ export default function CampaignPageContent({
                   {/* 2nd Column */}
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Territories:</span>
+                      <span className="text-muted-foreground">Territories:</span>
                       <span className="font-semibold">{campaignData.territories.length}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Battles:</span>
+                      <span className="text-muted-foreground">Battles:</span>
                       <span className="font-semibold">{campaignData.battles?.length || 0}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-row item-center justify-between text-xs text-gray-500">
+              <div className="mt-3 flex flex-row item-center justify-between text-xs text-muted-foreground">
                 <span>Created: {formatDate(campaignData.created_at)}</span>
                 <span>Last Updated: {formatDate(campaignData.updated_at)}</span>
               </div>
@@ -558,14 +558,14 @@ export default function CampaignPageContent({
           {/* End campaign header and modal logic */}
 
           {/* Other Section */}
-          <div className="bg-white shadow-md rounded-lg p-4">
+          <div className="bg-card shadow-md rounded-lg p-4">
             {/* Campaign Members Section */}
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
                 <div className="relative group">
-                  <ImInfo className="text-gray-500 cursor-help" />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                  <ImInfo className="text-muted-foreground cursor-help" />
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
                     To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
                     <br /><br />
                     You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
@@ -642,13 +642,13 @@ export default function CampaignPageContent({
 
           {/* Territories tab content */}
           {activeTab === 1 && (
-            <div className="bg-white shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Territories</h2>
                   {safePermissions.canManageTerritories && (
                     <Button
-                      className="bg-black hover:bg-gray-800 text-white"
+                      className="bg-neutral-900 hover:bg-gray-800 text-white"
                       onClick={handleAddTerritory}
                     >
                       Add
@@ -675,13 +675,13 @@ export default function CampaignPageContent({
 
           {/* Battle Log tab content */}
           {activeTab === 2 && (
-            <div className="bg-white shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
                   {safePermissions.canAddBattleLogs && (
                     <Button
-                      className="bg-black hover:bg-gray-800 text-white"
+                      className="bg-neutral-900 hover:bg-gray-800 text-white"
                       onClick={handleAddBattleLog}
                     >
                       Add
@@ -707,7 +707,7 @@ export default function CampaignPageContent({
 
           {/* Notes tab content */}
           {activeTab === 3 && (
-            <div className="bg-white shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4">
               <div>
               <CampaignNotes
                 campaignId={campaignData.id}
@@ -720,7 +720,7 @@ export default function CampaignPageContent({
 
           {/* Triumphs tab content */}
           {activeTab === 4 && (
-            <div className="bg-white shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Triumphs</h2>

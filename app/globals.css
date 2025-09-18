@@ -4,26 +4,70 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    /* Light theme reference values */
+    --light-background: 0 0% 100%;
+    --light-foreground: 0 0% 3.9%;
+    --light-card: 0 0% 100%;
+    --light-card-foreground: 0 0% 3.9%;
+    --light-popover: 0 0% 100%;
+    --light-popover-foreground: 0 0% 3.9%;
+    --light-primary: 0 0% 9%;
+    --light-primary-foreground: 0 0% 98%;
+    --light-secondary: 0 0% 100%;
+    --light-secondary-foreground: 0 0% 9%;
+    --light-muted: 0 0% 96.1%;
+    --light-muted-foreground: 0 0% 45.1%;
+    --light-accent: 0 0% 96.1%;
+    --light-accent-foreground: 0 0% 9%;
+    --light-destructive: 0 84.2% 60.2%;
+    --light-destructive-foreground: 0 0% 98%;
+    --light-border: 0 0% 89.8%;
+    --light-input: 0 0% 89.8%;
+    --light-ring: 0 0% 3.9%;
+
+    /* Current theme values (default to light) */
+    --background: var(--light-background);
+    --foreground: var(--light-foreground);
+    --card: var(--light-card);
+    --card-foreground: var(--light-card-foreground);
+    --popover: var(--light-popover);
+    --popover-foreground: var(--light-popover-foreground);
+    --primary: var(--light-primary);
+    --primary-foreground: var(--light-primary-foreground);
+    --secondary: var(--light-secondary);
+    --secondary-foreground: var(--light-secondary-foreground);
+    --muted: var(--light-muted);
+    --muted-foreground: var(--light-muted-foreground);
+    --accent: var(--light-accent);
+    --accent-foreground: var(--light-accent-foreground);
+    --destructive: var(--light-destructive);
+    --destructive-foreground: var(--light-destructive-foreground);
+    --border: var(--light-border);
+    --input: var(--light-input);
+    --ring: var(--light-ring);
     --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
   }
 }
 
@@ -74,6 +118,30 @@
       margin: 8mm;  /* this affects the margin in the printer settings */
     }
 
+    /* Force light theme colors when printing by referencing the original light theme values */
+    :root,
+    .dark {
+      --background: var(--light-background) !important;
+      --foreground: var(--light-foreground) !important;
+      --card: var(--light-card) !important;
+      --card-foreground: var(--light-card-foreground) !important;
+      --popover: var(--light-popover) !important;
+      --popover-foreground: var(--light-popover-foreground) !important;
+      --primary: var(--light-primary) !important;
+      --primary-foreground: var(--light-primary-foreground) !important;
+      --secondary: var(--light-secondary) !important;
+      --secondary-foreground: var(--light-secondary-foreground) !important;
+      --muted: var(--light-muted) !important;
+      --muted-foreground: var(--light-muted-foreground) !important;
+      --accent: var(--light-accent) !important;
+      --accent-foreground: var(--light-accent-foreground) !important;
+      --destructive: var(--light-destructive) !important;
+      --destructive-foreground: var(--light-destructive-foreground) !important;
+      --border: var(--light-border) !important;
+      --input: var(--light-input) !important;
+      --ring: var(--light-ring) !important;
+    }
+
     .print-reset {
       max-width: none !important;
       width: auto !important;
@@ -107,6 +175,15 @@
       zoom: 1;
     }
   }
+}
+
+/* Fighter card background images for light and dark themes */
+.fighter-card-bg {
+  background-image: url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1758130100/fighter-card-background-5-light_web_ynpbac.webp');
+}
+
+.dark .fighter-card-bg {
+  background-image: url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1758130100/fighter-card-background-5-dark_web_lhh1dn.webp');
 }
 
 /* tailwindcss fix for Firefox */

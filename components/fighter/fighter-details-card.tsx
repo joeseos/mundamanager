@@ -402,13 +402,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }}>
             <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
-                <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
+                <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
               <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
@@ -421,7 +421,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         <div className="absolute right-0 md:top-[-10px] top-0 flex items-center z-20">
           <div className="relative flex flex-col flex-shrink z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
-            {retired && <MdChair className="text-gray-600" />}
+            {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
@@ -430,7 +430,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         
           {/* Profile picture of the fighter */}
           <div 
-            className={`bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
+            className={`bg-primary rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
             onClick={handleImageClick}
           >
           {currentImageUrl ? (
@@ -439,7 +439,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             <img src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1754972459/unknown_cropped_web_foy9m7.avif" alt="Fighter" className="object-cover rounded-full" />
           )}
           </div>
-          <div className="bg-[#FFFFFF] rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+          <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
             <span className="leading-6 font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
             <span className="leading-3 md:font-bold text-xs">Credits</span>
           </div>
@@ -447,14 +447,14 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       <div className="flex flex-wrap justify-between items-center">
-        <div className="text-base text-gray-600">
+        <div className="text-base text-muted-foreground">
           <div>OOA: {kills}</div>
         </div>
 
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
           <Button
             variant="secondary"
-            className="bg-black text-white hover:bg-gray-800"
+            className="bg-neutral-900 text-white hover:bg-gray-800"
             onClick={() => onAddXp && onAddXp()}
             disabled={!canShowEditButtons}
           >
@@ -462,7 +462,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </Button>
           <Button
             variant="secondary"
-            className="bg-black text-white hover:bg-gray-800"
+            className="bg-neutral-900 text-white hover:bg-gray-800"
             onClick={onEdit}
             disabled={!canShowEditButtons}
           >
@@ -477,7 +477,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       {/* Show owner information for owned fighters */}
       {owner_name && (
         <div className="mt-2 text-left">
-          <div className="text-sm text-black">
+          <div className="text-sm text-foreground">
             Owned by <span className="font-semibold">{owner_name}</span>
           </div>
         </div>
@@ -485,7 +485,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       
         <div className="mt-4">
           {fighter_class === 'Crew' && (
-            <p className="text-base text-gray-600">
+            <p className="text-base text-muted-foreground">
               {vehicles?.[0]
                 ? vehicles[0].vehicle_name
                   ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
@@ -497,7 +497,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
             return (
               <div className="flex items-center gap-1 mt-2">
-                <h3 className="text-base text-gray-600">Upgrade Slots:</h3>
+                <h3 className="text-base text-muted-foreground">Upgrade Slots:</h3>
                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
                 <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>

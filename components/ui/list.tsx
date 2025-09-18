@@ -82,7 +82,7 @@ export function List<T = any>({
         {onAdd && (
           <Button 
             onClick={onAdd}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
             disabled={isLoading || (addButtonDisabled === true)}
           >
             {addButtonText}
@@ -95,7 +95,7 @@ export function List<T = any>({
           <table className="w-full table-auto">
             {(sortedItems.length > 0) && (
               <thead>
-                <tr className="bg-gray-100">
+                <tr className="bg-muted">
                   {columns.map((column) => (
                     <th 
                       key={column.key}
@@ -116,7 +116,7 @@ export function List<T = any>({
                 <tr>
                   <td 
                     colSpan={columns.length + (actions.length > 0 ? 1 : 0)} 
-                    className="text-gray-500 italic text-center py-4"
+                    className="text-muted-foreground italic text-center py-4"
                   >
                     {isLoading ? "Loading..." : emptyMessage}
                   </td>

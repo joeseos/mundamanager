@@ -54,7 +54,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             .map((campaign) => (
               <div key={campaign.campaign_id} className="mb-6">
                 {/* Campaign Header */}
-                <div className="text-gray-600 mb-4">
+                <div className="text-muted-foreground mb-4">
                   <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-1 text-sm">
                       Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
@@ -75,7 +75,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                 {campaign.territories && campaign.territories.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full border-separate border-spacing-y-2">
-                      <thead className="text-sm text-gray-700 px-0 py-2">
+                      <thead className="text-sm text-muted-foreground px-0 py-2">
                         <tr>
                           <th className="px-4 py-2 font-medium text-left">Territory</th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
@@ -86,8 +86,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                           .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
                           .map((territory) => (
                             <tr key={territory.id}>
-                              <td className="px-4 py-2 text-left bg-gray-50 rounded-md">{territory.territory_name}</td>
-                              <td className="px-4 py-2 text-right bg-gray-50 rounded-md">
+                              <td className="px-4 py-2 text-left bg-muted rounded-md">{territory.territory_name}</td>
+                              <td className="px-4 py-2 text-right bg-muted rounded-md">
                                 {territory.ruined !== null && (
                                   <span className={territory.ruined ? 'text-red-500' : 'text-green-600'}>
                                     {territory.ruined ? 'Ruined' : 'Intact'}
@@ -100,12 +100,12 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     </table>
                   </div>
                 ) : (
-                  <div className="text-gray-500 italic text-center">No territories controlled.</div>
+                  <div className="text-muted-foreground italic text-center">No territories controlled.</div>
                 )}
               </div>
             ))
         ) : (
-          <div className="text-gray-500 italic text-center p-4">
+          <div className="text-muted-foreground italic text-center p-4">
             No campaigns joined.
           </div>
         )}

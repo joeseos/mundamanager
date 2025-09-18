@@ -192,7 +192,7 @@ export default function AddVehicle({
       title="Add Vehicle"
       headerContent={
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Gang Credits</span>
+          <span className="text-sm text-muted-foreground">Gang Credits</span>
           <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
             {initialCredits}
           </span>
@@ -201,7 +201,7 @@ export default function AddVehicle({
       content={
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-muted-foreground">
               Vehicle Name
             </label>
             <Input
@@ -214,7 +214,7 @@ export default function AddVehicle({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-muted-foreground">
               Vehicle Type
             </label>
             <select
@@ -263,7 +263,7 @@ export default function AddVehicle({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-muted-foreground">
               Cost (credits)
             </label>
             <Input
@@ -274,7 +274,7 @@ export default function AddVehicle({
               min={0}
             />
             {selectedVehicleTypeId && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
               </p>
             )}
@@ -288,13 +288,13 @@ export default function AddVehicle({
             />
             <label 
               htmlFor="baseCostCheckbox" 
-              className="text-sm font-medium text-gray-700 cursor-pointer"
+              className="text-sm font-medium text-muted-foreground cursor-pointer"
             >
               Use Listed Cost for Rating
             </label>
             <div className="relative group">
               <ImInfo />
-              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
                 When enabled, the vehicle's rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
               </div>
             </div>

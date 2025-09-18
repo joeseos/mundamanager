@@ -114,7 +114,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-sm font-medium text-gray-700">Weapon Profiles</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Weapon Profiles</h4>
         <Button
           type="button"
           onClick={handleAddProfile}
@@ -127,7 +127,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
       </div>
 
       {profiles.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No weapon profiles added yet.</p>
+        <p className="text-sm text-muted-foreground italic">No weapon profiles added yet.</p>
       ) : (
         <div className="space-y-3">
           {profiles.map((profile, index) => (
@@ -186,12 +186,12 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                 <div className="space-y-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <label className="block text-xs font-medium text-gray-700">
+                      <label className="block text-xs font-medium text-muted-foreground">
                         Profile Name (Optional)
                       </label>
                       <div className="relative group">
                         <ImInfo />
-                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
                           This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it's suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like "- gas shells" or "- shatter shells".
                         </div>
                       </div>
@@ -207,7 +207,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Range (Short) *
                       </label>
                       <input
@@ -220,7 +220,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Range (Long) *
                       </label>
                       <input
@@ -233,7 +233,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Accuracy (Short) *
                       </label>
                       <input
@@ -246,7 +246,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Accuracy (Long) *
                       </label>
                       <input
@@ -261,7 +261,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Strength *
                       </label>
                       <input
@@ -274,7 +274,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         AP *
                       </label>
                       <input
@@ -287,7 +287,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Damage *
                       </label>
                       <input
@@ -300,7 +300,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
                         Ammo *
                       </label>
                       <input
@@ -314,7 +314,7 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
                       Traits (Optional)
                     </label>
                     <input

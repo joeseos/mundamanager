@@ -86,11 +86,11 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
   setEquipmentSelection: AdminFighterEquipmentSelectionProps['setEquipmentSelection']
 }) {
   return (
-    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+    <div className="flex items-center gap-2 bg-muted p-2 rounded">
       <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
       <div className="ml-auto flex items-center gap-4">
         <div>
-          <label className="block text-xs text-gray-500">Cost</label>
+          <label className="block text-xs text-muted-foreground">Cost</label>
           <input
             type="number"
             defaultValue={item.cost}
@@ -112,7 +112,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500">Max Number</label>
+          <label className="block text-xs text-muted-foreground">Max Number</label>
           <input
             type="number"
             defaultValue={item.max_quantity}
@@ -144,7 +144,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
               }
             }));
           }}
-          className="hover:bg-gray-100 p-1 rounded self-end"
+          className="hover:bg-muted p-1 rounded self-end"
           disabled={disabled}
         >
           <X className="h-4 w-4" />
@@ -221,16 +221,16 @@ export function AdminFighterEquipmentSelection({
       </div>
 
       {Object.keys(equipmentSelection).length === 0 ? (
-        <div className="text-center py-6 text-gray-500 border border-dashed rounded-lg">
+        <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
           <p className="mb-2">No equipment categories.</p> 
           <p>Select a selection type and click "Add Category" to get started.</p>
         </div>
       ) : (
         Object.entries(equipmentSelection).map(([categoryId, category]) => (
-          <div key={categoryId} className="border rounded-lg p-4 mb-6 bg-gray-50">
+          <div key={categoryId} className="border rounded-lg p-4 mb-6 bg-muted">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-700">{category.name || 'New Category'}</h3>
+                <h3 className="font-semibold text-muted-foreground">{category.name || 'New Category'}</h3>
                 <select
                   value={category.name || ''}
                   onChange={(e) => {
@@ -272,9 +272,9 @@ export function AdminFighterEquipmentSelection({
               </Button>
             </div>
 
-            <div className="space-y-4 bg-white p-3 rounded-lg">
+            <div className="space-y-4 bg-card p-3 rounded-lg">
               <div>
-                <div className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="block text-sm font-medium text-muted-foreground mb-1">
                   <span>Selection Type:</span>{' '}
                   <span className="font-normal">
                     {SELECTION_MODES.find(mode => mode.value === category.select_type)?.label || 'Optional (Replace Default)'}
@@ -284,7 +284,7 @@ export function AdminFighterEquipmentSelection({
 
               {(category.select_type === 'optional' || category.select_type === 'optional_single') && (
                 <div className="mt-4 border-t pt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Default Equipment
                   </label>
                   <div className="flex gap-2 mb-2">
@@ -324,10 +324,10 @@ export function AdminFighterEquipmentSelection({
                       category.default?.map((item, index) => {
                         const equip = equipment.find(e => e.id === item.id);
                         return (
-                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                          <div key={index} className="flex items-center gap-2 bg-muted p-2 rounded">
                             <div className="flex items-center gap-2">
                               <div>
-                                <label className="block text-xs text-gray-500">Number</label>
+                                <label className="block text-xs text-muted-foreground">Number</label>
                                 <input
                                   type="number"
                                   value={item.quantity}
@@ -359,7 +359,7 @@ export function AdminFighterEquipmentSelection({
                                   }
                                 }));
                               }}
-                              className="ml-auto hover:bg-gray-100 p-1 rounded"
+                              className="ml-auto hover:bg-muted p-1 rounded"
                               disabled={disabled}
                             >
                               <X className="h-4 w-4" />
@@ -368,7 +368,7 @@ export function AdminFighterEquipmentSelection({
                         );
                       })
                     ) : (
-                      <div className="text-sm text-gray-500 italic py-2">
+                      <div className="text-sm text-muted-foreground italic py-2">
                         No default equipment added yet
                       </div>
                     )}
@@ -378,7 +378,7 @@ export function AdminFighterEquipmentSelection({
 
               {category.select_type && (
                 <div className="mt-4 border-t pt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     {category.select_type === 'optional' ? 'Optional Equipment' : 'Available Equipment'}
                   </label>
                   <div className="flex gap-2 mb-2">
@@ -451,18 +451,18 @@ export function AdminFighterEquipmentSelection({
                     {/* Render optional equipment (replacements) for optional type */}
                     {(category.select_type === 'optional' || category.select_type === 'optional_single') && category.default && category.default.length > 0 && category.default[0].replacements && category.default[0].replacements.length > 0 && (
                       <div className="space-y-1">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-muted-foreground">
                           {category.select_type === 'optional_single' ? 'Optional Equipment (Choose One)' : 'Optional Equipment'}
                         </label>
                         <div className="space-y-2">
                           {category.default[0].replacements.map((item, index) => {
                             const equipmentItem = equipment.find(e => e.id === item.id);
                         return (
-                              <div key={item.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded">
                                 <span>{equipmentItem?.equipment_name || 'Unknown Equipment'}</span>
                                 <div className="ml-auto flex items-center gap-4">
                                   <div>
-                                    <label className="block text-xs text-gray-500">Cost</label>
+                                    <label className="block text-xs text-muted-foreground">Cost</label>
                                     <input
                                       type="number"
                                       value={item.cost}
@@ -494,7 +494,7 @@ export function AdminFighterEquipmentSelection({
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs text-gray-500">Max Number</label>
+                                    <label className="block text-xs text-muted-foreground">Max Number</label>
                                     <input
                                       type="number"
                                       value={item.max_quantity}
@@ -547,7 +547,7 @@ export function AdminFighterEquipmentSelection({
                                         };
                                       });
                                     }}
-                                    className="hover:bg-gray-100 p-1 rounded self-end"
+                                    className="hover:bg-muted p-1 rounded self-end"
                             disabled={disabled}
                                   >
                                     <X className="h-4 w-4" />
@@ -563,18 +563,18 @@ export function AdminFighterEquipmentSelection({
                     {/* Render available equipment options for single and multiple types */}
                     {(category.select_type === 'single' || category.select_type === 'multiple') && category.options && category.options.length > 0 && (
                       <div className="space-y-1">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-muted-foreground">
                           Available Equipment
                         </label>
                         <div className="space-y-2">
                           {category.options.map((item, index) => {
                             const equipmentItem = equipment.find(e => e.id === item.id);
                             return (
-                              <div key={item.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded">
                                 <span>{equipmentItem?.equipment_name || 'Unknown Equipment'}</span>
                                 <div className="ml-auto flex items-center gap-4">
                                   <div>
-                                    <label className="block text-xs text-gray-500">Cost</label>
+                                    <label className="block text-xs text-muted-foreground">Cost</label>
                                     <input
                                       type="number"
                                       value={item.cost}
@@ -594,7 +594,7 @@ export function AdminFighterEquipmentSelection({
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs text-gray-500">Max Number</label>
+                                    <label className="block text-xs text-muted-foreground">Max Number</label>
                                     <input
                                       type="number"
                                       value={item.max_quantity}
@@ -623,7 +623,7 @@ export function AdminFighterEquipmentSelection({
                                         }
                                       }));
                                     }}
-                                    className="hover:bg-gray-100 p-1 rounded self-end"
+                                    className="hover:bg-muted p-1 rounded self-end"
                                     disabled={disabled}
                                   >
                                     <X className="h-4 w-4" />

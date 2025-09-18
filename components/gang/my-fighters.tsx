@@ -101,7 +101,7 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
   }
 
   if (!fighters || fighters.length === 0) {
-    return <p className="text-gray-500 italic">No fighters added yet.</p>;
+    return <p className="text-muted-foreground italic">No fighters added yet.</p>;
   }
 
   return (

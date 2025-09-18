@@ -190,7 +190,7 @@ export function FighterActions({
         <div className="flex flex-wrap gap-2">
           <Button
             variant="default"
-            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="flex-1 bg-neutral-900 text-white hover:bg-gray-800"
             onClick={() => handleModalToggle('kill', true)}
             disabled={!userPermissions.canEdit}
           >

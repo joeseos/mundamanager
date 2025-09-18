@@ -383,9 +383,8 @@ const FighterCard = memo(function FighterCard({
     <div
       id={fighterCardId}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'opacity-90' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
-        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`}`}
+        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`} fighter-card-bg`}
         style={{
-          backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1747057650/fighter-card-background-4-web_pm2scj.avif')",
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
           backgroundPosition: 'center'
@@ -405,13 +404,13 @@ const FighterCard = memo(function FighterCard({
             }}>
             <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
-                <div className="inline-flex items-center rounded-sm bg-white px-1 text-sm font-bold font-mono text-black uppercase print:border-2 print:border-black">
+                <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
               <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-black">{name}</div>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-gray-500">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
@@ -424,7 +423,7 @@ const FighterCard = memo(function FighterCard({
         <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
           <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
-            {retired && <MdChair className="text-gray-600" />}
+            {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
@@ -432,12 +431,12 @@ const FighterCard = memo(function FighterCard({
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
-            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-white print:shadow-none overflow-hidden flex-shrink-0">
+            <div className="bg-primary rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden flex-shrink-0">
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}
           {!isInactive && (
-            <div className="bg-[#F0F0F0] rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-white print:shadow-none">
+            <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
               <span className="leading-6 font-bold md:text-3xl text-2xl">{credits === 0 ? '*' : credits}</span>
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
@@ -454,7 +453,7 @@ const FighterCard = memo(function FighterCard({
           {/* Show owner information for owned fighters */}
           {owner_name && (
             <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-1'} text-left`}>
-              <div className="text-sm text-black">
+              <div className="text-sm text-foreground">
                 Owned by <span className="font-semibold">{owner_name}</span>
               </div>
             </div>

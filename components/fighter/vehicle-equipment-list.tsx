@@ -42,7 +42,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
           <p>Are you sure you want to sell {item.equipment_name}?</p>
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Cost
               </label>
               <input

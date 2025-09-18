@@ -9,7 +9,7 @@ import {
 export default function HomeBreadcrumb() {
   return (
     <div 
-      className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
+      className="w-full fixed top-14 z-40 bg-card border-b border-neutral-800 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
       data-scroll-ignore="true"
@@ -19,7 +19,7 @@ export default function HomeBreadcrumb() {
           <BreadcrumbList aria-label="Breadcrumb navigation">
             <BreadcrumbItem>
               <BreadcrumbPage 
-                className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
+                className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
                 <span aria-hidden="true">

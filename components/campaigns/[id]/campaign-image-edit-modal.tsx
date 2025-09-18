@@ -267,7 +267,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
         {currentImageUrl && (
           <div className="mb-4">
             <div className="flex items-center justify-center space-x-4">
-              <img src={currentImageUrl} alt="Current" className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden" />
+              <img src={currentImageUrl} alt="Current" className="bg-primary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden" />
               <Button variant="destructive" onClick={handleRemoveImage} disabled={isUploading}>Remove Image</Button>
             </div>
           </div>
@@ -277,14 +277,14 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isProcessing} className="w-full">
             {isProcessing ? 'Processing image...' : 'Replace with New Image'}
           </Button>
-          <p className="mt-2 text-xs text-gray-500 text-center">
+          <p className="mt-2 text-xs text-muted-foreground text-center">
             Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB
           </p>
         </div>
         {image && (
           <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Crop Image:</h3>
-            <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden" style={{ position: 'relative' }}>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Crop Image:</h3>
+            <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden" style={{ position: 'relative' }}>
               <Cropper
                 image={image}
                 crop={crop}
@@ -299,7 +299,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
               />
             </div>
             <div className="flex items-center mt-2">
-              <label className="text-sm font-medium text-gray-700">Zoom:</label>
+              <label className="text-sm font-medium text-muted-foreground">Zoom:</label>
               <input type="range" min={1} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-full ml-2 mt-1" />
             </div>
           </div>
