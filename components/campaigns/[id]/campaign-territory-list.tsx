@@ -327,16 +327,16 @@ export default function CampaignTerritoryList({
       <div className="rounded-md border overflow-x-auto">
         <table className="text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b">
+            <tr className="bg-muted border-b">
               <th 
-                className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
                 <SortIndicator field="territory" />
               </th>
               <th 
-                className="w-3/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                className="w-3/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
@@ -348,7 +348,7 @@ export default function CampaignTerritoryList({
           <tbody>
             {territories.length === 0 ? (
               <tr>
-                <td colSpan={3} className="text-gray-500 italic text-center py-4">
+                <td colSpan={3} className="text-muted-foreground italic text-center py-4">
                   No territories in this campaign
                 </td>
               </tr>
@@ -361,20 +361,20 @@ export default function CampaignTerritoryList({
                       {item.territory.territory_name}
                       {item.territory.ruined && (
                         <GiAncientRuins 
-                          className="h-4 w-4 text-gray-600 inline ml-1" 
+                          className="h-4 w-4 text-muted-foreground inline ml-1" 
                           data-tooltip-id="ruined-tooltip"
                           data-tooltip-content="This territory has been ruined and now provides a different boon"
                         />
                       )}
                       {item.territory.default_gang_territory && (
                         <IoHome 
-                          className="h-4 w-4 text-gray-600 inline ml-1" 
+                          className="h-4 w-4 text-muted-foreground inline ml-1" 
                           data-tooltip-id="default-territory-tooltip"
                           data-tooltip-content="This is a default gang territory"
                         />
                       )}
                       {item.type === 'uncontrolled' && item.count > 1 && (
-                        <span className="text-gray-500 font-normal ml-1">(x{item.count})</span>
+                        <span className="text-muted-foreground font-normal ml-1">(x{item.count})</span>
                       )}
                     </div>
                   </td>
@@ -384,12 +384,12 @@ export default function CampaignTerritoryList({
                         item.territory.owning_gangs.map(gang => (
                           <div
                             key={gang.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                             style={{ color: gang.gang_colour || '#000000' }}
                           >
                             <Link 
                               href={`/gang/${gang.id}`} 
-                              className="hover:text-gray-600 transition-colors"
+                              className="hover:text-muted-foreground transition-colors"
                             >
                               {gang.name}
                             </Link>
@@ -399,7 +399,7 @@ export default function CampaignTerritoryList({
                                   e.stopPropagation();
                                   handleRemoveGang(item.territory.id, gang.id);
                                 }}
-                                className="ml-1 text-gray-400 hover:text-gray-600"
+                                className="ml-1 text-gray-400 hover:text-muted-foreground"
                               >
                                 ×
                               </button>

@@ -111,7 +111,7 @@ export default function SignIn() {
               type="email"
               placeholder="you@example.com" 
               required 
-              className="text-black" 
+              className="text-foreground" 
               autoComplete="email"
             />
             <Label htmlFor="password">Password</Label>
@@ -121,7 +121,7 @@ export default function SignIn() {
               type="password"
               placeholder="••••••••"
               required
-              className="text-black"
+              className="text-foreground"
               autoComplete="current-password"
             />
             {errorMessage && (
@@ -149,13 +149,13 @@ export default function SignIn() {
       <div className="container mx-auto max-w-4xl w-full space-y-4 mt-6">
 
         {/* Tabs navigation */}
-        <div className="bg-white rounded-lg mb-4 flex">
+        <div className="bg-card rounded-lg mb-4 flex">
           <button
             onClick={() => setActiveTab(0)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 0
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <FaUsers className="h-5 w-5" />
@@ -166,8 +166,8 @@ export default function SignIn() {
             onClick={() => setActiveTab(1)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === 1
-                ? 'text-black font-medium'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
             <FiMap className="h-5 w-5" />
@@ -176,7 +176,7 @@ export default function SignIn() {
         </div>
         
         {/* Single white box container for all content */}
-        <div className="bg-white shadow-md rounded-lg p-4">
+        <div className="bg-card shadow-md rounded-lg p-4">
           {/* Tab-specific content */}
           
           {/* What is Munda Manager tab content */}

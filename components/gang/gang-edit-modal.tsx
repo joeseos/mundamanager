@@ -298,7 +298,7 @@ export default function GangEditModal({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Credits
-          <span className="text-xs text-gray-500"> (Current: {credits})</span>
+          <span className="text-xs text-muted-foreground"> (Current: {credits})</span>
         </p>
         <Input
           type="tel"
@@ -317,7 +317,7 @@ export default function GangEditModal({
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Reputation
-          <span className="text-xs text-gray-500"> (Current: {reputation})</span>
+          <span className="text-xs text-muted-foreground"> (Current: {reputation})</span>
         </p>
         <Input
           type="tel"
@@ -333,7 +333,7 @@ export default function GangEditModal({
       {campaigns?.[0]?.has_exploration_points && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Exploration Points
-          <span className="text-xs text-gray-500"> (Current: {explorationPoints})</span>
+          <span className="text-xs text-muted-foreground"> (Current: {explorationPoints})</span>
         </p>
           <Input
             type="tel"
@@ -350,7 +350,7 @@ export default function GangEditModal({
       {campaigns?.[0]?.has_meat && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Meat
-          <span className="text-xs text-gray-500"> (Current: {meat})</span>
+          <span className="text-xs text-muted-foreground"> (Current: {meat})</span>
         </p>
           <Input
             type="tel"
@@ -367,7 +367,7 @@ export default function GangEditModal({
       {campaigns?.[0]?.has_scavenging_rolls && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Scavenging Rolls
-          <span className="text-xs text-gray-500"> (Current: {scavengingRolls})</span>
+          <span className="text-xs text-muted-foreground"> (Current: {scavengingRolls})</span>
         </p>
           <Input
             type="tel"
@@ -477,7 +477,7 @@ export default function GangEditModal({
           <div className="grid grid-cols-2 gap-4 ">
             {/* Unaffiliated variants */}
             <div>
-              <h3 className="text-xs font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
                   .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
@@ -489,7 +489,7 @@ export default function GangEditModal({
                     <React.Fragment key={variant.id}>
                       {/* Insert separator before 'skirmish' */}
                       {variant.variant.toLowerCase() === "skirmish" && (
-                        <div className="border-t border-gray-300" />
+                        <div className="border-t border-border" />
                       )}
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -514,7 +514,7 @@ export default function GangEditModal({
 
             {/* Outlaw/Corrupted variants*/}
             <div>
-              <h3 className="text-xs font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
               <div className="flex flex-col gap-2">
                 {availableVariants
                   .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
@@ -595,7 +595,7 @@ export default function GangEditModal({
               </div>
               <div className="flex justify-center">
                 <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                   style={{ color: editedGangColour }}
                 >
                   {gangName}

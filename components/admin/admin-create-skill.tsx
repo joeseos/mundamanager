@@ -136,15 +136,15 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Add Skill</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required. However, some fields are mutually exclusive.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Add Skill</h3>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required. However, some fields are mutually exclusive.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -153,7 +153,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         <div className="px-[10px] py-4">
           <div className="grid grid-cols-1 gap-4">
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Set *
               </label>
               <select
@@ -203,7 +203,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Name *
               </label>
               <Input
@@ -217,7 +217,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Set Name *
               </label>
               <Input

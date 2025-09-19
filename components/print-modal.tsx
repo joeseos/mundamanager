@@ -70,7 +70,7 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
       confirmText="Print"
       content={
         <div className="space-y-4">
-          <div className="block text-sm font-medium text-gray-700">Include the following:</div>
+          <div className="block text-sm font-medium text-muted-foreground">Include the following:</div>
 
           {[
             ['includeGangCard', 'Gang Card'],

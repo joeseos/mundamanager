@@ -118,19 +118,19 @@ export default function TerritoryGangModal({
 
   const modalContent = (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted-foreground">
         Select a gang to take control of <strong>{territoryName}</strong>
       </p>
       {isLoading ? (
         <p>Loading gangs...</p>
       ) : availableGangs.length === 0 ? (
-        <p className="text-gray-500 italic text-sm text-gray-500">No gangs have been added to this campaign.</p>
+        <p className="text-muted-foreground italic text-sm text-muted-foreground">No gangs have been added to this campaign.</p>
       ) : (
         <>
           <select
             value={selectedGang}
             onChange={(e) => setSelectedGang(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-black"
           >
             <option value="">Select a gang</option>
             {availableGangs

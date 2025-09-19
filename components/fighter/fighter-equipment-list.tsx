@@ -56,7 +56,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
             <button
               type="button"
               onClick={handleRoll}
-              className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+              className="px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 disabled:opacity-50"
             >
               Roll D6
             </button>
@@ -69,7 +69,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
 
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Cost
               </label>
               <input
@@ -79,7 +79,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
                 className="w-full p-2 border rounded-md"
                 min={0}
               />
-              <p className="text-xs text-gray-500 mt-1">Minimum 5 credits</p>
+              <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
             </div>
           </div>
         </div>
@@ -324,10 +324,10 @@ export function WeaponList({
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 bg-gray-200 animate-pulse rounded" />
+        <div className="h-8 bg-secondary animate-pulse rounded" />
         <div className="space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
+            <div key={i} className="h-12 bg-muted animate-pulse rounded" />
           ))}
         </div>
       </div>
@@ -341,7 +341,7 @@ export function WeaponList({
           <h2 className="text-xl md:text-2xl font-bold">Equipment</h2>
           <Button 
             onClick={onAddEquipment}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
             disabled={isLoading || !userPermissions.canEdit}
           >
             Add
@@ -352,7 +352,7 @@ export function WeaponList({
           <table className="w-full table-auto">
             {(equipment?.length > 0) && (
               <thead>
-                <tr className="bg-gray-100">
+                <tr className="bg-muted">
                   <th className="px-1 py-1 text-left w-[75%]">Name</th>
                   <th className="px-1 py-1 text-right">Cost</th>
                   <th className="px-1 py-1 text-right">Action</th>
@@ -362,7 +362,7 @@ export function WeaponList({
             <tbody>
               {!equipment?.length ? (
                 <tr>
-                  <td colSpan={3} className="text-gray-500 italic text-center py-4">
+                  <td colSpan={3} className="text-muted-foreground italic text-center py-4">
                     No equipment yet.
                   </td>
                 </tr>

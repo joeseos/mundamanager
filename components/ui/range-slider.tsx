@@ -25,8 +25,8 @@ export function RangeSlider({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex justify-between items-center">
-        <label className="text-sm font-medium text-gray-700">{label}</label>
-        <span className="text-sm text-gray-500">
+        <label className="text-sm font-medium text-muted-foreground">{label}</label>
+        <span className="text-sm text-muted-foreground">
           {formatValue(value[0])} - {formatValue(value[1])}
         </span>
       </div>
@@ -41,18 +41,18 @@ export function RangeSlider({
         minStepsBetweenThumbs={0}
       >
         <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-gray-400">
-          <SliderPrimitive.Range className="absolute h-full bg-black" />
+          <SliderPrimitive.Range className="absolute h-full bg-primary" />
         </SliderPrimitive.Track>
 
         {/* First thumb (minimum value) */}
         <SliderPrimitive.Thumb
-          className="block h-4 w-4 rounded-full border border-gray-300 bg-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="block h-4 w-4 rounded-full border border-border bg-card shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           aria-label="Set minimum value"
         />
 
         {/* Second thumb (maximum value) */}
         <SliderPrimitive.Thumb
-          className="block h-4 w-4 rounded-full border border-gray-300 bg-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="block h-4 w-4 rounded-full border border-border bg-card shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           aria-label="Set maximum value"
         />
       </SliderPrimitive.Root>

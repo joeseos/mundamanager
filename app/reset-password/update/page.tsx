@@ -99,7 +99,7 @@ function UpdatePasswordFormContent() {
             type="password"
             placeholder="••••••••"
             required
-            className="text-black mt-1"
+            className="text-foreground mt-1"
             minLength={6}
           />
         </div>
@@ -112,7 +112,7 @@ function UpdatePasswordFormContent() {
             type="password"
             placeholder="••••••••"
             required
-            className="text-black mt-1"
+            className="text-foreground mt-1"
             minLength={6}
           />
         </div>

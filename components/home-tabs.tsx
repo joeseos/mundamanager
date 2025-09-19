@@ -38,15 +38,15 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
   return (
     <div className="w-full">
       {/* Tab Navigation */}
-      <div className="bg-white shadow-md rounded-lg mb-4 flex">
+      <div className="bg-card shadow-md rounded-lg mb-4 flex">
         {tabTitles.map((title, index) => (
           <button
             key={index}
             onClick={() => setActiveTab(index)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === index
-                ? 'text-black font-medium border-b-0 border-blue-500'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-foreground font-medium border-b-0 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {title}

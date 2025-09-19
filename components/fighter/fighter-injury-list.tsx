@@ -404,10 +404,10 @@ export function InjuriesList({
             }
           }}
         >
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
+          <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
             <div className="border-b px-[10px] py-2 flex justify-between items-center">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Send ganger into Recovery?</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-foreground">Send ganger into Recovery?</h3>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -416,7 +416,7 @@ export function InjuriesList({
                     setSelectedInjuryId('');
                     setSelectedInjury(null);
                   }}
-                  className="text-gray-500 hover:text-gray-700 text-xl"
+                  className="text-muted-foreground hover:text-muted-foreground text-xl"
                 >
                   ×
                 </button>
@@ -434,13 +434,13 @@ export function InjuriesList({
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
                 }}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="px-4 py-2 border rounded hover:bg-muted"
               >
                 Cancel
               </button>
               <button
                 onClick={() => proceedWithAddingInjury(false, false)}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="px-4 py-2 border rounded hover:bg-muted"
               >
                 No
               </button>
@@ -466,10 +466,10 @@ export function InjuriesList({
             }
           }}
         >
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
+          <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
             <div className="border-b px-[10px] py-2 flex justify-between items-center">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Mark fighter as Captured?</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-foreground">Mark fighter as Captured?</h3>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -478,7 +478,7 @@ export function InjuriesList({
                     setSelectedInjuryId('');
                     setSelectedInjury(null);
                   }}
-                  className="text-gray-500 hover:text-gray-700 text-xl"
+                  className="text-muted-foreground hover:text-muted-foreground text-xl"
                 >
                   ×
                 </button>
@@ -496,13 +496,13 @@ export function InjuriesList({
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
                 }}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="px-4 py-2 border rounded hover:bg-muted"
               >
                 Cancel
               </button>
               <button
                 onClick={() => proceedWithAddingInjury(false, false)}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="px-4 py-2 border rounded hover:bg-muted"
               >
                 No
               </button>

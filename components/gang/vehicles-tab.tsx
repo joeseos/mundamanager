@@ -670,15 +670,15 @@ export default function GangVehicles({
 
   return (
     <div className="container max-w-5xl w-full space-y-4 mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-card rounded-lg shadow-md p-4">
         <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
         
         {allVehicles.length === 0 ? (
-          <p className="text-gray-500 italic text-center">No vehicles available.</p>
+          <p className="text-muted-foreground italic text-center">No vehicles available.</p>
         ) : (
           <>
             <div className="mb-4">
-              <div className="flex items-center text-sm font-medium text-gray-700 px-0 py-2">
+              <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
                 <div className="w-4 mr-5" />
                 <div className="flex w-64">Name</div>
                 <div className="w-64">Type</div>
@@ -692,7 +692,7 @@ export default function GangVehicles({
                 {allVehicles.map((vehicle, index) => (
                   <label
                     key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`}
-                    className="flex items-center p-2 bg-gray-50 rounded-md cursor-pointer"
+                    className="flex items-center p-2 bg-muted rounded-md cursor-pointer"
                     onClick={() => setSelectedVehicle(index)}
                   >
                     <input
@@ -700,7 +700,7 @@ export default function GangVehicles({
                       name="vehicle-item"
                       checked={selectedVehicle === index}
                       onChange={() => setSelectedVehicle(index)}
-                      className="h-3 w-3 max-w-3 min-w-3 border-gray-300 text-black focus:ring-black mr-3"
+                      className="h-3 w-3 max-w-3 min-w-3 border-border text-foreground focus:ring-black mr-3"
                     />
                     <span className="flex w-64 overflow-hidden text-ellipsis">
                       {vehicle.vehicle_name || vehicle.vehicle_type}
@@ -708,7 +708,7 @@ export default function GangVehicles({
                     <span className="w-64 overflow-hidden text-ellipsis text-nowrap">
                       {vehicle.vehicle_type}
                     </span>
-                    <span className="w-64 overflow-hidden text-ellipsis text-gray-600">
+                    <span className="w-64 overflow-hidden text-ellipsis text-muted-foreground">
                       {vehicle.assigned_to || '-'}
                     </span>
                     <div className="flex-1" />
@@ -764,14 +764,14 @@ export default function GangVehicles({
 
             <div className="px-0">
               <div className="border-t pt-4">
-                <label htmlFor="fighter-select" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
                   Assign Vehicle to a Crew
                 </label>
                 <select
                   id="fighter-select"
                   value={selectedFighter}
                   onChange={(e) => setSelectedFighter(e.target.value)}
-                  className="w-full p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-black mb-4"
+                  className="w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4"
                 >
                   <option value="">Select a Crew</option>
                   {crewFighters.map((fighter) => (
@@ -805,7 +805,7 @@ export default function GangVehicles({
         >
           <div className="space-y-4">
             <div>
-              <label htmlFor="vehicleName" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="vehicleName" className="block text-sm font-medium text-muted-foreground">
                 Vehicle Name
               </label>
               <Input
@@ -819,7 +819,7 @@ export default function GangVehicles({
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Special Rules
               </label>
               <div className="flex space-x-2 mb-2">
@@ -848,13 +848,13 @@ export default function GangVehicles({
                 {vehicleSpecialRules.map((rule, index) => (
                   <div
                     key={index}
-                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                   >
                     <span>{rule}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
                     >
                       <X size={14} />
                     </button>
@@ -878,7 +878,7 @@ export default function GangVehicles({
             </p>
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Sell Value
                 </label>
                 <Input
@@ -890,7 +890,7 @@ export default function GangVehicles({
                 />
               </div>
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Credits will be returned to the gang. If the vehicle is assigned to a Crew, the gang rating will decrease accordingly.
             </p>
           </div>

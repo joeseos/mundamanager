@@ -511,7 +511,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             <div key={categoryId} className="space-y-3">
               {categoryData.default && categoryData.default.length > 0 && (
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     Default {categoryName}
                   </label>
                   <div className="space-y-1">
@@ -522,7 +522,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                       
                       return (
                         <div key={`${item.id}-${index}`} className="flex items-center gap-2">
-                          <div className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                          <div className="bg-muted px-3 py-1 rounded-full text-sm">
                             {item.quantity}x {equipmentName}
                           </div>
                         </div>
@@ -534,7 +534,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
               {categoryData.options && categoryData.options.length > 0 && (
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     {isOptional ? `Optional ${categoryName} (Replaces one default)` : 
                      isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)` :
                      isSingle ? `Select ${categoryName} (Choose one)` : 
@@ -1206,7 +1206,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
   const gangAdditionsModalContent = (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-muted-foreground">
           Fighter Name *
         </label>
         <Input
@@ -1219,7 +1219,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-muted-foreground">
           Fighter Class *
         </label>
         <select
@@ -1314,7 +1314,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-muted-foreground">
           Fighter Type *
         </label>
         <select
@@ -1412,7 +1412,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       {/* Conditionally show sub-type dropdown if there are available sub-types */}
       {availableSubTypes.length > 0 && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             Fighter Sub-type
           </label>
           <select
@@ -1463,7 +1463,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       {renderEquipmentSelection()}
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-muted-foreground">
           Total Cost (credits)
         </label>
         <Input
@@ -1474,7 +1474,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           min={0}
         />
         {selectedGangAdditionTypeId && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Base cost: {getBaseCost()} credits
             {getSelectedEquipmentCost() > 0 && (
               <> | Equipment cost: {getSelectedEquipmentCost()} credits</>
@@ -1491,13 +1491,13 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         />
         <label 
           htmlFor="use-base-cost-for-rating" 
-          className="text-sm font-medium text-gray-700 cursor-pointer"
+          className="text-sm font-medium text-muted-foreground cursor-pointer"
         >
           Use Listed Cost for Rating
         </label>
         <div className="relative group">
           <ImInfo />
-          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
             When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
           </div>
         </div>
@@ -1512,7 +1512,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       title="Gang Additions"
       headerContent={
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Gang Credits</span>
+          <span className="text-sm text-muted-foreground">Gang Credits</span>
           <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
             {initialCredits}
           </span>

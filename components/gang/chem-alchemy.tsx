@@ -192,7 +192,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
       title="Create Chem-alchemy Elixir"
       headerContent={
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Gang Credits</span>
+          <span className="text-sm text-muted-foreground">Gang Credits</span>
           <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
             {gangCredits}
           </span>
@@ -206,17 +206,17 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
       <div className="space-y-5">
         {/* Chem Name Input */}
         <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-2">Elixir Name</label>
+          <label className="block text-sm font-semibold text-foreground mb-2">Elixir Name</label>
           <input
             type="text"
             value={chemName}
             onChange={(e) => setChemName(e.target.value)}
             placeholder="Enter a name for your elixir..."
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           
           <div className="mt-0">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Name Suffix: {selectedEffects.length > 0 ? `(${selectedEffects.map(effect => effect.name).join(", ")})` : "()"}
             </span>
           </div>
@@ -225,7 +225,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
 
         {/* Chem Type Selection */}
         <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-3">Chem Type</label>
+          <label className="block text-sm font-semibold text-foreground mb-3">Chem Type</label>
           <div className="grid grid-cols-3 gap-2">
             {(["stimm", "gaseous", "toxic"] as ChemType[]).map((type) => (
               <Button
@@ -243,7 +243,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
 
         {/* Cost Input */}
         <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-2">Cost (credits)</label>
+          <label className="block text-sm font-semibold text-foreground mb-2">Cost (credits)</label>
           <input
             type="number"
             inputMode="numeric"
@@ -259,10 +259,10 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
                 }
               }
             }}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             min="0"
           />
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Listed cost: {totalCost} credits
           </p>
           {creditError && (
@@ -279,13 +279,13 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
           />
           <label 
             htmlFor="use-base-cost-for-rating" 
-            className="text-sm font-medium text-gray-700 cursor-pointer"
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
           >
             Use Listed Cost for Rating
           </label>
           <div className="relative group">
             <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
               When enabled, the elixir's rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>
@@ -294,11 +294,11 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
         {/* Effects Selection */}
         <div>
           <div className="mb-3">
-            <label className="block text-sm font-semibold text-gray-800">
+            <label className="block text-sm font-semibold text-foreground">
               Available Effects ({selectedEffects.length}/3)
             </label>
           </div>
-          <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-lg">
+          <div className="max-h-72 overflow-y-auto border border-border rounded-lg">
             {availableEffects.map((effect, index) => {
               const isSelected = selectedEffects.some((e) => e.name === effect.name)
               const canSelect = selectedEffects.length < 3 || isSelected
@@ -309,7 +309,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
                   htmlFor={`effect-${effect.name}`}
                   className={`flex items-center justify-between p-3 ${
                     index !== availableEffects.length - 1 ? "border-b border-gray-100" : ""
-                  } ${!canSelect ? "opacity-40" : "hover:bg-gray-50"} transition-colors cursor-pointer`}
+                  } ${!canSelect ? "opacity-40" : "hover:bg-muted"} transition-colors cursor-pointer`}
                 >
                   <div className="flex items-center space-x-3 flex-1">
                     <Checkbox
@@ -318,11 +318,11 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
                       onCheckedChange={() => handleEffectToggle(effect)}
                       disabled={!canSelect}
                     />
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-foreground">
                       {effect.name}
                     </span>
                   </div>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-neutral-900 text-white">
                     <span className="text-[10px] font-medium">{effect.cost}</span>
                   </div>
                 </label>

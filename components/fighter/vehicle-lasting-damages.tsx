@@ -364,14 +364,14 @@ export function VehicleDamagesList({
           <div className="flex gap-2">
             <Button 
               onClick={() => setIsRepairModalOpen(true)}
-              className="bg-white hover:bg-gray-100 text-black border border-gray-300"
+              className="bg-card hover:bg-muted text-foreground border border-border"
               disabled={uniqueDamages.length === 0 || !userPermissions.canEdit}
             >
               Repair
             </Button>
             <Button 
               onClick={handleOpenModal}
-              className="bg-black hover:bg-gray-800 text-white"
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
               disabled={!userPermissions.canEdit}
             >
               Add
@@ -385,7 +385,7 @@ export function VehicleDamagesList({
             <table className="w-full table-auto">
               {(uniqueDamages.length > 0) && (
                 <thead>
-                  <tr className="bg-gray-100">
+                  <tr className="bg-muted">
                     <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
                     <th className="px-1 py-1 text-right">Action</th>
                   </tr>
@@ -394,7 +394,7 @@ export function VehicleDamagesList({
               <tbody>
                 {uniqueDamages.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="text-gray-500 italic text-center py-4">
+                    <td colSpan={2} className="text-muted-foreground italic text-center py-4">
                       No lasting damage yet.
                     </td>
                   </tr>
@@ -553,7 +553,7 @@ export function VehicleDamagesList({
           headerContent={
             gangCredits !== undefined && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Gang Credits</span>
+                <span className="text-sm text-muted-foreground">Gang Credits</span>
                 <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
                   {gangCredits}
                 </span>
@@ -606,7 +606,7 @@ export function VehicleDamagesList({
                 </div>
                 {/* Calculate vehicle cost + upgrades (excluding weapons) */}
                 <div className="mt-4 flex items-center gap-2">
-                  <label htmlFor="repairTotalCost" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="repairTotalCost" className="block text-sm font-medium text-muted-foreground">
                     Total Cost
                   </label>
                   <input

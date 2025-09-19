@@ -26,7 +26,7 @@ export default async function GangBreadcrumb({
 
   return (
     <div 
-      className="w-full fixed top-14 z-40 bg-white border-b border-gray-100 print:hidden"
+      className="w-full fixed top-14 z-40 bg-card border-b border-neutral-800 print:hidden"
       role="navigation"
       aria-label="Breadcrumb"
       data-scroll-ignore="true"
@@ -38,7 +38,7 @@ export default async function GangBreadcrumb({
               <BreadcrumbLink asChild>
                 <Link 
                   href="/" 
-                  className="text-gray-600 hover:text-primary flex items-center"
+                  className="text-muted-foreground hover:text-primary flex items-center"
                   aria-label="Home"
                 >
                   <span aria-hidden="true">
@@ -53,7 +53,7 @@ export default async function GangBreadcrumb({
             >/</BreadcrumbSeparator>
             <BreadcrumbItem>
               <BreadcrumbPage 
-                className="text-gray-900 font-medium items-center whitespace-nowrap leading-none"
+                className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
                 {gangData?.name || 'Gang'}

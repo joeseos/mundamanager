@@ -21,15 +21,15 @@ export default function MyGangs({ gangs }: MyGangsProps) {
   });
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-3 md:p-6">
+    <div className="bg-card shadow-md rounded-lg p-3 md:p-6">
       <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Your Gangs</h2>
       {sortedGangs.length === 0 ? (
-        <p className="text-center text-gray-500">No gangs created yet.</p>
+        <p className="text-center text-muted-foreground">No gangs created yet.</p>
       ) : (
         <ul className="space-y-3">
           {sortedGangs.map((gang) => (
             <li key={gang.id}>
-              <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
+              <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-muted rounded-md hover:bg-muted transition-colors duration-200">
                 <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                   {gang.image_url || gang.gang_type_image_url ? (
                     <Image
@@ -42,7 +42,7 @@ export default function MyGangs({ gangs }: MyGangsProps) {
                       onError={handleImageError}
                     />
                   ) : (
-                    <div className="absolute w-[60px] h-[60px] rounded-full bg-gray-200 z-10 flex items-center justify-center">
+                    <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
                       {gang.name.charAt(0)}
                     </div>
                   )}
@@ -57,8 +57,8 @@ export default function MyGangs({ gangs }: MyGangsProps) {
                   />
                 </div>
                 <div className="flex-grow min-w-0">
-                  <h3 className="text-lg md:text-xl font-medium text-black truncate">{gang.name}</h3>
-                  <div className="text-sm md:text-base text-gray-600">
+                  <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{gang.name}</h3>
+                  <div className="text-sm md:text-base text-muted-foreground">
                     <span className="truncate block">
                       {gang.gang_type}
                       {gang.gang_variants && gang.gang_variants.length > 0

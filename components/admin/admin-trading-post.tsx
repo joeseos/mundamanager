@@ -82,12 +82,12 @@ export function AdminTradingPost({
 
   const modalContent = (
     <div className="space-y-4">
-      <div className="text-sm text-gray-600">
+      <div className="text-sm text-muted-foreground">
         Select which trading posts should include this equipment.
       </div>
       
       {isLoading ? (
-        <div className="p-4 text-center text-gray-500">Loading trading post types...</div>
+        <div className="p-4 text-center text-muted-foreground">Loading trading post types...</div>
       ) : (
         <div className="space-y-3">
           {tradingPostTypes.map((tradingPost) => (
@@ -111,8 +111,8 @@ export function AdminTradingPost({
       )}
       
       {selectedTradingPosts.length > 0 && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <div className="text-sm font-medium text-gray-700 mb-2">
+        <div className="mt-4 p-3 bg-muted rounded-lg">
+          <div className="text-sm font-medium text-muted-foreground mb-2">
             Selected Trading Posts ({selectedTradingPosts.length}):
           </div>
           <div className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export function AdminTradingPost({
 
   return (
     <div className="col-span-1">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
         Trading Posts
       </label>
       <Button
@@ -155,7 +155,7 @@ export function AdminTradingPost({
             return tradingPost ? (
               <span 
                 key={tradingPostId}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800"
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-muted text-foreground"
               >
                 {tradingPost.trading_post_name}
               </span>

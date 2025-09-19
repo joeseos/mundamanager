@@ -417,7 +417,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
               <img
                 src={currentImageUrl}
                 alt="Current gang"
-                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+                className="bg-neutral-900 rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
               />
               <Button
                 variant="destructive"
@@ -447,14 +447,14 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
           >
             {isProcessing ? 'Processing image...' : 'Replace with New Image'}
           </Button>
-          <p className="mt-2 text-xs text-gray-500 text-center">Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB</p>
+          <p className="mt-2 text-xs text-muted-foreground text-center">Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB</p>
         </div>
 
         {/* Crop area */}
         {image && (
           <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Crop Image:</h3>
-            <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden" style={{ position: 'relative' }}>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Crop Image:</h3>
+            <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden" style={{ position: 'relative' }}>
               <Cropper
                 image={image}
                 crop={crop}
@@ -477,7 +477,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
            
             {/* Zoom control */}
             <div className="flex items-center mt-2">
-              <label className="text-sm font-medium text-gray-700">Zoom:</label>
+              <label className="text-sm font-medium text-muted-foreground">Zoom:</label>
               <input
                 type="range"
                 min={1}

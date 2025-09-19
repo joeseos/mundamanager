@@ -72,12 +72,12 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={`bg-white rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}>
+      <div className={`bg-card rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}>
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">{title}</h3>
             {helper && (
-              <p className="text-sm text-gray-500">{helper}</p>
+              <p className="text-sm text-muted-foreground">{helper}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-xl"
+              className="text-muted-foreground hover:text-muted-foreground text-xl"
             >
               ×
             </button>
@@ -103,7 +103,7 @@ export default function Modal({
                 variant="outline"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className={`px-4 py-2 border rounded hover:bg-gray-100 ${
+                className={`px-4 py-2 border rounded hover:bg-muted ${
                   isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -113,7 +113,7 @@ export default function Modal({
             <Button
               onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}
-              className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
+              className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
                 (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >

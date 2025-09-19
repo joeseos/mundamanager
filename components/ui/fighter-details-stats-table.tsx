@@ -94,7 +94,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
                 key={key}
                 className={`font-semibold text-center p-1 border-b-[1px] border-[#a05236]
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-secondary/70' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}
@@ -119,7 +119,7 @@ export function FighterDetailsStatsTable({ data, isCrew }: FighterDetailsStatsTa
                 key={key}
                 className={`text-center p-1
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' || key === 'Side' || key === 'Rear' ? 'bg-secondary/70' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}
                   ${isStatOutOfRange(key, value) ? 'text-red-500 font-semibold' : ''}`}

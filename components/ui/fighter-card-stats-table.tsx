@@ -159,9 +159,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                 key={key}
                 className={`${pClass} font-semibold text-center border-b-[1px] border-[#a05236]
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' ? 'bg-secondary/70' : ''}
+                  ${key === 'Side' ? 'bg-secondary/70' : ''}
+                  ${key === 'Rear' ? 'bg-secondary/70' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}
@@ -193,9 +193,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                 key={key}
                 className={`${pClass} text-center
                   ${specialBackgroundStats.includes(key) ? 'bg-[rgba(162,82,54,0.3)]' : ''}
-                  ${key === 'Front' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Side' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
-                  ${key === 'Rear' ? 'bg-[rgba(255,255,255,0.7)]' : ''}
+                  ${key === 'Front' ? 'bg-secondary/70' : ''}
+                  ${key === 'Side' ? 'bg-secondary/70' : ''}
+                  ${key === 'Rear' ? 'bg-secondary/70' : ''}
                   ${key === 'XP' ? 'bg-[rgba(162,82,54,0.7)] text-white' : ''}
                   ${getColumnBorderClass(key)}`}
                 style={{ width: columnWidth }}

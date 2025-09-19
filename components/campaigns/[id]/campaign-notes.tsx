@@ -130,13 +130,15 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         <p className="text-red-500 text-sm">{error}</p>
       )}
       {isEditing ? (
-        <RichTextEditor
-          content={note}
-          onChange={setNote}
-          placeholder="Add notes here..."
-          className="min-h-[200px]"
-          charLimit={NOTE_CHAR_LIMIT}
-        />
+        <div className="bg-white rounded-md">
+          <RichTextEditor
+            content={note}
+            onChange={setNote}
+            placeholder="Add notes here..."
+            className="min-h-[200px]"
+            charLimit={NOTE_CHAR_LIMIT}
+          />
+        </div>
       ) : (
         <div 
           className={`max-w-none ${!isEmptyContent(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}

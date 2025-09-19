@@ -65,19 +65,19 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           <tr>
             <th className="px-1 py-1 text-xs text-left">Type</th>
             {stats.map(stat => (
-              <th key={stat.key} className="min-w-[20px] max-w-[20px] border-l border-gray-300 text-center text-xs">{stat.label}</th>
+              <th key={stat.key} className="min-w-[20px] max-w-[20px] border-l border-border text-center text-xs">{stat.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {/* Base row - always shown */}
-          <tr className="bg-gray-100">
+          <tr className="bg-muted">
             <td className="px-1 py-1 font-medium text-xs">Base</td>
             {stats.map(stat => {
               const baseValue = getStat(fighter, stat.key);
               
               return (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {stat.key === 'movement' ? `${baseValue}"` :
                    stat.key === 'wounds' || stat.key === 'attacks' || 
                    stat.key === 'strength' || stat.key === 'toughness' ? 
@@ -93,7 +93,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-red-50">
               <td className="px-1 py-1 font-medium text-xs">Injuries</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {injuryEffects[stat.key] ? injuryEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -105,7 +105,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-blue-50">
               <td className="px-1 py-1 font-medium text-xs">Adv.</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {advancementEffects[stat.key] ? advancementEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -117,7 +117,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-yellow-50">
               <td className="px-1 py-1 font-medium text-xs">Bionics</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {bionicsEffects[stat.key] ? bionicsEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -129,7 +129,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-green-50">
               <td className="px-1 py-1 font-medium text-xs">User</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {userEffects[stat.key] ? userEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -141,7 +141,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-purple-50">
               <td className="px-1 py-1 font-medium text-xs">Gene-Smithing</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {geneSmithingEffects[stat.key] ? geneSmithingEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -153,7 +153,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-pink-50">
               <td className="px-1 py-1 font-medium text-xs">Rig-Glitches</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {rigGlitchesEffects[stat.key] ? rigGlitchesEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -165,7 +165,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-teal-50">
               <td className="px-1 py-1 font-medium text-xs">Augmentations</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {augmentationsEffects[stat.key] ? augmentationsEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -177,7 +177,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             <tr className="bg-amber-50">
               <td className="px-1 py-1 font-medium text-xs">Equipment</td>
               {stats.map(stat => (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {equipmentEffects[stat.key] ? equipmentEffects[stat.key] : '-'}
                 </td>
               ))}
@@ -185,7 +185,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           )}
           
           {/* Total row - always shown */}
-          <tr className="bg-gray-100 font-bold">
+          <tr className="bg-muted font-bold">
             <td className="px-1 py-1 text-xs">Total</td>
             {stats.map(stat => {
               const baseValue = getStat(fighter, stat.key);
@@ -200,7 +200,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue;
               
               return (
-                <td key={stat.key} className="border-l border-gray-300 text-center text-xs">
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {stat.key === 'movement' ? `${total}"` :
                    stat.key === 'wounds' || stat.key === 'attacks' || 
                    stat.key === 'strength' || stat.key === 'toughness' ? 
@@ -399,12 +399,12 @@ function CharacterStatsModal({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[100]">
       <div className="fixed inset-0 bg-black bg-opacity-50" onClick={isSaving ? undefined : onClose}></div>
-      <div className="bg-white rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
+      <div className="bg-card rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl md:text-2xl font-bold">Adjust Characteristics</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
             disabled={isSaving}
           >
             ×
@@ -418,7 +418,7 @@ function CharacterStatsModal({
                 <div key={stat.key} className="border rounded-lg p-2">
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm md:text-xl font-bold">{stat.key}</h3>
-                    <span className="text-xs text-gray-500">{stat.name}</span>
+                    <span className="text-xs text-muted-foreground">{stat.name}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <Button
@@ -436,7 +436,7 @@ function CharacterStatsModal({
                         {getAdjustedTotal(stat.key)}
                       </span>
                       {/* Display BASE value without the adjustment */}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         Base: {getBaseDisplay(stat.key)}
                       </span>
                     </div>
@@ -1312,7 +1312,7 @@ export function EditFighterModal({
                 })()}
               </select>
               {fighter.fighter_type && (
-                <div className="mt-1 text-sm text-gray-500">
+                <div className="mt-1 text-sm text-muted-foreground">
                   Current: {typeof (fighter as any).fighter_type === 'object' 
                     ? (fighter as any).fighter_type.fighter_type 
                     : fighter.fighter_type}
@@ -1344,13 +1344,13 @@ export function EditFighterModal({
                   ))}
                 </select>
                 {(fighter as any).fighter_sub_type ? (
-                  <div className="mt-1 text-sm text-gray-500">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     Current: {typeof (fighter as any).fighter_sub_type === 'object' 
                       ? (fighter as any).fighter_sub_type.sub_type_name || (fighter as any).fighter_sub_type.fighter_sub_type
                       : (fighter as any).fighter_sub_type}
                   </div>
                 ) : (
-                  <div className="mt-1 text-sm text-gray-500">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     Current: Default
                   </div>
                 )}
@@ -1379,13 +1379,13 @@ export function EditFighterModal({
                   ))}
                 </select>
                 {(fighter as any).fighter_gang_legacy ? (
-                  <div className="mt-1 text-sm text-gray-500">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     Current: {typeof (fighter as any).fighter_gang_legacy === 'object' 
                       ? (fighter as any).fighter_gang_legacy.name
                       : (fighter as any).fighter_gang_legacy}
                   </div>
                 ) : (
-                  <div className="mt-1 text-sm text-gray-500">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     Current: No Legacy
                   </div>
                 )}
@@ -1424,13 +1424,13 @@ export function EditFighterModal({
                 {formValues.special_rules.map((rule, index) => (
                   <div
                     key={index}
-                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                   >
                     <span>{rule}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
                     >
                       <X size={14} />
                     </button>

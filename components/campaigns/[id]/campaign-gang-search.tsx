@@ -262,18 +262,18 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
           </div>
         )}
         {searchResults.length > 0 && query && (
-          <div className="absolute mt-1 w-full bg-white rounded-lg border shadow-lg z-10">
+          <div className="absolute mt-1 w-full bg-card rounded-lg border shadow-lg z-10">
             <ul className="py-2">
               {searchResults.map(gang => (
                 <li key={gang.id}>
                   <button
                     onClick={() => handleAddGang(gang)}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100"
+                    className="w-full px-4 py-2 text-left hover:bg-muted"
                     disabled={isAdding}
                   >
                     <div className="flex flex-col">
                       <span className="font-medium">{gang.name}</span>
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-muted-foreground">
                         {gang.gang_type} - Owner: {gang.user?.username || 'Unknown'}
                       </span>
                     </div>
@@ -289,10 +289,10 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
           <h3 className="font-medium mb-2">Campaign Gangs:</h3>
           <ul className="space-y-2">
             {campaignGangs.map(gang => (
-              <li key={gang.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+              <li key={gang.id} className="flex items-center justify-between p-2 bg-muted rounded">
                 <div className="flex items-center gap-2">
                   <span>{gang.name} ({gang.gang_type})</span>
-                  <span className="text-sm text-gray-500">- {gang.user?.username}</span>
+                  <span className="text-sm text-muted-foreground">- {gang.user?.username}</span>
                 </div>
                 <Button
                   variant="destructive"

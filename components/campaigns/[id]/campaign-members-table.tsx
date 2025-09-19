@@ -449,7 +449,7 @@ export default function MembersTable({
 
   const gangModalContent = useMemo(() => (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">Select a gang to add to the campaign:</p>
+      <p className="text-sm text-muted-foreground">Select a gang to add to the campaign:</p>
       <div className="space-y-2">
         {[...userGangs].sort((a, b) => a.name.localeCompare(b.name)).map(gang => (
           <button
@@ -458,33 +458,33 @@ export default function MembersTable({
             disabled={gang.isInCampaign}
             className={`w-full p-3 text-left border rounded-lg transition-colors ${
               gang.isInCampaign 
-                ? 'bg-gray-50 cursor-not-allowed' 
+                ? 'bg-muted cursor-not-allowed' 
                 : selectedGang?.id === gang.id 
-                  ? 'border-black bg-gray-50' 
+                  ? 'border-black bg-muted' 
                   : 'hover:border-gray-400'
             }`}
           >
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium">{gang.name}</span>
-                <span className="text-sm text-gray-500 ml-2">{gang.gang_type || "-"}</span>
+                <span className="text-sm text-muted-foreground ml-2">{gang.gang_type || "-"}</span>
               </div>
               {gang.isInCampaign && (
-                <span className="text-xs text-gray-500">Already in a campaign.</span>
+                <span className="text-xs text-muted-foreground">Already in a campaign.</span>
               )}
             </div>
           </button>
         ))}
       </div>
       {userGangs.length === 0 && (
-        <p className="text-sm text-gray-500 text-center">No gangs available for this player.</p>
+        <p className="text-sm text-muted-foreground text-center">No gangs available for this player.</p>
       )}
     </div>
   ), [userGangs, selectedGang]);
 
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         Are you sure you want to change <span className="font-bold">{roleChange?.username}</span>'s role from {' '}
         <span className="font-bold">{roleChange?.currentRole}</span> to {' '}
         <span className="font-bold">{roleChange?.newRole}</span>?
@@ -496,7 +496,7 @@ export default function MembersTable({
     const isRemovingSelf = memberToRemove?.user_id === currentUserId;
     return (
       <div className="space-y-4">
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-muted-foreground">
           Are you sure you want to {isRemovingSelf ? 'leave' : 'remove'} {isRemovingSelf ? '' : <strong>{memberToRemove?.profile?.username || 'Unknown User'}</strong>} {isRemovingSelf ? 'this' : 'from this'} campaign?
           {memberToRemove?.gangs[0] && (
             <p className="mt-2 text-red-600">
@@ -515,7 +515,7 @@ export default function MembersTable({
 
   const removeGangModalContent = useMemo(() => (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         Are you sure you want to remove <strong>{gangToRemove?.gangName}</strong> from this campaign?
       </p>
     </div>
@@ -526,82 +526,82 @@ export default function MembersTable({
       <div className="hidden md:block overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b">
+            <tr className="bg-muted border-b">
               <th 
-                className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('gang')}
               >
                 <div className="flex items-center gap-1">
                   Gang
                   {sortField === 'gang' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-left font-medium max-w-[5rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-2 py-2 text-left font-medium max-w-[5rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('type')}
               >
                 <div className="flex items-center gap-1">
                   Type
                   {sortField === 'type' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
                 </div>
               </th>
               <th 
-                className="px-3 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-3 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('player')}
               >
                 <div className="flex items-center gap-1">
                   Player
                   {sortField === 'player' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('rating')}
               >
                 <div className="flex items-center justify-end gap-1">
                   Rating
                   {sortField === 'rating' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('reputation')}
                 title="Reputation"
               >
                 <div className="flex items-center justify-end gap-1">
                   Rep.
                   {sortField === 'reputation' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
                 </div>
               </th>
               <th 
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('territory_count')}
                 title="Territories"
               >
                 <div className="flex items-center justify-end gap-1">
                   Terr.
                   {sortField === 'territory_count' && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
                   )}
@@ -609,13 +609,13 @@ export default function MembersTable({
               </th>
               {hasExplorationPoints && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('exploration_points')}
                 >
                   <div className="flex items-center justify-end gap-1">
                     Expl.
                     {sortField === 'exploration_points' && (
-                      <span className="text-gray-500">
+                      <span className="text-muted-foreground">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -624,13 +624,13 @@ export default function MembersTable({
               )}
               {hasMeat && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('meat')}
                 >
                   <div className="flex items-center justify-end gap-1">
                     Meat
                     {sortField === 'meat' && (
-                      <span className="text-gray-500">
+                      <span className="text-muted-foreground">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -639,13 +639,13 @@ export default function MembersTable({
               )}
               {hasScavengingRolls && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('scavenging_rolls')}
                 >
                   <div className="flex items-center justify-end gap-1">
                     Scav.
                     {sortField === 'scavenging_rolls' && (
-                      <span className="text-gray-500">
+                      <span className="text-muted-foreground">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -661,7 +661,7 @@ export default function MembersTable({
                 <td className="px-2 py-2 max-w-[8rem]">
                   {member.gangs[0]?.gang_name ? (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                         style={{
                           color: member.gangs[0]?.gang_colour || '#000000'
                         }}
@@ -669,7 +669,7 @@ export default function MembersTable({
                         <Link
                           href={`/gang/${member.gangs[0].gang_id}`}
                           prefetch={false}
-                          className="hover:text-gray-600 transition-colors"
+                          className="hover:text-muted-foreground transition-colors"
                         >
                           {member.gangs[0].gang_name}
                         </Link>
@@ -685,7 +685,7 @@ export default function MembersTable({
                               });
                               setShowRemoveGangModal(true);
                             }}
-                            className="ml-1.5 text-gray-400 hover:text-gray-600"
+                            className="ml-1.5 text-gray-400 hover:text-muted-foreground"
                           >
                             ×
                           </button>
@@ -702,13 +702,13 @@ export default function MembersTable({
                           {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                         </button>
                       ) : (
-                        <span className="text-gray-500">No gang selected.</span>
+                        <span className="text-muted-foreground">No gang selected.</span>
                       )}
                     </div>
                   )}
                 </td>
                 <td className="px-2 py-2 max-w-[5rem]">
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     {member.gangs[0]?.gang_type || "-"}
                   </span>
                 </td>
@@ -725,13 +725,13 @@ export default function MembersTable({
                           });
                           setShowRoleModal(true);
                         }}
-                        className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                        className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-secondary transition-colors group"
                       >
                         {formatRole(member.role)}
 
                       </button>
                     ) : (
-                      <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
                         {formatRole(member.role)}
                       </span>
                     )}
@@ -739,37 +739,37 @@ export default function MembersTable({
                   </div>
                 </td>
                 <td className="px-2 py-2 text-right max-w-[2rem]">
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
                 <td className="px-2 py-2 text-right max-w-[3rem]">
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     {member.gangs[0]?.reputation ?? "-"}
                   </span>
                 </td>
                 <td className="px-2 py-2 text-right max-w-[3rem]">
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     {member.gangs[0]?.territory_count ?? "-"}
                   </span>
                 </td>
                 {hasExplorationPoints && (
                   <td className="px-2 py-2 text-right max-w-[3rem]">
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {member.gangs[0]?.exploration_points ?? "-"}
                     </span>
                   </td>
                 )}
                 {hasMeat && (
                   <td className="px-2 py-2 text-right max-w-[3rem]">
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {member.gangs[0]?.meat ?? "-"}
                     </span>
                   </td>
                 )}
                 {hasScavengingRolls && (
                   <td className="px-2 py-2 text-right max-w-[3rem]">
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {member.gangs[0]?.scavenging_rolls ?? "-"}
                     </span>
                   </td>
@@ -799,18 +799,18 @@ export default function MembersTable({
       {/* Mobile rendering */}
       <div className="md:hidden space-y-4">
         {sortedMembers.map((member, index) => (
-          <div key={`${member.user_id}-${index}`} className="bg-white rounded-lg border p-4">
+          <div key={`${member.user_id}-${index}`} className="bg-card rounded-lg border p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
                 {member.gangs[0]?.gang_name ? (
                   <div className="flex items-center gap-1">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-gray-100"
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-muted"
                       style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
                     >
                       <Link
                         href={`/gang/${member.gangs[0].gang_id}`}
                         prefetch={false}
-                        className="hover:text-gray-600 transition-colors"
+                        className="hover:text-muted-foreground transition-colors"
                       >
                         {member.gangs[0].gang_name}
                       </Link>
@@ -826,7 +826,7 @@ export default function MembersTable({
                             });
                             setShowRemoveGangModal(true);
                           }}
-                          className="ml-1.5 text-gray-400 hover:text-gray-600"
+                          className="ml-1.5 text-gray-400 hover:text-muted-foreground"
                         >
                           ×
                         </button>
@@ -843,7 +843,7 @@ export default function MembersTable({
                         {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                       </button>
                     ) : (
-                      <span className="text-sm text-gray-500">No gang selected.</span>
+                      <span className="text-sm text-muted-foreground">No gang selected.</span>
                     )}
                   </div>
                 )}
@@ -852,7 +852,7 @@ export default function MembersTable({
             
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500 text-base">Player</span>
+                <span className="text-sm text-muted-foreground text-base">Player</span>
                 <div className="flex items-center gap-2 text-sm text-base">
                   {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                     <button
@@ -865,12 +865,12 @@ export default function MembersTable({
                         });
                         setShowRoleModal(true);
                       }}
-                      className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors group"
+                      className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-secondary transition-colors group"
                     >
                       {formatRole(member.role)}
                     </button>
                   ) : (
-                    <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
                       {formatRole(member.role)}
                     </span>
                   )}
@@ -879,50 +879,50 @@ export default function MembersTable({
               </div>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Type</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">Type</span>
+              <span className="text-sm text-muted-foreground">
                 {member.gangs[0]?.gang_type || "-"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Rating</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">Rating</span>
+              <span className="text-sm text-muted-foreground">
                 {member.gangs[0]?.rating || "-"}
               </span>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Reputation</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">Reputation</span>
+              <span className="text-sm text-muted-foreground">
                 {member.gangs[0]?.reputation ?? "-"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Territories</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">Territories</span>
+              <span className="text-sm text-muted-foreground">
                 {member.gangs[0]?.territory_count ?? "-"}
               </span>
             </div>
             {hasExplorationPoints && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Exploration Points</span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">Exploration Points</span>
+                <span className="text-sm text-muted-foreground">
                   {member.gangs[0]?.exploration_points ?? "-"}
                 </span>
               </div>
             )}
             {hasMeat && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Meat</span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">Meat</span>
+                <span className="text-sm text-muted-foreground">
                   {member.gangs[0]?.meat ?? "-"}
                 </span>
               </div>
             )}
             {hasScavengingRolls && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Scavenging Rolls</span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">Scavenging Rolls</span>
+                <span className="text-sm text-muted-foreground">
                   {member.gangs[0]?.scavenging_rolls ?? "-"}
                 </span>
               </div>

@@ -1280,7 +1280,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Create gang cost modal content
   const gangCostModalContent = (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Select a gang type and enter an adjusted cost for this fighter when used by that gang</p>
+      <p className="text-sm text-muted-foreground">Select a gang type and enter an adjusted cost for this fighter when used by that gang</p>
       
       <div>
         <label className="block text-sm font-medium mb-1">Gang Type</label>
@@ -1325,15 +1325,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-4xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Edit Fighter Type</h3>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Edit Fighter Type</h3>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-muted-foreground hover:text-muted-foreground text-xl"
           >
             ×
           </button>
@@ -1342,7 +1342,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         <div className="px-[10px] py-4 overflow-y-auto flex-grow">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Filter by Gang Type
               </label>
               <select
@@ -1367,7 +1367,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             {/* First row: Fighter Type selection and Sub-type selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Fighter Type to Edit
                 </label>
                 <select
@@ -1391,7 +1391,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Select Fighter Sub-type to Edit
                 </label>
                 <select
@@ -1422,7 +1422,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
                 <Input
@@ -1438,7 +1438,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Sub-type
                   </label>
                   <Input
@@ -1466,7 +1466,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     disabled={!selectedSubTypeId}
                   />
                   {selectedSubTypeId === "default" && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       You can add a sub-type name to create a new variant of this fighter.
                     </p>
                   )}
@@ -1476,7 +1476,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               {/* Third row: Fighter Class and Base Cost */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Fighter Class *
                   </label>
                   <select
@@ -1498,7 +1498,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Base Cost *
                   </label>
                   <Input
@@ -1514,7 +1514,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     M *
                   </label>
                   <Input
@@ -1526,7 +1526,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     WS *
                   </label>
                   <Input
@@ -1538,7 +1538,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     BS *
                   </label>
                   <Input
@@ -1550,7 +1550,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     S *
                   </label>
                   <Input
@@ -1562,7 +1562,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     T *
                   </label>
                   <Input
@@ -1574,7 +1574,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     W *
                   </label>
                   <Input
@@ -1586,7 +1586,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     I *
                   </label>
                   <Input
@@ -1598,7 +1598,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     A *
                   </label>
                   <Input
@@ -1610,7 +1610,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Ld *
                   </label>
                   <Input
@@ -1622,7 +1622,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Cl *
                   </label>
                   <Input
@@ -1634,7 +1634,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Wil *
                   </label>
                   <Input
@@ -1646,7 +1646,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Int *
                   </label>
                   <Input
@@ -1659,7 +1659,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Special Rules
                 </label>
                 <Input
@@ -1679,9 +1679,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     type="checkbox"
                     checked={freeSkill}
                     onChange={(e) => setFreeSkill(e.target.checked)}
-                    className="h-4 w-4 text-primary border-gray-300 rounded"
+                    className="h-4 w-4 text-primary border-border rounded"
                   />
-                  <label className="ml-2 block text-sm text-gray-900">
+                  <label className="ml-2 block text-sm text-foreground">
                     Free Skill
                   </label>
                 </div>
@@ -1691,16 +1691,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     type="checkbox"
                     checked={isGangAddition}
                     onChange={(e) => setIsGangAddition(e.target.checked)}
-                    className="h-4 w-4 text-primary border-gray-300 rounded"
+                    className="h-4 w-4 text-primary border-border rounded"
                   />
-                  <label className="ml-2 block text-sm text-gray-900">
+                  <label className="ml-2 block text-sm text-foreground">
                     Gang Addition
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Default Skills
                 </label>
                 <div className="space-y-2">
@@ -1782,7 +1782,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         <div
                           key={skill.id}
                           className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                            selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
+                            selectedFighterTypeId ? 'bg-muted' : 'bg-muted'
                           }`}
                         >
                           <span>{skill.skill_name}</span>
@@ -1802,13 +1802,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Skill Access
                 </label>
                 <div className="overflow-hidden rounded-md border mb-2">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 border-b">
+                      <tr className="bg-muted border-b">
                         <th className="px-4 py-2 text-left font-medium">Skill Set</th>
                         <th className="px-4 py-2 text-left font-medium">Access Level</th>
                         <th className="px-4 py-2 text-center font-medium">Action</th>
@@ -1831,7 +1831,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                                     )
                                   );
                                 }}
-                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground"
                               >
                                 <option value="primary">Primary</option>
                                 <option value="secondary">Secondary</option>
@@ -1896,7 +1896,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Default Equipment
                 </label>
                 <select
@@ -1929,7 +1929,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       <div
                         key={`${item.id}-${index}`}
                         className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                          selectedFighterTypeId ? 'bg-gray-100' : 'bg-gray-50'
+                          selectedFighterTypeId ? 'bg-muted' : 'bg-muted'
                         }`}
                       >
                         <span>{item.equipment_name}</span>
@@ -1948,7 +1948,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div className="mt-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter's Equipment List
                 </label>
                 <select
@@ -2002,7 +2002,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   ).map(([category, items]) => (
                     <div key={category} className="flex flex-col gap-1 p-1">
                       {/* Category Title */}
-                      <div className="text-sm font-bold text-gray-700">{category}</div>
+                      <div className="text-sm font-bold text-muted-foreground">{category}</div>
 
                       {/* Items under this category */}
                       {items.map(item => {
@@ -2014,7 +2014,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         return (
                           <div
                             key={item!.id}
-                            className="flex justify-between items-center gap-2 rounded-full text-sm bg-gray-100 px-2 py-1"
+                            className="flex justify-between items-center gap-2 rounded-full text-sm bg-muted px-2 py-1"
                           >
                             <span>{item!.equipment_name}</span>
                             <div className="flex items-center gap-2">
@@ -2036,7 +2036,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Equipment Adjusted Costs
                 </label>
                 <Button
@@ -2049,7 +2049,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   Add Equipment Adjusted Cost
                 </Button>
                 {(!gangTypeFilter || !selectedFighterTypeId) && (
-                  <p className="text-sm text-gray-500 mb-2">
+                  <p className="text-sm text-muted-foreground mb-2">
                     Select a gang type and fighter type to add equipment adjusted costs
                   </p>
                 )}
@@ -2063,7 +2063,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       return (
                         <div
                           key={adjusted_cost.equipment_id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
                           <span>{item.equipment_name} ({adjusted_cost.adjusted_cost} credits)</span>
                           <button
@@ -2091,9 +2091,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       }
                     }}
                   >
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
+                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
                       <h3 className="text-xl font-bold mb-4">Equipment Adjusted Cost Menu</h3>
-                      <p className="text-sm text-gray-500 mb-4">Select equipment and enter an adjusted cost</p>
+                      <p className="text-sm text-muted-foreground mb-4">Select equipment and enter an adjusted cost</p>
 
                       <div className="space-y-4">
                         <div>
@@ -2186,7 +2186,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               {/* Add Gang-Specific Costs section */}
               <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Gang-Specific Costs
                 </label>
                 <Button
@@ -2199,7 +2199,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   Add Gang-Specific Cost
                 </Button>
                 {!selectedFighterTypeId && (
-                  <p className="text-sm text-gray-500 mb-2">
+                  <p className="text-sm text-muted-foreground mb-2">
                     Select a fighter type to add gang-specific costs
                   </p>
                 )}
@@ -2211,7 +2211,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       return (
                         <div
                           key={gangCost.gang_type_id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
                           <span>{gangType?.gang_type || 'Unknown Gang'} ({gangCost.adjusted_cost} credits)</span>
                           <button
@@ -2244,7 +2244,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               </div>
 
               <div className="col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Equipment Selection
                 </label>
                 <AdminFighterEquipmentSelection

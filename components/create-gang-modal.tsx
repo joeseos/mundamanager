@@ -301,29 +301,29 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
-      <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Gang</h2>
-            <p className="text-sm text-gray-500">Fields marked with * are required.</p>
+            <p className="text-sm text-muted-foreground">Fields marked with * are required.</p>
           </div>
           <button 
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-muted-foreground hover:text-muted-foreground"
           >
             ×
           </button>
         </div>
         <div className="space-y-4">
           <div>
-            <label htmlFor="gang-type" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="gang-type" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Type *
             </label>
             <select
               id="gang-type"
               value={gangType}
               onChange={(e) => setGangType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select gang type</option>
               {Object.entries(
@@ -366,14 +366,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
             return selectedGangType?.affiliation ? (
               <div>
-                <label htmlFor="gang-affiliation" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="gang-affiliation" className="block text-sm font-medium text-muted-foreground mb-1">
                   Gang Affiliation *
                 </label>
                 <select
                   id="gang-affiliation"
                   value={selectedAffiliation}
                   onChange={(e) => setSelectedAffiliation(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Select gang affiliation</option>
                   {selectedGangType.available_affiliations.map((affiliation) => (
@@ -403,7 +403,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               <div className="grid grid-cols-2 gap-4 mt-2">
                 {/* Unaffiliated variants */}
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-700 mb-1">Unaffiliated</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Unaffiliated</h3>
                   <div className="flex flex-col gap-2">
                     {availableVariants
                       .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? Infinity) <= 9)
@@ -434,7 +434,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
                 {/* Outlaw/Corrupted variants*/}
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-700 mb-1">Outlaw / Corrupted</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Outlaw / Corrupted</h3>
                   <div className="flex flex-col gap-2">
                     {availableVariants
                       .filter(v => (gangVariantRank[v.variant.toLowerCase()] ?? -1) >= 10)
@@ -467,7 +467,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           </div>
 
           <div>
-            <label htmlFor="gang-credits" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="gang-credits" className="block text-sm font-medium text-muted-foreground mb-1">
               Starting Credits
             </label>
             <Input
@@ -481,7 +481,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           </div>
 
           <div>
-            <label htmlFor="gang-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="gang-name" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Name *
             </label>
             <Input

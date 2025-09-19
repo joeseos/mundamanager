@@ -131,7 +131,7 @@ export default function CampaignEditModal({
               <div className="flex items-center space-x-2">
               <span>Resources</span>
               <span
-                className="relative cursor-pointer text-gray-500 hover:text-black"
+                className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                 data-tooltip-id="resources-tooltip"
                 data-tooltip-html={
                   'Exploration Points: Underhells campaign.<br/>Meat and Scavenging Rolls: Uprising campaign.'
@@ -177,7 +177,7 @@ export default function CampaignEditModal({
             <div>
               <label className="flex justify-between items-center text-sm font-medium mb-1">
                 <span>Description</span>
-                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-gray-500'}`}>
+                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
                   {charCount}/1500 characters
                 </span>
               </label>
@@ -234,7 +234,7 @@ export default function CampaignEditModal({
       <Tooltip
         id="resources-tooltip"
         place="top"
-        className="!bg-black !text-white !text-xs !z-[2000]"
+        className="!bg-primary !text-white !text-xs !z-[2000]"
         style={{
           backgroundColor: '#000',
           color: 'white',

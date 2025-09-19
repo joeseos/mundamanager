@@ -566,12 +566,12 @@ const CampaignBattleLogModal = ({
       content={
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
               Date *
             </label>
             <input
               type="date"
-              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
               value={battleDate}
               onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
@@ -579,7 +579,7 @@ const CampaignBattleLogModal = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
               Scenario *
             </label>
             <Combobox
@@ -619,7 +619,7 @@ const CampaignBattleLogModal = ({
               <div className="mt-2">
                 <input
                   type="text"
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-muted"
                   placeholder="Enter custom Scenario name"
                   value={customScenario}
                   onChange={(e) => setCustomScenario(e.target.value)}
@@ -630,7 +630,7 @@ const CampaignBattleLogModal = ({
           </div>
 
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-muted-foreground">
               Gangs *
             </label>
             {gangsInBattle.map((gangEntry) => {
@@ -646,7 +646,7 @@ const CampaignBattleLogModal = ({
                 <div key={gangEntry.id} className="grid gap-3">
                   <div className="flex items-center gap-3">
                     <select
-                      className="flex-1 px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+                      className="flex-1 px-3 py-2 rounded-md border border-border bg-muted"
                       value={gangEntry.gangId}
                       onChange={(e) => handleGangChange(gangEntry.id, e.target.value)}
                       disabled={isLoadingBattleData}
@@ -662,7 +662,7 @@ const CampaignBattleLogModal = ({
                     {gangsInBattle.length > 2 && (
                       <button
                         onClick={() => removeGang(gangEntry.id)}
-                        className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-gray-100"
+                        className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-muted"
                         disabled={isLoadingBattleData}
                       >
                         <X className="h-4 w-4" />
@@ -679,7 +679,7 @@ const CampaignBattleLogModal = ({
                         checked={gangEntry.role === 'attacker'}
                         onChange={() => handleGangRoleChange(gangEntry.id, 'attacker')}
                         disabled={isLoadingBattleData || !gangEntry.gangId}
-                        className="h-4 w-4 text-black focus:ring-black border-gray-300"
+                        className="h-4 w-4 text-foreground focus:ring-black border-border"
                       />
                       <Label htmlFor={`role-${gangEntry.id}-attacker`} className="text-sm">
                         Attacker
@@ -693,7 +693,7 @@ const CampaignBattleLogModal = ({
                         checked={gangEntry.role === 'defender'}
                         onChange={() => handleGangRoleChange(gangEntry.id, 'defender')}
                         disabled={isLoadingBattleData || !gangEntry.gangId}
-                        className="h-4 w-4 text-black focus:ring-black border-gray-300"
+                        className="h-4 w-4 text-foreground focus:ring-black border-border"
                       />
                       <Label htmlFor={`role-${gangEntry.id}-defender`} className="text-sm">
                         Defender
@@ -707,7 +707,7 @@ const CampaignBattleLogModal = ({
                         checked={gangEntry.role === 'none'}
                         onChange={() => handleGangRoleChange(gangEntry.id, 'none')}
                         disabled={isLoadingBattleData || !gangEntry.gangId}
-                        className="h-4 w-4 text-black focus:ring-black border-gray-300"
+                        className="h-4 w-4 text-foreground focus:ring-black border-border"
                       />
                       <Label htmlFor={`role-${gangEntry.id}-none`} className="text-sm">
                         None
@@ -731,11 +731,11 @@ const CampaignBattleLogModal = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
               Winner *
             </label>
             <select
-              className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100"
+              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
               value={winner}
               onChange={(e) => setWinner(e.target.value)}
               disabled={isLoadingBattleData}
@@ -755,14 +755,14 @@ const CampaignBattleLogModal = ({
 
           {winner && winner !== "draw" && availableTerritories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Claimed Territory
               </label>
               <select
                 value={selectedTerritory}
                 onChange={(e) => setSelectedTerritory(e.target.value)}
                 disabled={isLoadingBattleData}
-                className="w-full px-3 py-2 rounded-md border border-gray-300 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full px-3 py-2 rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
               >
                 <option value="">No territory claimed</option>
                 {availableTerritories.map((territory) => {
@@ -779,14 +779,14 @@ const CampaignBattleLogModal = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
               Report
             </label>
             <Textarea
               placeholder="Add any additional details about the battle..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[100px] bg-gray-100"
+              className="min-h-[100px] bg-muted"
               disabled={isLoadingBattleData}
             />
           </div>

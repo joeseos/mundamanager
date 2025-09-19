@@ -70,18 +70,18 @@ export function AdminFighterTradingPost({
           Exclude exclusive equipment
         </label>
       </div>
-      <p className="text-sm text-gray-500">Select equipment items that should be available in the Trading Post for this fighter type.</p>
+      <p className="text-sm text-muted-foreground">Select equipment items that should be available in the Trading Post for this fighter type.</p>
 
       <div className="border rounded-lg overflow-hidden">
         {/* Table header */}
-        <div className="bg-gray-50 border-b px-4 py-2 font-medium">
+        <div className="bg-muted border-b px-4 py-2 font-medium">
           Equipment
         </div>
 
         {/* Equipment categories and list */}
         <div className="max-h-[50vh] overflow-y-auto">
           {Object.keys(equipmentByCategory).length === 0 ? (
-            <div className="p-4 text-center text-gray-500">Loading equipment categories...</div>
+            <div className="p-4 text-center text-muted-foreground">Loading equipment categories...</div>
           ) : (
             Object.entries(equipmentByCategory)
               .sort(([a], [b]) => a.localeCompare(b))
@@ -99,7 +99,7 @@ export function AdminFighterTradingPost({
                   <div key={category} className="border-b last:border-b-0">
                     {/* Category header with checkbox */}
                     <div
-                      className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                      className="flex items-center justify-between px-4 py-3 bg-muted cursor-pointer hover:bg-muted"
                       onClick={() => setExpandedCategory(
                         expandedCategory === category ? null : category
                       )}
@@ -138,7 +138,7 @@ export function AdminFighterTradingPost({
                       </div>
                       <div className="flex items-center">
                         {someChecked && (
-                          <span className="text-xs mr-2 text-gray-500">
+                          <span className="text-xs mr-2 text-muted-foreground">
                             {checkedCount} selected
                           </span>
                         )}
@@ -199,7 +199,7 @@ export function AdminFighterTradingPost({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
         Trading Post
       </label>
       <Button
@@ -212,7 +212,7 @@ export function AdminFighterTradingPost({
         Open Trading Post Menu
       </Button>
       {disabled && (
-        <p className="text-sm text-gray-500 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           Select a gang type and fighter type to configure trading post options
         </p>
       )}
