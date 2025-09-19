@@ -172,18 +172,27 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
     {
       key: 'equipment_name',
       label: 'Name',
+      align: 'left',
       width: '30%'
     },
     {
       key: 'equipment_category',
       label: 'Category',
+      align: 'left',
       width: '20%'
     },
     {
       key: 'equipment_type',
       label: 'Type',
+      align: 'left',
       width: '15%',
       render: (value) => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '-'
+    },
+    {
+      key: 'availability',
+      label: 'AL',
+      align: 'right',
+      width: '15%'
     },
     {
       key: 'cost',
@@ -192,11 +201,6 @@ export function CustomiseEquipment({ className, initialEquipment = [] }: Customi
       width: '10%',
       render: (value) => value ? String(value) : '-'
     },
-    {
-      key: 'availability',
-      label: 'Availability',
-      width: '15%'
-    }
   ];
 
   // Define actions for each equipment item

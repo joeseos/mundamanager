@@ -91,7 +91,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
   const columns: ListColumn[] = [
     {
       key: 'territory_name',
-      label: 'Territory Name',
+      label: 'Name',
       width: '100%'
     }
   ];
