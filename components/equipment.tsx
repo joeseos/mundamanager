@@ -732,24 +732,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
     // Check cache first before making any API calls
     // If we have cached data for this equipment list type, use it
     if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
-      
       setAvailableCategories(cachedAllCategories);
       setEquipment(cachedEquipment.all);
       return;
     } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
-      
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
       return;
     } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
-      
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
       return;
     }
 
     // Only fetch if we don't have cached data
-    
     fetchAllCategories();
   }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
 

@@ -946,7 +946,7 @@ export default function FighterPage({
                 gangId={fighterData.gang.id}
                 gangTypeId={fighterData.gang.gang_type_id}
                 fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterTypeId={fighterData.fighter.fighter_type_id}
                 gangAffiliationId={fighterData.gang.gang_affiliation_id}
                 fighterCredits={fighterData.fighter.credits}
                 fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
@@ -974,7 +974,7 @@ export default function FighterPage({
                 gangId={fighterData.gang.id}
                 gangTypeId={fighterData.gang.gang_type_id}
                 fighterId={fighterData.fighter.id}
-                fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
+                fighterTypeId={fighterData.fighter.fighter_type_id}
                 fighterCredits={fighterData.fighter.credits}
                 vehicleId={vehicle.id}
                 vehicleType={vehicle.vehicle_type}
