@@ -1,10 +1,11 @@
 "use server";
 
-import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
+import { validateTurnstileToken } from 'next-turnstile';
+import { v4 as uuidv4 } from 'uuid';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -100,19 +101,27 @@ export const signInAction = async (formData: FormData) => {
   const turnstileToken = formData.get("cf-turnstile-response") as string;
   const nextParam = formData.get('next') as string | undefined;
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("Skipping Turnstile verification in development mode.");
-  }
-  else {
+  // Verify Turnstile token (skip only in development when no token provided)
+  if (process.env.NODE_ENV === "production" || turnstileToken) {
     if (!turnstileToken) {
-      return { error: "Please complete the Turnstile challenge" };
+      return { error: "Please complete the security verification" };
     }
 
-    // Verify Turnstile token
-    const turnstileVerification = await verifyTurnstileToken(turnstileToken);
-    if (!turnstileVerification.success) {
-      console.error('Turnstile verification failed:', turnstileVerification);
-      return { error: "Security check failed. Please try again." };
+    try {
+      const validationResponse = await validateTurnstileToken({
+        token: turnstileToken,
+        secretKey: process.env.TURNSTILE_SECRET_KEY!,
+        idempotencyKey: uuidv4(),
+        sandbox: process.env.NODE_ENV === 'development',
+      });
+
+      if (!validationResponse.success) {
+        console.error('Turnstile validation failed:', validationResponse);
+        return { error: "Security verification failed. Please try again." };
+      }
+    } catch (error) {
+      console.error('Error validating Turnstile token:', error);
+      return { error: "Security verification failed. Please try again." };
     }
   }
 
@@ -143,38 +152,6 @@ export const signInAction = async (formData: FormData) => {
   return redirect(destination);
 };
 
-async function verifyTurnstileToken(token: string) {
-  if (!token) {
-    console.error('No Turnstile token provided');
-    return { success: false, error: 'No token provided' };
-  }
-
-  console.log('Verifying Turnstile token:', token.substring(0, 10) + '...');
-  console.log('TURNSTILE_SECRET_KEY:', process.env.TURNSTILE_SECRET_KEY ? 'Set' : 'Not set');
-
-  try {
-    const response = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          secret: process.env.TURNSTILE_SECRET_KEY,
-          response: token,
-        }),
-      }
-    );
-
-    const data = await response.json();
-    console.log('Turnstile verification response:', data);
-    return data;
-  } catch (error) {
-    console.error('Error verifying Turnstile token:', error);
-    return { success: false, error: 'Verification failed' };
-  }
-}
 
 export const forgotPasswordAction = async (formData: FormData) => {
   const supabase = await createClient();

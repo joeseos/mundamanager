@@ -8,15 +8,10 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
-import TurnstileWidget from './TurnstileWidget';
+import TurnstileWidget from '@/components/TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
-import { LuTrophy } from "react-icons/lu";
 import { FiMap } from "react-icons/fi";
 import { FaUsers } from "react-icons/fa";
-import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard } from "react-icons/lu";
-import { RiContactsBook3Line } from "react-icons/ri";
-import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 
@@ -24,6 +19,7 @@ export default function SignIn() {
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [turnstileStatus, setTurnstileStatus] = useState<'loading' | 'success' | 'error' | 'expired' | 'required'>('required');
   const router = useRouter();
   const supabase = createClient();
   
@@ -59,8 +55,14 @@ export default function SignIn() {
   }
 
   async function clientAction(formData: FormData) {
+    // Check if Turnstile verification is required and completed
+    if (turnstileStatus !== 'success') {
+      setErrorMessage('Please complete the security verification');
+      return;
+    }
+
     const result = await signInAction(formData);
-    
+
     // If we get a non-redirect result with an error, display it
     if (result && 'error' in result) {
       setErrorMessage(result.error);
@@ -136,7 +138,15 @@ export default function SignIn() {
               Forgot your password?
             </Link>
             <div className="mt-2">
-              <TurnstileWidget />
+              <TurnstileWidget
+                onStatusChange={(status) => {
+                  setTurnstileStatus(status);
+                  // Clear any previous error when turnstile status changes
+                  if (status === 'success') {
+                    setErrorMessage(null);
+                  }
+                }}
+              />
             </div>
             <SubmitButton pendingText="Signing in..." className="mt-2">
               Sign in
