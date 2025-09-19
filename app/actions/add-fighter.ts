@@ -446,6 +446,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             .select(`
               id,
               equipment_id,
+              custom_equipment_id,
               original_cost,
               purchase_cost,
               equipment!equipment_id(
@@ -453,6 +454,13 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 equipment_name,
                 equipment_type,
                 equipment_category_id,
+                cost
+              ),
+              custom_equipment!custom_equipment_id(
+                id,
+                equipment_name,
+                equipment_type,
+                equipment_category,
                 cost
               )
             `)
@@ -518,24 +526,41 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             if (queryResult.data) {
               const insertedEquipment = queryResult.data;
               
-              // Get weapon profiles for weapons
-              const weaponIds = insertedEquipment
-                .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
+              // Get weapon profiles for weapons (both regular and custom)
+              const regularWeaponIds = insertedEquipment
+                .filter((item: any) => item.equipment_id && (item.equipment as any)?.equipment_type === 'weapon')
                 .map((item: any) => item.equipment_id);
 
+              const customWeaponIds = insertedEquipment
+                .filter((item: any) => item.custom_equipment_id && (item.custom_equipment as any)?.equipment_type === 'weapon')
+                .map((item: any) => item.custom_equipment_id);
+
               let weaponProfiles: any[] = [];
-              if (weaponIds.length > 0) {
+              let customWeaponProfiles: any[] = [];
+
+              // Fetch regular weapon profiles
+              if (regularWeaponIds.length > 0) {
                 const { data: profilesData } = await supabase
                   .from('weapon_profiles')
                   .select('*')
-                  .in('weapon_id', weaponIds);
+                  .in('weapon_id', regularWeaponIds);
                 weaponProfiles = profilesData || [];
+              }
+
+              // Fetch custom weapon profiles
+              if (customWeaponIds.length > 0) {
+                const { data: customProfilesData } = await supabase
+                  .from('custom_weapon_profiles')
+                  .select('*')
+                  .in('custom_equipment_id', customWeaponIds);
+                customWeaponProfiles = customProfilesData || [];
               }
 
               // Check for exotic beast equipment and create beasts
               const exoticBeastCategoryId = '6b5eabd8-0865-439c-98bb-09bd78f0fbac';
-              const exoticBeastEquipment = insertedEquipment.filter((item: any) => 
-                (item.equipment as any)?.equipment_category_id === exoticBeastCategoryId
+              const exoticBeastEquipment = insertedEquipment.filter((item: any) =>
+                (item.equipment as any)?.equipment_category_id === exoticBeastCategoryId ||
+                (item.custom_equipment as any)?.equipment_category === 'exotic beast'
               );
 
               // Create exotic beasts for equipment that grants them
@@ -573,14 +598,35 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
               }
 
-              equipmentWithProfiles = insertedEquipment.map((item: any) => ({
-                fighter_equipment_id: item.id,
-                equipment_id: item.equipment_id,
-                equipment_name: (item.equipment as any)?.equipment_name || '',
-                equipment_type: (item.equipment as any)?.equipment_type || '',
-                cost: item.purchase_cost,
-                weapon_profiles: weaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
-              }));
+              equipmentWithProfiles = insertedEquipment.map((item: any) => {
+                const isCustomEquipment = !!item.custom_equipment_id;
+                const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
+
+                // Get weapon profiles based on equipment type
+                let itemWeaponProfiles: any[] = [];
+                if (equipmentType === 'weapon') {
+                  if (isCustomEquipment) {
+                    itemWeaponProfiles = customWeaponProfiles.filter(
+                      (wp: any) => wp.custom_equipment_id === item.custom_equipment_id
+                    );
+                  } else {
+                    itemWeaponProfiles = weaponProfiles.filter(
+                      (wp: any) => wp.weapon_id === item.equipment_id
+                    );
+                  }
+                }
+
+                return {
+                  fighter_equipment_id: item.id,
+                  equipment_id: item.equipment_id || undefined,
+                  custom_equipment_id: item.custom_equipment_id || undefined,
+                  equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+                  equipment_type: equipmentType || 'unknown',
+                  equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+                  cost: item.purchase_cost,
+                  weapon_profiles: itemWeaponProfiles
+                };
+              });
             } else if (queryResult.error) {
               console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
             }
