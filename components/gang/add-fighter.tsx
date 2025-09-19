@@ -227,6 +227,7 @@ export default function AddFighter({
   const [includeCustomFighters, setIncludeCustomFighters] = useState<boolean>(false);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
+  const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState<boolean>(false);
   
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<Array<{
@@ -235,32 +236,28 @@ export default function AddFighter({
     quantity: number;
   }>>([]);
 
-  // Fetch fighter types when modal opens
+  // Fetch fighter types when modal opens or includeCustomFighters changes
   useEffect(() => {
-    if (showModal && fighterTypes.length === 0) {
+    if (showModal && !isLoadingFighterTypes) {
       fetchFighterTypes();
     }
-  }, [showModal]);
-
-  // Refetch fighter types when includeCustomFighters changes
-  useEffect(() => {
-    if (showModal) {
-      fetchFighterTypes();
-    }
-  }, [includeCustomFighters]);
+  }, [showModal, includeCustomFighters]);
 
   const fetchFighterTypes = async () => {
+    if (isLoadingFighterTypes) return; // Prevent concurrent calls
+
     try {
+      setIsLoadingFighterTypes(true);
       // Use the API route instead of server action
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
       const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
       const includeAllParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
       const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       
       // Transform API response to match existing FighterType interface
@@ -306,6 +303,8 @@ export default function AddFighter({
         description: "Failed to load fighter types",
         variant: "destructive"
       });
+    } finally {
+      setIsLoadingFighterTypes(false);
     }
   };
 
@@ -831,15 +830,6 @@ export default function AddFighter({
     }
 
     try {
-      // Get the current authenticated user's ID
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setFetchError('You must be logged in to add a fighter');
-        return false;
-      }
-
       // Parse the cost from the input
       const enteredCost = parseInt(fighterCost);
       
@@ -870,7 +860,6 @@ export default function AddFighter({
         cost: enteredCost,
         selected_equipment: selectedEquipment,
         default_equipment: defaultEquipment,
-        user_id: user.id,
         use_base_cost_for_rating: useBaseCostForRating,
         fighter_gang_legacy_id: selectedLegacyId || undefined
       });
@@ -1123,6 +1112,7 @@ export default function AddFighter({
     setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setFetchError(null);
     setFighterTypes([]); // Reset fighter types
+    setIsLoadingFighterTypes(false); // Reset loading state
   };
 
   const addFighterModalContent = (

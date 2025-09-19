@@ -18,7 +18,6 @@ interface AddFighterParams {
   cost?: number;
   selected_equipment?: SelectedEquipment[];
   default_equipment?: SelectedEquipment[];
-  user_id?: string;
   use_base_cost_for_rating?: boolean;
   fighter_gang_legacy_id?: string;
 }
