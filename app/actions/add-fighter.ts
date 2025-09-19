@@ -118,8 +118,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Use provided user_id or current user's id
-    const effectiveUserId = params.user_id || user.id;
+    // Use current user's id
+    const effectiveUserId = user.id;
 
     // Check if user is an admin (optimized)
     const isAdmin = await checkAdminOptimized(supabase, user);
