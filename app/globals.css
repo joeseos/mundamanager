@@ -16,7 +16,7 @@
     --light-secondary: 0 0% 100%;
     --light-secondary-foreground: 0 0% 9%;
     --light-muted: 0 0% 96.1%;
-    --light-muted-foreground: 0 0% 45.1%;
+    --light-muted-foreground: 220 14% 34%;
     --light-accent: 0 0% 96.1%;
     --light-accent-foreground: 0 0% 9%;
     --light-destructive: 0 84.2% 60.2%;
@@ -68,6 +68,12 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
+  }
+
+  /* Fix select option styling for dark mode */
+  .dark select option {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 

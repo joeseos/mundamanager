@@ -419,7 +419,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
               <img
                 src={currentImageUrl}
                 alt="Current fighter"
-                className="bg-primary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
               />
               <Button
                 variant="destructive"

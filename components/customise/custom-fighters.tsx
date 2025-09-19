@@ -707,7 +707,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
   const renderStatInput = (label: string, value: string, onChange: (value: string) => void, required = false, disabled = false) => (
     <div>
-      <label className="block text-xs font-medium text-gray-700 mb-1">
+      <label className="block text-xs font-medium text-muted-foreground mb-1">
         {label} {required && '*'}
       </label>
       <Input
@@ -752,7 +752,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
             {/* Fighter Type and Class */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
                 <Input
@@ -765,7 +765,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Class *
                 </label>
                 <select
@@ -789,7 +789,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
             {/* Gang Type and Cost */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Gang Type *
                 </label>
                 <select
@@ -815,7 +815,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost (credits) *
                 </label>
                 <Input
@@ -847,7 +847,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Special Rules Section */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Special Rules
               </label>
               <div className="flex space-x-2 mb-2">
@@ -883,7 +883,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-none"
                     >
                       <X size={14} />
                     </button>
@@ -894,13 +894,13 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Skill Access */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Access
               </label>
               <div className="overflow-hidden rounded-md border mb-2">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 border-b">
+                    <tr className="bg-muted border-b">
                       <th className="px-4 py-2 text-left font-medium">Skill Set</th>
                       <th className="px-4 py-2 text-left font-medium">Access Level</th>
                       <th className="px-4 py-2 text-center font-medium">Action</th>
@@ -990,7 +990,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Default Skills */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Skills
               </label>
               <div className="space-y-2">
@@ -1056,7 +1056,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Default Equipment */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Equipment
               </label>
               <div className="space-y-2">
@@ -1129,7 +1129,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                 checked={freeSkill}
                 onCheckedChange={(checked) => setFreeSkill(checked === true)}
               />
-              <label htmlFor="freeSkill" className="text-sm font-medium text-gray-700">
+              <label htmlFor="freeSkill" className="text-sm font-medium text-muted-foreground">
                 Free Skill
               </label>
             </div>
@@ -1154,7 +1154,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
             {/* Fighter Type and Class */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Type *
                 </label>
                 <Input
@@ -1167,7 +1167,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Fighter Class *
                 </label>
                 <select
@@ -1191,7 +1191,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
             {/* Gang Type and Cost */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Gang Type *
                 </label>
                 <select
@@ -1217,7 +1217,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Cost (credits) *
                 </label>
                 <Input
@@ -1249,7 +1249,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Special Rules Section */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Special Rules
               </label>
               <div className="flex space-x-2 mb-2">
@@ -1284,7 +1284,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-none"
                     >
                       <X size={14} />
                     </button>
@@ -1295,7 +1295,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Skill Access */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Skill Access
               </label>
               <div className="overflow-hidden rounded-md border mb-2">
@@ -1391,7 +1391,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Default Skills */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Skills
               </label>
               <div className="space-y-2">
@@ -1457,7 +1457,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
 
             {/* Default Equipment */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Default Equipment
               </label>
               <div className="space-y-2">
@@ -1530,7 +1530,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                 checked={freeSkill}
                 onCheckedChange={(checked) => setFreeSkill(checked === true)}
               />
-              <label htmlFor="freeSkillEdit" className="text-sm font-medium text-gray-700">
+              <label htmlFor="freeSkillEdit" className="text-sm font-medium text-muted-foreground">
                 Free Skill
               </label>
             </div>

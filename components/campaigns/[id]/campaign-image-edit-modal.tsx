@@ -267,7 +267,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
         {currentImageUrl && (
           <div className="mb-4">
             <div className="flex items-center justify-center space-x-4">
-              <img src={currentImageUrl} alt="Current" className="bg-primary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden" />
+              <img src={currentImageUrl} alt="Current" className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden" />
               <Button variant="destructive" onClick={handleRemoveImage} disabled={isUploading}>Remove Image</Button>
             </div>
           </div>

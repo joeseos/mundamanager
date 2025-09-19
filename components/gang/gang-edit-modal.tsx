@@ -287,7 +287,7 @@ export default function GangEditModal({
           <div className="flex flex-col items-center gap-3">
             <p className="text-sm font-medium">Gang Colour</p>
             <div
-              className="w-8 h-8 rounded-full border border-black border-2 cursor-pointer"
+              className="w-8 h-8 rounded-full border border-neutral-900 border-2 cursor-pointer"
               style={{ backgroundColor: editedGangColour }}
               title="Click to change colour"
               onClick={() => setShowColourPickerModal(true)}
@@ -593,13 +593,32 @@ export default function GangEditModal({
                   placeholder="#ffffff"
                 />
               </div>
-              <div className="flex justify-center">
-                <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                  style={{ color: editedGangColour }}
-                >
-                  {gangName}
-                </span>
+              <div className="space-y-1">
+                {/* Light theme preview */}
+                <div className="flex justify-center">
+                  <div className="p-3 bg-white rounded-lg border border-neutral-200 shadow-sm">
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
+                      style={{ color: editedGangColour }}
+                    >
+                      {gangName}
+                    </span>
+                    <p className="text-xs text-gray-500 mt-1 text-center">Light theme</p>
+                  </div>
+                </div>
+
+                {/* Dark theme preview */}
+                <div className="flex justify-center">
+                  <div className="p-3 bg-black rounded-lg border border-neutral-800 shadow-sm">
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-800"
+                      style={{ color: editedGangColour }}
+                    >
+                      {gangName}
+                    </span>
+                    <p className="text-xs text-gray-400 mt-1 text-center">Dark theme</p>
+                  </div>
+                </div>
               </div>
             </div>
           }

@@ -430,7 +430,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         
           {/* Profile picture of the fighter */}
           <div 
-            className={`bg-primary rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
+            className={`bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
             onClick={handleImageClick}
           >
           {currentImageUrl ? (
