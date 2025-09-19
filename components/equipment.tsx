@@ -351,9 +351,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [maxCost, setMaxCost] = useState(160);
   const [minAvailability, setMinAvailability] = useState(6);
   const [maxAvailability, setMaxAvailability] = useState(12);
-  const DEBUG = false;
 
   useEffect(() => {
+    // Debug: snapshot key props on mount
     return () => {
       mountedRef.current = false;
     };
@@ -432,9 +432,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setIsLoadingAllEquipment(true);
     setError(null);
 
-    console.log(`Starting fetchAllCategories for ${equipmentListType}`);
 
-    const typeIdToUse = isVehicleEquipment 
+    let resolvedTypeId = isVehicleEquipment 
       ? localVehicleTypeId || vehicleTypeId 
       : fighterTypeId;
 
@@ -442,13 +441,38 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const isGangLevelAccess = !fighterId || fighterId === '';
     const skipFighterTypeValidation = isGangLevelAccess || isCustomFighter;
 
-    if (!gangTypeId || (!typeIdToUse && !skipFighterTypeValidation)) {
-      const errorMessage = isVehicleEquipment && !typeIdToUse
+    // Attempt to resolve missing fighterTypeId from fighterId before failing
+    if (!resolvedTypeId && !isVehicleEquipment && !skipFighterTypeValidation && fighterId) {
+      try {
+        const resp = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?select=fighter_type_id&id=eq.${fighterId}`,
+          {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          }
+        );
+        if (resp.ok) {
+          const rows = await resp.json();
+          const fetchedTypeId = rows?.[0]?.fighter_type_id;
+          if (fetchedTypeId) {
+            resolvedTypeId = fetchedTypeId;
+          } else {
+          }
+        } else {
+        }
+      } catch (e) {
+      }
+    }
+
+
+    if (!gangTypeId || (!resolvedTypeId && !skipFighterTypeValidation)) {
+      const errorMessage = isVehicleEquipment && !resolvedTypeId
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !fighterTypeId && !skipFighterTypeValidation
+        : !resolvedTypeId && !skipFighterTypeValidation
         ? 'Fighter type information is missing'
         : 'Required information is missing';
-
       setError(errorMessage);
       return;
     }
@@ -460,8 +484,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       };
 
       // Only add fighter_type_id if we have one (not gang-level access)
-      if (typeIdToUse) {
-        requestBody.fighter_type_id = typeIdToUse;
+      if (resolvedTypeId) {
+        requestBody.fighter_type_id = resolvedTypeId;
       }
 
       if (equipmentListType === 'fighters-list') {
@@ -480,7 +504,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
         requestBody.fighter_id = fighterId;
       }
 
-      console.log(`fetchAllCategories request for ${equipmentListType} (fetching ALL equipment):`, requestBody);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
@@ -501,11 +524,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data: RawEquipmentData[] = await response.json();
 
-      console.log(`fetchAllCategories response for ${equipmentListType}: ${data.length} items received`);
 
-      if (DEBUG) {
-        console.log('Fighter equipment data:', data);
-      }
 
       // Format and organize equipment by category
       const formattedData = data
@@ -694,7 +713,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // For gang stash purchases, fighter credits don't change
       const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
       
-      // Log removed
 
       onEquipmentBought(newFighterCredits, newGangCredits, {
         ...item,
@@ -771,7 +789,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
             return parseInt(numStr);
           } else {
             // Invalid format - log warning and default to 0
-            console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
             return 0;
           }
         })
@@ -811,7 +828,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
         availability = parseInt(numStr);
       } else {
         // Invalid format - log warning and default to 0
-        console.warn(`Invalid availability format for "${item.equipment_name}": "${availabilityStr}"`);
         availability = 0;
       }
       
