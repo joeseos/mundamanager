@@ -11,6 +11,7 @@ import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
+import { Button } from '@/components/ui/button';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -44,13 +45,13 @@ export default async function Home() {
           <div className="mb-0">
             <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
             <p className="text-muted-foreground mb-4">
-              Join our Discord community to chat or get help with Necromunda and Munda Manager.
+              Join our Discord to chat or get help with Necromunda and Munda Manager.
             </p>
             <div>
-              <div className="flex gap-2">
-                <a href="https://tinyurl.com/how-to-use-mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+              <div className="flex gap-1">
+                <a href="https://tinyurl.com/how-to-use-mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
                   <GrHelpBook className="mr-2 h-4 w-4" />
-                  Quick Start Guide
+                  User Guide
                 </a>
                 <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
                   <FaDiscord className="mr-2 h-4 w-4" />
@@ -63,7 +64,7 @@ export default async function Home() {
               </div>
             </div>
             <div className="mt-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
                 <div className="flex-1 min-w-[135px] sm:w-auto w-full">
                   <CreateGangButton />
                 </div>
