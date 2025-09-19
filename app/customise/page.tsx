@@ -2,8 +2,10 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { CustomiseEquipment } from "@/components/customise/custom-equipment";
 import { CustomiseTerritories } from "@/components/customise/custom-territories";
+import { CustomiseFighters } from "@/components/customise/custom-fighters";
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
+import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
 import { getAuthenticatedUser } from "@/utils/auth";
 
 export default async function CustomizePage() {
@@ -15,9 +17,10 @@ export default async function CustomizePage() {
     redirect("/sign-in");
   }
 
-  // Fetch user's custom equipment and territories using the lib functions
+  // Fetch user's custom equipment, territories, and fighter types using the lib functions
   const customEquipment = await getUserCustomEquipment(user.id);
   const customTerritories = await getUserCustomTerritories();
+  const customFighterTypes = await getUserCustomFighterTypes(user.id);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -28,12 +31,14 @@ export default async function CustomizePage() {
           <div className="space-y-6">
             <section>
               <p className="text-muted-foreground">
-                Here you can create your own Equipment and Territories for your campaigns.
+                Here you can create your own Equipment, Fighters and Territories for your campaigns.
               </p>
             </section>
 
             <CustomiseEquipment initialEquipment={customEquipment} />
-            
+
+            <CustomiseFighters initialFighters={customFighterTypes} />
+
             <CustomiseTerritories initialTerritories={customTerritories} />
           </div>
         </div>

@@ -7,6 +7,7 @@ import Modal from '@/components/ui/modal';
 import { FighterType } from '@/types/fighter-type';
 import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { fighterTypeRank } from "@/utils/fighterTypeRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -223,8 +224,10 @@ export default function AddFighter({
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
+  const [includeCustomFighters, setIncludeCustomFighters] = useState<boolean>(false);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
+  const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState<boolean>(false);
   
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<Array<{
@@ -233,23 +236,28 @@ export default function AddFighter({
     quantity: number;
   }>>([]);
 
-  // Fetch fighter types when modal opens
+  // Fetch fighter types when modal opens or includeCustomFighters changes
   useEffect(() => {
-    if (showModal && fighterTypes.length === 0) {
+    if (showModal && !isLoadingFighterTypes) {
       fetchFighterTypes();
     }
-  }, [showModal]);
+  }, [showModal, includeCustomFighters]);
 
   const fetchFighterTypes = async () => {
+    if (isLoadingFighterTypes) return; // Prevent concurrent calls
+
     try {
+      setIsLoadingFighterTypes(true);
       // Use the API route instead of server action
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}`);
-      
+      const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
+      const includeAllParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}`);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       
       // Transform API response to match existing FighterType interface
@@ -284,7 +292,8 @@ export default function AddFighter({
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
         fighter_sub_type_id: type.sub_type?.id,
-        available_legacies: type.available_legacies || []
+        available_legacies: type.available_legacies || [],
+        is_custom_fighter: type.is_custom_fighter || false
       }));
       
       setFighterTypes(transformedData);
@@ -294,6 +303,8 @@ export default function AddFighter({
         description: "Failed to load fighter types",
         variant: "destructive"
       });
+    } finally {
+      setIsLoadingFighterTypes(false);
     }
   };
 
@@ -819,15 +830,6 @@ export default function AddFighter({
     }
 
     try {
-      // Get the current authenticated user's ID
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setFetchError('You must be logged in to add a fighter');
-        return false;
-      }
-
       // Parse the cost from the input
       const enteredCost = parseInt(fighterCost);
       
@@ -858,7 +860,6 @@ export default function AddFighter({
         cost: enteredCost,
         selected_equipment: selectedEquipment,
         default_equipment: defaultEquipment,
-        user_id: user.id,
         use_base_cost_for_rating: useBaseCostForRating,
         fighter_gang_legacy_id: selectedLegacyId || undefined
       });
@@ -1108,8 +1109,10 @@ export default function AddFighter({
     setSelectedEquipment([]);  // Reset equipment with costs
     setSelectedLegacyId(''); // Reset legacy selection
     setUseBaseCostForRating(true);
+    setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setFetchError(null);
     setFighterTypes([]); // Reset fighter types
+    setIsLoadingFighterTypes(false); // Reset loading state
   };
 
   const addFighterModalContent = (
@@ -1140,10 +1143,10 @@ export default function AddFighter({
           {(() => {
             // Create a map to group fighters by type+class and find default/cheapest for each
             const typeClassMap = new Map();
-            
+
             fighterTypes.forEach(fighter => {
               const key = `${fighter.fighter_type}-${fighter.fighter_class}`;
-              
+
               if (!typeClassMap.has(key)) {
                 typeClassMap.set(key, {
                   fighter: fighter,
@@ -1151,7 +1154,7 @@ export default function AddFighter({
                 });
               } else {
                 const current = typeClassMap.get(key);
-                
+
                 // If this fighter has no sub-type, prefer it as default
                 if (!fighter.sub_type && current.fighter.sub_type) {
                   typeClassMap.set(key, {
@@ -1168,28 +1171,95 @@ export default function AddFighter({
                 }
               }
             });
-            
-            // Convert the map values to an array and sort
-            return Array.from(typeClassMap.values())
+
+            // Group fighters by type (regular vs custom)
+            const groupedByType = Array.from(typeClassMap.values()).reduce((groups, { fighter, cost }) => {
+              const isCustom = (fighter as any).is_custom_fighter;
+              const groupKey = isCustom ? "custom" : "regular";
+
+              if (!groups[groupKey]) {
+                groups[groupKey] = [];
+              }
+              groups[groupKey].push({ fighter, cost });
+              return groups;
+            }, {} as Record<string, Array<{ fighter: any; cost: number }>>);
+
+            // Define group display names
+            const groupDisplayNames: Record<string, string> = {
+              "regular": "Fighter Types",
+              "custom": "Custom Fighter Types",
+            };
+
+            // Check if we have both regular and custom fighters
+            const hasMultipleGroups = Object.keys(groupedByType).length > 1;
+
+            // Sort groups by rank, then sort fighters within each group
+            const sortedGroups = Object.keys(groupedByType)
               .sort((a, b) => {
-                const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
-                const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                const rankA = fighterTypeRank[a] ?? 999;
+                const rankB = fighterTypeRank[b] ?? 999;
+                return rankA - rankB;
+              });
 
-                if (classRankA !== classRankB) {
-                  return classRankA - classRankB;
-                }
+            // If no groups, return empty array
+            if (sortedGroups.length === 0) {
+              return [];
+            }
 
-                return a.cost - b.cost;
-              })
-              .map(({ fighter, cost }) => {
+            if (!hasMultipleGroups) {
+              // If only one group, don't use optgroups - just show options directly
+              const groupKey = sortedGroups[0];
+              const fighters = (groupedByType[groupKey] || [])
+                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
+                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                  if (classRankA !== classRankB) {
+                    return classRankA - classRankB;
+                  }
+
+                  return a.cost - b.cost;
+                });
+
+              return fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
                 const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
-                
+
                 return (
                   <option key={fighter.id} value={fighter.id}>
                     {displayName}
                   </option>
                 );
               });
+            }
+
+            // If multiple groups, use optgroups
+            return sortedGroups.map((groupKey) => {
+              const fighters = (groupedByType[groupKey] || [])
+                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
+                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+                  if (classRankA !== classRankB) {
+                    return classRankA - classRankB;
+                  }
+
+                  return a.cost - b.cost;
+                });
+
+              return (
+                <optgroup key={groupKey} label={groupDisplayNames[groupKey]}>
+                  {fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
+                    const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+
+                    return (
+                      <option key={fighter.id} value={fighter.id}>
+                        {displayName}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              );
+            });
           })()}
         </select>
       </div>
@@ -1302,6 +1372,26 @@ export default function AddFighter({
           <ImInfo />
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
             When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2 mb-4">
+        <Checkbox
+          id="include-custom-fighters"
+          checked={includeCustomFighters}
+          onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
+        />
+        <label
+          htmlFor="include-custom-fighters"
+          className="text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          Include Custom Fighter Types
+        </label>
+        <div className="relative group">
+          <ImInfo />
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
           </div>
         </div>
       </div>

@@ -68,18 +68,21 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     ]);
 
     // Get fighter type and sub-type info (these are fighter-specific queries)
+    // For custom fighters, fighter_type_id will be null, so we handle this case
     const [fighterTypeData, fighterSubTypeData] = await Promise.all([
-      supabase
-        .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name')
-        .eq('id', fighterBasic.fighter_type_id)
-        .single(),
-      fighterBasic.fighter_sub_type_id ? 
+      fighterBasic.fighter_type_id ?
+        supabase
+          .from('fighter_types')
+          .select('id, fighter_type, alliance_crew_name')
+          .eq('id', fighterBasic.fighter_type_id)
+          .single() :
+        Promise.resolve({ data: null, error: null }),
+      fighterBasic.fighter_sub_type_id ?
         supabase
           .from('fighter_sub_types')
           .select('id, sub_type_name')
           .eq('id', fighterBasic.fighter_sub_type_id)
-          .single() : 
+          .single() :
         Promise.resolve({ data: null, error: null })
     ]);
 
@@ -212,8 +215,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         credits: totalCost,
         alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
         fighter_type: {
-          id: fighterTypeData?.data?.id || '',
-          fighter_type: fighterTypeData?.data?.fighter_type || 'Unknown',
+          fighter_type_id: fighterTypeData?.data?.id || fighterBasic.custom_fighter_type_id || '',
+          fighter_type: fighterBasic.fighter_type || fighterTypeData?.data?.fighter_type || 'Unknown',
           alliance_crew_name: fighterTypeData?.data?.alliance_crew_name
         },
         fighter_sub_type: fighterSubTypeData?.data ? {

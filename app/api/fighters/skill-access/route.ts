@@ -17,10 +17,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the fighter's fighter_type_id
+    // Get the fighter's fighter_type_id and custom_fighter_type_id
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('fighter_type_id, user_id, gang_id')
+      .select('fighter_type_id, custom_fighter_type_id, user_id, gang_id')
       .eq('id', fighterId)
       .single();
 
@@ -62,8 +62,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch skill access for the fighter's type
-    const { data: skillAccess, error: skillAccessError } = await supabase
+    // Fetch skill access for the fighter's type (regular or custom)
+    let query = supabase
       .from('fighter_type_skill_access')
       .select(`
         skill_type_id,
@@ -72,8 +72,21 @@ export async function GET(request: Request) {
           id,
           name
         )
-      `)
-      .eq('fighter_type_id', fighter.fighter_type_id);
+      `);
+
+    // Query based on fighter type (regular or custom)
+    if (fighter.custom_fighter_type_id) {
+      // Custom fighter type
+      query = query.eq('custom_fighter_type_id', fighter.custom_fighter_type_id);
+    } else if (fighter.fighter_type_id) {
+      // Regular fighter type
+      query = query.eq('fighter_type_id', fighter.fighter_type_id);
+    } else {
+      // No fighter type found
+      return NextResponse.json({ error: 'Fighter has no associated fighter type' }, { status: 400 });
+    }
+
+    const { data: skillAccess, error: skillAccessError } = await query;
 
     if (skillAccessError) {
       console.error('Error fetching skill access:', skillAccessError);

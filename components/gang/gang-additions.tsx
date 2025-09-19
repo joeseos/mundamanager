@@ -931,16 +931,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     }
 
     try {
-      // Get the current authenticated user's ID
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setFetchError('You must be logged in to add a fighter');
-        setIsAdding(false);
-        return false;
-      }
-
       // Parse the fighter cost, defaulting to 0 if it's empty or NaN
       const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
       
@@ -962,7 +952,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         cost: parsedCost,
         selected_equipment: selectedEquipment,
         default_equipment: defaultEquipment,
-        user_id: user.id,
         use_base_cost_for_rating: useBaseCostForRating
       });
 

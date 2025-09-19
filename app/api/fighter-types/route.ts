@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
+import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const gangId = searchParams.get('gang_id');
   const gangTypeId = searchParams.get('gang_type_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
+  const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
+  const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
 
 
   if (!gangId && !isGangAddition) {
@@ -113,6 +116,64 @@ export async function GET(request: Request) {
             data = [...data, ...markedVariantData];
           }
         }
+      }
+    }
+
+    // Add custom fighter types if requested
+    if (includeCustomFighters && !isGangAddition) {
+      try {
+        const customFighters = await getUserCustomFighterTypes(user.id);
+
+        // Transform custom fighters to match the FighterType interface
+        const transformedCustomFighters = customFighters
+          .filter(cf => {
+            // Include custom fighters for the current gang type
+            if (cf.gang_type_id === gangTypeId) return true;
+
+            // If includeAllGangType is true, also include "Available To All" gang type fighters
+            if (includeAllGangType && cf.gang_type === 'Available To All') return true;
+
+            return false;
+          })
+          .map(cf => ({
+            id: cf.id,
+            fighter_type: cf.fighter_type,
+            fighter_class: cf.fighter_class || 'Custom',
+            gang_type: cf.gang_type,
+            cost: cf.cost,
+            gang_type_id: cf.gang_type_id,
+            special_rules: cf.special_rules || [],
+            total_cost: cf.cost, // Use the cost as total_cost
+            movement: cf.movement,
+            weapon_skill: cf.weapon_skill,
+            ballistic_skill: cf.ballistic_skill,
+            strength: cf.strength,
+            toughness: cf.toughness,
+            wounds: cf.wounds,
+            initiative: cf.initiative,
+            leadership: cf.leadership,
+            cool: cf.cool,
+            willpower: cf.willpower,
+            intelligence: cf.intelligence,
+            attacks: cf.attacks,
+            limitation: null,
+            alignment: null,
+            default_equipment: [],
+            is_gang_addition: false,
+            alliance_id: '',
+            alliance_crew_name: '',
+            equipment_selection: null,
+            sub_type: null,
+            fighter_sub_type_id: null,
+            available_legacies: [],
+            is_custom_fighter: true // Mark as custom fighter
+          }));
+
+        // Add custom fighters to the data
+        data = [...data, ...transformedCustomFighters];
+      } catch (error) {
+        console.error('Error fetching custom fighters:', error);
+        // Continue without custom fighters rather than failing
       }
     }
 
