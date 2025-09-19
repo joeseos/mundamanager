@@ -697,7 +697,7 @@ export default function MembersTable({
                       {(currentUserId === member.user_id || isAdmin) ? (
                         <button
                           onClick={() => handleGangClick(member)}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950 text-green-800 hover:bg-green-200 transition-colors"
                         >
                           {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                         </button>
@@ -838,7 +838,7 @@ export default function MembersTable({
                     {(currentUserId === member.user_id || isAdmin) ? (
                       <button
                         onClick={() => handleGangClick(member)}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950 text-green-800 hover:bg-green-200 transition-colors"
                       >
                         {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
                       </button>

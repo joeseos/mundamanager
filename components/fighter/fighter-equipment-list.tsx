@@ -371,13 +371,13 @@ export function WeaponList({
                   {weapons.map(renderRow)}
                   {vehicleUpgrades.length > 0 && weapons.length > 0 && (
                     <tr>
-                      <td colSpan={3} className="border-t-8 border-gray-100 p-0" />
+                      <td colSpan={3} className="p-0 border-t-8 border-muted" />
                     </tr>
                   )}
                   {vehicleUpgrades.map(renderRow)}
                   {wargear.length > 0 && (weapons.length > 0 || vehicleUpgrades.length > 0) && (
                     <tr>
-                      <td colSpan={3} className="border-t-8 border-gray-100 p-0" />
+                      <td colSpan={3} className="p-0 border-t-8 border-muted" />
                     </tr>
                   )}
                   {wargear.map(renderRow)}

@@ -90,7 +90,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Injury row - only show if fighter has injuries */}
           {fighter.effects?.injuries && fighter.effects.injuries.length > 0 && (
-            <tr className="bg-red-50">
+            <tr className="bg-red-50 dark:bg-red-950">
               <td className="px-1 py-1 font-medium text-xs">Injuries</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -102,7 +102,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Advancements row - only show if fighter has advancements */}
           {fighter.effects?.advancements && fighter.effects.advancements.length > 0 && (
-            <tr className="bg-blue-50">
+            <tr className="bg-blue-50 dark:bg-blue-950">
               <td className="px-1 py-1 font-medium text-xs">Adv.</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -114,7 +114,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Bionics row - only show if fighter has bionics */}
           {fighter.effects?.bionics && fighter.effects.bionics.length > 0 && (
-            <tr className="bg-yellow-50">
+            <tr className="bg-yellow-50 dark:bg-yellow-950">
               <td className="px-1 py-1 font-medium text-xs">Bionics</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -126,7 +126,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* User row - only show if fighter has user effects */}
           {fighter.effects?.user && fighter.effects.user.length > 0 && (
-            <tr className="bg-green-50">
+            <tr className="bg-green-50 dark:bg-green-950">
               <td className="px-1 py-1 font-medium text-xs">User</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -138,7 +138,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Gene-Smithing row - only show if fighter has gene-smithing effects */}
           {fighter.effects?.['gene-smithing'] && fighter.effects['gene-smithing'].length > 0 && (
-            <tr className="bg-purple-50">
+            <tr className="bg-purple-50 dark:bg-purple-950">
               <td className="px-1 py-1 font-medium text-xs">Gene-Smithing</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -150,7 +150,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Rig-Glitches row - only show if fighter has rig-glitches effects */}
           {fighter.effects?.['rig-glitches'] && fighter.effects['rig-glitches'].length > 0 && (
-            <tr className="bg-pink-50">
+            <tr className="bg-pink-50 dark:bg-pink-950">
               <td className="px-1 py-1 font-medium text-xs">Rig-Glitches</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -162,7 +162,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Augmentations row - only show if fighter has augmentations effects */}
           {fighter.effects?.augmentations && fighter.effects.augmentations.length > 0 && (
-            <tr className="bg-teal-50">
+            <tr className="bg-teal-50 dark:bg-teal-950">
               <td className="px-1 py-1 font-medium text-xs">Augmentations</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
@@ -174,7 +174,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
           
           {/* Equipment row - only show if fighter has equipment effects */}
           {fighter.effects?.equipment && fighter.effects.equipment.length > 0 && (
-            <tr className="bg-amber-50">
+            <tr className="bg-amber-50 dark:bg-amber-950">
               <td className="px-1 py-1 font-medium text-xs">Equipment</td>
               {stats.map(stat => (
                 <td key={stat.key} className="border-l border-border text-center text-xs">

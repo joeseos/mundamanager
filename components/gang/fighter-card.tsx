@@ -431,7 +431,7 @@ const FighterCard = memo(function FighterCard({
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
-            <div className="bg-primary rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden flex-shrink-0">
+            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden flex-shrink-0">
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}

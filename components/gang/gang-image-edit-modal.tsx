@@ -417,7 +417,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
               <img
                 src={currentImageUrl}
                 alt="Current gang"
-                className="bg-neutral-900 rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
               />
               <Button
                 variant="destructive"

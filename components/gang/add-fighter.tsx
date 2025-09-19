@@ -1384,7 +1384,7 @@ export default function AddFighter({
         />
         <label
           htmlFor="include-custom-fighters"
-          className="text-sm font-medium text-gray-700 cursor-pointer"
+          className="text-sm font-medium text-muted-foreground cursor-pointer"
         >
           Include Custom Fighter Types
         </label>
