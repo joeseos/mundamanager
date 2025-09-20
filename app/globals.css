@@ -192,6 +192,18 @@
   background-image: url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1758130100/fighter-card-background-5-dark_web_lhh1dn.webp');
 }
 
+/* Prevent hover effects from sticking on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .fighter-card-bg:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  
+  .fighter-card-bg:hover * {
+    transform: none !important;
+  }
+}
+
 /* tailwindcss fix for Firefox */
 @layer base {
   option, optgroup {
