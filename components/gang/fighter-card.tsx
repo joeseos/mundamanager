@@ -9,7 +9,7 @@ import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
-import { MdChair } from "react-icons/md";
+import { MdChair, MdDragIndicator } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
 import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
@@ -382,12 +382,15 @@ const FighterCard = memo(function FighterCard({
   const cardContent = (
     <div
       id={fighterCardId}
-      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'opacity-90' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
+      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
         ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`} fighter-card-bg`}
         style={{
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          backgroundPosition: 'center',
+          // Prevent hover effects from sticking on touch devices
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation'
         }}
       >
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
@@ -659,6 +662,13 @@ const FighterCard = memo(function FighterCard({
             )}
           </div>
         </>
+      )}
+      
+      {/* Drag indicator - only show when not dragging and not disabled */}
+      {!isDragging && !disableLink && (
+        <div className="absolute bottom-2 right-2 opacity-30 hover:opacity-60 transition-opacity duration-200 print:hidden">
+          <MdDragIndicator className="text-gray-600 text-xl" />
+        </div>
       )}
     </div>
   );

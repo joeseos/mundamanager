@@ -68,8 +68,8 @@ export function DraggableFighters({
 
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 750,
-      tolerance: 5,
+      delay: 650,
+      tolerance: 10,
     },
   });
   const pointerSensor = useSensor(PointerSensor, {
@@ -80,7 +80,13 @@ export function DraggableFighters({
   });
   const sensors = useSensors(
     typeof window === "undefined" ? pointerSensor :
-    /Mobi|Android|iPhone/i.test(navigator.userAgent) ? touchSensor : pointerSensor,
+    (() => {
+      const isMobile = /Mobi|Android|iPhone|iPad|Tablet/i.test(navigator.userAgent) || 
+                       ('ontouchstart' in window) || 
+                       (navigator.maxTouchPoints > 0);
+      
+      return isMobile ? touchSensor : pointerSensor;
+    })(),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
