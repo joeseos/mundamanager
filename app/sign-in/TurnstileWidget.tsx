@@ -61,30 +61,53 @@ export default function TurnstileWidget() {
   };
 
   useEffect(() => {
-    // Skip if script is already being loaded
-    if (scriptLoadedRef.current || document.querySelector('script[src*="turnstile"]')) {
-      console.log('Turnstile script already loading or loaded');
+    // Skip if no site key
+    if (!siteKey) {
+      console.log('No Turnstile site key provided');
+      return;
+    }
+
+    // Check if script is already loaded
+    const existingScript = document.querySelector('script[src*="turnstile"]');
+    if (existingScript || scriptLoadedRef.current) {
+      console.log('Turnstile script already loaded');
       // If window.turnstile is available, render immediately
       if (window.turnstile) {
         renderWidget();
+      } else {
+        // Use a more efficient approach - check once after a short delay
+        const timeoutId = setTimeout(() => {
+          if (window.turnstile) {
+            renderWidget();
+          }
+        }, 200);
+        
+        return () => clearTimeout(timeoutId);
       }
       return;
     }
     
-    // Create and load the script manually once
+    // Create and load the script
     const script = document.createElement('script');
     script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     script.async = true;
     script.defer = true;
     
     script.onload = () => {
-      console.log('Turnstile script loaded manually');
+      console.log('Turnstile script loaded');
       scriptLoadedRef.current = true;
       
-      // Give a small delay for the script to initialize
-      setTimeout(() => {
+      // Render immediately after script loads
+      if (window.turnstile) {
         renderWidget();
-      }, 100);
+      } else {
+        // Fallback: try once more after a short delay
+        setTimeout(() => {
+          if (window.turnstile) {
+            renderWidget();
+          }
+        }, 100);
+      }
     };
     
     script.onerror = (e) => {
@@ -103,7 +126,7 @@ export default function TurnstileWidget() {
         }
       }
     };
-  }, [siteKey]);
+  }, []); // Empty dependency array - run only once
 
   return (
     <div className="w-full">
