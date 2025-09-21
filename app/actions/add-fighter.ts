@@ -260,113 +260,57 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let fighterDefaultsData: any[] = [];
     let fighterDefaultEquipmentData: any[] = [];
 
-    if (isCustomFighter) {
-      // For custom fighters, use custom_fighter_type_id
-      const [skillsResult, equipmentResult, customEquipmentResult] = await Promise.all([
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            skill_id,
-            skills!skill_id(
-              id,
-              name
-            )
-          `)
-          .eq('custom_fighter_type_id', params.fighter_type_id)
-          .not('skill_id', 'is', null),
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            equipment_id,
-            equipment!equipment_id(
-              id,
-              equipment_name,
-              cost
-            )
-          `)
-          .eq('custom_fighter_type_id', params.fighter_type_id)
-          .not('equipment_id', 'is', null),
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            custom_equipment_id,
-            custom_equipment!custom_equipment_id(
-              id,
-              equipment_name,
-              cost
-            )
-          `)
-          .eq('custom_fighter_type_id', params.fighter_type_id)
-          .not('custom_equipment_id', 'is', null)
-      ]);
-      fighterDefaultsData = skillsResult.data || [];
+    // Get all defaults (skills and equipment) in a single query
+    const { data: allDefaultsData } = await supabase
+      .from('fighter_defaults')
+      .select(`
+        skill_id,
+        equipment_id,
+        custom_equipment_id,
+        skills!skill_id(
+          id,
+          name
+        ),
+        equipment!equipment_id(
+          id,
+          equipment_name,
+          cost,
+          equipment_type
+        ),
+        custom_equipment!custom_equipment_id(
+          id,
+          equipment_name,
+          cost,
+          equipment_type
+        )
+      `)
+      .eq(isCustomFighter ? 'custom_fighter_type_id' : 'fighter_type_id', params.fighter_type_id);
 
-      // Combine regular and custom equipment
-      const regularEquipment = equipmentResult.data || [];
-      const customEquipment = (customEquipmentResult.data || []).map(item => ({
-        equipment_id: `custom_${item.custom_equipment_id}`,
-        equipment: {
-          id: `custom_${item.custom_equipment_id}`,
-          equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
-          cost: (item.custom_equipment as any)?.cost || 0
+    // Process results to separate skills and equipment
+    fighterDefaultsData = (allDefaultsData || []).filter(item => item.skill_id && item.skills);
+
+    fighterDefaultEquipmentData = (allDefaultsData || [])
+      .filter(item => item.equipment_id || item.custom_equipment_id)
+      .map(item => {
+        if (item.equipment_id && item.equipment) {
+          return {
+            equipment_id: item.equipment_id,
+            equipment: item.equipment
+          };
+        } else if (item.custom_equipment_id && item.custom_equipment) {
+          return {
+            equipment_id: `custom_${item.custom_equipment_id}`,
+            equipment: {
+              id: `custom_${item.custom_equipment_id}`,
+              equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
+              cost: (item.custom_equipment as any)?.cost || 0
+            }
+          };
         }
-      }));
-      fighterDefaultEquipmentData = [...regularEquipment, ...customEquipment];
-    } else {
-      // For regular fighters, use fighter_type_id
-      const [skillsResult, equipmentResult, customEquipmentResult] = await Promise.all([
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            skill_id,
-            skills!skill_id(
-              id,
-              name
-            )
-          `)
-          .eq('fighter_type_id', params.fighter_type_id)
-          .not('skill_id', 'is', null),
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            equipment_id,
-            equipment!equipment_id(
-              id,
-              equipment_name,
-              cost
-            )
-          `)
-          .eq('fighter_type_id', params.fighter_type_id)
-          .not('equipment_id', 'is', null),
-        supabase
-          .from('fighter_defaults')
-          .select(`
-            custom_equipment_id,
-            custom_equipment!custom_equipment_id(
-              id,
-              equipment_name,
-              cost
-            )
-          `)
-          .eq('fighter_type_id', params.fighter_type_id)
-          .not('custom_equipment_id', 'is', null)
-      ]);
-      fighterDefaultsData = skillsResult.data || [];
+        return null;
+      }).filter(Boolean);
 
-      // Combine regular and custom equipment
-      const regularEquipment = equipmentResult.data || [];
-      const customEquipment = (customEquipmentResult.data || []).map(item => ({
-        equipment_id: `custom_${item.custom_equipment_id}`,
-        equipment: {
-          id: `custom_${item.custom_equipment_id}`,
-          equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
-          cost: (item.custom_equipment as any)?.cost || 0
-        }
-      }));
-      fighterDefaultEquipmentData = [...regularEquipment, ...customEquipment];
-    }
-
-    // Prepare equipment insertions
+    // Prepare equipment insertions with deduplication
     const equipmentInserts: Array<{
       fighter_id: string;
       equipment_id: string | null;
@@ -377,47 +321,60 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       user_id: string;
     }> = [];
 
-    // Add default equipment from fighter_defaults table
-    if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
-      fighterDefaultEquipmentData.forEach((defaultEquipment) => {
-        const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
+    // Track added equipment to prevent duplicates
+    const addedEquipment = new Set<string>();
 
+    // Helper function to add equipment if not already added
+    const addEquipment = (equipmentId: string, isCustom: boolean, cost: number, purchaseCost: number) => {
+      if (!addedEquipment.has(equipmentId)) {
+        addedEquipment.add(equipmentId);
         equipmentInserts.push({
           fighter_id: fighterId,
-          equipment_id: isCustomEquipment ? null : defaultEquipment.equipment_id,
-          custom_equipment_id: isCustomEquipment ? defaultEquipment.equipment_id.replace('custom_', '') : null,
-          original_cost: (defaultEquipment.equipment as any)?.cost || 0,
-          purchase_cost: 0, // Default equipment is free
+          equipment_id: isCustom ? null : equipmentId,
+          custom_equipment_id: isCustom ? equipmentId.replace('custom_', '') : null,
+          original_cost: cost,
+          purchase_cost: purchaseCost,
           gang_id: params.gang_id,
           user_id: gangData.user_id
         });
+      }
+    };
+
+    // Add default equipment from fighter_defaults table (highest priority)
+    if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
+      fighterDefaultEquipmentData.forEach((defaultEquipment) => {
+        const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
+        addEquipment(
+          defaultEquipment.equipment_id,
+          isCustomEquipment,
+          (defaultEquipment.equipment as any)?.cost || 0,
+          0 // Default equipment is free
+        );
       });
     }
 
-    // Add default equipment (from params.default_equipment)
+    // Add default equipment (from params.default_equipment) - only if not already added
     if (params.default_equipment && params.default_equipment.length > 0) {
       params.default_equipment.forEach((defaultItem) => {
         for (let i = 0; i < (defaultItem.quantity || 1); i++) {
           const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
-
-          equipmentInserts.push({
-            fighter_id: fighterId,
-            equipment_id: isCustomEquipment ? null : defaultItem.equipment_id,
-            custom_equipment_id: isCustomEquipment ? defaultItem.equipment_id.replace('custom_', '') : null,
-            original_cost: defaultItem.cost || 0,
-            purchase_cost: 0, // Default equipment is free
-            gang_id: params.gang_id,
-            user_id: gangData.user_id
-          });
+          addEquipment(
+            defaultItem.equipment_id,
+            isCustomEquipment,
+            defaultItem.cost || 0,
+            0 // Default equipment is free
+          );
         }
       });
     }
 
-    // Add selected equipment (from equipment selections)
+    // Add selected equipment (from equipment selections) - these should be unique
     if (params.selected_equipment && params.selected_equipment.length > 0) {
       params.selected_equipment.forEach((selectedItem) => {
         for (let i = 0; i < (selectedItem.quantity || 1); i++) {
           const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
+          // Don't deduplicate selected equipment - user explicitly chose these
+          const equipmentKey = `${selectedItem.equipment_id}_selected_${i}`;
 
           equipmentInserts.push({
             fighter_id: fighterId,
