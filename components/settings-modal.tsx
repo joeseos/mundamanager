@@ -23,7 +23,6 @@ import { FiMap } from "react-icons/fi";
 import { MdOutlineColorLens } from "react-icons/md";
 import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierColor } from "@/utils/patreon";
-import { ThemeToggleDropdown } from "@/components/theme-toggle";
 
 // Import the notifications' content component with SSR disabled
 const NotificationsContent = dynamic(() => import('./notifications-content'), {
@@ -89,7 +88,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
   return (
     <div className="relative">
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -163,15 +162,6 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
               Customise
             </Link>
           </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <div className="px-2 py-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Theme</span>
-              <ThemeToggleDropdown />
-            </div>
-          </div>
 
           <DropdownMenuSeparator />
 
