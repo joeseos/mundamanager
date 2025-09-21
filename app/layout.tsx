@@ -13,6 +13,7 @@ import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/
 import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
 import { ClientThemeProvider } from "@/components/client-theme-provider";
+import { ThemeToggleDropdown } from "@/components/theme-toggle";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -182,7 +183,10 @@ export default async function RootLayout({
               </span>
             </Link>
             {user ? (
-              <div className="mr-2">
+              <div className="flex items-center gap-2 mr-2">
+                {/* Theme toggle for easy access */}
+                <ThemeToggleDropdown />
+                
                 {/* Fetch minimal profile info for header */}
                 {/* We intentionally avoid an extra auth call here and use claims (done above) */}
                 {/* SettingsModal expects a Supabase user-like object */}
@@ -195,7 +199,12 @@ export default async function RootLayout({
                   patronStatus={patronStatus}
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="mr-2">
+                {/* Theme toggle available even when not logged in */}
+                <ThemeToggleDropdown />
+              </div>
+            )}
           </div>
         </header>
         {breadcrumb}
