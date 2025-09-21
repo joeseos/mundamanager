@@ -342,22 +342,32 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
       key: 'fighter_type',
       label: 'Fighter Type',
       align: 'left',
-    },
-    {
-      key: 'gang_type',
-      label: 'Gang',
-      align: 'left',
-    },
-    {
-      key: 'cost',
-      label: 'Cost',
-      align: 'right',
-      render: (value) => value ? `${value}` : '-',
+      width: '30%'
     },
     {
       key: 'fighter_class',
       label: 'Class',
       align: 'left',
+      width: '20%'
+    },
+    {
+      key: 'gang_type',
+      label: 'Gang',
+      align: 'left',
+      width: '15%'
+    },
+    {
+      key: '',
+      label: '',
+      align: 'right',
+      width: '15%'
+    },
+    {
+      key: 'cost',
+      label: 'Cost',
+      align: 'right',
+      width: '10%',
+      render: (value) => value ? `${value}` : '-',
     },
   ];
 
@@ -800,9 +810,9 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                   <option value="">Select gang type</option>
                   {gangTypes
                     .sort((a, b) => {
-                      // Put "Available To All" first
-                      if (a.gang_type === 'Available To All') return -1;
-                      if (b.gang_type === 'Available To All') return 1;
+                      // Put "Available to All" first
+                      if (a.gang_type === 'Available to All') return -1;
+                      if (b.gang_type === 'Available to All') return 1;
                       // Sort the rest alphabetically
                       return a.gang_type.localeCompare(b.gang_type);
                     })
@@ -877,7 +887,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                 {specialRules.map((rule, index) => (
                   <div
                     key={index}
-                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                   >
                     <span>{rule}</span>
                     <button
@@ -1202,9 +1212,9 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                   <option value="">Select gang type</option>
                   {gangTypes
                     .sort((a, b) => {
-                      // Put "Available To All" first
-                      if (a.gang_type === 'Available To All') return -1;
-                      if (b.gang_type === 'Available To All') return 1;
+                      // Put "Available to All" first
+                      if (a.gang_type === 'Available to All') return -1;
+                      if (b.gang_type === 'Available to All') return 1;
                       // Sort the rest alphabetically
                       return a.gang_type.localeCompare(b.gang_type);
                     })
@@ -1278,7 +1288,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
                 {specialRules.map((rule, index) => (
                   <div
                     key={index}
-                    className="bg-gray-100 px-3 py-1 rounded-full flex items-center text-sm"
+                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                   >
                     <span>{rule}</span>
                     <button
@@ -1301,7 +1311,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
               <div className="overflow-hidden rounded-md border mb-2">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 border-b">
+                    <tr className="bg-muted border-b">
                       <th className="px-4 py-2 text-left font-medium">Skill Set</th>
                       <th className="px-4 py-2 text-left font-medium">Access Level</th>
                       <th className="px-4 py-2 text-center font-medium">Action</th>
