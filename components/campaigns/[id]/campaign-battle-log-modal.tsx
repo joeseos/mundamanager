@@ -19,6 +19,9 @@ interface Scenario {
 interface CampaignGang {
   id: string;
   name: string;
+  campaign_member_id?: string;
+  user_id?: string;
+  owner_username?: string;
 }
 
 interface Territory {
@@ -654,7 +657,7 @@ const CampaignBattleLogModal = ({
                       <option value="">Gang {gangEntry.id}</option>
                       {availableGangsForThisEntry.map((gang) => (
                         <option key={gang.id} value={gang.id}>
-                          {gang.name}
+                          {gang.name}{gang.owner_username ? ` • ${gang.owner_username}` : ''}
                         </option>
                       ))}
                     </select>
@@ -744,9 +747,10 @@ const CampaignBattleLogModal = ({
               <option value="draw">Draw</option>
               {gangsInBattle.map((entry) => {
                 if (!entry.gangId) return null;
+                const gang = availableGangs.find(g => g.id === entry.gangId);
                 return (
                   <option key={entry.id} value={entry.gangId}>
-                    {getGangName(entry.gangId)}
+                    {getGangName(entry.gangId)}{gang?.owner_username ? ` • ${gang.owner_username}` : ''}
                   </option>
                 );
               })}

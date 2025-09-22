@@ -79,6 +79,7 @@ interface CampaignGang {
   name: string;
   campaign_member_id?: string;
   user_id?: string;
+  owner_username?: string;
 }
 
 interface Territory {
@@ -203,7 +204,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 name: gang.gang_name,
                 // Store additional data for reference if needed
                 campaign_member_id: member.id || gang.campaign_member_id,
-                user_id: member.user_id
+                user_id: member.user_id,
+                owner_username: member.profile?.username || member.username || 'Unknown'
               });
               gangNamesMap.set(gang.gang_id, gang.gang_name);
               gangColourMap.set(gang.gang_id, gang.gang_colour || '#000000');
