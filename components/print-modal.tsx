@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Modal from "@/components/ui/modal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface PrintModalProps {
   gangId: string;
@@ -79,12 +80,11 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
             ['includeRecoveryFighters', 'Fighters in Recovery'],
           ].map(([id, label]) => (
             <div key={id} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id={id}
                 checked={printOptions[id as keyof typeof printOptions]}
-                onChange={(e) =>
-                  setPrintOptions(prev => ({ ...prev, [id]: e.target.checked }))
+                onCheckedChange={(checked) =>
+                  setPrintOptions(prev => ({ ...prev, [id]: checked }))
                 }
               />
               <label htmlFor={id} className="text-sm">{label}</label>
