@@ -18,6 +18,7 @@ const notificationStore = {
   unreadCount: 0,
   listeners: new Set<(notifications: Notification[]) => void>(),
   countListeners: new Set<(count: number) => void>(),
+  fetchPromise: null as Promise<void> | null,
 
   // Update notifications and notify all listeners
   setNotifications(notifications: Notification[]) {
@@ -63,6 +64,22 @@ const notificationStore = {
     this.countListeners.forEach(listener => {
       listener(this.unreadCount);
     });
+  },
+
+  // Deduplicated fetch method
+  async fetchNotifications(fetchFn: () => Promise<void>) {
+    // If a fetch is already in progress, return the existing promise
+    if (this.fetchPromise) {
+      return this.fetchPromise;
+    }
+
+    // Start a new fetch and store the promise
+    this.fetchPromise = fetchFn().finally(() => {
+      // Clear the promise when done (success or error)
+      this.fetchPromise = null;
+    });
+
+    return this.fetchPromise;
   }
 };
 
@@ -151,7 +168,7 @@ export function useFetchNotifications({
   // Fetch initial notifications
   useEffect(() => {
     const doInitialFetch = async () => {
-      await fetchNotifications();
+      await notificationStore.fetchNotifications(fetchNotifications);
       setInitialFetched(true);
     };
 
