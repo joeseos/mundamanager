@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
+import EmailChange from "@/components/profile/email-change";
 import { NotificationsSection } from "../../components/settings-modal";
 import FriendsSearchBar from "@/components/profile/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
@@ -40,7 +41,7 @@ export default async function ProfilePage() {
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Email
               </label>
-              <div className="text-foreground bg-muted rounded-md px-3 py-2">{user.email}</div>
+              <EmailChange currentEmail={user.email || ''} />
             </div>
 
             <div>

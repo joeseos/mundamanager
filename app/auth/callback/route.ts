@@ -15,9 +15,19 @@ export async function GET(request: Request) {
   const type = requestUrl.searchParams.get("type");
   const origin = requestUrl.origin;
 
+
+
   if (token_hash && type === 'recovery') {
-    // Redirect to the update password page with the token
     return NextResponse.redirect(`${origin}/reset-password/update?token_hash=${token_hash}&type=${type}`);
+  }
+
+  if (token_hash && type === 'email_change') {
+    return NextResponse.redirect(`${origin}/confirm-email?token_hash=${token_hash}&type=${type}`);
+  }
+
+  // Check for other possible email-related types
+  if (token_hash && (type === 'email' || type === 'email_change_current' || type === 'email_change_new')) {
+    return NextResponse.redirect(`${origin}/confirm-email?token_hash=${token_hash}&type=${type}`);
   }
 
   if (code) {
