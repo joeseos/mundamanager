@@ -73,19 +73,21 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
     let vehicleAssigned = false;
+    let fighterIsActive = true; // Default to true for non-fighter equipment
     
     if (equipmentData.fighter_id) {
-      // Get gang_id from fighter
+      // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id')
+        .select('gang_id, killed, retired, enslaved, captured')
         .eq('id', equipmentData.fighter_id)
         .single();
-        
+
       if (fighterError || !fighter) {
         throw new Error('Fighter not found for this equipment');
       }
       gangId = fighter.gang_id;
+      fighterIsActive = !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle and whether vehicle is assigned
       const { data: vehicle, error: vehicleError } = await supabase
@@ -99,6 +101,19 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
       gangId = vehicle.gang_id;
       vehicleAssigned = !!vehicle.fighter_id;
+
+      // If vehicle is assigned to a fighter, check if that fighter is active
+      if (vehicleAssigned && vehicle.fighter_id) {
+        const { data: vehicleFighter, error: vehicleFighterError } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', vehicle.fighter_id)
+          .single();
+
+        if (!vehicleFighterError && vehicleFighter) {
+          fighterIsActive = !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured;
+        }
+      }
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
@@ -196,8 +211,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     }
 
     // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
+    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
+    // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
-    if (equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) {
+    if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
       ratingDelta -= (equipmentData.purchase_cost || 0);
       const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
       ratingDelta -= effectsCredits;

@@ -842,23 +842,48 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Determine rating delta prior to deletion
+    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
+    // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
     if (equipmentBefore.fighter_id) {
-      ratingDelta -= (equipmentBefore.purchase_cost || 0);
-      // subtract associated effects credits if any
-      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-      ratingDelta -= effectsCredits;
+      // Check if the fighter is active before applying rating delta
+      const { data: fighter } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved, captured')
+        .eq('id', equipmentBefore.fighter_id)
+        .single();
+
+      const fighterIsActive = fighter && !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
+
+      if (fighterIsActive) {
+        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        // subtract associated effects credits if any
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
+      }
     } else if (equipmentBefore.vehicle_id) {
-      // Only count if vehicle assigned
+      // Only count if vehicle assigned to an active fighter
       const { data: veh } = await supabase
         .from('vehicles')
         .select('fighter_id')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
+
       if (veh?.fighter_id) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
+        // Check if the assigned fighter is active
+        const { data: vehicleFighter } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', veh.fighter_id)
+          .single();
+
+        const vehicleFighterIsActive = vehicleFighter && !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured;
+
+        if (vehicleFighterIsActive) {
+          ratingDelta -= (equipmentBefore.purchase_cost || 0);
+          const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+          ratingDelta -= effectsCredits;
+        }
       }
     }
 
