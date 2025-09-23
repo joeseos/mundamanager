@@ -9,6 +9,7 @@ interface SelectedEquipment {
   equipment_id: string;
   cost: number;
   quantity?: number;
+  effect_ids?: string[];
 }
 
 interface AddFighterParams {
@@ -52,6 +53,34 @@ interface AddFighterResult {
     cost: number;
     rating_cost: number;
     total_cost: number;
+    base_stats: {
+      movement: number;
+      weapon_skill: number;
+      ballistic_skill: number;
+      strength: number;
+      toughness: number;
+      wounds: number;
+      initiative: number;
+      attacks: number;
+      leadership: number;
+      cool: number;
+      willpower: number;
+      intelligence: number;
+    };
+    current_stats: {
+      movement: number;
+      weapon_skill: number;
+      ballistic_skill: number;
+      strength: number;
+      toughness: number;
+      wounds: number;
+      initiative: number;
+      attacks: number;
+      leadership: number;
+      cool: number;
+      willpower: number;
+      intelligence: number;
+    };
     stats: FighterStats;
     equipment: Array<{
       fighter_equipment_id: string;
@@ -107,8 +136,148 @@ interface AddFighterResult {
         skill_name: string;
       }>;
     }>;
+    applied_effects?: Array<{
+      id: string;
+      effect_name: string;
+      type_specific_data?: any;
+      created_at: string;
+      category_name?: string;
+      fighter_effect_modifiers: Array<{
+        id: string;
+        fighter_effect_id: string;
+        stat_name: string;
+        numeric_value: number;
+      }>;
+    }>;
   };
   error?: string;
+}
+
+
+async function applyEffectsForEquipmentOptimized(
+  supabase: any,
+  effectTypes: any[], // Pre-fetched effect types
+  fighterEquipmentId: string,
+  fighterId: string,
+  userId: string,
+  includeCreditIncrease: boolean = false
+): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number }> {
+  if (!effectTypes || effectTypes.length === 0) {
+    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+  }
+
+  try {
+    // Batch insert effects using pre-fetched data (no additional queries)
+    const effectsToInsert = effectTypes.map((effectType: any) => ({
+      fighter_id: fighterId,
+      vehicle_id: null,
+      fighter_effect_type_id: effectType.id,
+      effect_name: effectType.effect_name,
+      type_specific_data: effectType.type_specific_data,
+      fighter_equipment_id: fighterEquipmentId,
+      user_id: userId
+    }));
+
+    const { data: insertedEffects, error: effectsError } = await supabase
+      .from('fighter_effects')
+      .insert(effectsToInsert)
+      .select('id, fighter_effect_type_id');
+
+    if (effectsError || !insertedEffects) {
+      console.error('Failed to insert effects:', effectsError);
+      return { appliedEffects: [], effectsCreditsIncrease: 0 };
+    }
+
+    // Batch insert modifiers using pre-fetched modifier data
+    const allModifiers: any[] = [];
+    effectTypes.forEach((effectType: any, index: number) => {
+      const effectId = insertedEffects[index].id;
+      if (effectType.fighter_effect_type_modifiers) {
+        effectType.fighter_effect_type_modifiers.forEach((modifier: any) => {
+          allModifiers.push({
+            fighter_effect_id: effectId,
+            stat_name: modifier.stat_name,
+            numeric_value: modifier.default_numeric_value
+          });
+        });
+      }
+    });
+
+    if (allModifiers.length > 0) {
+      const { error: modifiersError } = await supabase.from('fighter_effect_modifiers').insert(allModifiers);
+      if (modifiersError) {
+        console.error('Failed to insert effect modifiers:', modifiersError);
+      }
+    }
+
+    // Build applied effects response using pre-fetched data (no additional queries)
+    const appliedEffects: any[] = [];
+    let totalCreditsIncrease = 0;
+
+    effectTypes.forEach((effectType: any, index: number) => {
+      const insertedEffect = insertedEffects[index];
+      if (insertedEffect) {
+        // Get modifiers for this specific effect from the batch we just inserted
+        const effectModifiers = allModifiers.filter(mod => mod.fighter_effect_id === insertedEffect.id);
+
+        appliedEffects.push({
+          id: insertedEffect.id,
+          effect_name: effectType.effect_name,
+          type_specific_data: effectType.type_specific_data,
+          created_at: new Date().toISOString(),
+          category_name: effectType.fighter_effect_categories?.category_name,
+          fighter_effect_modifiers: effectModifiers
+        });
+
+        // Only calculate credits increase if explicitly requested
+        if (includeCreditIncrease) {
+          const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
+          totalCreditsIncrease += creditsIncrease;
+        }
+      }
+    });
+
+    return { appliedEffects, effectsCreditsIncrease: totalCreditsIncrease };
+
+  } catch (error) {
+    console.error('Equipment effect application failed:', error);
+    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+  }
+}
+
+function calculateStatsWithEffects(baseStats: any, appliedEffects: any[]) {
+  const modifiedStats = { ...baseStats };
+
+  appliedEffects.forEach(effect => {
+    if (effect.fighter_effect_modifiers?.length > 0) {
+      effect.fighter_effect_modifiers.forEach((modifier: any) => {
+        const statName = modifier.stat_name.toLowerCase();
+        const value = modifier.numeric_value;
+
+        const statMapping: Record<string, string> = {
+          'movement': 'movement',
+          'weapon_skill': 'weapon_skill',
+          'ballistic_skill': 'ballistic_skill',
+          'strength': 'strength',
+          'toughness': 'toughness',
+          'wounds': 'wounds',
+          'initiative': 'initiative',
+          'attacks': 'attacks',
+          'leadership': 'leadership',
+          'cool': 'cool',
+          'willpower': 'willpower',
+          'intelligence': 'intelligence'
+        };
+
+        const statKey = statMapping[statName];
+        if (statKey && modifiedStats[statKey] !== undefined) {
+          modifiedStats[statKey] += value;
+        }
+      });
+    }
+  });
+
+  return modifiedStats;
 }
 
 export async function addFighterToGang(params: AddFighterParams): Promise<AddFighterResult> {
@@ -473,6 +642,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let allCreatedBeasts: any[] = [];
     let totalBeastsRatingDelta = 0;
 
+    // Collect equipment effects data
+    let allAppliedEffects: any[] = [];
+    let totalEffectsCreditsIncrease = 0;
+
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
         const { type, result: queryResult } = result.value;
@@ -481,7 +654,77 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           case 'equipment':
             if (queryResult.data) {
               const insertedEquipment = queryResult.data;
-              
+
+              // Apply equipment effects automatically for ALL equipment (OPTIMIZED)
+              // Filter valid equipment IDs for batch processing
+              const validEquipmentIds = insertedEquipment
+                .filter((item: any) => item.equipment_id && !item.custom_equipment_id)
+                .map((item: any) => item.equipment_id);
+
+              if (validEquipmentIds.length > 0) {
+                try {
+                  // OPTIMIZED: Single batch query for all equipment effects
+                  const { data: allEffectTypes, error: batchQueryError } = await supabase
+                    .from('fighter_effect_types')
+                    .select(`
+                      id,
+                      effect_name,
+                      fighter_effect_category_id,
+                      type_specific_data,
+                      fighter_effect_categories (
+                        id,
+                        category_name
+                      ),
+                      fighter_effect_type_modifiers (
+                        stat_name,
+                        default_numeric_value
+                      )
+                    `)
+                    .in('type_specific_data->>equipment_id', validEquipmentIds);
+
+                  if (!batchQueryError && allEffectTypes && allEffectTypes.length > 0) {
+                    // Group effects by equipment_id for processing
+                    const effectsByEquipment = new Map<string, any[]>();
+                    allEffectTypes.forEach(effectType => {
+                      const equipmentId = effectType.type_specific_data?.equipment_id;
+                      if (equipmentId) {
+                        if (!effectsByEquipment.has(equipmentId)) {
+                          effectsByEquipment.set(equipmentId, []);
+                        }
+                        effectsByEquipment.get(equipmentId)!.push(effectType);
+                      }
+                    });
+
+                    // Apply effects for each equipment piece
+                    for (const equipmentItem of insertedEquipment) {
+                      if (!equipmentItem.equipment_id || equipmentItem.custom_equipment_id) continue;
+
+                      const effectsForThisEquipment = effectsByEquipment.get(equipmentItem.equipment_id) || [];
+
+                      if (effectsForThisEquipment.length > 0) {
+                        try {
+                          const effectsResult = await applyEffectsForEquipmentOptimized(
+                            supabase,
+                            effectsForThisEquipment,
+                            equipmentItem.id,
+                            fighterId,
+                            effectiveUserId,
+                            false // Don't include credit increase for fighter creation
+                          );
+
+                          allAppliedEffects.push(...effectsResult.appliedEffects);
+                          totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
+                        } catch (effectError) {
+                          console.error('Error applying effects for equipment:', equipmentItem.equipment_id, effectError);
+                        }
+                      }
+                    }
+                  }
+                } catch (batchError) {
+                  console.error('Error in batch effect processing:', batchError);
+                }
+              }
+
               // Get weapon profiles for weapons (both regular and custom)
               const regularWeaponIds = insertedEquipment
                 .filter((item: any) => item.equipment_id && (item.equipment as any)?.equipment_type === 'weapon')
@@ -637,6 +880,27 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     });
 
 
+    // Calculate base and modified stats
+    const baseStats = {
+      movement: insertedFighter.movement,
+      weapon_skill: insertedFighter.weapon_skill,
+      ballistic_skill: insertedFighter.ballistic_skill,
+      strength: insertedFighter.strength,
+      toughness: insertedFighter.toughness,
+      wounds: insertedFighter.wounds,
+      initiative: insertedFighter.initiative,
+      attacks: insertedFighter.attacks,
+      leadership: insertedFighter.leadership,
+      cool: insertedFighter.cool,
+      willpower: insertedFighter.willpower,
+      intelligence: insertedFighter.intelligence,
+      xp: insertedFighter.xp,
+      kills: insertedFighter.kills
+    };
+
+    // Calculate stats with effects applied for optimistic updates
+    const currentStats = calculateStatsWithEffects(baseStats, allAppliedEffects);
+
     return {
       success: true,
       data: {
@@ -650,29 +914,46 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         cost: fighterCost,
         rating_cost: ratingCost,
         total_cost: fighterCost,
-        stats: {
-          movement: insertedFighter.movement,
-          weapon_skill: insertedFighter.weapon_skill,
-          ballistic_skill: insertedFighter.ballistic_skill,
-          strength: insertedFighter.strength,
-          toughness: insertedFighter.toughness,
-          wounds: insertedFighter.wounds,
-          initiative: insertedFighter.initiative,
-          attacks: insertedFighter.attacks,
-          leadership: insertedFighter.leadership,
-          cool: insertedFighter.cool,
-          willpower: insertedFighter.willpower,
-          intelligence: insertedFighter.intelligence,
-          xp: insertedFighter.xp,
-          kills: insertedFighter.kills
+        // Base stats (original values before effects)
+        base_stats: {
+          movement: baseStats.movement,
+          weapon_skill: baseStats.weapon_skill,
+          ballistic_skill: baseStats.ballistic_skill,
+          strength: baseStats.strength,
+          toughness: baseStats.toughness,
+          wounds: baseStats.wounds,
+          initiative: baseStats.initiative,
+          attacks: baseStats.attacks,
+          leadership: baseStats.leadership,
+          cool: baseStats.cool,
+          willpower: baseStats.willpower,
+          intelligence: baseStats.intelligence
         },
+        // Current stats (after effects applied) for immediate display
+        current_stats: {
+          movement: currentStats.movement,
+          weapon_skill: currentStats.weapon_skill,
+          ballistic_skill: currentStats.ballistic_skill,
+          strength: currentStats.strength,
+          toughness: currentStats.toughness,
+          wounds: currentStats.wounds,
+          initiative: currentStats.initiative,
+          attacks: currentStats.attacks,
+          leadership: currentStats.leadership,
+          cool: currentStats.cool,
+          willpower: currentStats.willpower,
+          intelligence: currentStats.intelligence
+        },
+        // Legacy stats field for backward compatibility (use current stats)
+        stats: currentStats,
         equipment: equipmentWithProfiles,
         skills: insertedSkills.map(skill => ({
           skill_id: skill.skill_id,
           skill_name: (skill.skills as any)?.name || ''
         })),
         special_rules: effectiveFighterData.special_rules,
-        created_beasts: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined
+        created_beasts: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined,
+        applied_effects: allAppliedEffects.length > 0 ? allAppliedEffects : undefined
       }
     };
 
