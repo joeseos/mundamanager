@@ -81,15 +81,8 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
     .digest('hex');
 
   try {
-    // Ensure both signatures are the same length for comparison
-    if (signature.length !== expectedSignature.length) {
-      return false;
-    }
-
-    return crypto.timingSafeEqual(
-      new Uint8Array(Buffer.from(signature, 'hex')),
-      new Uint8Array(Buffer.from(expectedSignature, 'hex'))
-    );
+    // Direct string comparison should work for hex strings
+    return signature === expectedSignature;
   } catch (error) {
     console.error('Error comparing webhook signatures:', error);
     return false;
@@ -254,7 +247,7 @@ export async function POST(request: NextRequest) {
   try {
     // Get raw body for signature verification
     const body = await request.text();
-    const signature = request.headers.get('x-patreon-signature');
+    const signature = request.headers.get('X-Patreon-Signature');
 
     if (!signature) {
       console.error('Missing Patreon signature header');
