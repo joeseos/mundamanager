@@ -37,36 +37,24 @@ export default async function ProfilePage() {
           <h2 className="text-xl md:text-2xl font-bold mb-4">Profile</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Email
-              </label>
-              <EmailChange currentEmail={user.email || ''} />
-            </div>
-
+            {/* Username */}
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Username
               </label>
-              <div className="text-foreground bg-muted rounded-md px-3 py-2">
+              <div className="text-foreground text-neutral-500 bg-muted rounded-md px-3 py-2">
                 {profile?.username || 'Not set'}
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Password
-              </label>
-              <PasswordChange />
-            </div>
-
+            {/* Patreon Status */}
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1 flex items-center gap-1">
                 Patreon Status
                 <div className="relative group">
                   <ImInfo className="text-muted-foreground cursor-help" />
                   <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                    Email on Patreon and Munda Manager need to match for the membership to be displayed
+                    Emails on Patreon and Munda Manager need to match for the membership to be displayed.
                     <br /><br />
                     Please raise a ticket on Discord if you think there is an error.
                   </div>
@@ -84,6 +72,23 @@ export default async function ProfilePage() {
                 )}
               </div>
             </div>
+            
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Email
+              </label>
+              <EmailChange currentEmail={user.email || ''} />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Password
+              </label>
+              <PasswordChange />
+            </div>
+
           </div>
 
           <div className="mt-4 flex flex-row item-center justify-between text-xs text-muted-foreground">

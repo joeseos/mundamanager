@@ -67,7 +67,6 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
 
       setShowSuccessModal(true);
       setIsEditing(false);
-      setNewEmail('');
     } catch (error) {
       console.error('Error updating email:', error);
       setError('An unexpected error occurred. Please try again.');
@@ -84,6 +83,7 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
+    setNewEmail('');
   };
 
   return (
@@ -97,19 +97,11 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
               setNewEmail(e.target.value);
               setError(null);
             }}
-            placeholder="Enter new email address"
+            placeholder="New email address"
             className="w-full"
             autoFocus
           />
-          <div className="flex items-center space-x-2">
-            <Button
-              onClick={handleSave}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              size="sm"
-              disabled={isLoading || !newEmail}
-            >
-              {isLoading ? 'Updating...' : 'Update Email'}
-            </Button>
+          <div className="flex items-center justify-end gap-2">
             <Button
               onClick={handleCancel}
               variant="outline"
@@ -117,6 +109,14 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
               disabled={isLoading}
             >
               Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
+              size="sm"
+              disabled={isLoading || !newEmail}
+            >
+              {isLoading ? 'Updating...' : 'Update Email'}
             </Button>
           </div>
           {error && (
@@ -128,13 +128,13 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
           </div>
         </div>
       ) : (
-        <div className="flex items-center space-x-2">
-          <div className="text-foreground bg-muted rounded-md px-3 py-2 flex-grow">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+          <div className="text-foreground bg-muted rounded-md px-3 py-2 flex-1 min-w-0 truncate">
             {currentEmail}
           </div>
           <Button
             onClick={() => setIsEditing(true)}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
+            className="bg-neutral-900 hover:bg-gray-800 text-white shrink-0"
             size="sm"
           >
             Change Email
@@ -148,11 +148,11 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
           content={
             <div className="space-y-3">
               <p className="text-muted-foreground">
-                We've sent confirmation emails to both your current email address
-                <strong> {currentEmail}</strong> and your new email address
+                A confirmation email has been sent to both your current email address
+                <strong> {currentEmail}</strong> and to your new email address
                 <strong> {newEmail}</strong>.
               </p>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-red-500">
                 You must click the confirmation links in both emails
                 to complete the email change process.
               </p>
