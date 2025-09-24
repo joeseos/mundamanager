@@ -39,8 +39,43 @@ BEGIN
                         WHERE fs.fighter_id = get_available_skills.fighter_id 
                         AND fs.skill_id = s.id
                     ),
-                    'available_acquisition_types', CASE 
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute') 
+                    'available_acquisition_types', CASE
+                        -- Special costs for Legendary Names
+                        WHEN st.legendary_name = TRUE THEN
+                            jsonb_build_array(
+                                jsonb_build_object(
+                                    'type_id', 'primary_selected',
+                                    'name', 'Selected Primary',
+                                    'xp_cost', 6, -- Selected Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'primary_random',
+                                    'name', 'Random Primary',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'secondary_selected',
+                                    'name', 'Selected Secondary',
+                                    'xp_cost', 6, -- Selected Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'secondary_random',
+                                    'name', 'Random Secondary',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'any_random',
+                                    'name', 'Random Any',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                )
+                            )
+                        -- Regular skill costs
+                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute')
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
