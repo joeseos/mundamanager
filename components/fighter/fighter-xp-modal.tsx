@@ -55,6 +55,7 @@ export function FighterXpModal({
     { id: 'vehicleWrecked', label: 'Wreck Vehicle', xp: 2 },
     { id: 'rally', label: 'Successful Rally', xp: 1 },
     { id: 'assistance', label: 'Provide Assistance', xp: 1 },
+    { id: 'misc', label: 'Misc.', xp: 1 },
   ];
 
   const xpCheckboxCases: XpCase[] = [
@@ -251,7 +252,7 @@ export function FighterXpModal({
             {xpCountCases.map((xpCase) => (
               <div key={xpCase.id} className="flex items-center justify-between">
                 <label className="text-sm text-foreground">
-                  {xpCase.label} (+{xpCase.xp} XP each)
+                  {xpCase.label} <span className="text-xs text-muted-foreground">(+{xpCase.xp} XP each)</span>
                   {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
                     <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
                   )}
@@ -286,7 +287,7 @@ export function FighterXpModal({
               <div key={xpCase.id}>
                 <div className="flex items-center justify-between mb-2 mr-[52px]">
                   <label htmlFor={xpCase.id} className="text-sm text-foreground">
-                    {xpCase.label} (+{xpCase.xp} XP)
+                    {xpCase.label} <span className="text-xs text-muted-foreground">(+{xpCase.xp} XP)</span>
                   </label>
                   <Checkbox
                     id={xpCase.id}
