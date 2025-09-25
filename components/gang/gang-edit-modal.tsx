@@ -195,29 +195,12 @@ export default function GangEditModal({
         setAffiliationListLoaded(true);
       }
 
-      // Extract origins that match this gang's category
+      // Extract all available origins from the first gang type that has them
       if (!originListLoaded) {
-        // First try to find gang type with origins matching this gang's category
-        let originsForThisGang: any[] = [];
-
-        if (gangOriginCategoryName) {
-          // Look for gang type that has origins matching our category
-          for (const type of data) {
-            if (type.available_origins && type.available_origins.length > 0) {
-              const matchingOrigins = type.available_origins.filter((origin: any) =>
-                origin.category_name === gangOriginCategoryName
-              );
-              if (matchingOrigins.length > 0) {
-                originsForThisGang = matchingOrigins;
-                break;
-              }
-            }
-          }
+        const gangTypeWithOrigins = data.find((type: any) => type.available_origins && type.available_origins.length > 0);
+        if (gangTypeWithOrigins) {
+          setOriginList(gangTypeWithOrigins.available_origins);
         }
-
-        // No fallback - if no matching origins found, keep empty list
-
-        setOriginList(originsForThisGang);
         setOriginListLoaded(true);
       }
     } catch (error) {
