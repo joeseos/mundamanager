@@ -11,10 +11,13 @@ AS $$
 DECLARE
     v_result jsonb;
     v_fighter_class text;
+    v_gang_origin_id uuid;
 BEGIN
-    -- Get fighter class and verify fighter exists
-    SELECT fighter_class INTO v_fighter_class
+    -- Get fighter class, gang origin ID, and verify fighter exists
+    SELECT f.fighter_class, g.gang_origin_id
+    INTO v_fighter_class, v_gang_origin_id
     FROM fighters f
+    JOIN gangs g ON g.id = f.gang_id
     WHERE f.id = get_available_skills.fighter_id;
 
     IF NOT FOUND THEN
@@ -39,8 +42,43 @@ BEGIN
                         WHERE fs.fighter_id = get_available_skills.fighter_id 
                         AND fs.skill_id = s.id
                     ),
-                    'available_acquisition_types', CASE 
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute') 
+                    'available_acquisition_types', CASE
+                        -- Special costs for Legendary Names
+                        WHEN st.legendary_name = TRUE THEN
+                            jsonb_build_array(
+                                jsonb_build_object(
+                                    'type_id', 'primary_selected',
+                                    'name', 'Selected Primary',
+                                    'xp_cost', 6, -- Selected Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'primary_random',
+                                    'name', 'Random Primary',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'secondary_selected',
+                                    'name', 'Selected Secondary',
+                                    'xp_cost', 6, -- Selected Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'secondary_random',
+                                    'name', 'Random Secondary',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'any_random',
+                                    'name', 'Random Any',
+                                    'xp_cost', 3, -- Random Legendary Name cost
+                                    'credit_cost', 5 -- Legendary Name credit increase
+                                )
+                            )
+                        -- Regular skill costs
+                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute')
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
@@ -85,7 +123,8 @@ BEGIN
     FROM fighters f
     CROSS JOIN skills s
     JOIN skill_types st ON st.id = s.skill_type_id
-    WHERE f.id = get_available_skills.fighter_id;
+    WHERE f.id = get_available_skills.fighter_id
+    AND (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id);
 
     RETURN v_result;
 END;
