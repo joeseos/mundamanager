@@ -684,6 +684,9 @@ export default function Gang({
                 <div className="flex items-center gap-1">
                   Type: <Badge variant="secondary">{gang_type}</Badge>
                 </div>
+                {gang_type_has_origin && gang_origin_name && (<div className="flex items-center gap-1">
+                  {gangOriginCategoryName}: <Badge variant="secondary">{gang_origin_name}</Badge>
+                </div>)}
                 {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
                   <div className="flex items-center gap-1">
                     Variants:
@@ -716,7 +719,7 @@ export default function Gang({
               <div className="flex flex-wrap gap-4">
                 {campaigns?.[0] && (
                   <div className="flex items-center gap-1 text-sm">
-                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
+                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-neutral-400">
                       <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
                         {campaigns[0].campaign_name}
                       </Link>

@@ -411,11 +411,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">None</option>
-                  {selectedGangType.available_origins.map((origin) => (
-                    <option key={origin.id} value={origin.id}>
-                      {origin.origin_name}
-                    </option>
-                  ))}
+                  {selectedGangType.available_origins
+                    .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
+                    .map((origin) => (
+                      <option key={origin.id} value={origin.id}>
+                        {origin.origin_name}
+                      </option>
+                    ))}
                 </select>
               </div>
             ) : null;
