@@ -173,7 +173,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           fighter_type_equipment: params.buy_for_gang_stash ? null : true,
           equipment_tradingpost: null,
           fighter_id: params.buy_for_gang_stash ? null : (params.fighter_id ?? null),
-          only_equipment_id: params.equipment_id
+          only_equipment_id: params.equipment_id,
+          gang_id: gang.id  // Add gang_id for gang origin discounts/availability
         }
       );
 

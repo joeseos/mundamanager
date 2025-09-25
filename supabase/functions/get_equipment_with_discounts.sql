@@ -1,8 +1,9 @@
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
 
--- Create the new function with all parameters including weapon profiles and fighter legacy support
+-- Create the new function with all parameters including weapon profiles, fighter legacy support, and fighter effects
 CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     gang_type_id uuid DEFAULT NULL,
     equipment_category text DEFAULT NULL,
@@ -10,7 +11,8 @@ CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     fighter_type_equipment boolean DEFAULT NULL,
     equipment_tradingpost boolean DEFAULT NULL,
     fighter_id uuid DEFAULT NULL,
-    only_equipment_id uuid DEFAULT NULL
+    only_equipment_id uuid DEFAULT NULL,
+    gang_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -27,7 +29,8 @@ RETURNS TABLE (
     equipment_tradingpost boolean,
     is_custom boolean,
     weapon_profiles jsonb,
-    vehicle_upgrade_slot text
+    vehicle_upgrade_slot text,
+    fighter_effects jsonb
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -38,8 +41,8 @@ AS $$
         e.id,
         e.equipment_name,
         e.trading_post_category,
-        -- Check for gang-specific availability, default to equipment table's availability if none found
-        COALESCE(ea.availability, e.availability) as availability,
+        -- Check for gang origin-specific availability, then gang-specific, default to equipment table's availability
+        COALESCE(ea_origin.availability, ea.availability, e.availability) as availability,
         e.cost::numeric as base_cost,
         -- Best discount among gang-level, fighter_type_id, or legacy fighter_type_id
         COALESCE(
@@ -51,12 +54,13 @@ AS $$
                 -- Gang-level browsing: only gang-level discount rows
                 ($3 IS NULL AND ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
                 OR
-                -- Fighter-level browsing: consider gang-level + fighter's type + legacy type
+                -- Fighter-level browsing: consider gang-level + fighter's type + legacy type + gang origin
                 ($3 IS NOT NULL AND (
                   (ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
                   OR (ed2.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.legacy_ft_id)
                   OR (legacy.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.affiliation_ft_id)
+                  OR (legacy.gang_origin_id IS NOT NULL AND ed2.gang_origin_id = legacy.gang_origin_id)
                 ))
               )
           ),
@@ -77,6 +81,7 @@ AS $$
                   OR (ed3.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.legacy_ft_id)
                   OR (legacy.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.affiliation_ft_id)
+                  OR (legacy.gang_origin_id IS NOT NULL AND ed3.gang_origin_id = legacy.gang_origin_id)
                 ))
               )
           ),
@@ -93,6 +98,7 @@ AS $$
                   OR (ed4.fighter_type_id = $3)
                   OR (legacy.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.legacy_ft_id)
                   OR (legacy.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.affiliation_ft_id)
+                  OR (legacy.gang_origin_id IS NOT NULL AND ed4.gang_origin_id = legacy.gang_origin_id)
                 ))
               )
           ), 0),
@@ -190,22 +196,63 @@ AS $$
                     END
             )
             ELSE NULL
-        END as vehicle_upgrade_slot
+        END as vehicle_upgrade_slot,
+        -- Aggregate fighter effects into a JSON array
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fet.id,
+                        'effect_name', fet.effect_name,
+                        'type_specific_data', fet.type_specific_data,
+                        'category_name', fec.category_name,
+                        'modifiers', COALESCE(
+                            (
+                                SELECT jsonb_agg(
+                                    jsonb_build_object(
+                                        'id', fetm.id,
+                                        'stat_name', fetm.stat_name,
+                                        'default_numeric_value', fetm.default_numeric_value
+                                    )
+                                )
+                                FROM fighter_effect_type_modifiers fetm
+                                WHERE fetm.fighter_effect_type_id = fet.id
+                            ),
+                            '[]'::jsonb
+                        )
+                    )
+                    ORDER BY fet.effect_name
+                )
+                FROM fighter_effect_types fet
+                LEFT JOIN fighter_effect_categories fec ON fet.fighter_effect_category_id = fec.id
+                WHERE fet.type_specific_data->>'equipment_id' = e.id::text
+            ),
+            '[]'::jsonb
+        ) as fighter_effects
     FROM equipment e
-    -- Resolve legacy fighter type and gang affiliation fighter type (if any) from the provided fighter_id
+    -- Resolve legacy fighter type, gang affiliation fighter type, and gang origin
     LEFT JOIN LATERAL (
-        SELECT 
-            fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id AS affiliation_ft_id
+        SELECT
+            CASE WHEN $6 IS NOT NULL THEN fgl.fighter_type_id ELSE NULL END AS legacy_ft_id,
+            CASE WHEN $6 IS NOT NULL THEN ga.fighter_type_id ELSE NULL END AS affiliation_ft_id,
+            COALESCE(
+                CASE WHEN $6 IS NOT NULL THEN g_fighter.gang_origin_id ELSE NULL END,
+                CASE WHEN $8 IS NOT NULL THEN g_direct.gang_origin_id ELSE NULL END
+            ) AS gang_origin_id
         FROM fighters f
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
-        LEFT JOIN gangs g ON f.gang_id = g.id
-        LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
-        WHERE f.id = $6
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $6 IS NOT NULL
+        LEFT JOIN gangs g_fighter ON f.gang_id = g_fighter.id AND $6 IS NOT NULL
+        LEFT JOIN gang_affiliation ga ON g_fighter.gang_affiliation_id = ga.id AND $6 IS NOT NULL
+        LEFT JOIN gangs g_direct ON g_direct.id = $8 AND $8 IS NOT NULL
+        WHERE ($6 IS NULL OR f.id = $6)
+        LIMIT 1
     ) legacy ON TRUE
     -- Join with equipment_availability to get gang-specific availability
-    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
+    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id
         AND ea.gang_type_id = $1
+    -- Join with equipment_availability to get gang origin-specific availability
+    LEFT JOIN equipment_availability ea_origin ON e.id = ea_origin.equipment_id
+        AND ea_origin.gang_origin_id = legacy.gang_origin_id
     LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
         AND ($3 IS NULL 
              OR fte.fighter_type_id = $3
@@ -274,7 +321,7 @@ AS $$
     UNION ALL
 
     -- Custom equipment
-    SELECT 
+    SELECT
         ce.id,
         ce.equipment_name,
         'Custom' as trading_post_category,
@@ -314,7 +361,9 @@ AS $$
             '[]'::jsonb
         ) as weapon_profiles,
         -- Custom equipment doesn't have vehicle upgrade slots
-        NULL as vehicle_upgrade_slot
+        NULL as vehicle_upgrade_slot,
+        -- Custom equipment doesn't have fighter effects
+        '[]'::jsonb as fighter_effects
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment
