@@ -40,6 +40,12 @@ type GangType = {
     id: string;
     name: string;
   }>;
+  gang_origin_category_id?: string;
+  available_origins: Array<{
+    id: string;
+    origin_name: string;
+    category_name: string;
+  }>;
 };
 
 type GangVariant = {
@@ -86,6 +92,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
   const [selectedAffiliation, setSelectedAffiliation] = useState("")
+  const [selectedOrigin, setSelectedOrigin] = useState("")
   const [credits, setCredits] = useState("1000")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -161,9 +168,10 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     fetchVariants();
   }, []);
 
-  // Clear affiliation when gang type changes
+  // Clear affiliation and origin when gang type changes
   useEffect(() => {
     setSelectedAffiliation("");
+    setSelectedOrigin("");
   }, [gangType]);
 
   // Update credits when Wasteland variant is selected/deselected
@@ -244,6 +252,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           gangType: selectedGangType.gang_type,
           alignment: selectedGangType.alignment,
           gangAffiliationId: selectedAffiliation || null,
+          gangOriginId: selectedOrigin || null,
           credits: parseInt(credits),
           gangVariants: selectedVariants.map(v => v.id)
         });
@@ -258,6 +267,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setGangName("")
         setGangType("")
         setSelectedAffiliation("")
+        setSelectedOrigin("")
         setCredits("1000")
         setSelectedVariants([])
         setShowVariants(false)
@@ -379,6 +389,31 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   {selectedGangType.available_affiliations.map((affiliation) => (
                     <option key={affiliation.id} value={affiliation.id}>
                       {affiliation.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Conditional Gang Origin Dropdown */}
+          {(() => {
+            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
+            return selectedGangType?.gang_origin_category_id && selectedGangType.available_origins?.length > 0 ? (
+              <div>
+                <label htmlFor="gang-origin" className="block text-sm font-medium text-muted-foreground mb-1">
+                  {selectedGangType.available_origins[0]?.category_name || 'Gang Origin'}
+                </label>
+                <select
+                  id="gang-origin"
+                  value={selectedOrigin}
+                  onChange={(e) => setSelectedOrigin(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">None</option>
+                  {selectedGangType.available_origins.map((origin) => (
+                    <option key={origin.id} value={origin.id}>
+                      {origin.origin_name}
                     </option>
                   ))}
                 </select>
