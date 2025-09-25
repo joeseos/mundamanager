@@ -14,6 +14,7 @@ interface UpdateGangParams {
   gang_colour?: string;
   alliance_id?: string | null;
   gang_affiliation_id?: string | null;
+  gang_origin_id?: string | null;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
   meat?: number;
@@ -41,6 +42,8 @@ interface UpdateGangResult {
     alliance_name?: string;
     gang_affiliation_id: string | null;
     gang_affiliation_name?: string;
+    gang_origin_id: string | null;
+    gang_origin_name?: string;
     gang_colour: string;
     last_updated: string;
     gang_variants: Array<{id: string, variant: string}>;
@@ -107,6 +110,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.gang_affiliation_id = params.gang_affiliation_id;
     }
 
+    // Add gang_origin_id if provided
+    if (params.gang_origin_id !== undefined) {
+      updates.gang_origin_id = params.gang_origin_id;
+    }
+
     // Handle meat changes
     if (params.meat !== undefined && params.meat_operation) {
       updates.meat = params.meat_operation === 'add'
@@ -171,6 +179,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         alignment,
         alliance_id,
         gang_affiliation_id,
+        gang_origin_id,
         gang_colour,
         last_updated
       `)
@@ -232,9 +241,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Granular cache invalidation based on what changed
     
     // Always invalidate basic gang data if gang settings changed
-    if (params.name !== undefined || params.alignment !== undefined || 
+    if (params.name !== undefined || params.alignment !== undefined ||
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
-        params.gang_affiliation_id !== undefined) {
+        params.gang_affiliation_id !== undefined || params.gang_origin_id !== undefined) {
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
     }
@@ -289,6 +298,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         alliance_name: allianceName || undefined,
         gang_affiliation_id: updatedGang.gang_affiliation_id,
         gang_affiliation_name: gangAffiliationName || undefined,
+        gang_origin_id: updatedGang.gang_origin_id,
+        gang_origin_name: undefined, // Frontend handles display
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
         gang_variants: gangVariants

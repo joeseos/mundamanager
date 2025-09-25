@@ -1,8 +1,21 @@
+export interface GangOrigin {
+  id: string;
+  origin_name: string;
+  category_name: string;
+}
+
+export interface GangOriginCategory {
+  id: string;
+  category_name: string;
+}
+
 export interface GangType {
   gang_type_id: string;
   gang_type: string;
   alignment: string;
   note?: string;
+  gang_origin_category_id?: string;
+  available_origins?: GangOrigin[];
 }
 
 export interface Equipment {
