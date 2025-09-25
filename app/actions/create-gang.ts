@@ -10,16 +10,18 @@ interface CreateGangParams {
   gangType: string;
   alignment: string;
   gangAffiliationId?: string | null;
+  gangOriginId?: string | null;
   credits?: number;
   gangVariants?: string[];
 }
 
-export async function createGang({ 
-  name, 
+export async function createGang({
+  name,
   gangTypeId,
   gangType,
   alignment,
   gangAffiliationId,
+  gangOriginId,
   credits = 1000,
   gangVariants = []
 }: CreateGangParams) {
@@ -42,6 +44,7 @@ export async function createGang({
         gang_type: gangType,
         alignment,
         gang_affiliation_id: gangAffiliationId || null,
+        gang_origin_id: gangOriginId || null,
         gang_variants: gangVariants.length > 0 ? gangVariants : null
       }])
       .select();
