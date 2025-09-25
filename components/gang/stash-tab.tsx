@@ -696,6 +696,7 @@ export default function GangInventory({
         isOpen={showChemAlchemy}
         onClose={() => setShowChemAlchemy(false)}
         gangCredits={gangCredits}
+        hasApprenticeClanChymist={fighters.some(fighter => fighter.fighter_type === "Apprentice Clan Chymist")}
         onCreateChem={async (chem) => {
           try {
             const result = await createChemAlchemy({

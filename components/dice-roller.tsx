@@ -126,7 +126,7 @@ export default function DiceRoller<T>({
 
       {!inline && open && (
         <Modal
-          title="D66 Roll Result"
+          title="Roll Result"
           content={
             <div className="space-y-3">
               {results.length === 0 ? (
