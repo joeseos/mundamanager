@@ -480,7 +480,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     try {
       const requestBody: Record<string, any> = {
         gang_type_id: gangTypeId,
-        gang_id: gangId,  // Add gang_id for gang origin discounts/availability
         // Don't specify equipment_category to get ALL equipment
       };
 
@@ -524,6 +523,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const data: RawEquipmentData[] = await response.json();
+
+
 
       // Format and organize equipment by category
       const formattedData = data
