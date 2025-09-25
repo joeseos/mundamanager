@@ -29,8 +29,20 @@ export interface GangBasic {
     id: string;
     name: string;
   } | null;
+  gang_origin_id?: string | null;
+  gang_origin?: {
+    id: string;
+    origin_name: string;
+    gang_origin_categories?: {
+      category_name: string;
+    } | null;
+  } | null;
   gang_types?: {
     affiliation: boolean;
+    gang_origin_category_id?: string;
+    gang_origin_categories?: {
+      category_name: string;
+    } | null;
   } | null;
   image_url?: string;
 }
@@ -160,8 +172,20 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
             id,
             name
           ),
+          gang_origin_id,
+          gang_origin:gang_origin_id (
+            id,
+            origin_name,
+            gang_origin_categories!gang_origin_category_id (
+              category_name
+            )
+          ),
           gang_types!gang_type_id(
-            affiliation
+            affiliation,
+            gang_origin_category_id,
+            gang_origin_categories!gang_origin_category_id (
+              category_name
+            )
           ),
           image_url
         `)

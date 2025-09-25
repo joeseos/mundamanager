@@ -28,6 +28,8 @@ interface GangUpdates {
   gang_variants: string[];
   gang_colour: string;
   gang_affiliation_id: string | null;
+  gang_origin_id: string | null;
+  gang_origin_name: string;
 }
 
 interface Campaign {
@@ -58,7 +60,11 @@ interface GangEditModalProps {
   gangAffiliationId: string | null;
   gangAffiliationName: string;
   gangTypeHasAffiliation: boolean;
-  
+  gangOriginId: string | null;
+  gangOriginName: string;
+  gangOriginCategoryName: string;
+  gangTypeHasOrigin: boolean;
+
   // Campaign features
   campaigns?: Campaign[];
   
@@ -96,6 +102,10 @@ export default function GangEditModal({
   gangAffiliationId,
   gangAffiliationName,
   gangTypeHasAffiliation,
+  gangOriginId,
+  gangOriginName,
+  gangOriginCategoryName,
+  gangTypeHasOrigin,
   campaigns,
   onSave
 }: GangEditModalProps) {
@@ -114,7 +124,8 @@ export default function GangEditModal({
   const [editedGangIsVariant, setEditedGangIsVariant] = useState(gangVariants.length > 0);
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants);
   const [editedGangAffiliationId, setEditedGangAffiliationId] = useState(gangAffiliationId || '');
-  
+  const [editedGangOriginId, setEditedGangOriginId] = useState(gangOriginId || '');
+
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
   const [allianceListLoaded, setAllianceListLoaded] = useState(false);
@@ -122,8 +133,11 @@ export default function GangEditModal({
   // Gang affiliation management state
   const [affiliationList, setAffiliationList] = useState<Array<{id: string, name: string}>>([]);
   const [affiliationListLoaded, setAffiliationListLoaded] = useState(false);
-  
-  
+
+  // Gang origin management state
+  const [originList, setOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
+  const [originListLoaded, setOriginListLoaded] = useState(false);
+
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
   
@@ -142,8 +156,9 @@ export default function GangEditModal({
       setEditedGangIsVariant(gangVariants.length > 0);
       setEditedGangVariants([...gangVariants]);
       setEditedGangAffiliationId(gangAffiliationId || '');
+      setEditedGangOriginId(gangOriginId || '');
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants, gangAffiliationId]);
+  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -164,23 +179,34 @@ export default function GangEditModal({
   };
 
   const fetchAffiliations = async () => {
-    if (affiliationListLoaded) return;
-    
+    if (affiliationListLoaded && originListLoaded) return;
+
     try {
       const response = await fetch('/api/gang-types');
       if (!response.ok) throw new Error('Failed to fetch gang types');
       const data = await response.json();
       
       // Extract all available affiliations from the first gang type that has them
-      const gangTypeWithAffiliations = data.find((type: any) => type.available_affiliations && type.available_affiliations.length > 0);
-      if (gangTypeWithAffiliations) {
-        setAffiliationList(gangTypeWithAffiliations.available_affiliations);
+      if (!affiliationListLoaded) {
+        const gangTypeWithAffiliations = data.find((type: any) => type.available_affiliations && type.available_affiliations.length > 0);
+        if (gangTypeWithAffiliations) {
+          setAffiliationList(gangTypeWithAffiliations.available_affiliations);
+        }
+        setAffiliationListLoaded(true);
       }
-      setAffiliationListLoaded(true);
+
+      // Extract all available origins from the first gang type that has them
+      if (!originListLoaded) {
+        const gangTypeWithOrigins = data.find((type: any) => type.available_origins && type.available_origins.length > 0);
+        if (gangTypeWithOrigins) {
+          setOriginList(gangTypeWithOrigins.available_origins);
+        }
+        setOriginListLoaded(true);
+      }
     } catch (error) {
-      console.error('Error fetching affiliations:', error);
+      console.error('Error fetching affiliations/origins:', error);
       toast({
-        description: 'Failed to load affiliations',
+        description: 'Failed to load affiliations/origins',
         variant: "destructive"
       });
     }
@@ -227,6 +253,9 @@ export default function GangEditModal({
         gang_variants: editedGangVariants.map(v => v.id),
         gang_colour: editedGangColour,
         gang_affiliation_id: editedGangAffiliationId === '' ? null : editedGangAffiliationId,
+        gang_origin_id: editedGangOriginId === '' ? null : editedGangOriginId,
+        gang_origin_name: editedGangOriginId === '' ? '' :
+          originList.find(origin => origin.id === editedGangOriginId)?.origin_name || '',
       };
 
       const success = await onSave(updates);
@@ -455,6 +484,33 @@ export default function GangEditModal({
               <>
                 {gangAffiliationId && <option value={gangAffiliationId}>{gangAffiliationName}</option>}
                 <option value="" disabled>Loading Affiliations...</option>
+              </>
+            )}
+          </select>
+        </div>
+      )}
+
+      {/* Gang Origin Section - Only show if gang type supports origins */}
+      {gangTypeHasOrigin && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{gangOriginCategoryName || 'Gang Origin'}</p>
+          <select
+            value={editedGangOriginId || ""}
+            onChange={(e) => setEditedGangOriginId(e.target.value)}
+            onFocus={fetchAffiliations}
+            className="w-full p-2 border rounded-md"
+          >
+            <option value="">None</option>
+            {originListLoaded ? (
+              originList.map((origin) => (
+                <option key={origin.id} value={origin.id}>
+                  {origin.origin_name}
+                </option>
+              ))
+            ) : (
+              <>
+                {gangOriginId && <option value={gangOriginId}>{gangOriginName}</option>}
+                <option value="" disabled>Loading Origins...</option>
               </>
             )}
           </select>
