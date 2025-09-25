@@ -5,6 +5,7 @@ import Modal from "../ui/modal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImInfo } from "react-icons/im"
+import { rollD6 } from "@/utils/dice"
 
 type ChemType = "stimm" | "gaseous" | "toxic"
 
@@ -85,6 +86,7 @@ interface ChemAlchemyCreatorProps {
   isOpen: boolean
   onClose: () => void
   gangCredits: number
+  hasApprenticeClanChymist?: boolean
   onCreateChem?: (chem: {
     type: ChemType
     effects: ChemEffect[]
@@ -95,7 +97,7 @@ interface ChemAlchemyCreatorProps {
   }) => void | Promise<void>
 }
 
-export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCreateChem }: ChemAlchemyCreatorProps) {
+export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasApprenticeClanChymist = false, onCreateChem }: ChemAlchemyCreatorProps) {
   const [selectedType, setSelectedType] = useState<ChemType>("stimm")
   const [selectedEffects, setSelectedEffects] = useState<ChemEffect[]>([])
   const [chemName, setChemName] = useState("")
@@ -103,6 +105,8 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
   const [manualCost, setManualCost] = useState("")
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true)
   const [creditError, setCreditError] = useState<string | null>(null)
+  const [lastDiscountRoll, setLastDiscountRoll] = useState<number | null>(null)
+  const [lastDiscountNewCost, setLastDiscountNewCost] = useState<number | null>(null)
 
   const availableEffects = getEffectsForType(selectedType)
   const totalCost = selectedEffects.reduce((sum, effect) => sum + effect.cost, 0)
@@ -181,6 +185,8 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
     setManualCost("")
     setUseBaseCostForRating(true)
     setCreditError(null)
+    setLastDiscountRoll(null)
+    setLastDiscountNewCost(null)
     setIsCreating(false)
     onClose()
   }
@@ -225,7 +231,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
 
         {/* Chem Type Selection */}
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-3">Chem Type</label>
+          <label className="block text-sm font-semibold text-foreground mb-2">Chem Type</label>
           <div className="grid grid-cols-3 gap-2">
             {(["stimm", "gaseous", "toxic"] as ChemType[]).map((type) => (
               <Button
@@ -241,9 +247,84 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
           </div>
         </div>
 
-        {/* Cost Input */}
+        {/* Effects Selection */}
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Cost (credits)</label>
+          <div className="mb-2">
+            <label className="block text-sm font-semibold text-foreground">
+              Available Effects ({selectedEffects.length}/3)
+            </label>
+          </div>
+          <div className="max-h-64 overflow-y-auto border border-border rounded-lg">
+            {availableEffects.map((effect, index) => {
+              const isSelected = selectedEffects.some((e) => e.name === effect.name)
+              const canSelect = selectedEffects.length < 3 || isSelected
+
+              return (
+                <label
+                  key={effect.name}
+                  htmlFor={`effect-${effect.name}`}
+                  className={`flex items-center justify-between pl-3 pr-3 pb-[6px] pt-[6px] ${
+                    index !== availableEffects.length - 1 ? "border-b border-gray-100" : ""
+                  } ${!canSelect ? "opacity-40" : "hover:bg-muted"} transition-colors cursor-pointer`}
+                >
+                  <div className="flex items-center space-x-3 flex-1">
+                    <Checkbox
+                      id={`effect-${effect.name}`}
+                      checked={isSelected}
+                      onCheckedChange={() => handleEffectToggle(effect)}
+                      disabled={!canSelect}
+                    />
+                    <span className="text-sm font-medium text-foreground">
+                      {effect.name}
+                    </span>
+                  </div>
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-neutral-900 text-white">
+                    <span className="text-[10px] font-medium">{effect.cost}</span>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Discount Roll Button */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-semibold text-foreground">Cost (credits)</label>
+            {hasApprenticeClanChymist && (
+              <div className="flex items-center gap-2">
+                {lastDiscountRoll !== null && lastDiscountNewCost !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    Roll {lastDiscountRoll}: -{lastDiscountRoll * 10} 
+                    <span className="mx-1">→</span> {lastDiscountNewCost} credits
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  title="Roll a D6 to apply the discount granted by your Apprentice Clan Chymist."
+                  size="sm"
+                  variant="default"
+                  disabled={selectedEffects.length < 1}
+                  onClick={() => {
+                    const die = rollD6()
+                    const discount = die * 10
+                    const next = Math.max(10, totalCost - discount)
+                    const nextStr = String(next)
+                    setManualCost(nextStr)
+                    setLastDiscountRoll(die)
+                    setLastDiscountNewCost(next)
+                    if (next <= gangCredits) {
+                      setCreditError(null)
+                    }
+                  }}
+                >
+                  Roll D6
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Cost Input */}
           <input
             type="number"
             inputMode="numeric"
@@ -291,45 +372,6 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, onCre
           </div>
         </div>
 
-        {/* Effects Selection */}
-        <div>
-          <div className="mb-3">
-            <label className="block text-sm font-semibold text-foreground">
-              Available Effects ({selectedEffects.length}/3)
-            </label>
-          </div>
-          <div className="max-h-72 overflow-y-auto border border-border rounded-lg">
-            {availableEffects.map((effect, index) => {
-              const isSelected = selectedEffects.some((e) => e.name === effect.name)
-              const canSelect = selectedEffects.length < 3 || isSelected
-
-              return (
-                <label
-                  key={effect.name}
-                  htmlFor={`effect-${effect.name}`}
-                  className={`flex items-center justify-between p-3 ${
-                    index !== availableEffects.length - 1 ? "border-b border-gray-100" : ""
-                  } ${!canSelect ? "opacity-40" : "hover:bg-muted"} transition-colors cursor-pointer`}
-                >
-                  <div className="flex items-center space-x-3 flex-1">
-                    <Checkbox
-                      id={`effect-${effect.name}`}
-                      checked={isSelected}
-                      onCheckedChange={() => handleEffectToggle(effect)}
-                      disabled={!canSelect}
-                    />
-                    <span className="text-sm font-medium text-foreground">
-                      {effect.name}
-                    </span>
-                  </div>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-neutral-900 text-white">
-                    <span className="text-[10px] font-medium">{effect.cost}</span>
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-        </div>
       </div>
     </Modal>
   )
