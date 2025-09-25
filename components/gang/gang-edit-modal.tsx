@@ -519,11 +519,13 @@ export default function GangEditModal({
           >
             <option value="">None</option>
             {originListLoaded ? (
-              originList.map((origin) => (
-                <option key={origin.id} value={origin.id}>
-                  {origin.origin_name}
-                </option>
-              ))
+              originList
+                .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
+                .map((origin) => (
+                  <option key={origin.id} value={origin.id}>
+                    {origin.origin_name}
+                  </option>
+                ))
             ) : (
               <>
                 {gangOriginId && <option value={gangOriginId}>{gangOriginName}</option>}
