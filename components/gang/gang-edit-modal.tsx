@@ -29,6 +29,7 @@ interface GangUpdates {
   gang_colour: string;
   gang_affiliation_id: string | null;
   gang_origin_id: string | null;
+  gang_origin_name: string;
 }
 
 interface Campaign {

@@ -53,10 +53,10 @@ interface GangProps {
   gang_affiliation_id: string | null;
   gang_affiliation_name: string;
   gang_type_has_affiliation: boolean;
-  gang_origin_id: string | null;
-  gang_origin_name: string;
-  gang_origin_category_name: string;
-  gang_type_has_origin: boolean;
+  gang_origin_id?: string | null;
+  gang_origin_name?: string;
+  gang_origin_category_name?: string;
+  gang_type_has_origin?: boolean;
   created_at: string | Date | null;
   last_updated: string | Date | null;
   initialFighters: FighterProps[];
@@ -155,9 +155,9 @@ export default function Gang({
   const [allianceName, setAllianceName] = useState(initialAllianceName);
   const [gangAffiliationId, setGangAffiliationId] = useState<string | null>(gang_affiliation_id);
   const [gangAffiliationName, setGangAffiliationName] = useState(gang_affiliation_name);
-  const [gangOriginId, setGangOriginId] = useState<string | null>(gang_origin_id);
-  const [gangOriginName, setGangOriginName] = useState(gang_origin_name);
-  const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name);
+  const [gangOriginId, setGangOriginId] = useState<string | null>(gang_origin_id || null);
+  const [gangOriginName, setGangOriginName] = useState(gang_origin_name || '');
+  const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name || '');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
@@ -852,7 +852,7 @@ export default function Gang({
             gangOriginId={gangOriginId}
             gangOriginName={gangOriginName}
             gangOriginCategoryName={gangOriginCategoryName}
-            gangTypeHasOrigin={gang_type_has_origin}
+            gangTypeHasOrigin={gang_type_has_origin || false}
             campaigns={campaigns}
             onSave={handleGangUpdate}
           />
