@@ -480,18 +480,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
     try {
       const requestBody: Record<string, any> = {
         gang_type_id: gangTypeId,
+        gang_id: gangId,  // ✅ Always pass - it's always available
         // Don't specify equipment_category to get ALL equipment
       };
 
-      // Only add fighter_type_id if we have one (not gang-level access)
+      // Add fighter_type_id if available
       if (resolvedTypeId) {
         requestBody.fighter_type_id = resolvedTypeId;
       }
 
+      // Add equipment filtering
       if (equipmentListType === 'fighters-list') {
         requestBody.fighter_type_equipment = true;
       }
-
       if (equipmentListType === 'fighters-tradingpost') {
         requestBody.equipment_tradingpost = true;
       }

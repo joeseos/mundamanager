@@ -1,8 +1,9 @@
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
+DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
 
--- Create the new function with all parameters including weapon profiles and fighter legacy support
+-- Create the new function with simplified LATERAL join and gang_id parameter
 CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     gang_type_id uuid DEFAULT NULL,
     equipment_category text DEFAULT NULL,
@@ -10,7 +11,8 @@ CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     fighter_type_equipment boolean DEFAULT NULL,
     equipment_tradingpost boolean DEFAULT NULL,
     fighter_id uuid DEFAULT NULL,
-    only_equipment_id uuid DEFAULT NULL
+    only_equipment_id uuid DEFAULT NULL,
+    gang_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -38,66 +40,93 @@ AS $$
         e.id,
         e.equipment_name,
         e.trading_post_category,
-        -- Check for gang-specific availability, default to equipment table's availability if none found
-        COALESCE(ea.availability, e.availability) as availability,
+        -- Natural NULL handling for availability - gang origin takes precedence when available
+        COALESCE(
+            (SELECT availability FROM equipment_availability WHERE gang_origin_id = gang_data.gang_origin_id AND equipment_id = e.id LIMIT 1),
+            ea.availability,
+            e.availability
+        ) as availability,
         e.cost::numeric as base_cost,
-        -- Best discount among gang-level, fighter_type_id, or legacy fighter_type_id
-        COALESCE(
-          (
-            SELECT GREATEST(0, MAX(ed2.discount::numeric))
-            FROM equipment_discounts ed2
-            WHERE ed2.equipment_id = e.id
-              AND (
-                -- Gang-level browsing: only gang-level discount rows
-                ($3 IS NULL AND ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
-                OR
-                -- Fighter-level browsing: consider gang-level + fighter's type + legacy type
-                ($3 IS NOT NULL AND (
-                  (ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
-                  OR (ed2.fighter_type_id = $3)
-                  OR (legacy.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.legacy_ft_id)
-                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = legacy.affiliation_ft_id)
-                ))
-              )
-          ),
-          0
-        ) as discounted_cost,
-        -- Best effective adjusted price: prefer explicit adjusted_cost (min), else base - max(discount), else base
-        COALESCE(
-          (
-            SELECT MIN(ed3.adjusted_cost::numeric)
-            FROM equipment_discounts ed3
-            WHERE ed3.equipment_id = e.id
-              AND ed3.adjusted_cost IS NOT NULL
-              AND (
-                ($3 IS NULL AND ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
-                OR
-                ($3 IS NOT NULL AND (
-                  (ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
-                  OR (ed3.fighter_type_id = $3)
-                  OR (legacy.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.legacy_ft_id)
-                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = legacy.affiliation_ft_id)
-                ))
-              )
-          ),
-          e.cost::numeric - COALESCE((
-            SELECT GREATEST(0, MAX(ed4.discount::numeric))
-            FROM equipment_discounts ed4
-            WHERE ed4.equipment_id = e.id
-              AND ed4.discount IS NOT NULL
-              AND (
-                ($3 IS NULL AND ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
-                OR
-                ($3 IS NOT NULL AND (
-                  (ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
-                  OR (ed4.fighter_type_id = $3)
-                  OR (legacy.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.legacy_ft_id)
-                  OR (legacy.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = legacy.affiliation_ft_id)
-                ))
-              )
-          ), 0),
-          e.cost::numeric
-        ) as adjusted_cost,
+        -- Gang origin OVERRIDES gang type completely - but only for items with origin data
+        CASE
+            WHEN gang_data.gang_origin_id IS NOT NULL
+                 AND EXISTS(SELECT 1 FROM equipment_discounts
+                           WHERE equipment_id = e.id
+                           AND gang_origin_id = gang_data.gang_origin_id) THEN
+                -- Use ONLY origin + fighter/legacy discounts (no gang_type!)
+                COALESCE((
+                    SELECT GREATEST(0, MAX(ed2.discount::numeric))
+                    FROM equipment_discounts ed2
+                    WHERE ed2.equipment_id = e.id
+                    AND (ed2.gang_origin_id = gang_data.gang_origin_id
+                         OR ed2.fighter_type_id = $3
+                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id)
+                         OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
+                ), 0)
+            ELSE
+                -- Use gang_type + fighter/legacy discounts (no origin!)
+                COALESCE((
+                    SELECT GREATEST(0, MAX(ed2.discount::numeric))
+                    FROM equipment_discounts ed2
+                    WHERE ed2.equipment_id = e.id
+                    AND ((ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
+                         OR ed2.fighter_type_id = $3
+                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id)
+                         OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
+                ), 0)
+        END as discounted_cost,
+        -- Gang origin OVERRIDES gang type completely for adjusted cost - but only for items with origin data
+        CASE
+            WHEN gang_data.gang_origin_id IS NOT NULL
+                 AND EXISTS(SELECT 1 FROM equipment_discounts
+                           WHERE equipment_id = e.id
+                           AND gang_origin_id = gang_data.gang_origin_id) THEN
+                -- Use ONLY origin + fighter/legacy adjusted costs (no gang_type!)
+                COALESCE(
+                    (SELECT MIN(ed3.adjusted_cost::numeric)
+                     FROM equipment_discounts ed3
+                     WHERE ed3.equipment_id = e.id
+                     AND ed3.adjusted_cost IS NOT NULL
+                     AND (ed3.gang_origin_id = gang_data.gang_origin_id
+                          OR ed3.fighter_type_id = $3
+                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id)
+                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
+                    e.cost::numeric - COALESCE((
+                        SELECT GREATEST(0, MAX(ed4.discount::numeric))
+                        FROM equipment_discounts ed4
+                        WHERE ed4.equipment_id = e.id
+                        AND ed4.discount IS NOT NULL
+                        AND (ed4.gang_origin_id = gang_data.gang_origin_id
+                             OR ed4.fighter_type_id = $3
+                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id)
+                             OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
+                    ), 0),
+                    e.cost::numeric
+                )
+            ELSE
+                -- Use gang_type + fighter/legacy adjusted costs (no origin!)
+                COALESCE(
+                    (SELECT MIN(ed3.adjusted_cost::numeric)
+                     FROM equipment_discounts ed3
+                     WHERE ed3.equipment_id = e.id
+                     AND ed3.adjusted_cost IS NOT NULL
+                     AND ((ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
+                          OR ed3.fighter_type_id = $3
+                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id)
+                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
+                    e.cost::numeric - COALESCE((
+                        SELECT GREATEST(0, MAX(ed4.discount::numeric))
+                        FROM equipment_discounts ed4
+                        WHERE ed4.equipment_id = e.id
+                        AND ed4.discount IS NOT NULL
+                        AND ((ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
+                             OR ed4.fighter_type_id = $3
+                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id)
+                             OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
+                    ), 0),
+                    e.cost::numeric
+                )
+        END as adjusted_cost,
         e.equipment_category,
         e.equipment_type,
         e.created_at,
@@ -105,35 +134,27 @@ AS $$
             WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
             ELSE false
         END as fighter_type_equipment,
-        CASE
-            -- Gang-level access: only check gang's trading post type
-            WHEN $3 IS NULL THEN 
-                EXISTS (
-                    SELECT 1
-                    FROM gang_types gt, trading_post_equipment tpe
-                    WHERE gt.gang_type_id = $1
-                    AND tpe.trading_post_type_id = gt.trading_post_type_id
-                    AND tpe.equipment_id = e.id
-                )
-            -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
-            ELSE (
-                EXISTS (
-                    SELECT 1
-                    FROM fighter_equipment_tradingpost fet,
-                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                    WHERE (fet.fighter_type_id = $3
-                           OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
-                           OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
-                    AND equip_id = e.id::text
-                ) OR EXISTS (
-                    SELECT 1
-                    FROM gang_types gt, trading_post_equipment tpe
-                    WHERE gt.gang_type_id = $1
-                    AND tpe.trading_post_type_id = gt.trading_post_type_id
-                    AND tpe.equipment_id = e.id
-                )
+        (
+            -- Gang trading post access (always available)
+            EXISTS (
+                SELECT 1
+                FROM gang_types gt, trading_post_equipment tpe
+                WHERE gt.gang_type_id = $1
+                AND tpe.trading_post_type_id = gt.trading_post_type_id
+                AND tpe.equipment_id = e.id
             )
-        END as equipment_tradingpost,
+            OR
+            -- Fighter trading post access (when fighter_type_id available)
+            EXISTS (
+                SELECT 1
+                FROM fighter_equipment_tradingpost fet,
+                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                WHERE (fet.fighter_type_id = $3
+                       OR (gang_data.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.legacy_ft_id)
+                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                AND equip_id = e.id::text
+            )
+        ) as equipment_tradingpost,
         false as is_custom,
         -- Aggregate weapon profiles into a JSON array
         COALESCE(
@@ -192,32 +213,32 @@ AS $$
             ELSE NULL
         END as vehicle_upgrade_slot
     FROM equipment e
-    -- Resolve legacy fighter type and gang affiliation fighter type (if any) from the provided fighter_id
+    -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
-        SELECT 
+        SELECT
+            g.gang_origin_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id AS affiliation_ft_id
-        FROM fighters f
+        FROM gangs g
+        LEFT JOIN fighters f ON (f.id = $6 AND f.gang_id = g.id)  -- Fighter must belong to this gang
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
-        LEFT JOIN gangs g ON f.gang_id = g.id
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
-        WHERE f.id = $6
-    ) legacy ON TRUE
+        WHERE g.id = $8  -- Always try to join gang data
+    ) gang_data ON TRUE
     -- Join with equipment_availability to get gang-specific availability
     LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
         AND ea.gang_type_id = $1
     LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
-        AND ($3 IS NULL 
-             OR fte.fighter_type_id = $3
+        AND (fte.fighter_type_id = $3
              OR fte.vehicle_type_id = $3
-             OR (legacy.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.legacy_ft_id OR fte.vehicle_type_id = legacy.legacy_ft_id))
-             OR (legacy.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = legacy.affiliation_ft_id OR fte.vehicle_type_id = legacy.affiliation_ft_id)))
+             OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id))
+             OR (gang_data.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.affiliation_ft_id OR fte.vehicle_type_id = gang_data.affiliation_ft_id)))
     WHERE 
         (
             COALESCE(e.core_equipment, false) = false
-            OR 
+            OR
             (
-                e.core_equipment = true 
+                e.core_equipment = true
                 AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL)
             )
         )
@@ -239,35 +260,24 @@ AS $$
         (
             $5 IS NULL
             OR (
-                CASE
-                    -- Gang-level access: only check gang's trading post type
-                    WHEN $3 IS NULL THEN 
-                        EXISTS (
-                            SELECT 1
-                            FROM gang_types gt, trading_post_equipment tpe
-                            WHERE gt.gang_type_id = $1
-                            AND tpe.trading_post_type_id = gt.trading_post_type_id
-                            AND tpe.equipment_id = e.id
-                        )
-                    -- Fighter-level access: check BOTH fighter's trading post AND gang's trading post
-                    ELSE (
-                        EXISTS (
-                            SELECT 1
-                            FROM fighter_equipment_tradingpost fet,
-                                 jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                            WHERE (fet.fighter_type_id = $3
-                                   OR (legacy.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.legacy_ft_id)
-                                   OR (legacy.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = legacy.affiliation_ft_id))
-                            AND equip_id = e.id::text
-                        ) OR EXISTS (
-                            SELECT 1
-                            FROM gang_types gt, trading_post_equipment tpe
-                            WHERE gt.gang_type_id = $1
-                            AND tpe.trading_post_type_id = gt.trading_post_type_id
-                            AND tpe.equipment_id = e.id
-                        )
-                    )
-                END
+                -- Simplified trading post logic - natural NULL handling
+                EXISTS (
+                    SELECT 1
+                    FROM gang_types gt, trading_post_equipment tpe
+                    WHERE gt.gang_type_id = $1
+                    AND tpe.trading_post_type_id = gt.trading_post_type_id
+                    AND tpe.equipment_id = e.id
+                )
+                OR
+                EXISTS (
+                    SELECT 1
+                    FROM fighter_equipment_tradingpost fet,
+                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                    WHERE (fet.fighter_type_id = $3
+                           OR (gang_data.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.legacy_ft_id)
+                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                    AND equip_id = e.id::text
+                )
             ) = $5
         )
 
