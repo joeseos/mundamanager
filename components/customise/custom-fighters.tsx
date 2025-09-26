@@ -7,8 +7,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { X, Edit } from 'lucide-react';
+import { X, Edit, Eye } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';
+import { FaRegCopy } from 'react-icons/fa';
 import Modal from '@/components/ui/modal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
@@ -17,6 +18,7 @@ import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 interface CustomiseFightersProps {
   className?: string;
   initialFighters: CustomFighterType[];
+  readOnly?: boolean;
 }
 
 interface GangType {
@@ -29,11 +31,13 @@ interface FighterClass {
   class_name: string;
 }
 
-export function CustomiseFighters({ className, initialFighters }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters, readOnly = false }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomFighterType | null>(null);
+  const [viewModalData, setViewModalData] = useState<CustomFighterType | null>(null);
+  const [copyModalData, setCopyModalData] = useState<CustomFighterType | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -371,7 +375,22 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     },
   ];
 
-  const actions: ListAction[] = [
+  const actions: ListAction[] = readOnly ? [
+    {
+      icon: <Eye className="h-4 w-4" />,
+      onClick: (item: CustomFighterType) => handleView(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    },
+    {
+      icon: <FaRegCopy className="h-4 w-4" />,
+      onClick: (item: CustomFighterType) => handleCopy(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    }
+  ] : [
     {
       icon: <Edit className="h-4 w-4" />,
       onClick: (item: CustomFighterType) => handleEdit(item),
@@ -604,6 +623,81 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     // Fighter class will be set by useEffect when fighterClasses are loaded
   };
 
+  const handleView = async (fighter: CustomFighterType) => {
+    setViewModalData(fighter);
+
+    // Load existing default skills if they exist - use data from server
+    if (fighter.default_skills && fighter.default_skills.length > 0) {
+      // Transform the existing skill data to match the expected format
+      const existingSkills = fighter.default_skills.map(skill => ({
+        id: skill.skill_id,
+        skill_name: skill.skill_name,
+        skill_type_id: '' // We don't have this from the server data, but it's not needed for display
+      }));
+
+      setSkills(existingSkills);
+    }
+
+    // Load skill access data if it exists
+    if (fighter.skill_access && fighter.skill_access.length > 0) {
+      const existingSkillAccess = fighter.skill_access.map(access => ({
+        skill_type_id: access.skill_type_id,
+        skill_type_name: access.skill_type_name,
+        access_level: access.access_level
+      }));
+      setSkillAccess(existingSkillAccess);
+    }
+
+    // Load existing default equipment if they exist
+    if (fighter.default_equipment && fighter.default_equipment.length > 0) {
+      const existingEquipment = fighter.default_equipment.map(eq => ({
+        id: eq.equipment_id,
+        equipment_name: eq.equipment_name,
+        equipment_category: '',
+        cost: 0,
+        equipment_type: 'wargear' as 'wargear' | 'weapon',
+        availability: 'C'
+      }));
+
+      setEquipment(existingEquipment);
+    }
+
+    // Load gang types and fighter classes if not already loaded
+    if (gangTypes.length === 0) {
+      const fetchGangTypes = async () => {
+        try {
+          const response = await fetch('/api/gang-types');
+          if (response.ok) {
+            const data = await response.json();
+            setGangTypes(data);
+          }
+        } catch (error) {
+          console.error('Error fetching gang types:', error);
+        }
+      };
+      fetchGangTypes();
+    }
+
+    if (fighterClasses.length === 0) {
+      const fetchFighterClasses = async () => {
+        try {
+          const response = await fetch('/api/fighter-classes');
+          if (response.ok) {
+            const data = await response.json();
+            setFighterClasses(data);
+          }
+        } catch (error) {
+          console.error('Error fetching fighter classes:', error);
+        }
+      };
+      fetchFighterClasses();
+    }
+  };
+
+  const handleCopy = (fighter: CustomFighterType) => {
+    setCopyModalData(fighter);
+  };
+
   const handleDelete = (fighter: CustomFighterType) => {
     setDeleteModalData(fighter);
   };
@@ -618,6 +712,69 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
     deleteFighterMutation.mutate(deleteModalData.id);
     setDeleteModalData(null);
     return true; // Return true to close modal
+  };
+
+  const handleCopyModalConfirm = async () => {
+    if (!copyModalData) return false;
+
+    try {
+      // Create a copy of the fighter with new user_id
+      const newFighter = {
+        fighter_type: copyModalData.fighter_type,
+        cost: copyModalData.cost,
+        movement: copyModalData.movement,
+        weapon_skill: copyModalData.weapon_skill,
+        ballistic_skill: copyModalData.ballistic_skill,
+        strength: copyModalData.strength,
+        toughness: copyModalData.toughness,
+        wounds: copyModalData.wounds,
+        initiative: copyModalData.initiative,
+        attacks: copyModalData.attacks,
+        leadership: copyModalData.leadership,
+        cool: copyModalData.cool,
+        willpower: copyModalData.willpower,
+        intelligence: copyModalData.intelligence,
+        special_rules: copyModalData.special_rules || [],
+        free_skill: copyModalData.free_skill || false,
+        gang_type: copyModalData.gang_type || '',
+        gang_type_id: copyModalData.gang_type_id || '',
+        fighter_class: copyModalData.fighter_class || '',
+        fighter_class_id: copyModalData.fighter_class_id || '',
+        skill_access: copyModalData.skill_access || [],
+        default_skills: copyModalData.default_skills?.map(skill => skill.skill_id) || [],
+        default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
+      };
+
+      if (readOnly) {
+        // In read-only mode, call the server action directly without using the mutation
+        // This prevents the mutation from updating the local state (which shows someone else's fighters)
+        const result = await createCustomFighter(newFighter);
+        
+        if (result.success) {
+          toast({
+            title: "Success",
+            description: `${copyModalData.fighter_type} has been copied to your custom fighters.`,
+          });
+          setCopyModalData(null);
+          return true;
+        } else {
+          throw new Error(result.error || 'Failed to copy fighter');
+        }
+      } else {
+        // In edit mode, use the mutation which will update the local state
+        await createFighterMutation.mutateAsync(newFighter);
+        setCopyModalData(null);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error copying fighter:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy fighter. Please try again.",
+        variant: "destructive",
+      });
+      return false; // Return false to keep modal open
+    }
   };
 
   const handleSubmit = () => {
@@ -738,7 +895,7 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
         items={fighters}
         columns={columns}
         actions={actions}
-        onAdd={() => setIsAddModalOpen(true)}
+        onAdd={readOnly ? undefined : () => setIsAddModalOpen(true)}
         addButtonText="Add"
         addButtonDisabled={createFighterMutation.isPending || deleteFighterMutation.isPending || updateFighterMutation.isPending}
         emptyMessage="No custom fighters created yet."
@@ -1548,6 +1705,228 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
         </Modal>
       )}
 
+      {viewModalData && (
+        <Modal
+          title="View Custom Fighter"
+          helper="View fighter details and abilities."
+          onClose={() => {
+            setViewModalData(null);
+            resetForm();
+          }}
+          hideCancel={true}
+          width="xl"
+        >
+          <div className="space-y-4">
+            {/* Fighter Type and Class */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Type
+                </label>
+                <div className="w-full p-2 border rounded-md bg-muted">
+                  {viewModalData.fighter_type}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Fighter Class
+                </label>
+                <div className="w-full p-2 border rounded-md bg-muted">
+                  {viewModalData.fighter_class}
+                </div>
+              </div>
+            </div>
+
+            {/* Gang Type */}
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Gang Type
+              </label>
+              <div className="w-full p-2 border rounded-md bg-muted">
+                {viewModalData.gang_type}
+              </div>
+            </div>
+
+            {/* Characteristics */}
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
+                Characteristics
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">M</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.movement}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">WS</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.weapon_skill}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">BS</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.ballistic_skill}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">S</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.strength}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">T</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.toughness}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">W</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.wounds}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">I</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.initiative}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">A</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.attacks}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Ld</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.leadership}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Cl</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.cool}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Wil</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.willpower}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Int</label>
+                  <div className="w-full p-2 border rounded-md bg-muted text-center">
+                    {viewModalData.intelligence}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cost */}
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Cost
+              </label>
+              <div className="w-full p-2 border rounded-md bg-muted">
+                {viewModalData.cost} credits
+              </div>
+            </div>
+
+            {/* Default Skills */}
+            {skills.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Default Skills
+                </label>
+                <div className="space-y-2">
+                  {skills.map((skill, index) => (
+                    <div key={index} className="p-2 border rounded-md bg-muted">
+                      {skill.skill_name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Default Equipment */}
+            {equipment.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Default Equipment
+                </label>
+                <div className="space-y-2">
+                  {equipment.map((eq, index) => (
+                    <div key={index} className="p-2 border rounded-md bg-muted">
+                      <span>{eq.equipment_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Skill Access */}
+            {skillAccess.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Skill Access
+                </label>
+                <div className="space-y-2">
+                  {skillAccess.map((access, index) => (
+                    <div key={index} className="p-2 border rounded-md bg-muted">
+                      <div className="flex justify-between items-center">
+                        <span>{access.skill_type_name}</span>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          access.access_level === 'primary' ? 'bg-blue-100 text-blue-800' :
+                          access.access_level === 'secondary' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {access.access_level}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Special Rules */}
+            {viewModalData.special_rules && viewModalData.special_rules.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Special Rules
+                </label>
+                <div className="space-y-2">
+                  {viewModalData.special_rules.map((rule, index) => (
+                    <div key={index} className="p-2 border rounded-md bg-muted">
+                      <span>{rule}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Free Skill */}
+            {viewModalData.free_skill && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Free Skill
+                </label>
+                <div className="p-2 border rounded-md bg-muted">
+                  <span>This fighter has a free skill</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
       {deleteModalData && (
         <Modal
           title="Delete Fighter"
@@ -1562,6 +1941,23 @@ export function CustomiseFighters({ className, initialFighters }: CustomiseFight
           onClose={handleDeleteModalClose}
           onConfirm={handleDeleteModalConfirm}
           confirmText="Delete"
+        />
+      )}
+
+      {copyModalData && (
+        <Modal
+          title="Copy Custom Asset"
+          content={
+            <div className="space-y-4">
+              <p>Do you want to copy the custom asset <strong>"{copyModalData.fighter_type}"</strong> into your own profile?</p>
+              <p className="text-sm text-muted-foreground">
+                This will create a copy of the fighter in your custom fighters list.
+              </p>
+            </div>
+          }
+          onClose={() => setCopyModalData(null)}
+          onConfirm={handleCopyModalConfirm}
+          confirmText="Copy Custom Asset"
         />
       )}
     </div>

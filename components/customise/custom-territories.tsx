@@ -6,21 +6,25 @@ import { CustomTerritory } from '@/app/lib/customise/custom-territories';
 import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
 import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
-import { Edit } from 'lucide-react';
+import { Edit, Eye } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';
+import { FaRegCopy } from 'react-icons/fa';
 
 interface CustomiseTerritoriesProps {
   className?: string;
   initialTerritories?: CustomTerritory[];
+  readOnly?: boolean;
 }
 
 
-export function CustomiseTerritories({ className, initialTerritories = [] }: CustomiseTerritoriesProps) {
+export function CustomiseTerritories({ className, initialTerritories = [], readOnly = false }: CustomiseTerritoriesProps) {
   const [territories, setTerritories] = useState<CustomTerritory[]>(initialTerritories);
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomTerritory | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomTerritory | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [viewModalData, setViewModalData] = useState<CustomTerritory | null>(null);
+  const [copyModalData, setCopyModalData] = useState<CustomTerritory | null>(null);
   const [editForm, setEditForm] = useState({
     territory_name: ''
   });
@@ -97,7 +101,22 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
   ];
 
   // Define actions for each territory item
-  const actions: ListAction[] = [
+  const actions: ListAction[] = readOnly ? [
+    {
+      icon: <Eye className="h-4 w-4" />,
+      onClick: (item: CustomTerritory) => handleViewTerritory(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    },
+    {
+      icon: <FaRegCopy className="h-4 w-4" />,
+      onClick: (item: CustomTerritory) => handleCopyTerritory(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    }
+  ] : [
     {
       icon: <Edit className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleEditTerritory(item),
@@ -114,11 +133,22 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
     }
   ];
 
+  const handleViewTerritory = async (territory: CustomTerritory) => {
+    setViewModalData(territory);
+    setEditForm({
+      territory_name: territory.territory_name || ''
+    });
+  };
+
   const handleEditTerritory = async (territory: CustomTerritory) => {
     setEditModalData(territory);
     setEditForm({
       territory_name: territory.territory_name || ''
     });
+  };
+
+  const handleCopyTerritory = (territory: CustomTerritory) => {
+    setCopyModalData(territory);
   };
 
   const handleDeleteTerritory = (territory: CustomTerritory) => {
@@ -208,6 +238,44 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
     }
   };
 
+  const handleCopyModalConfirm = async () => {
+    if (!copyModalData) return false;
+
+    try {
+      setIsLoading(true);
+      
+      // Create a copy of the territory
+      const newTerritory = {
+        territory_name: copyModalData.territory_name,
+      };
+
+      // Call the server action to create the territory
+      // Note: createCustomTerritory returns the territory data directly, not wrapped in { success, data }
+      const createdTerritory = await createCustomTerritory(newTerritory);
+
+      if (createdTerritory) {
+        toast({
+          title: "Success",
+          description: `${copyModalData.territory_name} has been copied to your custom territories.`,
+        });
+        setCopyModalData(null);
+        return true; // Return true to close modal
+      } else {
+        throw new Error('Failed to copy territory');
+      }
+    } catch (error) {
+      console.error('Error copying territory:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to copy territory",
+        variant: "destructive",
+      });
+      return false; // Return false to keep modal open
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFormChange = (field: string, value: string) => {
     setEditForm(prev => ({
       ...prev,
@@ -227,7 +295,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
         items={territories}
         columns={columns}
         actions={actions}
-        onAdd={handleAddTerritory}
+        onAdd={readOnly ? undefined : handleAddTerritory}
         addButtonText="Add"
         emptyMessage="No custom territories created yet."
         isLoading={isLoading}
@@ -260,6 +328,26 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
         />
       )}
 
+      {viewModalData && (
+        <Modal
+          title="View Territory"
+          content={
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Territory Name
+                </label>
+                <div className="w-full p-2 border rounded-md bg-muted">
+                  {editForm.territory_name}
+                </div>
+              </div>
+            </div>
+          }
+          onClose={() => setViewModalData(null)}
+          hideCancel={true}
+        />
+      )}
+
       {deleteModalData && (
         <Modal
           title="Delete Territory"
@@ -274,6 +362,23 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
           onClose={handleDeleteModalClose}
           onConfirm={handleDeleteModalConfirm}
           confirmText="Delete"
+        />
+      )}
+
+      {copyModalData && (
+        <Modal
+          title="Copy Custom Asset"
+          content={
+            <div className="space-y-4">
+              <p>Do you want to copy the custom asset <strong>"{copyModalData.territory_name}"</strong> into your own profile?</p>
+              <p className="text-sm text-muted-foreground">
+                This will create a copy of the territory in your custom territories list.
+              </p>
+            </div>
+          }
+          onClose={() => setCopyModalData(null)}
+          onConfirm={handleCopyModalConfirm}
+          confirmText="Copy Custom Asset"
         />
       )}
 
