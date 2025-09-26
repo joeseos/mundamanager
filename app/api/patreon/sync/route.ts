@@ -380,7 +380,7 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
 
       // Track active patrons
       if (patronStatus === 'active_patron') {
-        activePatreonUserIds.add(member.id);
+        activePatreonUserIds.add(patreonUserId);
       }
 
       // Find matching user using the cached users map
@@ -396,7 +396,7 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
         const currentTier = tiers.find(tier => currentTierIds.includes(tier.id));
 
         const patreonData: DatabaseUserData = {
-          patreonUserId: member.id,
+          patreonUserId: patreonUserId,
           patronStatus: patronStatus,
           tierTitle: currentTier?.attributes.title || null,
           tierId: currentTier?.id || null,
