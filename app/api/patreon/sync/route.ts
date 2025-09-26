@@ -386,6 +386,7 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
       // Find matching user using the cached users map
       const user = await matchPatreonToUser(patreonEmail, patreonUserId, usersMap);
       if (!user) {
+        console.log(`❌ No matching user found for Patreon email: ${patreonEmail}, user ID: ${patreonUserId}, full name: ${member.attributes.full_name}`);
         skipped++;
         continue;
       }
@@ -438,6 +439,7 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
     }
   }
 
+  console.log(`✅ Sync completed: ${updated} updated, ${created} created, ${cleared} cleared, ${skipped} skipped`);
   return { updated, created, cleared, skipped };
 }
 
@@ -447,22 +449,79 @@ async function syncPatreonData(members: PatreonMember[], tiers: PatreonTier[]) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication using standard cookie-based auth (like other admin endpoints)
-    const supabase = await createAuthClient();
-    const isAdmin = await checkAdmin(supabase);
+    // Check for admin service key bypass
+    const adminKey = request.headers.get('x-admin-key');
+    let userId: string;
 
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (adminKey === process.env.ADMIN_SERVICE_KEY) {
+      // Service key auth - use a fixed admin user ID for rate limiting
+      userId = 'admin-service';
+    } else {
+      // Check for basic auth (username/password) or bearer token
+      const authHeader = request.headers.get('authorization');
+      let supabase;
+      let user;
 
-    // Get user for rate limiting
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (authHeader?.startsWith('Basic ')) {
+        // Handle basic auth
+        const base64Credentials = authHeader.replace('Basic ', '');
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+        const [email, password] = credentials.split(':');
+
+        if (!email || !password) {
+          return NextResponse.json({ error: 'Invalid basic auth format' }, { status: 401 });
+        }
+
+        supabase = createServiceRoleClient();
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (authError || !authData.user) {
+          return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+        }
+        user = authData.user;
+      } else if (authHeader?.startsWith('Bearer ')) {
+        // Handle bearer token
+        const bearerToken = authHeader.replace('Bearer ', '');
+        supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            global: {
+              headers: {
+                Authorization: `Bearer ${bearerToken}`
+              }
+            }
+          }
+        );
+        const { data: { user: tokenUser }, error } = await supabase.auth.getUser();
+        if (error || !tokenUser) {
+          return NextResponse.json({ error: 'Invalid bearer token (possibly expired)' }, { status: 401 });
+        }
+        user = tokenUser;
+      } else {
+        // Fallback to cookie-based auth
+        supabase = await createAuthClient();
+        const { data: { user: cookieUser } } = await supabase.auth.getUser();
+        if (!cookieUser) {
+          return NextResponse.json({ error: 'Unauthorized - No valid auth method found' }, { status: 401 });
+        }
+        user = cookieUser;
+      }
+
+      // Check admin role
+      const isAdmin = await checkAdmin(supabase);
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Unauthorized - Admin role required' }, { status: 401 });
+      }
+
+      userId = user.id;
     }
 
     // Check rate limiting
-    if (!checkRateLimit(user.id)) {
+    if (!checkRateLimit(userId)) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Maximum 2 requests per minute.' },
         { status: 429 }
