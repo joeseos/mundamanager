@@ -214,8 +214,11 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
   // Find matching user
   const user = await matchPatreonToUser(patreonEmail, patreonUserId);
   if (!user) {
-      return true; // Not an error - just no match
+    console.log(`No matching user found for Patreon email: ${patreonEmail}, user ID: ${patreonUserId}`);
+    return true;
   }
+
+  console.log(`Processing webhook for user ${user.id}, Patreon email: ${patreonEmail}, user ID: ${patreonUserId}`);
 
   // Handle different patron statuses
   if (patronStatus === 'active_patron') {
@@ -224,16 +227,23 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
     const currentTier = tiers.find(tier => currentTierIds.includes(tier.id));
 
     const patreonData: DatabaseUserData = {
-      patreonUserId: member.id,
+      patreonUserId: patreonUserId,
       patronStatus: patronStatus,
       tierTitle: currentTier?.attributes.title || null,
       tierId: currentTier?.id || null,
       discordRoles: currentTier?.attributes.discord_role_ids || null
     };
 
+    console.log(`Updating active patron data for user ${user.id}:`, {
+      tierTitle: patreonData.tierTitle,
+      tierId: patreonData.tierId,
+      patronStatus: patreonData.patronStatus
+    });
+
     return await updateUserPatreonData(user.id, patreonData);
   } else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
     // Clear tier data but keep the status for record keeping
+    console.log(`Clearing patron data for user ${user.id}, new status: ${patronStatus}`);
     return await clearUserPatreonData(user.id, patronStatus);
   }
 
