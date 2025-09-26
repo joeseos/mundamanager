@@ -453,6 +453,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             fighter_types (
               id,
               fighter_type,
+              fighter_class_id,
               cost,
               movement,
               weapon_skill,
@@ -483,7 +484,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                   fighter_name: fighterType.fighter_type,
                   fighter_type: fighterType.fighter_type,
                   fighter_type_id: beastConfig.fighter_type_id,
-                  fighter_class: 'exotic beast',
+                  fighter_class: 'Exotic Beast',
+                  fighter_class_id: 'bb723bee-883c-4e84-9136-be30ed195023',
                   gang_id: params.gang_id,
                   credits: 0,
                   movement: fighterType.movement,
