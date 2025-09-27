@@ -1,15 +1,15 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
-import EmailChange from "@/components/profile/email-change";
+import EmailChange from "@/components/account/email-change";
 import { NotificationsSection } from "../../components/settings-modal";
-import FriendsSearchBar from "@/components/profile/friends";
+import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
 import { ImInfo } from "react-icons/im";
 // Using full auth user on profile to display email and timestamps
 
-export default async function ProfilePage() {
+export default async function AccountPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -34,7 +34,7 @@ export default async function ProfilePage() {
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4 mt-2">
         <div className="bg-card shadow-md rounded-lg p-4 md:p-4">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Profile</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Account</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Username */}

@@ -26,7 +26,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const isProfilePage = pathname === '/profile';
+  const isProfilePage = pathname === '/account';
 
   // Callback to handle incoming notifications
   const onNotifications = useCallback(

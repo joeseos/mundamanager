@@ -129,9 +129,9 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/profile" className="w-full cursor-pointer flex items-center">
+            <Link href="/account" className="w-full cursor-pointer flex items-center">
               <User className="mr-2 h-4 w-4" />
-              Profile
+              Account
               {notificationCount > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {notificationCount > 99 ? '99+' : notificationCount}
