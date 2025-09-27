@@ -54,7 +54,7 @@ export default function EmailChangeConfirmPage() {
 
   const handleContinue = () => {
     if (status === 'success') {
-      router.push('/profile');
+      router.push('/account');
     } else {
       router.push('/');
     }
@@ -92,7 +92,7 @@ export default function EmailChangeConfirmPage() {
                 <p><strong>Next steps:</strong></p>
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>Check if you have another confirmation email</li>
-                  <li>Try requesting a new email change from your profile</li>
+                  <li>Try requesting a new email change from your account</li>
                   <li>Contact support if the problem persists</li>
                 </ul>
               </div>
@@ -104,7 +104,7 @@ export default function EmailChangeConfirmPage() {
             className="mt-6 w-full bg-neutral-900 hover:bg-gray-800 text-white"
             disabled={status === 'loading'}
           >
-            {status === 'success' ? 'Go to Profile' : 'Continue'}
+            {status === 'success' ? 'Go to Account' : 'Continue'}
           </Button>
         </div>
       </div>

@@ -101,21 +101,21 @@ export async function GET(
     }
     const dedupedCampaigns = Array.from(dedupedCampaignsMap.values())
 
-    // Fetch custom assets data
+    // Fetch custom assets data - get full data for the components
     const [customEquipmentResult, customFightersResult, customTerritoriesResult] = await Promise.all([
       supabase
         .from('custom_equipment')
-        .select('id, equipment_name, equipment_category, equipment_type, availability, cost')
+        .select('*')
         .eq('user_id', userId)
         .order('equipment_name'),
       supabase
         .from('custom_fighter_types')
-        .select('id, fighter_type, fighter_class, gang_type, cost')
+        .select('*')
         .eq('user_id', userId)
         .order('fighter_type'),
       supabase
         .from('custom_territories')
-        .select('id, territory_name')
+        .select('*')
         .eq('user_id', userId)
         .order('territory_name')
     ])
@@ -126,9 +126,132 @@ export async function GET(
       territories: customTerritoriesResult.data?.length || 0,
     }
 
+    // Fetch related data for fighters (default skills and equipment)
+    let fightersWithExtendedData = customFightersResult.data || [];
+    if (fightersWithExtendedData.length > 0) {
+      const fighterIds = fightersWithExtendedData.map((f: any) => f.id);
+      
+      // Fetch default skills and skill access
+      const [defaultSkillsResult, skillAccessResult] = await Promise.all([
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            custom_fighter_type_id,
+            skill_id,
+            skills (
+              id,
+              name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+          .not('skill_id', 'is', null),
+        supabase
+          .from('fighter_type_skill_access')
+          .select(`
+            custom_fighter_type_id,
+            skill_type_id,
+            access_level,
+            skill_types (
+              id,
+              name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+      ]);
+
+      const defaultSkillsData = defaultSkillsResult.data;
+      const skillAccessData = skillAccessResult.data;
+
+      // Fetch default equipment (both regular and custom)
+      const [defaultEquipmentResult, defaultCustomEquipmentResult] = await Promise.all([
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            custom_fighter_type_id,
+            equipment_id,
+            equipment (
+              id,
+              equipment_name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+          .not('equipment_id', 'is', null),
+        supabase
+          .from('fighter_defaults')
+          .select(`
+            custom_fighter_type_id,
+            custom_equipment_id,
+            custom_equipment (
+              id,
+              equipment_name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+          .not('custom_equipment_id', 'is', null)
+      ]);
+
+      // Group default skills by fighter ID
+      const defaultSkillsByFighter = (defaultSkillsData || []).reduce((acc: any, row: any) => {
+        if (!acc[row.custom_fighter_type_id]) {
+          acc[row.custom_fighter_type_id] = [];
+        }
+        acc[row.custom_fighter_type_id].push({
+          skill_id: row.skill_id,
+          skill_name: row.skills?.name || 'Unknown'
+        });
+        return acc;
+      }, {});
+
+      // Group skill access by fighter ID
+      const skillAccessByFighter = (skillAccessData || []).reduce((acc: any, row: any) => {
+        if (!acc[row.custom_fighter_type_id]) {
+          acc[row.custom_fighter_type_id] = [];
+        }
+        acc[row.custom_fighter_type_id].push({
+          skill_type_id: row.skill_type_id,
+          access_level: row.access_level,
+          skill_type_name: row.skill_types?.name || 'Unknown'
+        });
+        return acc;
+      }, {});
+
+      // Group default equipment by fighter ID
+      const defaultEquipmentByFighter: any = {};
+      
+      // Process regular equipment
+      (defaultEquipmentResult.data || []).forEach((row: any) => {
+        if (!defaultEquipmentByFighter[row.custom_fighter_type_id]) {
+          defaultEquipmentByFighter[row.custom_fighter_type_id] = [];
+        }
+        defaultEquipmentByFighter[row.custom_fighter_type_id].push({
+          equipment_id: row.equipment_id,
+          equipment_name: row.equipment?.equipment_name || 'Unknown'
+        });
+      });
+
+      // Process custom equipment
+      (defaultCustomEquipmentResult.data || []).forEach((row: any) => {
+        if (!defaultEquipmentByFighter[row.custom_fighter_type_id]) {
+          defaultEquipmentByFighter[row.custom_fighter_type_id] = [];
+        }
+        defaultEquipmentByFighter[row.custom_fighter_type_id].push({
+          equipment_id: `custom_${row.custom_equipment_id}`,
+          equipment_name: `${row.custom_equipment?.equipment_name || 'Unknown'} (Custom)`
+        });
+      });
+
+      // Combine fighter data with related data
+      fightersWithExtendedData = fightersWithExtendedData.map((fighter: any) => ({
+        ...fighter,
+        default_skills: defaultSkillsByFighter[fighter.id] || [],
+        default_equipment: defaultEquipmentByFighter[fighter.id] || [],
+        skill_access: skillAccessByFighter[fighter.id] || []
+      }));
+    }
+
     const customAssetsData = {
       equipment: customEquipmentResult.data || [],
-      fighters: customFightersResult.data || [],
+      fighters: fightersWithExtendedData,
       territories: customTerritoriesResult.data || [],
     }
 

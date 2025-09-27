@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import Link from 'next/link'
 
-export default function ProfileBreadcrumb() {
+export default function AccountBreadcrumb() {
   return (
     <div 
       className="w-full fixed top-14 z-40 bg-card border-b border-neutral-800 print:hidden"
@@ -42,7 +42,7 @@ export default function ProfileBreadcrumb() {
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                Profile
+                Account
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
