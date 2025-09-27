@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
+import { gangOriginRank } from "@/utils/gangOriginRank";
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -16,6 +17,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
+  const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
+  const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const { toast } = useToast();
@@ -37,7 +40,24 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
     };
 
+    const fetchGangOrigins = async () => {
+      try {
+        const response = await fetch('/api/admin/gang-origins');
+        if (!response.ok) throw new Error('Failed to fetch Gang Origins');
+        const data = await response.json();
+        console.log('Fetched Gang Origins:', data);
+        setGangOriginList(data);
+      } catch (error) {
+        console.error('Error fetching Gang Origins:', error);
+        toast({
+          description: 'Failed to load Gang Origins',
+          variant: "destructive"
+        });
+      }
+    };
+
     fetchSkillTypes();
+    fetchGangOrigins();
   }, [toast]);
 
   const handleSubmit = async () => {
@@ -59,6 +79,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         body: JSON.stringify({
           name: skillName,
           skill_type_id: skillType,
+          gang_origin_id: gangOrigin || null,
         }),
       });
 
@@ -214,6 +235,51 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 className="w-full"
                 disabled={skillTypeName !== ''}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Gang Origin (Optional)
+              </label>
+              <select
+                value={gangOrigin}
+                onChange={(e) => setGangOrigin(e.target.value)}
+                className="w-full p-2 border rounded-md"
+                disabled={skillTypeName !== ''}
+              >
+                <option value="">No gang origin restriction</option>
+                {Object.entries(
+                  gangOriginList
+                    .sort((a, b) => {
+                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
+                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
+                      return rankA - rankB;
+                    })
+                    .reduce((groups, origin) => {
+                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
+                      let groupLabel = "Misc."; // Default category for unlisted origins
+
+                      if (rank <= 19) groupLabel = "Prefecture";
+                      else if (rank <= 39) groupLabel = "Ancestry";
+                      else if (rank <= 59) groupLabel = "Tribe";
+
+                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                      groups[groupLabel].push(origin);
+                      return groups;
+                    }, {} as Record<string, typeof gangOriginList>)
+                ).map(([groupLabel, origins]) => (
+                  <optgroup key={groupLabel} label={groupLabel}>
+                    {origins.map((origin) => (
+                      <option key={origin.id} value={origin.id}>
+                        {origin.origin_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {skillTypeName !== '' && (
+                <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Gang Origin.</p>
+              )}
             </div>
 
             <div>

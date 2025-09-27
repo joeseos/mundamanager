@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
+import { gangOriginRank } from "@/utils/gangOriginRank";
 
 interface AdminEditSkillModalProps {
   onClose: () => void;
@@ -14,10 +15,12 @@ interface AdminEditSkillModalProps {
 export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
-  const [skillNameList, setSkillList] = useState<Array<{id: string, name: string}>>([]);
+  const [skillNameList, setSkillList] = useState<Array<{id: string, name: string, gang_origin_id: string | null}>>([]);
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
+  const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
+  const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const { toast } = useToast();
@@ -39,14 +42,31 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
       }
     };
 
+    const fetchGangOrigins = async () => {
+      try {
+        const response = await fetch('/api/admin/gang-origins');
+        if (!response.ok) throw new Error('Failed to fetch Gang Origins');
+        const data = await response.json();
+        console.log('Fetched Gang Origins:', data);
+        setGangOriginList(data);
+      } catch (error) {
+        console.error('Error fetching Gang Origins:', error);
+        toast({
+          description: 'Failed to load Gang Origins',
+          variant: "destructive"
+        });
+      }
+    };
+
     fetchSkillTypes();
+    fetchGangOrigins();
   }, [toast]);
 
   const searchSkillType = async (skillTypeId: string) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('api/skills?type=' + skillTypeId, {
+      const response = await fetch('/api/admin/skills?skill_type_id=' + skillTypeId, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +78,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
       }
       const data = await response.json();
       console.log('Fetched skills list:', data);
-      setSkillList(data.skills);
+      setSkillList(data.map((skill: any) => ({
+        id: skill.id,
+        name: skill.skill_name,
+        gang_origin_id: skill.gang_origin_id
+      })));
     } catch (error) {
       console.error('Error fetching skills:', error);
     } finally {
@@ -173,6 +197,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
         body = JSON.stringify({
           name: skillName,
           id: skillId,
+          gang_origin_id: gangOrigin || null,
         });
         break;
       case OperationType.DELETE:
@@ -304,7 +329,9 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 value={skillName}
                 onChange={(e) => {
                   setSkillName(e.target.value);
-                  setSkillId(e.target.options[e.target.selectedIndex].getAttribute("data-skill-id") || "");
+                  const selectedOption = e.target.options[e.target.selectedIndex];
+                  setSkillId(selectedOption.getAttribute("data-skill-id") || "");
+                  setGangOrigin(selectedOption.getAttribute("data-gang-origin-id") || "");
                   }
                 }
 
@@ -312,11 +339,53 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillType == ""}
               >
                 <option value="">Select a skill</option>
-                  {skillNameList.map((type) => (
-                      <option key={type.id} value={type.name} data-skill-id={type.id}>
-                        {type.name}
+                  {skillNameList.map((skill) => (
+                      <option key={skill.id} value={skill.name} data-skill-id={skill.id} data-gang-origin-id={skill.gang_origin_id || ""}>
+                        {skill.name}
                       </option>
                     ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Gang Origin (Optional)
+              </label>
+              <select
+                value={gangOrigin}
+                onChange={(e) => setGangOrigin(e.target.value)}
+                className="w-full p-2 border rounded-md"
+                disabled={skillName == ''}
+              >
+                <option value="">No gang origin restriction</option>
+                {Object.entries(
+                  gangOriginList
+                    .sort((a, b) => {
+                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
+                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
+                      return rankA - rankB;
+                    })
+                    .reduce((groups, origin) => {
+                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
+                      let groupLabel = "Misc."; // Default category for unlisted origins
+
+                      if (rank <= 19) groupLabel = "Prefecture";
+                      else if (rank <= 39) groupLabel = "Ancestry";
+                      else if (rank <= 59) groupLabel = "Tribe";
+
+                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                      groups[groupLabel].push(origin);
+                      return groups;
+                    }, {} as Record<string, typeof gangOriginList>)
+                ).map(([groupLabel, origins]) => (
+                  <optgroup key={groupLabel} label={groupLabel}>
+                    {origins.map((origin) => (
+                      <option key={origin.id} value={origin.id}>
+                        {origin.origin_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
 
@@ -363,7 +432,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
             disabled={!skillName || !skillType || isLoading}
             className="flex-1 bg-black hover:bg-gray-800 text-white"
           >
-            {isLoading ? 'Loading...' : 'Rename Skill'}
+            {isLoading ? 'Loading...' : 'Update Skill'}
           </Button>
           <Button
             onClick={() => handleSubmitSkill(OperationType.DELETE) }
