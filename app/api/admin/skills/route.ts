@@ -6,6 +6,7 @@ interface Skill {
   id: string;
   name: string;
   skill_type_id: string;
+  gang_origin_id: string | null;
 }
 
 export async function GET(request: Request) {
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('skills')
-      .select('id, name, skill_type_id')
+      .select('id, name, skill_type_id, gang_origin_id')
       .order('name');
 
     if (skillTypeId) {
@@ -35,7 +36,8 @@ export async function GET(request: Request) {
     const transformedData = data.map((skill: Skill) => ({
       id: skill.id,
       skill_name: skill.name,
-      skill_type_id: skill.skill_type_id
+      skill_type_id: skill.skill_type_id,
+      gang_origin_id: skill.gang_origin_id
     }));
 
     return NextResponse.json(transformedData);
@@ -61,13 +63,14 @@ export async function POST(request: Request) {
     const formattedData = {
       name: skillData.name,
       skill_type_id: skillData.skill_type_id,
-      xp_cost: parseInt(skillData.xp_cost),
-      credit_cost: parseInt(skillData.credit_cost)
+      xp_cost: parseInt(skillData.xp_cost) || 0,
+      credit_cost: parseInt(skillData.credit_cost) || 0,
+      gang_origin_id: skillData.gang_origin_id || null
     };
 
     const { data, error } = await supabase
       .from('skills')
-      .insert([formattedData])
+      .insert(formattedData)
       .select()
       .single();
 
@@ -98,11 +101,12 @@ export async function PATCH(request: Request) {
     const formattedData = {
       name: skillData.name,
       id: skillData.id,
+      gang_origin_id: skillData.gang_origin_id || null,
     };
 
     const { data, error } = await supabase
       .from('skills')
-      .update([formattedData])
+      .update(formattedData)
       .eq('id', formattedData.id)
       .select()
       .single();
