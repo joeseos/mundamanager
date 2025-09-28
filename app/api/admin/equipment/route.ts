@@ -78,28 +78,70 @@ export async function GET(request: Request) {
 
       if (error) throw error;
 
-      // First fetch the adjustedCosts
+      // First fetch the adjustedCosts (gang type-based)
       const { data: adjustedCosts, error: adjustedCostsError } = await supabase
         .from('equipment_discounts')
         .select('adjusted_cost, gang_type_id')
         .eq('equipment_id', id)
-        .is('fighter_type_id', null);
+        .is('fighter_type_id', null)
+        .not('gang_type_id', 'is', null);
 
       if (adjustedCostsError) throw adjustedCostsError;
       console.log('Fetched adjustedCosts:', adjustedCosts);
 
-      // Fetch equipment availabilities
+      // Fetch gang origin adjusted costs
+      const { data: originAdjustedCosts, error: originAdjustedCostsError } = await supabase
+        .from('equipment_discounts')
+        .select(`
+          adjusted_cost,
+          gang_origin_id,
+          gang_origins!gang_origin_id (
+            origin_name
+          )
+        `)
+        .eq('equipment_id', id)
+        .is('fighter_type_id', null)
+        .not('gang_origin_id', 'is', null);
+
+      if (originAdjustedCostsError) {
+        console.warn('Error fetching origin adjusted costs from equipment_discounts:', originAdjustedCostsError);
+      }
+
+      console.log('Fetched origin adjusted costs:', originAdjustedCosts || []);
+
+      // Fetch equipment availabilities (gang-based)
       const { data: availabilities, error: availabilitiesError } = await supabase
         .from('equipment_availability')
         .select('availability, gang_type_id')
-        .eq('equipment_id', id);
+        .eq('equipment_id', id)
+        .not('gang_type_id', 'is', null);
 
       // Don't throw error if the query fails or returns empty, just log it
       if (availabilitiesError) {
         console.warn('Error fetching from equipment_availability:', availabilitiesError);
       }
-      
+
       console.log('Fetched availabilities:', availabilities || []);
+
+      // Fetch equipment origin availabilities (gang origin-based)
+      const { data: originAvailabilities, error: originAvailabilitiesError } = await supabase
+        .from('equipment_availability')
+        .select(`
+          availability,
+          gang_origin_id,
+          gang_origins!gang_origin_id (
+            origin_name
+          )
+        `)
+        .eq('equipment_id', id)
+        .not('gang_origin_id', 'is', null);
+
+      // Don't throw error if the query fails or returns empty, just log it
+      if (originAvailabilitiesError) {
+        console.warn('Error fetching origin availabilities from equipment_availability:', originAvailabilitiesError);
+      }
+
+      console.log('Fetched origin availabilities:', originAvailabilities || []);
 
       // Fetch trading post associations
       const { data: tradingPostAssociations, error: tradingPostError } = await supabase
@@ -146,6 +188,23 @@ export async function GET(request: Request) {
 
       console.log('Formatted adjustedCosts:', formattedAdjustedCosts);
 
+      // Format the origin adjusted costs
+      interface OriginAdjustedCostData {
+        adjusted_cost: string;
+        gang_origin_id: string | null;
+        gang_origins: { origin_name: string } | null;
+      }
+
+      const formattedOriginAdjustedCosts = (originAdjustedCosts || [])
+        .filter((d: any) => d && d.gang_origin_id !== null && d.gang_origins)
+        .map((d: any) => ({
+          origin_name: d.gang_origins.origin_name,
+          gang_origin_id: d.gang_origin_id,
+          adjusted_cost: parseInt(d.adjusted_cost)
+        }));
+
+      console.log('Formatted origin adjusted costs:', formattedOriginAdjustedCosts);
+
       // Format the availabilities with null check
       interface AvailabilityData {
         availability: string;
@@ -161,6 +220,23 @@ export async function GET(request: Request) {
         }));
 
       console.log('Formatted availabilities:', formattedAvailabilities);
+
+      // Format the origin availabilities
+      interface OriginAvailabilityData {
+        availability: string;
+        gang_origin_id: string | null;
+        gang_origins: { origin_name: string } | null;
+      }
+
+      const formattedOriginAvailabilities = (originAvailabilities || [])
+        .filter((a: any) => a && a.gang_origin_id !== null && a.gang_origins)
+        .map((a: any) => ({
+          origin_name: a.gang_origins.origin_name,
+          gang_origin_id: a.gang_origin_id,
+          availability: a.availability
+        }));
+
+      console.log('Formatted origin availabilities:', formattedOriginAvailabilities);
 
       // Format trading post associations
       const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
@@ -293,7 +369,9 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ...equipment,
         gang_adjusted_costs: formattedAdjustedCosts,
+        gang_origin_adjusted_costs: formattedOriginAdjustedCosts || [],
         equipment_availabilities: formattedAvailabilities || [],
+        equipment_origin_availabilities: formattedOriginAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
         fighter_effects: fighterEffects,
@@ -716,7 +794,9 @@ export async function PATCH(request: Request) {
       weapon_profiles,
       fighter_types,
       gang_adjusted_costs,
+      gang_origin_adjusted_costs,
       equipment_availabilities,
+      equipment_origin_availabilities,
       fighter_effects
     } = data;
 
@@ -835,41 +915,25 @@ export async function PATCH(request: Request) {
 
     // Handle Gang adjustedCosts
     if (gang_adjusted_costs) {
-      // First, delete existing adjustedCosts for this equipment
+      // First, delete existing gang type adjustedCosts for this equipment
       const { error: deleteError } = await supabase
         .from('equipment_discounts')
         .delete()
         .eq('equipment_id', id)
-        .is('fighter_type_id', null); // Only delete gang-level adjustedCosts
+        .is('fighter_type_id', null)
+        .not('gang_type_id', 'is', null);
 
       if (deleteError) throw deleteError;
 
       // If there are new adjustedCosts to add
       if (gang_adjusted_costs.length > 0) {
-        // First get the gang type IDs
-        const { data: gangTypes, error: gangTypesError } = await supabase
-          .from('gang_types')
-          .select('gang_type_id, gang_type');
-
-        if (gangTypesError) throw gangTypesError;
-
-        // Add proper typing for the gang type mapping
-        interface GangTypeData {
-          gang_type_id: string;
-          gang_type: string;
-        }
-
-        // Create a map of gang type names to IDs with proper typing
-        const gangTypeMap = new Map(
-          (gangTypes as GangTypeData[]).map(gt => [gt.gang_type, gt.gang_type_id])
-        );
-
         // Add type for the adjusted_cost in the map function
         const adjustedCostRecords = gang_adjusted_costs.map((adjusted_cost: GangAdjustedCost) => ({
           equipment_id: id,
           gang_type_id: adjusted_cost.gang_type_id,
           adjusted_cost: adjusted_cost.adjusted_cost.toString(),
-          fighter_type_id: null
+          fighter_type_id: null,
+          gang_origin_id: null
         }));
 
         if (adjustedCostRecords.length > 0) {
@@ -882,17 +946,56 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Handle equipment availabilities
-    if (equipment_availabilities !== undefined) {
-      // First, delete all existing availabilities for this equipment
+    // Handle Gang origin adjustedCosts
+    if (gang_origin_adjusted_costs !== undefined) {
+      // First, delete existing gang origin adjustedCosts for this equipment
       const { error: deleteError } = await supabase
-        .from('equipment_availability')
+        .from('equipment_discounts')
         .delete()
-        .eq('equipment_id', id);
+        .eq('equipment_id', id)
+        .is('fighter_type_id', null)
+        .not('gang_origin_id', 'is', null);
 
       // Log but don't throw on delete error
       if (deleteError) {
-        console.warn('Error deleting from equipment_availability:', deleteError);
+        console.warn('Error deleting gang origin costs from equipment_discounts:', deleteError);
+      }
+
+      // If there are new origin adjustedCosts to add
+      if (Array.isArray(gang_origin_adjusted_costs) && gang_origin_adjusted_costs.length > 0) {
+        const originAdjustedCostRecords = gang_origin_adjusted_costs.map((adjusted_cost: any) => ({
+          equipment_id: id,
+          gang_origin_id: adjusted_cost.gang_origin_id,
+          adjusted_cost: adjusted_cost.adjusted_cost.toString(),
+          fighter_type_id: null,
+          gang_type_id: null
+        }));
+
+        if (originAdjustedCostRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_discounts')
+            .insert(originAdjustedCostRecords);
+
+          // Log but don't throw on insert error
+          if (insertError) {
+            console.warn('Error inserting gang origin costs into equipment_discounts:', insertError);
+          }
+        }
+      }
+    }
+
+    // Handle equipment availabilities
+    if (equipment_availabilities !== undefined) {
+      // First, delete all existing gang type availabilities for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_availability')
+        .delete()
+        .eq('equipment_id', id)
+        .not('gang_type_id', 'is', null);
+
+      // Log but don't throw on delete error
+      if (deleteError) {
+        console.warn('Error deleting gang type availabilities from equipment_availability:', deleteError);
       }
 
       // If there are new availabilities to add
@@ -900,7 +1003,8 @@ export async function PATCH(request: Request) {
         const availabilityRecords = equipment_availabilities.map((avail: EquipmentAvailability) => ({
           equipment_id: id,
           gang_type_id: avail.gang_type_id,
-          availability: avail.availability.trimEnd()
+          availability: avail.availability.trimEnd(),
+          gang_origin_id: null
         }));
 
         if (availabilityRecords.length > 0) {
@@ -910,7 +1014,43 @@ export async function PATCH(request: Request) {
 
           // Log but don't throw on insert error
           if (insertError) {
-            console.warn('Error inserting into equipment_availability:', insertError);
+            console.warn('Error inserting gang type availabilities into equipment_availability:', insertError);
+          }
+        }
+      }
+    }
+
+    // Handle equipment origin availabilities
+    if (equipment_origin_availabilities !== undefined) {
+      // First, delete all existing gang origin availabilities for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_availability')
+        .delete()
+        .eq('equipment_id', id)
+        .not('gang_origin_id', 'is', null);
+
+      // Log but don't throw on delete error
+      if (deleteError) {
+        console.warn('Error deleting gang origin availabilities from equipment_availability:', deleteError);
+      }
+
+      // If there are new origin availabilities to add
+      if (Array.isArray(equipment_origin_availabilities) && equipment_origin_availabilities.length > 0) {
+        const originAvailabilityRecords = equipment_origin_availabilities.map((avail: any) => ({
+          equipment_id: id,
+          gang_origin_id: avail.gang_origin_id,
+          availability: avail.availability.trimEnd(),
+          gang_type_id: null
+        }));
+
+        if (originAvailabilityRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_availability')
+            .insert(originAvailabilityRecords);
+
+          // Log but don't throw on insert error
+          if (insertError) {
+            console.warn('Error inserting gang origin availabilities into equipment_availability:', insertError);
           }
         }
       }

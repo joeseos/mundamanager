@@ -7,9 +7,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
 import { X } from "lucide-react";
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { AdminTradingPost } from "./admin-trading-post";
-import { LuTrash2 } from 'react-icons/lu'
+import { LuTrash2 } from 'react-icons/lu';
+import Modal from "@/components/ui/modal";
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
@@ -40,9 +42,21 @@ interface GangAdjustedCost {
   adjusted_cost: number;
 }
 
+interface GangOriginAdjustedCost {
+  origin_name: string;
+  gang_origin_id: string;
+  adjusted_cost: number;
+}
+
 interface EquipmentAvailability {
   gang_type: string;
   gang_type_id: string;
+  availability: string;
+}
+
+interface EquipmentOriginAvailability {
+  origin_name: string;
+  gang_origin_id: string;
   availability: string;
 }
 
@@ -102,11 +116,20 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
   const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
+  const [showOriginAdjustedCostDialog, setShowOriginAdjustedCostDialog] = useState(false);
+  const [selectedAdjustedCostGangOrigin, setSelectedAdjustedCostGangOrigin] = useState("");
+  const [originAdjustedCostValue, setOriginAdjustedCostValue] = useState("");
+  const [gangOriginAdjustedCosts, setGangOriginAdjustedCosts] = useState<GangOriginAdjustedCost[]>([]);
   const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availabilityValue, setAvailabilityValue] = useState("");
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
+  const [showOriginAvailabilityDialog, setShowOriginAvailabilityDialog] = useState(false);
+  const [selectedAvailabilityGangOrigin, setSelectedAvailabilityGangOrigin] = useState("");
+  const [originAvailabilityValue, setOriginAvailabilityValue] = useState("");
+  const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
+  const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
@@ -188,7 +211,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           sort_order: 1
         }]);
         setGangAdjustedCosts([]);
+        setGangOriginAdjustedCosts([]);
         setEquipmentAvailabilities([]);
+        setEquipmentOriginAvailabilities([]);
         setSelectedTradingPosts([]);
         return;
       }
@@ -222,11 +247,29 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           })));
         }
 
+        // Set Gang origin adjusted costs if they exist
+        if (data.gang_origin_adjusted_costs) {
+          setGangOriginAdjustedCosts(data.gang_origin_adjusted_costs.map((d: any) => ({
+            origin_name: d.origin_name,
+            gang_origin_id: d.gang_origin_id,
+            adjusted_cost: d.adjusted_cost
+          })));
+        }
+
         // Set equipment availabilities if they exist
         if (data.equipment_availabilities) {
           setEquipmentAvailabilities(data.equipment_availabilities.map((a: any) => ({
             gang_type: a.gang_type,
             gang_type_id: a.gang_type_id,
+            availability: a.availability
+          })));
+        }
+
+        // Set equipment origin availabilities if they exist
+        if (data.equipment_origin_availabilities) {
+          setEquipmentOriginAvailabilities(data.equipment_origin_availabilities.map((a: any) => ({
+            origin_name: a.origin_name,
+            gang_origin_id: a.gang_origin_id,
             availability: a.availability
           })));
         }
@@ -350,6 +393,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     fetchGangTypes();
   }, [showAdjustedCostDialog, showAvailabilityDialog, toast]);
 
+  // Add this useEffect to fetch gang origins
+  useEffect(() => {
+    const fetchGangOrigins = async () => {
+      if (showOriginAvailabilityDialog || showOriginAdjustedCostDialog) {
+        try {
+          const response = await fetch('/api/admin/gang-origins');
+          if (!response.ok) throw new Error('Failed to fetch gang origins');
+          const data = await response.json();
+          setGangOriginList(data);
+        } catch (error) {
+          console.error('Error fetching gang origins:', error);
+          toast({
+            description: 'Failed to load gang origins',
+            variant: "destructive"
+          });
+        }
+      }
+    };
+
+    fetchGangOrigins();
+  }, [showOriginAvailabilityDialog, showOriginAdjustedCostDialog, toast]);
+
   useEffect(() => {
     setIsLoading(
       isEquipmentDetailsLoading ||
@@ -435,8 +500,16 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           gang_type_id: d.gang_type_id,
           adjusted_cost: d.adjusted_cost
         })),
+        gang_origin_adjusted_costs: gangOriginAdjustedCosts.map(d => ({
+          gang_origin_id: d.gang_origin_id,
+          adjusted_cost: d.adjusted_cost
+        })),
         equipment_availabilities: equipmentAvailabilities.map(a => ({
           gang_type_id: a.gang_type_id,
+          availability: a.availability
+        })),
+        equipment_origin_availabilities: equipmentOriginAvailabilities.map(a => ({
+          gang_origin_id: a.gang_origin_id,
           availability: a.availability
         })),
         fighter_effects: fighterEffects
@@ -659,281 +732,508 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
+              {/* 2x2 Grid: Gang costs and availability */}
               {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Cost per Gang
-                  </label>
-                  <Button
-                    onClick={() => setShowAdjustedCostDialog(true)}
-                    variant="outline"
-                    size="sm"
-                    className="mb-2"
-                  >
-                    Add Gang
-                  </Button>
+                <div className="col-span-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* First row: Gang Type costs and availability */}
+                    <div>
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Cost per Gang
+                      </label>
+                      <Button
+                        onClick={() => setShowAdjustedCostDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mb-2"
+                      >
+                        Add Gang
+                      </Button>
 
-                  {gangAdjustedCosts.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {gangAdjustedCosts.map((adjusted_cost, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                        >
-                          <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
-                          <button
-                            onClick={() => setGangAdjustedCosts(prev =>
-                              prev.filter((_, i) => i !== index)
-                            )}
-                            className="hover:text-red-500 focus:outline-none"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
+                      {gangAdjustedCosts.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {gangAdjustedCosts.map((adjusted_cost, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            >
+                              <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
+                              <button
+                                onClick={() => setGangAdjustedCosts(prev =>
+                                  prev.filter((_, i) => i !== index)
+                                )}
+                                className="hover:text-red-500 focus:outline-none"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )}
 
-                  {showAdjustedCostDialog && (
-                    <div
-                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                      onClick={(e) => {
-                        // Only close if clicking the backdrop (not the dialog itself)
-                        if (e.target === e.currentTarget) {
-                          setShowAdjustedCostDialog(false);
-                          setSelectedGangType("");
-                          setAdjustedCostValue("");
-                        }
-                      }}
-                    >
-                      <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
-                        <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Select a gang and enter the adjusted cost</p>
-
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Gang Type</label>
-                            <select
-                              value={selectedGangType}
-                              onChange={(e) => {
-                                const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
-                                if (selected) {
-                                  setSelectedGangType(e.target.value);
-                                }
-                              }}
-                              className="w-full p-2 border rounded-md"
-                              disabled={isGangTypesLoading}
-                            >
-                              <option key="default" value="">Select a Gang Type</option>
-                              {isGangTypesLoading ? (
-                                <option>Loading...</option>
-                              ) : (
-                                gangTypeOptions.map((gang) => (
-                                  <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                    {gang.gang_type}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
-                            <Input
-                              type="number"
-                              value={adjustedCostValue}
-                              onChange={(e) => setAdjustedCostValue(e.target.value)}
-                              placeholder="E.g. 120"
-                              min="0"
-                              onKeyDown={(e) => {
-                                if (e.key === '-') {
-                                  e.preventDefault();
-                                }
-                              }}
-                            />
-                          </div>
-
-                          <div className="flex gap-2 justify-end mt-6">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setShowAdjustedCostDialog(false);
-                                setSelectedGangType("");
-                                setAdjustedCostValue("");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                if (selectedGangType && adjustedCostValue) {
-                                  const adjusted_cost = parseInt(adjustedCostValue);
-                                  if (adjusted_cost >= 0) {
-                                    const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
-                                    if (selectedGang) {
-                                      setGangAdjustedCosts(prev => [
-                                        ...prev,
-                                        {
-                                          gang_type: selectedGang.gang_type,
-                                          gang_type_id: selectedGang.gang_type_id,
-                                          adjusted_cost
-                                        }
-                                      ]);
-                                      setShowAdjustedCostDialog(false);
-                                      setSelectedGangType("");
-                                      setAdjustedCostValue("");
+                      {showAdjustedCostDialog && (
+                        <Modal
+                          title="Cost per Gang"
+                          helper="Select a gang and enter the adjusted cost"
+                          onClose={() => {
+                            setShowAdjustedCostDialog(false);
+                            setSelectedGangType("");
+                            setAdjustedCostValue("");
+                          }}
+                          onConfirm={() => {
+                            if (selectedGangType && adjustedCostValue) {
+                              const adjusted_cost = parseInt(adjustedCostValue);
+                              if (adjusted_cost >= 0) {
+                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                if (selectedGang) {
+                                  setGangAdjustedCosts(prev => [
+                                    ...prev,
+                                    {
+                                      gang_type: selectedGang.gang_type,
+                                      gang_type_id: selectedGang.gang_type_id,
+                                      adjusted_cost
                                     }
-                                  }
+                                  ]);
+                                  setShowAdjustedCostDialog(false);
+                                  setSelectedGangType("");
+                                  setAdjustedCostValue("");
                                 }
-                              }}
-                              disabled={
-                                isGangTypesLoading ||
-                                !selectedGangType ||
-                                !adjustedCostValue ||
-                                parseInt(adjustedCostValue) < 0
                               }
-                            >
-                              Save
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Availability per Gang
-                  </label>
-                  <Button
-                    onClick={() => setShowAvailabilityDialog(true)}
-                    variant="outline"
-                    size="sm"
-                    className="mb-2"
-                  >
-                    Add Gang
-                  </Button>
-
-                  {equipmentAvailabilities.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {equipmentAvailabilities.map((avail, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            }
+                          }}
+                          confirmText="Save"
+                          confirmDisabled={
+                            isGangTypesLoading ||
+                            !selectedGangType ||
+                            !adjustedCostValue ||
+                            parseInt(adjustedCostValue) < 0
+                          }
+                          width="sm"
                         >
-                          <span>{avail.gang_type} (Availability: {avail.availability})</span>
-                          <button
-                            onClick={() => setEquipmentAvailabilities(prev =>
-                              prev.filter((_, i) => i !== index)
-                            )}
-                            className="hover:text-red-500 focus:outline-none"
-                            disabled={!selectedEquipmentId}
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Gang Type</label>
+                              <select
+                                value={selectedGangType}
+                                onChange={(e) => {
+                                  const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                  if (selected) {
+                                    setSelectedGangType(e.target.value);
+                                  }
+                                }}
+                                className="w-full p-2 border rounded-md"
+                                disabled={isGangTypesLoading}
+                              >
+                                <option key="default" value="">Select a Gang Type</option>
+                                {isGangTypesLoading ? (
+                                  <option>Loading...</option>
+                                ) : (
+                                  gangTypeOptions.map((gang) => (
+                                    <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                      {gang.gang_type}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
+                              <Input
+                                type="number"
+                                value={adjustedCostValue}
+                                onChange={(e) => setAdjustedCostValue(e.target.value)}
+                                placeholder="E.g. 120"
+                                min="0"
+                                onKeyDown={(e) => {
+                                  if (e.key === '-') {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </Modal>
+                      )}
                     </div>
-                  )}
 
-                  {showAvailabilityDialog && (
-                    <div
-                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                      onClick={(e) => {
-                        if (e.target === e.currentTarget) {
-                          setShowAvailabilityDialog(false);
-                          setSelectedAvailabilityGangType("");
-                          setAvailabilityValue("");
-                        }
-                      }}
-                    >
-                      <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
-                        <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Select a gang and enter an availability value</p>
+                    <div>
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Availability per Gang
+                      </label>
+                      <Button
+                        onClick={() => setShowAvailabilityDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mb-2"
+                      >
+                        Add Gang
+                      </Button>
 
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Gang Type</label>
-                            <select
-                              value={selectedAvailabilityGangType}
-                              onChange={(e) => {
-                                const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
-                                if (selected) {
-                                  setSelectedAvailabilityGangType(e.target.value);
-                                }
-                              }}
-                              className="w-full p-2 border rounded-md"
-                              disabled={isGangTypesLoading}
+                      {equipmentAvailabilities.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {equipmentAvailabilities.map((avail, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                             >
-                              <option key="default" value="">Select a Gang Type</option>
-                              {isGangTypesLoading ? (
-                                <option>Loading...</option>
-                              ) : (
-                                gangTypeOptions.map((gang) => (
-                                  <option key={gang.gang_type_id} value={gang.gang_type_id}>
-                                    {gang.gang_type}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </div>
+                              <span>{avail.gang_type} (Availability: {avail.availability})</span>
+                              <button
+                                onClick={() => setEquipmentAvailabilities(prev =>
+                                  prev.filter((_, i) => i !== index)
+                                )}
+                                className="hover:text-red-500 focus:outline-none"
+                                disabled={!selectedEquipmentId}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Availability</label>
-                            <Input
-                              type="text"
-                              value={availabilityValue}
-                              onChange={(e) => setAvailabilityValue(e.target.value)}
-                              placeholder="E.g. R9, C, E"
-                            />
-                          </div>
-
-                          <div className="flex gap-2 justify-end mt-6">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
+                      {showAvailabilityDialog && (
+                        <Modal
+                          title="Availability per Gang"
+                          helper="Select a gang and enter an availability value"
+                          onClose={() => {
+                            setShowAvailabilityDialog(false);
+                            setSelectedAvailabilityGangType("");
+                            setAvailabilityValue("");
+                          }}
+                          onConfirm={() => {
+                            if (selectedAvailabilityGangType && availabilityValue) {
+                              const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                              if (selectedGang) {
+                                setEquipmentAvailabilities(prev => [
+                                  ...prev,
+                                  {
+                                    gang_type: selectedGang.gang_type,
+                                    gang_type_id: selectedGang.gang_type_id,
+                                    availability: availabilityValue
+                                  }
+                                ]);
                                 setShowAvailabilityDialog(false);
                                 setSelectedAvailabilityGangType("");
                                 setAvailabilityValue("");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                if (selectedAvailabilityGangType && availabilityValue) {
-                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
-                                  if (selectedGang) {
-                                    setEquipmentAvailabilities(prev => [
-                                      ...prev,
-                                      {
-                                        gang_type: selectedGang.gang_type,
-                                        gang_type_id: selectedGang.gang_type_id,
-                                        availability: availabilityValue
-                                      }
-                                    ]);
-                                    setShowAvailabilityDialog(false);
-                                    setSelectedAvailabilityGangType("");
-                                    setAvailabilityValue("");
-                                  }
-                                }
-                              }}
-                              disabled={
-                                isGangTypesLoading ||
-                                !selectedAvailabilityGangType ||
-                                !availabilityValue
                               }
-                            >
-                              Save
-                            </Button>
+                            }
+                          }}
+                          confirmText="Save"
+                          confirmDisabled={
+                            isGangTypesLoading ||
+                            !selectedAvailabilityGangType ||
+                            !availabilityValue
+                          }
+                          width="sm"
+                        >
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Gang Type</label>
+                              <select
+                                value={selectedAvailabilityGangType}
+                                onChange={(e) => {
+                                  const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                                  if (selected) {
+                                    setSelectedAvailabilityGangType(e.target.value);
+                                  }
+                                }}
+                                className="w-full p-2 border rounded-md"
+                                disabled={isGangTypesLoading}
+                              >
+                                <option key="default" value="">Select a Gang Type</option>
+                                {isGangTypesLoading ? (
+                                  <option>Loading...</option>
+                                ) : (
+                                  gangTypeOptions.map((gang) => (
+                                    <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                                      {gang.gang_type}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Availability</label>
+                              <Input
+                                type="text"
+                                value={availabilityValue}
+                                onChange={(e) => setAvailabilityValue(e.target.value)}
+                                placeholder="E.g. R9, C, E"
+                              />
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        </Modal>
+                      )}
                     </div>
-                  )}
+
+                    {/* Second row: Gang Origin costs and availability */}
+                    <div>
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Cost per Gang Origin
+                      </label>
+                      <Button
+                        onClick={() => setShowOriginAdjustedCostDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mb-2"
+                      >
+                        Add Origin
+                      </Button>
+
+                      {gangOriginAdjustedCosts.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {gangOriginAdjustedCosts.map((adjusted_cost, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            >
+                              <span>{adjusted_cost.origin_name} ({adjusted_cost.adjusted_cost} credits)</span>
+                              <button
+                                onClick={() => setGangOriginAdjustedCosts(prev =>
+                                  prev.filter((_, i) => i !== index)
+                                )}
+                                className="hover:text-red-500 focus:outline-none"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {showOriginAdjustedCostDialog && (
+                        <Modal
+                          title="Cost per Gang Origin"
+                          helper="Select a gang origin and enter the adjusted cost"
+                          onClose={() => {
+                            setShowOriginAdjustedCostDialog(false);
+                            setSelectedAdjustedCostGangOrigin("");
+                            setOriginAdjustedCostValue("");
+                          }}
+                          onConfirm={() => {
+                            if (selectedAdjustedCostGangOrigin && originAdjustedCostValue) {
+                              const adjusted_cost = parseInt(originAdjustedCostValue);
+                              if (adjusted_cost >= 0) {
+                                const selectedOrigin = gangOriginList.find(g => g.id === selectedAdjustedCostGangOrigin);
+                                if (selectedOrigin) {
+                                  setGangOriginAdjustedCosts(prev => [
+                                    ...prev,
+                                    {
+                                      origin_name: selectedOrigin.origin_name,
+                                      gang_origin_id: selectedOrigin.id,
+                                      adjusted_cost
+                                    }
+                                  ]);
+                                  setShowOriginAdjustedCostDialog(false);
+                                  setSelectedAdjustedCostGangOrigin("");
+                                  setOriginAdjustedCostValue("");
+                                }
+                              }
+                            }
+                          }}
+                          confirmText="Save"
+                          confirmDisabled={
+                            !selectedAdjustedCostGangOrigin ||
+                            !originAdjustedCostValue ||
+                            parseInt(originAdjustedCostValue) < 0
+                          }
+                          width="sm"
+                        >
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                              <select
+                                value={selectedAdjustedCostGangOrigin}
+                                onChange={(e) => {
+                                  const selected = gangOriginList.find(g => g.id === e.target.value);
+                                  if (selected) {
+                                    setSelectedAdjustedCostGangOrigin(e.target.value);
+                                  }
+                                }}
+                                className="w-full p-2 border rounded-md"
+                              >
+                                <option key="default" value="">Select a Gang Origin</option>
+                                {Object.entries(
+                                  gangOriginList
+                                    .sort((a, b) => {
+                                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
+                                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
+                                      return rankA - rankB;
+                                    })
+                                    .reduce((groups, origin) => {
+                                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
+                                      let groupLabel = "Misc."; // Default category for unlisted origins
+
+                                      if (rank <= 19) groupLabel = "Prefecture";
+                                      else if (rank <= 39) groupLabel = "Ancestry";
+                                      else if (rank <= 59) groupLabel = "Tribe";
+
+                                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                                      groups[groupLabel].push(origin);
+                                      return groups;
+                                    }, {} as Record<string, typeof gangOriginList>)
+                                ).map(([groupLabel, origins]) => (
+                                  <optgroup key={groupLabel} label={groupLabel}>
+                                    {origins.map((origin) => (
+                                      <option key={origin.id} value={origin.id}>
+                                        {origin.origin_name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
+                              <Input
+                                type="number"
+                                value={originAdjustedCostValue}
+                                onChange={(e) => setOriginAdjustedCostValue(e.target.value)}
+                                placeholder="E.g. 120"
+                                min="0"
+                                onKeyDown={(e) => {
+                                  if (e.key === '-') {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </Modal>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Availability per Gang Origin
+                      </label>
+                      <Button
+                        onClick={() => setShowOriginAvailabilityDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mb-2"
+                      >
+                        Add Origin
+                      </Button>
+
+                      {equipmentOriginAvailabilities.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {equipmentOriginAvailabilities.map((avail, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            >
+                              <span>{avail.origin_name} (Availability: {avail.availability})</span>
+                              <button
+                                onClick={() => setEquipmentOriginAvailabilities(prev =>
+                                  prev.filter((_, i) => i !== index)
+                                )}
+                                className="hover:text-red-500 focus:outline-none"
+                                disabled={!selectedEquipmentId}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {showOriginAvailabilityDialog && (
+                        <Modal
+                          title="Availability per Gang Origin"
+                          helper="Select a gang origin and enter an availability value"
+                          onClose={() => {
+                            setShowOriginAvailabilityDialog(false);
+                            setSelectedAvailabilityGangOrigin("");
+                            setOriginAvailabilityValue("");
+                          }}
+                          onConfirm={() => {
+                            if (selectedAvailabilityGangOrigin && originAvailabilityValue) {
+                              const selectedOrigin = gangOriginList.find(g => g.id === selectedAvailabilityGangOrigin);
+                              if (selectedOrigin) {
+                                setEquipmentOriginAvailabilities(prev => [
+                                  ...prev,
+                                  {
+                                    origin_name: selectedOrigin.origin_name,
+                                    gang_origin_id: selectedOrigin.id,
+                                    availability: originAvailabilityValue
+                                  }
+                                ]);
+                                setShowOriginAvailabilityDialog(false);
+                                setSelectedAvailabilityGangOrigin("");
+                                setOriginAvailabilityValue("");
+                              }
+                            }
+                          }}
+                          confirmText="Save"
+                          confirmDisabled={
+                            !selectedAvailabilityGangOrigin ||
+                            !originAvailabilityValue
+                          }
+                          width="sm"
+                        >
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                              <select
+                                value={selectedAvailabilityGangOrigin}
+                                onChange={(e) => {
+                                  const selected = gangOriginList.find(g => g.id === e.target.value);
+                                  if (selected) {
+                                    setSelectedAvailabilityGangOrigin(e.target.value);
+                                  }
+                                }}
+                                className="w-full p-2 border rounded-md"
+                              >
+                                <option key="default" value="">Select a Gang Origin</option>
+                                {Object.entries(
+                                  gangOriginList
+                                    .sort((a, b) => {
+                                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
+                                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
+                                      return rankA - rankB;
+                                    })
+                                    .reduce((groups, origin) => {
+                                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
+                                      let groupLabel = "Misc."; // Default category for unlisted origins
+
+                                      if (rank <= 19) groupLabel = "Prefecture";
+                                      else if (rank <= 39) groupLabel = "Ancestry";
+                                      else if (rank <= 59) groupLabel = "Tribe";
+
+                                      if (!groups[groupLabel]) groups[groupLabel] = [];
+                                      groups[groupLabel].push(origin);
+                                      return groups;
+                                    }, {} as Record<string, typeof gangOriginList>)
+                                ).map(([groupLabel, origins]) => (
+                                  <optgroup key={groupLabel} label={groupLabel}>
+                                    {origins.map((origin) => (
+                                      <option key={origin.id} value={origin.id}>
+                                        {origin.origin_name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Availability</label>
+                              <Input
+                                type="text"
+                                value={originAvailabilityValue}
+                                onChange={(e) => setOriginAvailabilityValue(e.target.value)}
+                                placeholder="E.g. R9, C, E"
+                              />
+                            </div>
+                          </div>
+                        </Modal>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
