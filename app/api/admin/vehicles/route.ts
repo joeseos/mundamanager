@@ -31,22 +31,6 @@ interface VehicleFormData {
   gang_origin_equipment?: GangOriginEquipmentItem[];
 }
 
-interface FormattedVehicleData {
-  cost?: number;
-  movement?: number;
-  front?: number;
-  side?: number;
-  rear?: number;
-  hull_points?: number;
-  body_slots?: number;
-  drive_slots?: number;
-  engine_slots?: number;
-  gang_type_id?: number | null;
-  special_rules?: string[];
-  body_slots_occupied: number;
-  drive_slots_occupied: number;
-  engine_slots_occupied: number;
-}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -259,12 +243,10 @@ export async function PATCH(request: Request) {
       special_rules: vehicleData.special_rules || []
     };
 
-    const { data: updatedVehicle, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('vehicle_types')
       .update(formattedData)
-      .eq('id', vehicle_id)
-      .select()
-      .single();
+      .eq('id', vehicle_id);
 
     if (updateError) throw updateError;
 
