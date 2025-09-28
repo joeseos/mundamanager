@@ -872,21 +872,30 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
     setSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
-  const renderStatInput = (label: string, value: string, onChange: (value: string) => void, required = false, disabled = false) => (
-    <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1">
-        {label} {required && '*'}
-      </label>
-      <Input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        min="0"
-        disabled={disabled}
-      />
-    </div>
-  );
+  const renderStatInput = (label: string, value: string, onChange: (value: string) => void, required = false, disabled = false) => {
+    const handleInputChange = (inputValue: string) => {
+      // Remove "+" from the end if present (e.g., "5+" becomes "5")
+      // Remove trailing quotes if present (e.g., "D6"" becomes "D6")
+      const cleanedValue = inputValue.replace(/\+$/, '').replace(/"$/, '');
+      onChange(cleanedValue);
+    };
+
+    return (
+      <div>
+        <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground mb-1">
+          {label} {required && '*'}
+        </label>
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => handleInputChange(e.target.value)}
+          className="w-14 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          disabled={disabled}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className={className}>
@@ -997,7 +1006,7 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
             </div>
 
             {/* Combat Stats */}
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-4">
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-2">
               {renderStatInput('M', movement, setMovement, !isCrew, isCrew)}
               {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew, isCrew)}
               {renderStatInput('BS', ballisticSkill, setBallisticSkill, true)}
@@ -1399,7 +1408,7 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
             </div>
 
             {/* Combat Stats */}
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-4">
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 md:gap-2">
               {renderStatInput('M', movement, setMovement, !isCrew, isCrew)}
               {renderStatInput('WS', weaponSkill, setWeaponSkill, !isCrew, isCrew)}
               {renderStatInput('BS', ballisticSkill, setBallisticSkill, true)}
