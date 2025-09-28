@@ -72,7 +72,7 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={`bg-card rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto`}>
+      <div className={`bg-card rounded-lg shadow-xl w-full ${getMaxWidth()} min-h-0 max-h-svh overflow-y-auto flex flex-col`}>
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-foreground">{title}</h3>
@@ -92,12 +92,12 @@ export default function Modal({
           </div>
         </div>
         
-        <div className="px-[10px] py-4">
+        <div className="px-[10px] py-4 overflow-y-auto flex-1">
           {content || children}
         </div>
 
         {onConfirm && (
-          <div className="border-t px-[10px] py-2 flex justify-end gap-2">
+          <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
             {!hideCancel && (
               <Button
                 variant="outline"
