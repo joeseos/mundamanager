@@ -96,8 +96,8 @@ export async function GET(request: Request) {
 
         // Fetch equipment names and gang origin names for gang origin equipment
         if (gangOriginEquipment.length > 0) {
-          const equipmentIds = gangOriginEquipment.map((item) => item.equipment_id);
-          const gangOriginIds = gangOriginEquipment.map((item) => item.gang_origin_id);
+          const equipmentIds = gangOriginEquipment.map((item: { equipment_id: string; gang_origin_id: string }) => item.equipment_id);
+          const gangOriginIds = gangOriginEquipment.map((item: { equipment_id: string; gang_origin_id: string }) => item.gang_origin_id);
 
           const [equipmentResult, gangOriginResult] = await Promise.all([
             supabase
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
             const equipmentMap = new Map(equipmentResult.data.map(item => [item.id, item.equipment_name]));
             const gangOriginMap = new Map(gangOriginResult.data.map(item => [item.id, item.origin_name]));
 
-            vehicleDetails.gang_origin_equipment = gangOriginEquipment.map((item) => ({
+            vehicleDetails.gang_origin_equipment = gangOriginEquipment.map((item: { id: string; equipment_id: string; gang_origin_id: string }) => ({
               id: item.id,
               gang_origin_id: item.gang_origin_id,
               origin_name: gangOriginMap.get(item.gang_origin_id) || 'Unknown Origin',
@@ -244,35 +244,29 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Format the data - only update fields that are provided
-    const formattedData: Partial<FormattedVehicleData> = {};
-    
-    if (vehicleData.cost !== undefined) formattedData.cost = parseInt(vehicleData.cost);
-    if (vehicleData.movement !== undefined) formattedData.movement = parseInt(vehicleData.movement);
-    if (vehicleData.front !== undefined) formattedData.front = parseInt(vehicleData.front);
-    if (vehicleData.side !== undefined) formattedData.side = parseInt(vehicleData.side);
-    if (vehicleData.rear !== undefined) formattedData.rear = parseInt(vehicleData.rear);
-    if (vehicleData.hull_points !== undefined) formattedData.hull_points = parseInt(vehicleData.hull_points);
-    if (vehicleData.body_slots !== undefined) formattedData.body_slots = parseInt(vehicleData.body_slots);
-    if (vehicleData.drive_slots !== undefined) formattedData.drive_slots = parseInt(vehicleData.drive_slots);
-    if (vehicleData.engine_slots !== undefined) formattedData.engine_slots = parseInt(vehicleData.engine_slots);
-    if (vehicleData.gang_type_id !== undefined) formattedData.gang_type_id = vehicleData.gang_type_id === "0" ? null : vehicleData.gang_type_id;
-    if (vehicleData.handling !== undefined) formattedData.handling = vehicleData.handling;
-    if (vehicleData.save !== undefined) formattedData.save = vehicleData.save;
-    if (vehicleData.special_rules !== undefined) formattedData.special_rules = vehicleData.special_rules;
-    if (vehicleData.vehicle_type !== undefined) formattedData.vehicle_type = vehicleData.vehicle_type;
+    // Format the data
+    const formattedData = {
+      cost: parseInt(vehicleData.cost || "0"),
+      movement: parseInt(vehicleData.movement || "0"),
+      front: parseInt(vehicleData.front || "0"),
+      side: parseInt(vehicleData.side || "0"),
+      rear: parseInt(vehicleData.rear || "0"),
+      hull_points: parseInt(vehicleData.hull_points || "0"),
+      body_slots: parseInt(vehicleData.body_slots || "0"),
+      drive_slots: parseInt(vehicleData.drive_slots || "0"),
+      engine_slots: parseInt(vehicleData.engine_slots || "0"),
+      gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id || "0"),
+      special_rules: vehicleData.special_rules || []
+    };
 
-    // Update the vehicle type with only provided fields
-    if (Object.keys(formattedData).length > 0) {
-      const { data: updatedVehicle, error: updateError } = await supabase
-        .from('vehicle_types')
-        .update(formattedData)
-        .eq('id', vehicle_id)
-        .select()
-        .single();
+    const { data: updatedVehicle, error: updateError } = await supabase
+      .from('vehicle_types')
+      .update(formattedData)
+      .eq('id', vehicle_id)
+      .select()
+      .single();
 
-      if (updateError) throw updateError;
-    }
+    if (updateError) throw updateError;
 
     // Handle equipment associations only if equipment data is provided
     if (equipment_list.length >= 0 || gang_origin_equipment.length >= 0) {
