@@ -168,7 +168,9 @@ export async function POST(request: Request) {
 
   try {
     const vehicleData = await request.json();
-    
+    const equipment_list = vehicleData.equipment_list || [];
+    const gang_origin_equipment = vehicleData.gang_origin_equipment || [];
+
     // Convert string values to numbers for numeric fields
     const formattedData = {
       ...vehicleData,
@@ -188,6 +190,10 @@ export async function POST(request: Request) {
       engine_slots_occupied: 0
     };
 
+    // Remove equipment data from the vehicle record
+    delete formattedData.equipment_list;
+    delete formattedData.gang_origin_equipment;
+
     const { data, error } = await supabase
       .from('vehicle_types')
       .insert([formattedData])
@@ -198,7 +204,49 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    return NextResponse.json(data);
+    const vehicle_id = data.id;
+
+    // Handle equipment associations if equipment data is provided
+    if (equipment_list.length > 0 || gang_origin_equipment.length > 0) {
+      const allEquipmentAssociations = [];
+
+      // Add regular equipment (without gang origin)
+      if (equipment_list.length > 0) {
+        const regularEquipmentAssociations = equipment_list.map((equipment_id: string) => ({
+          equipment_id,
+          fighter_type_id: null,
+          vehicle_type_id: vehicle_id,
+          gang_origin_id: null
+        }));
+        allEquipmentAssociations.push(...regularEquipmentAssociations);
+      }
+
+      // Add gang origin equipment
+      if (gang_origin_equipment.length > 0) {
+        const gangOriginEquipmentAssociations = gang_origin_equipment.map((item: GangOriginEquipmentItem) => ({
+          equipment_id: item.equipment_id,
+          fighter_type_id: null,
+          vehicle_type_id: vehicle_id,
+          gang_origin_id: item.gang_origin_id
+        }));
+        allEquipmentAssociations.push(...gangOriginEquipmentAssociations);
+      }
+
+      // Insert all equipment associations at once
+      if (allEquipmentAssociations.length > 0) {
+        const { error: insertError } = await supabase
+          .from('fighter_type_equipment')
+          .insert(allEquipmentAssociations);
+
+        if (insertError) throw insertError;
+      }
+    }
+
+    return NextResponse.json({
+      ...data,
+      equipment_list,
+      gang_origin_equipment
+    });
   } catch (error) {
     console.error('Error creating vehicle type:', error);
     return NextResponse.json(
