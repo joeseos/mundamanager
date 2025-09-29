@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
 import EmailChange from "@/components/account/email-change";
-import { NotificationsSection } from "../../components/settings-modal";
+import { NotificationsSection } from "@/components/settings-modal";
 import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";

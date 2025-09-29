@@ -22,7 +22,7 @@ interface UserData {
     patreon_tier_id?: string;
     patreon_tier_title?: string;
     patron_status?: string;
-    updated_at: string;
+    created_at: string;
   };
   gangs: Array<{
     id: string;
@@ -92,7 +92,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
                 )}
               </h1>
               <p className="text-muted-foreground mt-2">
-                Member since: {new Date(profile.updated_at).toISOString().split('T')[0]}
+                Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
               </p>
             </div>
             {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
