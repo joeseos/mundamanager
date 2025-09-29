@@ -17,7 +17,7 @@ export async function GET(
     // Fetch user profile data
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username, user_role, patreon_tier_id, patreon_tier_title, patron_status, updated_at')
+      .select('id, username, user_role, patreon_tier_id, patreon_tier_title, patron_status, created_at')
       .eq('id', userId)
       .single()
 
