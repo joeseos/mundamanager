@@ -7,11 +7,17 @@ interface FighterTypeEquipmentItem {
   id: string;
   equipment_id: string;
   gang_origin_id?: string | null;
+  gang_type_id?: string | null;
 }
 
 interface GangOriginEquipmentItem {
   equipment_id: string;
   gang_origin_id: string;
+}
+
+interface GangTypeEquipmentItem {
+  equipment_id: string;
+  gang_type_id: string;
 }
 
 interface VehicleFormData {
@@ -32,6 +38,7 @@ interface VehicleFormData {
   special_rules?: string;
   equipment_list?: string[];
   gang_origin_equipment?: GangOriginEquipmentItem[];
+  gang_type_equipment?: GangTypeEquipmentItem[];
 }
 
 
@@ -58,7 +65,8 @@ export async function GET(request: Request) {
           fighter_type_equipment!vehicle_type_id (
             id,
             equipment_id,
-            gang_origin_id
+            gang_origin_id,
+            gang_type_id
           )
         `)
         .eq('id', vehicle_id)
@@ -69,7 +77,7 @@ export async function GET(request: Request) {
         // Transform equipment list data
         if (vehicleDetails) {
           vehicleDetails.equipment_list = vehicleDetails.fighter_type_equipment
-            ?.filter((item: FighterTypeEquipmentItem) => !item.gang_origin_id) // Only equipment without gang_origin_id
+            ?.filter((item: FighterTypeEquipmentItem) => !item.gang_origin_id && !item.gang_type_id) // Only equipment without gang_origin_id or gang_type_id
             .map((item: FighterTypeEquipmentItem) => item.equipment_id) || [];
 
           // Transform gang origin equipment data
@@ -79,6 +87,15 @@ export async function GET(request: Request) {
               id: item.id,
               equipment_id: item.equipment_id,
               gang_origin_id: item.gang_origin_id!
+            })) || [];
+
+          // Transform gang type equipment data
+          const gangTypeEquipment = vehicleDetails.fighter_type_equipment
+            ?.filter((item: FighterTypeEquipmentItem) => item.gang_type_id && !item.gang_origin_id)
+            .map((item: FighterTypeEquipmentItem) => ({
+              id: item.id,
+              equipment_id: item.equipment_id,
+              gang_type_id: item.gang_type_id!
             })) || [];
 
         // Fetch equipment names and gang origin names for gang origin equipment
@@ -111,6 +128,38 @@ export async function GET(request: Request) {
           }
         } else {
           vehicleDetails.gang_origin_equipment = [];
+        }
+
+        // Fetch equipment names and gang type names for gang type equipment
+        if (gangTypeEquipment.length > 0) {
+          const equipmentIds = gangTypeEquipment.map((item: { equipment_id: string; gang_type_id: string }) => item.equipment_id);
+          const gangTypeIds = gangTypeEquipment.map((item: { equipment_id: string; gang_type_id: string }) => item.gang_type_id);
+
+          const [equipmentResult, gangTypeResult] = await Promise.all([
+            supabase
+              .from('equipment')
+              .select('id, equipment_name')
+              .in('id', equipmentIds),
+            supabase
+              .from('gang_types')
+              .select('gang_type_id, gang_type')
+              .in('gang_type_id', gangTypeIds)
+          ]);
+
+          if (equipmentResult.data && gangTypeResult.data) {
+            const equipmentMap = new Map(equipmentResult.data.map(item => [item.id, item.equipment_name]));
+            const gangTypeMap = new Map(gangTypeResult.data.map(item => [item.gang_type_id.toString(), item.gang_type]));
+
+            vehicleDetails.gang_type_equipment = gangTypeEquipment.map((item: { id: string; equipment_id: string; gang_type_id: string }) => ({
+              id: item.id,
+              gang_type_id: item.gang_type_id,
+              gang_type_name: gangTypeMap.get(item.gang_type_id) || 'Unknown Gang Type',
+              equipment_id: item.equipment_id,
+              equipment_name: equipmentMap.get(item.equipment_id) || 'Unknown Equipment'
+            }));
+          }
+        } else {
+          vehicleDetails.gang_type_equipment = [];
         }
 
         delete vehicleDetails.fighter_type_equipment;
@@ -170,6 +219,7 @@ export async function POST(request: Request) {
     const vehicleData = await request.json();
     const equipment_list = vehicleData.equipment_list || [];
     const gang_origin_equipment = vehicleData.gang_origin_equipment || [];
+    const gang_type_equipment = vehicleData.gang_type_equipment || [];
 
     // Convert string values to numbers for numeric fields
     const formattedData = {
@@ -193,6 +243,7 @@ export async function POST(request: Request) {
     // Remove equipment data from the vehicle record
     delete formattedData.equipment_list;
     delete formattedData.gang_origin_equipment;
+    delete formattedData.gang_type_equipment;
 
     const { data, error } = await supabase
       .from('vehicle_types')
@@ -207,7 +258,7 @@ export async function POST(request: Request) {
     const vehicle_id = data.id;
 
     // Handle equipment associations if equipment data is provided
-    if (equipment_list.length > 0 || gang_origin_equipment.length > 0) {
+    if (equipment_list.length > 0 || gang_origin_equipment.length > 0 || gang_type_equipment.length > 0) {
       const allEquipmentAssociations = [];
 
       // Add regular equipment (without gang origin)
@@ -216,7 +267,8 @@ export async function POST(request: Request) {
           equipment_id,
           fighter_type_id: null,
           vehicle_type_id: vehicle_id,
-          gang_origin_id: null
+          gang_origin_id: null,
+          gang_type_id: null
         }));
         allEquipmentAssociations.push(...regularEquipmentAssociations);
       }
@@ -227,9 +279,22 @@ export async function POST(request: Request) {
           equipment_id: item.equipment_id,
           fighter_type_id: null,
           vehicle_type_id: vehicle_id,
-          gang_origin_id: item.gang_origin_id
+          gang_origin_id: item.gang_origin_id,
+          gang_type_id: null
         }));
         allEquipmentAssociations.push(...gangOriginEquipmentAssociations);
+      }
+
+      // Add gang type equipment
+      if (gang_type_equipment.length > 0) {
+        const gangTypeEquipmentAssociations = gang_type_equipment.map((item: GangTypeEquipmentItem) => ({
+          equipment_id: item.equipment_id,
+          fighter_type_id: null,
+          vehicle_type_id: vehicle_id,
+          gang_origin_id: null,
+          gang_type_id: item.gang_type_id
+        }));
+        allEquipmentAssociations.push(...gangTypeEquipmentAssociations);
       }
 
       // Insert all equipment associations at once
@@ -245,7 +310,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...data,
       equipment_list,
-      gang_origin_equipment
+      gang_origin_equipment,
+      gang_type_equipment
     });
   } catch (error) {
     console.error('Error creating vehicle type:', error);
@@ -276,6 +342,7 @@ export async function PATCH(request: Request) {
     const vehicleData: VehicleFormData = await request.json();
     const equipment_list = vehicleData.equipment_list || [];
     const gang_origin_equipment = vehicleData.gang_origin_equipment || [];
+    const gang_type_equipment = vehicleData.gang_type_equipment || [];
 
 
     // Format the data
@@ -304,7 +371,7 @@ export async function PATCH(request: Request) {
     if (updateError) throw updateError;
 
     // Handle equipment associations only if equipment data is provided
-    if (equipment_list.length >= 0 || gang_origin_equipment.length >= 0) {
+    if (equipment_list.length >= 0 || gang_origin_equipment.length >= 0 || gang_type_equipment.length >= 0) {
       // Delete existing equipment associations for this vehicle
       const { error: deleteError } = await supabase
         .from('fighter_type_equipment')
@@ -322,7 +389,8 @@ export async function PATCH(request: Request) {
           equipment_id,
           fighter_type_id: null,
           vehicle_type_id: vehicle_id,
-          gang_origin_id: null
+          gang_origin_id: null,
+          gang_type_id: null
         }));
         allEquipmentAssociations.push(...regularEquipmentAssociations);
       }
@@ -333,9 +401,22 @@ export async function PATCH(request: Request) {
           equipment_id: item.equipment_id,
           fighter_type_id: null,
           vehicle_type_id: vehicle_id,
-          gang_origin_id: item.gang_origin_id
+          gang_origin_id: item.gang_origin_id,
+          gang_type_id: null
         }));
         allEquipmentAssociations.push(...gangOriginEquipmentAssociations);
+      }
+
+      // Add gang type equipment
+      if (gang_type_equipment.length > 0) {
+        const gangTypeEquipmentAssociations = gang_type_equipment.map((item: GangTypeEquipmentItem) => ({
+          equipment_id: item.equipment_id,
+          fighter_type_id: null,
+          vehicle_type_id: vehicle_id,
+          gang_origin_id: null,
+          gang_type_id: item.gang_type_id
+        }));
+        allEquipmentAssociations.push(...gangTypeEquipmentAssociations);
       }
 
       // Insert all equipment associations at once
@@ -352,7 +433,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       success: true,
       equipment_list,
-      gang_origin_equipment
+      gang_origin_equipment,
+      gang_type_equipment
     });
 
   } catch (error) {
