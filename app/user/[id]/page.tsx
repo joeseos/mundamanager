@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
+import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
 import { FiMap } from "react-icons/fi";
 import { FaUser, FaUsers } from "react-icons/fa6";
@@ -96,11 +96,13 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
               </p>
             </div>
             {profile.patreon_tier_id && profile.patron_status === 'active_patron' && (
-              <PatreonSupporterBadge
-                username={profile.patreon_tier_title || 'Patreon Supporter'}
-                patreonTierId={profile.patreon_tier_id}
-                patreonTierTitle={profile.patreon_tier_title}
-              />
+              <Badge variant="outline" className="flex items-center gap-1">
+                <PatreonSupporterIcon
+                  patreonTierId={profile.patreon_tier_id}
+                  patreonTierTitle={profile.patreon_tier_title}
+                />
+                {profile.patreon_tier_title || 'Patreon Supporter'}
+              </Badge>
             )}
           </div>
         </div>

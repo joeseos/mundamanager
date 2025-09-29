@@ -1,7 +1,8 @@
 import type { JSX } from "react";
 import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierConfig } from "@/utils/patreon";
-import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
+import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
+import { Badge } from "@/components/ui/badge";
 
 type FAQItem = {
   q: string;
@@ -34,12 +35,13 @@ export default function AboutMundaManager({ patreonSupporters = [] }: AboutMunda
     }
 
     return supporters.map((supporter, index) => (
-      <PatreonSupporterBadge
-        key={index}
-        username={supporter.username}
-        patreonTierId={supporter.patreon_tier_id}
-        patreonTierTitle={supporter.patreon_tier_title}
-      />
+      <Badge key={index} variant="outline" className="flex items-center gap-1">
+        <PatreonSupporterIcon
+          patreonTierId={supporter.patreon_tier_id}
+          patreonTierTitle={supporter.patreon_tier_title}
+        />
+        {supporter.username}
+      </Badge>
     ));
   };
 
