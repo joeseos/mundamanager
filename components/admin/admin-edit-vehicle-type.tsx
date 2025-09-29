@@ -189,7 +189,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
 
   const handleSubmit = async () => {
     try {
-      const response = await fetch('/api/admin/vehicles', {
+      const response = await fetch(`/api/admin/vehicles?id=${selectedVehicle}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,6 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
             .split(',')
             .map(rule => rule.trim())
             .filter(rule => rule.length > 0),
-          id: selectedVehicle,
           equipment_list: equipmentListSelections,
           gang_origin_equipment: gangOriginEquipment
         }),

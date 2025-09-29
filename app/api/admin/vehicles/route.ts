@@ -22,9 +22,12 @@ interface VehicleFormData {
   side?: string;
   rear?: string;
   hull_points?: string;
+  handling?: string;
+  save?: string;
   body_slots?: string;
   drive_slots?: string;
   engine_slots?: string;
+  vehicle_type?: string;
   gang_type_id?: string;
   special_rules?: string;
   equipment_list?: string[];
@@ -208,6 +211,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
+  const { searchParams } = new URL(request.url);
+  const vehicle_id = searchParams.get('id');
 
   // Check admin authorization
   const isAdmin = await checkAdmin(supabase);
@@ -215,18 +220,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!vehicle_id) {
+    return NextResponse.json({ error: 'Vehicle ID is required' }, { status: 400 });
+  }
+
   try {
     const vehicleData: VehicleFormData = await request.json();
-    const vehicle_id = vehicleData.id;
     const equipment_list = vehicleData.equipment_list || [];
     const gang_origin_equipment = vehicleData.gang_origin_equipment || [];
 
-    if (!vehicle_id || typeof vehicle_id !== 'string') {
-      return NextResponse.json(
-        { error: 'Valid vehicle ID (UUID) is required' },
-        { status: 400 }
-      );
-    }
 
     // Format the data
     const formattedData = {
@@ -239,7 +241,10 @@ export async function PATCH(request: Request) {
       body_slots: parseInt(vehicleData.body_slots || "0"),
       drive_slots: parseInt(vehicleData.drive_slots || "0"),
       engine_slots: parseInt(vehicleData.engine_slots || "0"),
-      gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id || "0"),
+      gang_type_id: vehicleData.gang_type_id === "0" ? null : vehicleData.gang_type_id,
+      handling: vehicleData.handling,
+      save: vehicleData.save,
+      vehicle_type: vehicleData.vehicle_type,
       special_rules: vehicleData.special_rules || []
     };
 
