@@ -141,7 +141,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   return (
     <div className="w-full">
-      <table className={`w-full text-[11px] border-collapse ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
+      <table className={`w-full text-[11px] border-collapse print:text-[13px] ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
         <thead>
           {/* Conditionally Render Toughness Header Row */}
           {isCrew && viewMode === 'normal' && (
