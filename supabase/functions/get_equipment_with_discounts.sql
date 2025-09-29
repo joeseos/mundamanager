@@ -233,6 +233,13 @@ AS $$
              OR fte.vehicle_type_id = $3
              OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id))
              OR (gang_data.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.affiliation_ft_id OR fte.vehicle_type_id = gang_data.affiliation_ft_id)))
+        AND (
+            -- If the row has gang_origin_id, it must match the gang's origin
+            (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gang_data.gang_origin_id)
+            AND
+            -- If the row has gang_type_id, it must match the gang's type
+            (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+        )
     WHERE 
         (
             COALESCE(e.core_equipment, false) = false
