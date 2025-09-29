@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from '@/components/ui/modal'
@@ -9,6 +10,7 @@ import { deleteFriend } from '@/app/actions/friends'
 import { X } from 'lucide-react'
 import { useTransition, useOptimistic } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface Friend {
   id: string;
@@ -204,51 +206,57 @@ export default function FriendsSearchBar({
       {/* Accepted Friends List */}
       {acceptedFriends.length > 0 && (
         <div className="mb-4">
-          <ul className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {acceptedFriends.map(friend => (
-              <li key={friend.id} className="bg-muted rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username}
+              <Badge key={friend.id} variant="secondary" className="flex items-center gap-1">
+                <Link href={`/user/${friend.id}`} className="hover:underline">
+                  {friend.username}
+                </Link>
                 <button
-                  className="ml-1 text-gray-400 hover:text-red-500"
+                  className="ml-1 text-gray-500 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
                   aria-label={`Remove ${friend.username}`}
                 >
-                  <X className="h-4 w-4" />
+                  <X size={14} />
                 </button>
-              </li>
+              </Badge>
             ))}
-          </ul>
+          </div>
         </div>
       )}
       {/* Pending Incoming Requests */}
       {pendingIncoming.length > 0 && (
         <div className="mb-2">
-          <ul className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {pendingIncoming.map(friend => (
-              <li key={friend.id} className="bg-yellow-50 border border-yellow-200 rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username} <span className="text-xs text-yellow-600">(pending)</span>
-              </li>
+              <Badge key={friend.id} variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-800 flex items-center gap-1">
+                <Link href={`/user/${friend.id}`} className="hover:underline">
+                  {friend.username}
+                </Link> <span className="text-xs text-yellow-600">(pending)</span>
+              </Badge>
             ))}
-          </ul>
+          </div>
         </div>
       )}
       {/* Pending Outgoing Requests */}
       {pendingOutgoing.length > 0 && (
         <div className="mb-2">
-          <ul className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {pendingOutgoing.map(friend => (
-              <li key={friend.id} className="bg-muted border border-border rounded px-3 py-1 text-sm flex items-center gap-1">
-                {friend.username} <span className="text-xs text-muted-foreground">(pending)</span>
+              <Badge key={friend.id} variant="outline" className="flex items-center gap-1">
+                <Link href={`/user/${friend.id}`} className="hover:underline">
+                  {friend.username}
+                </Link> <span className="text-xs text-muted-foreground">(pending)</span>
                 <button
-                  className="ml-1 text-gray-400 hover:text-red-500"
+                  className="ml-1 text-gray-500 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
                   aria-label={`Abort friend request to ${friend.username}`}
                 >
-                  <X className="h-4 w-4" />
+                  <X size={14} />
                 </button>
-              </li>
+              </Badge>
             ))}
-          </ul>
+          </div>
         </div>
       )}
       <Input

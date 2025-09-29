@@ -5,7 +5,8 @@ import EmailChange from "@/components/account/email-change";
 import { NotificationsSection } from "@/components/settings-modal";
 import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
-import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
+import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
+import { Badge } from "@/components/ui/badge";
 import { ImInfo } from "react-icons/im";
 // Using full auth user on profile to display email and timestamps
 
@@ -62,11 +63,13 @@ export default async function AccountPage() {
               </label>
               <div className="text-foreground bg-muted rounded-md px-3 py-2">
                 {profile?.patreon_tier_id && profile?.patron_status === 'active_patron' ? (
-                  <PatreonSupporterBadge
-                    username={profile.patreon_tier_title || 'Patreon Supporter'}
-                    patreonTierId={profile.patreon_tier_id}
-                    patreonTierTitle={profile.patreon_tier_title}
-                  />
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <PatreonSupporterIcon
+                      patreonTierId={profile.patreon_tier_id}
+                      patreonTierTitle={profile.patreon_tier_title}
+                    />
+                    {profile.patreon_tier_title || 'Patreon Supporter'}
+                  </Badge>
                 ) : (
                   '-'
                 )}

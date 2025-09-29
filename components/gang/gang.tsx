@@ -30,7 +30,7 @@ import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
-import { PatreonSupporterBadge } from "@/components/ui/patreon-supporter-badge";
+import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 
 
 interface GangProps {
@@ -90,6 +90,7 @@ interface GangProps {
   patreon_tier_id?: string;
   patreon_tier_title?: string;
   patron_status?: string;
+  user_id?: string;
 }
 
 export default function Gang({ 
@@ -134,6 +135,7 @@ export default function Gang({
   patreon_tier_id,
   patreon_tier_title,
   patron_status,
+  user_id,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -719,7 +721,7 @@ export default function Gang({
               <div className="flex flex-wrap gap-4">
                 {campaigns?.[0] && (
                   <div className="flex items-center gap-1 text-sm">
-                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-neutral-400">
+                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-accent">
                       <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
                         {campaigns[0].campaign_name}
                       </Link>
@@ -729,15 +731,18 @@ export default function Gang({
               </div>
               {username && (
                 <div className="flex items-center gap-1 text-sm mt-1">
-                  Owner: {patreon_tier_id ? (
-                    <PatreonSupporterBadge
-                      username={username || ''}
-                      patreonTierId={patreon_tier_id}
-                      patreonTierTitle={patreon_tier_title}
-                    />
-                  ) : (
-                    <Badge variant="outline">{username}</Badge>
-                  )}
+                  Owner: 
+                    <Link href={`/user/${user_id}`}>
+                      <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
+                        {patreon_tier_id && (
+                          <PatreonSupporterIcon
+                            patreonTierId={patreon_tier_id}
+                            patreonTierTitle={patreon_tier_title}
+                          />
+                        )}
+                        {username}
+                      </Badge>
+                    </Link>
                 </div>
               )}
             </div>
