@@ -1082,7 +1082,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                             }
                           }}
                           disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                          className="bg-black hover:bg-gray-800 text-white"
+                          className="bg-neutral-900 text-white rounded hover:bg-gray-800"
                         >
                           Save Adjusted Cost
                         </Button>
@@ -1267,7 +1267,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           variant: "default"
                         });
                       }}
-                      className="bg-black hover:bg-gray-800 text-white"
+                      className="bg-neutral-900 text-white rounded hover:bg-gray-800"
                     >
                       Save Options
                     </Button>
@@ -1309,7 +1309,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               ) ||
               isLoading
             }
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Fighter Type'}
           </Button>

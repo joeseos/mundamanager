@@ -1563,7 +1563,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           <Button
             onClick={handleSubmit}
             disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Equipment'}
           </Button>
