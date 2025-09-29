@@ -102,7 +102,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
 
   return (
     <div className="overflow-x-auto w-full">
-      <table className="w-full border-collapse table-weapons" style={{ fontSize: 'calc(10px + 0.2vmin)' }}>
+      <table className="w-full border-collapse table-weapons text-[12px] print:text-[13px]">
         <colgroup>
           <col style={{ width: '30%' }}/>
           <col style={{ width: '2rem' }}/>
@@ -120,8 +120,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
             <th className={`${pClass} text-left align-bottom`} rowSpan={2}>
               {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
             </th>
-            <th className={`${pClass} text-center print:hidden`} colSpan={2}>Rng</th>
-            <th className={`${pClass} text-center print:hidden`} colSpan={2}>Acc</th>
+            <th className={`${pClass} text-center print:text-[8px] ${viewMode === 'small' ? 'text-[9px]' : ''}`} colSpan={2}>Rng</th>
+            <th className={`${pClass} text-center print:text-[8px] ${viewMode === 'small' ? 'text-[9px]' : ''}`} colSpan={2}>Acc</th>
             <th className={`${pClass} text-center`} colSpan={5}></th>
           </tr>
           <tr>

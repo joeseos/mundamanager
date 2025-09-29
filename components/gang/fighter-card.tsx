@@ -449,18 +449,18 @@ const FighterCard = memo(function FighterCard({
         
       {!isInactive && (
         <>
-          <div>
-            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} />
-          </div>
-
           {/* Show owner information for owned fighters */}
           {owner_name && (
-            <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-1'} text-left`}>
+            <div className="-mt-5 text-right mr-24 italic">
               <div className="text-sm text-foreground">
                 Owned by <span className="font-semibold">{owner_name}</span>
               </div>
             </div>
           )}
+          
+          <div>
+            <StatsTable data={stats} isCrew={isCrew} viewMode={viewMode} />
+          </div>
 
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
@@ -483,7 +483,7 @@ const FighterCard = memo(function FighterCard({
             </div>
           )}
 
-          <div className={`grid gap-y-2 mt-3 ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'} print:gap-y-0`}>
+          <div className={`grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === 'small' ? 'gap-y-[2px]' : ''} ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
             {isCrew && vehicle && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
