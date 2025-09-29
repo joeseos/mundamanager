@@ -857,7 +857,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           <Button
             onClick={handleSubmit}
             disabled={!equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Equipment'}
           </Button>

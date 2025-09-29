@@ -851,7 +851,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           <Button
             onClick={handleUpdateGangLineage}
             disabled={isLoading || !selectedGangLineage || !gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType}
-            className="bg-black hover:bg-gray-800 text-white disabled:bg-gray-400 disabled:text-muted-foreground"
+            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update'}
           </Button>

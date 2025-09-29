@@ -556,6 +556,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     <>
       <Modal
         title="Edit Vehicle Type"
+        width="4xl"
         content={
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-4">

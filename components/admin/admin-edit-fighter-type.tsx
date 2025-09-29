@@ -2162,7 +2162,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                               }
                             }}
                             disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                            className="bg-black hover:bg-gray-800 text-white"
+                            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
                           >
                             Save Adjusted Cost
                           </Button>
@@ -2278,7 +2278,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           <Button
             onClick={handleSubmit}
             disabled={!selectedSubTypeId || isLoading}
-            className="bg-black hover:bg-gray-800 text-white"
+            className="px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}
           </Button>

@@ -430,28 +430,28 @@ const handleSubmitSkill = async (operation: OperationType) => {
           <Button
             onClick={ () => handleSubmitSkill(OperationType.UPDATE) }
             disabled={!skillName || !skillType || isLoading}
-            className="flex-1 bg-black hover:bg-gray-800 text-white"
+            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Loading...' : 'Update Skill'}
           </Button>
           <Button
             onClick={() => handleSubmitSkill(OperationType.DELETE) }
             disabled={!skillName || !skillType || isLoading}
-            className="flex-1 bg-black hover:bg-gray-800 text-white"
+            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Loading...' : 'Delete Skill'}
           </Button>
            <Button
             onClick={() => handleSubmitType(OperationType.UPDATE) }
             disabled={ !!skillName || skillTypeName == '' || isLoading}
-            className="flex-1 bg-black hover:bg-gray-800 text-white"
+            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Loading...' : 'Rename Skill Set'}
           </Button>
           <Button
             onClick={() => handleSubmitType(OperationType.DELETE) }
             disabled={!!skillName || skillTypeName == '' || isLoading}
-            className="flex-1 bg-black hover:bg-gray-800 text-white"
+            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
           >
             {isLoading ? 'Loading...' : 'Delete Skill Set'}
           </Button>

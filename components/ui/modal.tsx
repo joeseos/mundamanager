@@ -14,7 +14,7 @@ interface ModalProps {
   confirmDisabled?: boolean;
   headerContent?: React.ReactNode;
   hideCancel?: boolean;
-  width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
 }
 
 export default function Modal({ 
@@ -61,6 +61,7 @@ export default function Modal({
       case 'lg': return 'max-w-lg';
       case 'xl': return 'max-w-xl';
       case '2xl': return 'max-w-2xl';
+      case '4xl': return 'max-w-4xl';
       default: return 'max-w-md';
     }
   };
