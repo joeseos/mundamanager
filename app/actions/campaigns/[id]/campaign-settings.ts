@@ -65,8 +65,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       campaignGangs.forEach(gang => {
         // Gang pages show campaign info (name, settings), so invalidate gang campaign cache
         revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
-        // Also invalidate gang overview since it may display campaign data
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gang.gang_id));
+        // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses COMPOSITE_GANG_CAMPAIGNS
       });
     }
 

@@ -265,9 +265,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     if (params.gang_variants !== undefined) {
       revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.gang_id));
     }
-    
-    // Always invalidate composite gang data for any gang update
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gang_id));
+
+    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore
+    // Gang updates (name, color, etc.) use BASE_GANG_BASIC which is already invalidated above
 
     // Invalidate campaign caches if this gang is in any campaigns
     const { data: campaignGangs, error: campaignGangsError } = await supabase

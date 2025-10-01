@@ -234,18 +234,32 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     if (gangUpdateError) throw gangUpdateError;
 
-    // Invalidate cache for this gang so changes are reflected on reload
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.id));
-    
+    // Granular cache invalidation based on what changed
+
     // Invalidate credits cache if credits were changed
     if (creditsChanged) {
       invalidateGangCredits(params.id);
     }
 
-    // Invalidate gang cache if notes were changed
-    if (notesChanged) {
+    // Invalidate gang basic data if name, alignment, color, alliance, or notes changed
+    if (name !== undefined || alignment !== undefined || gang_colour !== undefined ||
+        alliance_id !== undefined || notesChanged) {
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.id));
+      revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.id));
     }
+
+    // Invalidate resources if reputation, meat, scavenging_rolls, or exploration_points changed
+    if (reputation !== undefined || meat !== undefined ||
+        scavenging_rolls !== undefined || exploration_points !== undefined) {
+      revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.id));
+    }
+
+    // Invalidate gang variants if changed
+    if (gang_variants !== undefined) {
+      revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.id));
+    }
+
+    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags
 
     return NextResponse.json(updatedGang);
   } catch (error) {

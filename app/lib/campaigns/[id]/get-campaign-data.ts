@@ -550,7 +550,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     // Keep legacy tag for backward compatibility during transition
     `campaign-${campaignId}`,
     // Add gang cache tags so campaign data updates when gang data changes
-    ...gangIds.map(gangId => CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)),
+    // NOTE: No need for COMPOSITE_GANG_FIGHTERS_LIST - rating comes from gangs table directly
     ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId)),
     ...gangIds.map(gangId => CACHE_TAGS.COMPUTED_GANG_RATING(gangId))
   ];
