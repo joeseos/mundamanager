@@ -712,7 +712,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
   );
 
   // Filter out any null entries from errors
-  return fighters.filter((f): f is GangFighter => f !== null);
+  return fighters.filter((f): f is NonNullable<typeof f> => f !== null) as GangFighter[];
 };
 
 /**
