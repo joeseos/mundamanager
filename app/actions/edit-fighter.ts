@@ -609,7 +609,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -704,7 +704,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -837,7 +837,8 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note !== undefined || params.note_backstory !== undefined) {
       // Invalidate fighter basic data (includes notes)
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-      // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags
+      // Invalidate composite gang data that includes fighter information
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     }
 
     return {

@@ -64,7 +64,8 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
     // Invalidate relevant cache tags
     // Positioning now has its own dedicated cache
     revalidateTag(CACHE_TAGS.BASE_GANG_POSITIONING(params.gangId));
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_GANG_POSITIONING
+    // Also invalidate composite gang data since positioning affects gang display
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
 
     return { success: true };
   } catch (error) {
