@@ -68,9 +68,10 @@ export const CACHE_TAGS = {
   // =============================================================================
   // 3. COMPOSITE DATA TAGS - Multi-entity aggregated data
   // =============================================================================
-  
+
   // Page-level aggregations (only for complex multi-entity aggregations)
-  COMPOSITE_GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`,    // all fighters with equipment
+  COMPOSITE_GANG_FIGHTER_IDS: (id: string) => `composite-gang-fighter-ids-${id}`,   // lightweight fighter ID list
+  COMPOSITE_GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`,    // DEPRECATED: kept for backward compatibility
   COMPOSITE_CAMPAIGN_OVERVIEW: (id: string) => `composite-campaign-overview-${id}`, // complete campaign data
   COMPOSITE_VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,           // complete vehicle page data
   
@@ -164,26 +165,27 @@ export function invalidateEquipmentPurchase(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
   invalidateGangCredits(params.gangId);
-  
-  // Computed data changes  
+
+  // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-  
-  // Shared data changes
+
+  // Shared data changes (both gang and fighter pages use these)
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  
-  // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-  
+
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore!
+  // Gang page uses granular tags and will automatically get fresh data
+
   // Beast creation handling
   if (params.createdBeasts?.length) {
     params.createdBeasts.forEach(beast => {
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beast.id));
-      // Fighter page data changes due to new beast
     });
     revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+    // Invalidate fighter ID list since new fighters (beasts) were added
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTER_IDS(params.gangId));
   }
 }
 
@@ -210,22 +212,21 @@ export function invalidateFighterAdvancement(params: {
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
       break;
   }
-  
+
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-  
-  // Shared data changes
+
+  // Shared data changes (both gang and fighter pages use these)
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  
-  // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore!
+  // Gang page uses granular tags and will automatically get fresh data
 }
 
 /**
- * Campaign Membership Invalidation Pattern  
+ * Campaign Membership Invalidation Pattern
  * Triggered when: Gang joins/leaves campaign or role changes
  * Data changed: Campaign members, gang campaigns
  */
@@ -238,17 +239,16 @@ export function invalidateCampaignMembership(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
-  
+
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_CAMPAIGN_LEADERBOARD(params.campaignId));
-  
+
   // Shared data changes
   revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(params.campaignId));
-  
+
   // Composite data changes
   revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-  
+
   // User-scoped changes
   revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId));
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
@@ -267,13 +267,13 @@ export function invalidateGangCreation(params: {
   revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId));
   invalidateGangCredits(params.gangId);
   revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gangId));
-  
+
   // User-scoped changes
   revalidateTag(CACHE_TAGS.USER_GANGS(params.userId));
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
-  
-  // Composite data (new gang page)
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // Invalidate fighter ID list (usually empty for new gang, but ensures consistency)
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTER_IDS(params.gangId));
 }
 
 /**
@@ -289,23 +289,25 @@ export function invalidateEquipmentDeletion(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
   invalidateGangCredits(params.gangId);
-  
+
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-  
-  // Shared data changes
+
+  // Shared data changes (both gang and fighter pages use these)
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
-  
-  // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-  
+
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore!
+  // Gang page uses granular tags and will automatically get fresh data
+
   // Beast deletion handling
   if (params.deletedBeastIds?.length) {
     revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(params.gangId));
+    // Invalidate fighter ID list since fighters (beasts) were removed
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTER_IDS(params.gangId));
   }
 }
 
@@ -323,19 +325,19 @@ export function invalidateFighterAddition(params: {
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
   invalidateGangCredits(params.gangId);
-  
+
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
-  
+
   // Shared data changes
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  
-  // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // Fighter list structure changed (new ID added)
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTER_IDS(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId)); // Keep for backward compatibility
 }
 
 /**
@@ -350,9 +352,9 @@ export function invalidateGangStash(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_GANG_STASH(params.gangId));
   invalidateGangCredits(params.gangId);
-  
-  // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST
+  // Stash changes don't affect fighter data
 }
 
 /**
@@ -366,11 +368,13 @@ export function invalidateCampaignTerritory(params: {
 }) {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId));
-  
+
   // Composite data changes
   revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST
+  // Territory changes don't affect fighter data
 }
 
 /**
@@ -416,14 +420,15 @@ export const invalidateGangRating = (gangId: string) => {
 export const invalidateGangFinancials = (gangId: string) => {
   invalidateGangCredits(gangId);
   invalidateGangRating(gangId);
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
   revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore
+  // Gang page uses granular tags and will automatically get fresh data
 };
 
 export const invalidateGangData = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
   revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore
+  // Gang page uses granular tags and will automatically get fresh data
 };
 
 export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: string) => {
@@ -440,8 +445,8 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(fighterId));
   // Gang rating depends on fighter costs, so invalidate when vehicle costs change
   invalidateGangRating(gangId);
-  // Fighter page data invalidated via granular tags
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore
+  // Gang page uses granular tags and will automatically get fresh data
 };
 
 export const invalidateVehicleEffects = (vehicleId: string, fighterId: string, gangId: string) => {
@@ -449,8 +454,8 @@ export const invalidateVehicleEffects = (vehicleId: string, fighterId: string, g
   revalidateTag(CACHE_TAGS.BASE_VEHICLE_EFFECTS(vehicleId));
   // Fighter's vehicle data (includes effects)
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
-  // Gang fighters list (shows vehicle data)
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST anymore
+  // Gang page uses BASE_FIGHTER_VEHICLES and will automatically get fresh data
 };
 
 export const invalidateVehicleRepair = (vehicleId: string, fighterId: string, gangId: string) => {
@@ -474,7 +479,8 @@ export const addBeastToGangCache = (beastId: string, gangId: string) => {
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  // Invalidate fighter ID list since a new beast was added
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTER_IDS(gangId));
 };
 
 export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) => {
