@@ -47,34 +47,16 @@ BEGIN
                         WHEN st.legendary_name = TRUE THEN
                             jsonb_build_array(
                                 jsonb_build_object(
-                                    'type_id', 'primary_selected',
-                                    'name', 'Selected Primary',
-                                    'xp_cost', 6, -- Selected Legendary Name cost
-                                    'credit_cost', 5 -- Legendary Name credit increase
+                                    'type_id', 'selected',
+                                    'name', 'Selected',
+                                    'xp_cost', 6,
+                                    'credit_cost', 5
                                 ),
                                 jsonb_build_object(
-                                    'type_id', 'primary_random',
-                                    'name', 'Random Primary',
-                                    'xp_cost', 3, -- Random Legendary Name cost
-                                    'credit_cost', 5 -- Legendary Name credit increase
-                                ),
-                                jsonb_build_object(
-                                    'type_id', 'secondary_selected',
-                                    'name', 'Selected Secondary',
-                                    'xp_cost', 6, -- Selected Legendary Name cost
-                                    'credit_cost', 5 -- Legendary Name credit increase
-                                ),
-                                jsonb_build_object(
-                                    'type_id', 'secondary_random',
-                                    'name', 'Random Secondary',
-                                    'xp_cost', 3, -- Random Legendary Name cost
-                                    'credit_cost', 5 -- Legendary Name credit increase
-                                ),
-                                jsonb_build_object(
-                                    'type_id', 'any_random',
-                                    'name', 'Random Any',
-                                    'xp_cost', 3, -- Random Legendary Name cost
-                                    'credit_cost', 5 -- Legendary Name credit increase
+                                    'type_id', 'random',
+                                    'name', 'Random',
+                                    'xp_cost', 3,
+                                    'credit_cost', 5
                                 )
                             )
                         -- Regular skill costs
