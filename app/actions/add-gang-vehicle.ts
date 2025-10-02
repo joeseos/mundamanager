@@ -139,8 +139,8 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     // Invalidate relevant cache tags
     invalidateGangCredits(params.gangId);
     revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
-    
+    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_GANG_VEHICLES
+
     // Also invalidate computed gang vehicle count
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.gangId));
 
