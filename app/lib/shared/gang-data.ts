@@ -1,6 +1,17 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { getFighterBasic, getFighterEquipment, getFighterSkills, getFighterEffects, getFighterVehicles, getFighterTotalCost } from './fighter-data';
+import { WeaponProps, WargearItem } from '@/types/fighter';
+import {
+  getFighterBasic,
+  getFighterEquipment,
+  getFighterSkills,
+  getFighterEffects,
+  getFighterVehicles,
+  getFighterTotalCost,
+  getFighterTypeInfo,
+  getFighterSubTypeInfo,
+  getFighterOwnershipInfo
+} from './fighter-data';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -117,7 +128,8 @@ export interface GangFighter {
   cool: number;
   willpower: number;
   intelligence: number;
-  equipment: any[];
+  weapons: WeaponProps[];
+  wargear: WargearItem[];
   effects: Record<string, any[]>;
   skills: Record<string, any>;
   vehicles: any[];
@@ -707,6 +719,135 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       revalidate: false
     }
   )();
+};
+
+/**
+ * Get all fighters in a gang with complete data
+ *
+ * NOTE: This function does NOT use unstable_cache() itself.
+ * It relies on the individual fighter data functions' caching.
+ * This ensures proper cache tag hierarchy - when a fighter's equipment changes,
+ * only that fighter's data is invalidated, not the entire gang's fighter list.
+ *
+ * The only cached part is the fighter ID list (via getGangFighterIds).
+ */
+export const getGangFightersList = async (gangId: string, supabase: any): Promise<GangFighter[]> => {
+  // Get all fighter IDs (this is cached separately)
+  const fighterIds = await getGangFighterIds(gangId, supabase);
+
+  // Fetch all fighters in parallel using cached granular functions
+  const fighters = await Promise.all(
+    fighterIds.map(async (fighterId) => {
+      try {
+        // Each of these calls uses its own cache tags
+        const [
+          fighterBasic,
+          equipment,
+          skills,
+          effects,
+          vehicles,
+          totalCost
+        ] = await Promise.all([
+          getFighterBasic(fighterId, supabase),      // Uses BASE_FIGHTER_BASIC(fighterId)
+          getFighterEquipment(fighterId, supabase),  // Uses BASE_FIGHTER_EQUIPMENT(fighterId)
+          getFighterSkills(fighterId, supabase),     // Uses BASE_FIGHTER_SKILLS(fighterId)
+          getFighterEffects(fighterId, supabase),    // Uses BASE_FIGHTER_EFFECTS(fighterId)
+          getFighterVehicles(fighterId, supabase),   // Uses BASE_FIGHTER_VEHICLES(fighterId)
+          getFighterTotalCost(fighterId, supabase)   // Uses COMPUTED_FIGHTER_TOTAL_COST(fighterId)
+        ]);
+
+        // Get fighter type and sub-type info using cached helpers
+        const [fighterTypeInfo, fighterSubTypeInfo] = await Promise.all([
+          getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
+          fighterBasic.fighter_sub_type_id
+            ? getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase)
+            : Promise.resolve(null)
+        ]);
+
+        // Get exotic beast ownership info if applicable
+        const ownershipInfo = fighterBasic.fighter_pet_id
+          ? await getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase)
+          : null;
+
+        // Separate equipment into weapons and wargear to match FighterProps interface
+        const weapons: WeaponProps[] = equipment
+          .filter((item: any) => item.equipment_type === 'weapon')
+          .map((item: any) => ({
+            fighter_weapon_id: item.fighter_equipment_id,
+            weapon_id: item.equipment_id || item.custom_equipment_id || '',
+            weapon_name: item.equipment_name,
+            cost: item.purchase_cost || 0,
+            weapon_profiles: item.weapon_profiles || [],
+            is_master_crafted: item.is_master_crafted || false
+          }));
+
+        const wargear: WargearItem[] = equipment
+          .filter((item: any) => item.equipment_type === 'wargear')
+          .map((item: any) => ({
+            fighter_weapon_id: item.fighter_equipment_id,
+            wargear_id: item.equipment_id || item.custom_equipment_id || '',
+            wargear_name: item.equipment_name,
+            cost: item.purchase_cost || 0,
+            is_master_crafted: item.is_master_crafted || false
+          }));
+
+        // Assemble fighter object matching FighterProps interface
+        return {
+          id: fighterBasic.id,
+          fighter_name: fighterBasic.fighter_name,
+          label: fighterBasic.label,
+          fighter_type: fighterBasic.fighter_type || fighterTypeInfo?.fighter_type || 'Unknown',
+          fighter_class: fighterBasic.fighter_class || 'Unknown',
+          fighter_sub_type: fighterSubTypeInfo ? {
+            fighter_sub_type: fighterSubTypeInfo.fighter_sub_type,
+            fighter_sub_type_id: fighterSubTypeInfo.fighter_sub_type_id
+          } : undefined,
+          alliance_crew_name: fighterTypeInfo?.alliance_crew_name,
+          position: fighterBasic.position,
+          xp: fighterBasic.xp,
+          kills: fighterBasic.kills || 0,
+          credits: totalCost,
+          movement: fighterBasic.movement,
+          weapon_skill: fighterBasic.weapon_skill,
+          ballistic_skill: fighterBasic.ballistic_skill,
+          strength: fighterBasic.strength,
+          toughness: fighterBasic.toughness,
+          wounds: fighterBasic.wounds,
+          initiative: fighterBasic.initiative,
+          attacks: fighterBasic.attacks,
+          leadership: fighterBasic.leadership,
+          cool: fighterBasic.cool,
+          willpower: fighterBasic.willpower,
+          intelligence: fighterBasic.intelligence,
+          weapons,
+          wargear,
+          effects,
+          skills,
+          vehicles,
+          cost_adjustment: fighterBasic.cost_adjustment,
+          special_rules: fighterBasic.special_rules || [],
+          note: fighterBasic.note,
+          killed: fighterBasic.killed || false,
+          starved: fighterBasic.starved || false,
+          retired: fighterBasic.retired || false,
+          enslaved: fighterBasic.enslaved || false,
+          recovery: fighterBasic.recovery || false,
+          captured: fighterBasic.captured || false,
+          free_skill: fighterBasic.free_skill || false,
+          image_url: fighterBasic.image_url,
+          owner_name: ownershipInfo?.owner_name,
+          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+        };
+      } catch (error) {
+        console.error(`Error processing fighter ${fighterId}:`, error);
+        // Return a minimal fighter object to prevent breaking the entire list
+        return null;
+      }
+    })
+  );
+
+  // Filter out any null entries from errors
+  return fighters.filter((f): f is NonNullable<typeof f> => f !== null) as GangFighter[];
 };
 
 /**
