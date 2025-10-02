@@ -752,4 +752,109 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
   });
 
   return effectsByCategory;
+}
+
+// =============================================================================
+// HELPER FUNCTIONS - Reusable cached queries for fighter metadata
+// =============================================================================
+
+/**
+ * Get fighter type information (cached globally)
+ * Cache: GLOBAL_FIGHTER_TYPES
+ */
+export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase: any): Promise<{
+  fighter_type: string;
+  alliance_crew_name?: string;
+} | null> => {
+  if (!fighterTypeId) return null;
+
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('fighter_types')
+        .select('fighter_type, alliance_crew_name')
+        .eq('id', fighterTypeId)
+        .single();
+
+      if (error) return null;
+      return data;
+    },
+    [`fighter-type-${fighterTypeId}`],
+    {
+      tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
+      revalidate: 3600 // Fighter types rarely change
+    }
+  )();
+};
+
+/**
+ * Get fighter sub-type information (cached globally)
+ * Cache: GLOBAL_FIGHTER_TYPES
+ */
+export const getFighterSubTypeInfo = async (fighterSubTypeId: string, supabase: any): Promise<{
+  fighter_sub_type: string;
+  fighter_sub_type_id: string;
+} | null> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('fighter_sub_types')
+        .select('id, sub_type_name')
+        .eq('id', fighterSubTypeId)
+        .single();
+
+      if (error) return null;
+
+      return {
+        fighter_sub_type: data.sub_type_name,
+        fighter_sub_type_id: data.id
+      };
+    },
+    [`fighter-sub-type-${fighterSubTypeId}`],
+    {
+      tags: [CACHE_TAGS.GLOBAL_FIGHTER_TYPES()],
+      revalidate: 3600
+    }
+  )();
+};
+
+/**
+ * Get exotic beast ownership information
+ * Cache: fighter-exotic-beast-{petId}
+ */
+export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: any): Promise<{
+  owner_name?: string;
+  beast_equipment_stashed: boolean;
+} | null> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('fighter_exotic_beasts')
+        .select(`
+          fighter_owner_id,
+          fighter_equipment_id,
+          fighters!fighter_owner_id (
+            fighter_name
+          ),
+          fighter_equipment!fighter_equipment_id (
+            gang_stash
+          )
+        `)
+        .eq('id', fighterPetId)
+        .single();
+
+      if (error || !data) return null;
+
+      return {
+        owner_name: (data.fighters as any)?.fighter_name,
+        beast_equipment_stashed: data.fighter_equipment?.gang_stash || false
+      };
+    },
+    [`fighter-ownership-${fighterPetId}`],
+    {
+      tags: [`fighter-exotic-beast-${fighterPetId}`],
+      revalidate: false
+    }
+  )();
+};
 };
