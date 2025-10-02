@@ -640,12 +640,14 @@ export async function deleteAdvancement(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
+
+    let advancementName = deletedSkillName ? deletedSkillName : deletedEffectName
     // Log the advancement deletion
     await logSkillAdvancementDeletion({
       gang_id: fighter.gang_id,
       fighter_id: params.fighter_id,
       fighter_name: fighter.fighter_name,
-      advancement_name: deletedSkillName ? deletedSkillName : deletedEffectName,
+      advancement_name: advancementName || 'Unknown Effect/Skill name',
       advancement_type: params.advancement_type,
       xp_refunded: xpToRefund,
       new_xp_total: updatedFighter.xp,

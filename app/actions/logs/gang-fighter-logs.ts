@@ -70,7 +70,7 @@ export async function logCharacteristicAdvancement(params: CharacteristicAdvance
   try {
     const supabase = await createClient();
     
-    let description = `Fighter "${params.fighter_name}" advanced ${params.characteristic_name} for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
+    let description = `Fighter "${params.fighter_name}" advanced "${params.characteristic_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
     
     if (params.include_gang_rating) {
       const gangRating = await calculateGangRating(supabase, params.gang_id);
