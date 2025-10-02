@@ -119,7 +119,7 @@ export async function logSkillAdvancement(params: SkillAdvancementLogParams): Pr
   }
 }
 
-export async function logAdvancementDeletion(params: AdvancementDeletionLogParams): Promise<GangLogActionResult> {
+export async function logSkillAdvancementDeletion(params: AdvancementDeletionLogParams): Promise<GangLogActionResult> {
   try {
     const supabase = await createClient();
     

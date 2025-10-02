@@ -7,8 +7,8 @@ export interface FighterLogParams {
   gang_id: string;
   fighter_id: string;
   fighter_name: string;
-  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_retired' | 'fighter_enslaved' | 
-              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
+  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_enslaved' | 
+              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released';
   user_id?: string;
   old_value?: number | string;
@@ -48,6 +48,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       case 'fighter_killed':
         description = `Fighter "${params.fighter_name}" was killed`;
         break;
+      case 'fighter_resurected':
+        description = `Fighter "${params.fighter_name}" was resurected`;
+        break;
       case 'fighter_retired':
         description = `Fighter "${params.fighter_name}" retired`;
         break;
@@ -62,6 +65,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         break;
       case 'fighter_kills_changed':
         description = `Fighter "${params.fighter_name}" kills changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+        break;
+        case 'fighter_OOA_changed':
+        description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
       case 'fighter_cost_adjusted':
         description = `Fighter "${params.fighter_name}" cost adjustment changed from ${params.old_value || 0} to ${params.new_value || 0} credits. New gang rating: ${newGangRating}`;
