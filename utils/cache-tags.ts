@@ -70,6 +70,8 @@ export const CACHE_TAGS = {
   // =============================================================================
   
   // Page-level aggregations (only for complex multi-entity aggregations)
+  // DEPRECATED: COMPOSITE_GANG_FIGHTERS_LIST - Gang/fighter pages now use granular BASE tags instead.
+  // Kept here for backward compatibility with existing invalidation helpers. Safe to remove in future cleanup.
   COMPOSITE_GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`,    // all fighters with equipment
   COMPOSITE_CAMPAIGN_OVERVIEW: (id: string) => `composite-campaign-overview-${id}`, // complete campaign data
   COMPOSITE_VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,           // complete vehicle page data
