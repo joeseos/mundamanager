@@ -576,6 +576,7 @@ export function EditFighterModal({
     gang_variant_name?: string;
     fighter_sub_type?: string;
     fighter_sub_type_id?: string;
+    available_legacies?: Array<{id: string; name: string}>;
   }>>([]);
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
   const [fighterTypesError, setFighterTypesError] = useState<string | null>(null);
@@ -629,21 +630,17 @@ export function EditFighterModal({
           sub_type: type.sub_type || {},
           // Also extract sub-type data for compatibility (if needed elsewhere)
           fighter_sub_type: type.sub_type?.sub_type_name || null,
-          fighter_sub_type_id: type.sub_type?.id || null
+          fighter_sub_type_id: type.sub_type?.id || null,
+          // Include available legacies for each fighter type
+          available_legacies: type.available_legacies || []
         }));
         setFighterTypes(transformedData);
-        
-        // Extract available legacies if they exist in the pre-fetched data
-        if (preFetchedFighterTypes[0]?.available_legacies) {
-          setAvailableLegacies(preFetchedFighterTypes[0].available_legacies);
-        } else {
-          fetchLegacies();
-        }
+
+        // Don't set legacies here - they will be set when the fighter type is selected
       } else {
         if (fighterTypes.length === 0) {
           fetchFighterTypes();
         }
-        fetchLegacies();
       }
     }
   }, [isOpen, preFetchedFighterTypes]);
@@ -686,7 +683,9 @@ export function EditFighterModal({
         sub_type: type.sub_type || {},
         // Also extract sub-type data for compatibility (if needed elsewhere)
         fighter_sub_type: type.sub_type?.sub_type_name || null,
-        fighter_sub_type_id: type.sub_type?.id || null
+        fighter_sub_type_id: type.sub_type?.id || null,
+        // Include available legacies for each fighter type
+        available_legacies: type.available_legacies || []
       }));
       
       console.log('EditFighterModal: Fetched fighter types:', transformedData.length);
@@ -699,32 +698,6 @@ export function EditFighterModal({
     }
   };
 
-  const fetchLegacies = async () => {
-    try {
-      // Use the same API endpoint as the fighter-types endpoint to get legacies
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        gang_type_id: gangTypeId,
-        is_gang_addition: 'false'
-      });
-      
-      const response = await fetch(`/api/fighter-types?${params}`);
-      
-      if (!response.ok) {
-        console.error('Failed to fetch legacies');
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Extract available legacies from the first fighter type (they should all have the same legacies for the same gang type)
-      if (data.length > 0 && data[0].available_legacies) {
-        setAvailableLegacies(data[0].available_legacies);
-      }
-    } catch (error) {
-      console.error('Error fetching legacies:', error);
-    }
-  };
 
   // Initialize fighter state and sub-types when fighter or fighter types data changes
   useEffect(() => {
@@ -773,6 +746,9 @@ export function EditFighterModal({
             fighter_class: currentType.fighter_class,
             fighter_class_id: currentType.fighter_class_id
           }));
+
+          // Update available legacies for the current fighter type
+          setAvailableLegacies(currentType.available_legacies || []);
 
           // Check for sub-types in the same way as the main logic
           const fighterTypeGroup = fighterTypes.filter(t => 
@@ -863,7 +839,10 @@ export function EditFighterModal({
         fighter_class: selectedType.fighter_class,
         fighter_class_id: selectedType.fighter_class_id
       }));
-      
+
+      // Update available legacies for the selected fighter type
+      setAvailableLegacies(selectedType.available_legacies || []);
+
       // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
       const fighterTypeGroup = fighterTypes.filter(t => 
         t.fighter_type === selectedType.fighter_type &&
