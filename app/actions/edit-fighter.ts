@@ -172,7 +172,19 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           } catch (logError) {
             console.error('Failed to log fighter killed:', logError);
           }
+        } else {
+          try {
+            await logFighterAction({
+              gang_id: gangId,
+              fighter_id: params.fighter_id,
+              fighter_name: fighter.fighter_name,
+              action_type: 'fighter_resurected'
+            });
+          } catch (logError) {
+            console.error('Failed to log fighter resurected:', logError);
+          }
         }
+        
 
         return {
           success: true,
@@ -692,7 +704,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
           gang_id: fighter.gang_id,
           fighter_id: params.fighter_id,
           fighter_name: fighter.fighter_name,
-          action_type: 'fighter_kills_changed',
+          action_type: 'fighter_OOA_changed',
           old_value: fighter.kills,
           new_value: updatedFighter.kills,
           user_id: user.id
