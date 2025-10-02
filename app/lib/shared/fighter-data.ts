@@ -857,4 +857,3 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
     }
   )();
 };
-};
