@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 
 interface ModalProps {
   title: React.ReactNode;
-  helper?: string;
+  helper?: React.ReactNode;
   content?: React.ReactNode;
   children?: React.ReactNode;
   onClose: () => void;
