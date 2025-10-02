@@ -24,7 +24,7 @@ export async function updateFighterImage(
 
     // Invalidate cache for fighter data
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_FIGHTER_BASIC
 
     return { success: true };
   } catch (error) {
