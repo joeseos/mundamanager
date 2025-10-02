@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createAuthClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { invalidatePatreonSupporters } from '@/utils/cache-tags';
 
 /**
  * Rate limiting storage (in production, use Redis or database)
@@ -534,6 +535,8 @@ export async function POST(request: NextRequest) {
     // Sync data to database
     const stats = await syncPatreonData(members, tiers);
 
+    // Invalidate the Patreon supporters cache so the about page shows updated data
+    invalidatePatreonSupporters();
 
     return NextResponse.json({
       success: true,
