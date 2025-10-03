@@ -336,10 +336,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error('Gang not found');
     }
 
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gangData.user_id !== effectiveUserId) {
-      throw new Error('User does not have permission to add fighters to this gang');
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     // Check for adjusted cost based on gang type (only for regular fighters)
     let adjustedBaseCost = effectiveFighterData.cost;

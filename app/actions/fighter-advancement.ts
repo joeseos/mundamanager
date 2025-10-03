@@ -95,10 +95,7 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions - if not admin, must be fighter owner
-    if (!isAdmin && fighter.user_id !== user.id) {
-      return { success: false, error: 'Access denied' };
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     // Check if fighter has enough XP
     if (fighter.xp < params.xp_cost) {
@@ -295,10 +292,7 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions - if not admin, must be fighter owner
-    if (!isAdmin && fighter.user_id !== user.id) {
-      return { success: false, error: 'Access denied' };
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     // Check if fighter has enough XP
     if (fighter.xp < params.xp_cost) {
@@ -442,10 +436,7 @@ export async function deleteAdvancement(
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions - if not admin, must be fighter owner
-    if (!isAdmin && fighter.user_id !== user.id) {
-      return { success: false, error: 'Access denied' };
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     let xpToRefund = 0;
     let ratingDelta = 0;
