@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from "@/components/ui/button"
 import Modal from "@/components/ui/modal"
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list"
@@ -63,7 +64,7 @@ export default function CampaignAddTerritoryModal({
     return null;
   }
 
-  return (
+  const modalContent = (
     <Modal
       title="Add Territories"
       content={
@@ -86,4 +87,6 @@ export default function CampaignAddTerritoryModal({
       width="lg"
     />
   );
+
+  return createPortal(modalContent, document.body);
 }
