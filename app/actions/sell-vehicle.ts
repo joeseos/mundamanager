@@ -51,9 +51,8 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     if (gangFetchError || !gangRow) {
       throw new Error('Failed to fetch gang for vehicle');
     }
-    if (gangRow.user_id !== user.id) {
-      throw new Error('User does not have permission to sell this vehicle');
-    }
+
+    // Note: Authorization is enforced by RLS policies on vehicles table
 
     // Compute total vehicle cost (base + equipment + effects) BEFORE deletion
     const baseCost = vehicle.cost || 0;
