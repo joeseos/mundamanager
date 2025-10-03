@@ -10,15 +10,13 @@ DECLARE
   v_result jsonb;
   v_fighter_xp integer;
   v_advancements_category_id UUID;
-  v_fighter_type text;
   v_fighter_class text;
   v_uses_flat_cost boolean; -- Flag for fighters that use flat costs (Ganger and Exotic Beast)
 BEGIN
-  -- Get fighter's current XP, fighter type, and fighter class
-  SELECT f.xp, ft.fighter_type, ft.fighter_class 
-  INTO v_fighter_xp, v_fighter_type, v_fighter_class
+  -- Get fighter's current XP and fighter class
+  SELECT f.xp, f.fighter_class
+  INTO v_fighter_xp, v_fighter_class
   FROM fighters f
-  JOIN fighter_types ft ON ft.id = f.fighter_type_id
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
   IF NOT FOUND THEN
@@ -60,14 +58,6 @@ BEGIN
     WHERE fe.fighter_id = get_fighter_available_advancements.fighter_id
     AND fet.fighter_effect_category_id = v_advancements_category_id
     GROUP BY fe.fighter_effect_type_id
-  ),
-  fighter_type_info AS (
-    -- Get fighter type information
-    SELECT 
-      ft.*
-    FROM fighters f
-    JOIN fighter_types ft ON ft.id = f.fighter_type_id
-    WHERE f.id = get_fighter_available_advancements.fighter_id
   ),
   available_advancements AS (
     -- Get all possible characteristic improvements and determine availability
@@ -113,7 +103,6 @@ BEGIN
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
     FROM effect_type_costs etc
-    CROSS JOIN fighter_type_info fti
     LEFT JOIN advancement_counts ac ON ac.fighter_effect_type_id = etc.fighter_effect_type_id
   ),
   categorized_advancements AS (
@@ -136,7 +125,6 @@ BEGIN
   SELECT jsonb_build_object(
     'fighter_id', get_fighter_available_advancements.fighter_id,
     'current_xp', v_fighter_xp,
-    'fighter_type', v_fighter_type,
     'fighter_class', v_fighter_class,
     'uses_flat_cost', v_uses_flat_cost,
     'characteristics', COALESCE(
