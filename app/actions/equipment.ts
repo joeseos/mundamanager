@@ -69,22 +69,16 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
     }
 
-    // PARALLEL: Gang info, security check, and fighter/vehicle data
-    const [gangResult, profileResult, fighterResult, vehicleResult] = await Promise.all([
+    // PARALLEL: Gang info and fighter/vehicle data
+    // Note: Authorization is enforced by RLS policies on fighter_equipment table
+    const [gangResult, fighterResult, vehicleResult] = await Promise.all([
       // Gang info
       supabase
         .from('gangs')
         .select('id, credits, gang_type_id, user_id, rating')
         .eq('id', params.gang_id)
         .single(),
-      
-      // Security check profile (for potential admin verification)
-      supabase
-        .from('profiles')
-        .select('user_role')
-        .eq('id', user.id)
-        .single(),
-      
+
       // Fighter type ID for discounts (only if needed)
       (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
@@ -93,7 +87,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             .eq('id', params.fighter_id)
             .single()
         : Promise.resolve({ data: null }),
-      
+
       // Vehicle assignment check (only if needed)
       (params.vehicle_id && !params.buy_for_gang_stash)
         ? supabase
@@ -107,14 +101,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const { data: gang, error: gangError } = gangResult;
     if (gangError || !gang) {
       throw new Error('Gang not found');
-    }
-
-    // Security check
-    if (gang.user_id !== user.id) {
-      const { data: profile } = profileResult;
-      if (!profile || profile.user_role !== 'admin') {
-        throw new Error('Not authorized to access this gang');
-      }
     }
 
     // Extract parallel query results
