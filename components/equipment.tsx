@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
@@ -841,10 +842,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     });
   };
 
-  return (
+  const modalContent = (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+        className="fixed inset-0 bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
         onMouseDown={handleOverlayClick}
       >
         <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-card shadow-xl">
@@ -1215,6 +1216,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       />
     </>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default ItemModal;
