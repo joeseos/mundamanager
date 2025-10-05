@@ -870,20 +870,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
-              {!isStashMode && !isVehicleEquipment && fighterHasLegacy && (
-                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8 gap-2">
-                  <span>Gang Legacy</span>
-                  <Switch
-                    checked={includeLegacy}
-                    onCheckedChange={(checked) => {
-                      setIncludeLegacy(!!checked);
-                      setEquipment({});
-                      // use the new state directly to avoid lag with async setState
-                      fetchAllCategories(!!checked);
-                    }}
-                  />
-                </label>
-              )}
               {!isStashMode && !isCustomFighter && (
                 <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
                   <input
@@ -960,6 +946,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 step={5}
                 className="flex-1"
               />
+
+              {equipmentListType == 'fighters-list' && !isStashMode && !isVehicleEquipment && fighterHasLegacy && (
+                <label className="flex items-center justify-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8 gap-2">
+                  <span>Gang Legacy</span>
+                  <Switch
+                    checked={includeLegacy}
+                    onCheckedChange={(checked) => {
+                      setIncludeLegacy(!!checked);
+                      setEquipment({});
+                      // use the new state directly to avoid lag with async setState
+                      fetchAllCategories(!!checked);
+                    }}
+                  />
+                </label>
+              )}
               
               {equipmentListType !== 'fighters-list' && (
                 <RangeSlider
@@ -1120,8 +1121,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
                                     <span className="text-sm font-medium">
                                       {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
-                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}` 
-                                        : item.equipment_name
+                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}` 
+                                        : `${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}`
                                       }
                                     </span>
                                   </div>
@@ -1143,7 +1144,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       </div>
                                     )}
                                     {equipmentListType !== 'fighters-list' && (
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
+                                        item.availability?.startsWith('R') ? 'bg-sky-500' :
+                                        item.availability?.startsWith('I') ? 'bg-orange-500' :
+                                        item.availability?.startsWith('S') ? 'bg-purple-500' :
+                                        'bg-sky-500'
+                                      }`}>
                                         <span className="text-[10px] font-medium">{item.availability}</span>
                                       </div>
                                     )}

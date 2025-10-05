@@ -940,7 +940,7 @@ export default function FighterPage({
               />
             ) : (
               <ItemModal
-                title="Add Equipment"
+                title="Equipment"
                 onClose={() => handleModalToggle('addWeapon', false)}
                 gangCredits={fighterData.gang.credits}
                 gangId={fighterData.gang.id}
