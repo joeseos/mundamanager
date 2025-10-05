@@ -24,9 +24,9 @@ BEGIN
   END IF;
   
   -- Determine if the fighter uses flat costs based on fighter_class
-  -- Gangers, Exotic Beasts, Juves, and Prospects use flat costs
-  v_uses_flat_cost := 
-    v_fighter_class IN ('Ganger', 'Exotic Beast', 'Juve', 'Prospect');
+  -- Only Gangers and Exotic Beasts use flat costs
+  v_uses_flat_cost :=
+    v_fighter_class IN ('Ganger', 'Exotic Beast');
   
   -- Get the advancements category ID
   SELECT id INTO v_advancements_category_id
@@ -70,6 +70,8 @@ BEGIN
       CASE
         -- For Gangers and Exotic Beasts: fixed 6 XP cost
         WHEN v_uses_flat_cost THEN 6
+        -- For Juves and Prospects: base cost only (no escalating penalty)
+        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN etc.base_xp_cost
         -- For other fighters: base cost + (2 * times increased)
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN etc.base_xp_cost
         ELSE etc.base_xp_cost + (2 * ac.times_increased)
@@ -84,14 +86,14 @@ BEGIN
             -- Strength or Toughness
             WHEN etc.effect_name ILIKE '%strength%' OR etc.effect_name ILIKE '%toughness%' THEN 30
             -- Movement, Initiative, Leadership, or Cool
-            WHEN etc.effect_name ILIKE '%movement%' OR etc.effect_name ILIKE '%initiative%' OR 
+            WHEN etc.effect_name ILIKE '%movement%' OR etc.effect_name ILIKE '%initiative%' OR
                  etc.effect_name ILIKE '%leadership%' OR etc.effect_name ILIKE '%cool%' THEN 10
             -- Willpower or Intelligence
             WHEN etc.effect_name ILIKE '%willpower%' OR etc.effect_name ILIKE '%intelligence%' THEN 5
             -- Default for other characteristics
             ELSE 10
           END
-        -- For other fighters: use the base credits increase
+        -- For all other fighters (including Juves and Prospects): use the base credits increase
         ELSE etc.base_credits_increase
       END as credits_increase,
       COALESCE(ac.times_increased, 0) as times_increased,
@@ -99,6 +101,7 @@ BEGIN
       -- Check if fighter has enough XP based on the calculated cost
       CASE
         WHEN v_uses_flat_cost THEN v_fighter_xp >= 6
+        WHEN v_fighter_class IN ('Juve', 'Prospect') THEN v_fighter_xp >= etc.base_xp_cost
         WHEN COALESCE(ac.times_increased, 0) = 0 THEN v_fighter_xp >= etc.base_xp_cost
         ELSE v_fighter_xp >= (etc.base_xp_cost + (2 * ac.times_increased))
       END as has_enough_xp
