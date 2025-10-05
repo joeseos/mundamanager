@@ -11,6 +11,7 @@ import { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { CustomTerritory } from "@/app/lib/customise/custom-territories";
 import { CustomFighterType } from "@/types/fighter";
 import { createClient } from "@/utils/supabase/server";
+import { headers } from "next/headers";
 
 import Link from "next/link";
 
@@ -61,8 +62,14 @@ interface UserData {
 export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   
-  // Fetch data from the API route
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/users/${id}`, {
+  // Get the absolute URL for server-side fetch
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+  
+  // Fetch data from the API route using absolute URL
+  const response = await fetch(`${baseUrl}/api/users/${id}`, {
     cache: 'no-store' // Ensure fresh data
   });
 
