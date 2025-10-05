@@ -1,3 +1,7 @@
+'use client';
+
+import { use, useEffect } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +14,8 @@ import { CustomiseFighters } from "@/components/customise/custom-fighters";
 import { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { CustomTerritory } from "@/app/lib/customise/custom-territories";
 import { CustomFighterType } from "@/types/fighter";
-import { createClient } from "@/utils/supabase/server";
-import { headers } from "next/headers";
+import { useSession } from "@/hooks/use-session";
+import { useToast } from "@/components/ui/use-toast";
 
 import Link from "next/link";
 
@@ -59,31 +63,59 @@ interface UserData {
   };
 }
 
-export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function UserPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { toast } = useToast();
   
-  // Get the absolute URL for server-side fetch
-  const headersList = await headers();
-  const host = headersList.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const baseUrl = `${protocol}://${host}`;
-  
-  // Fetch data from the API route using absolute URL
-  const response = await fetch(`${baseUrl}/api/users/${id}`, {
-    cache: 'no-store' // Ensure fresh data
+  // Fetch user data using TanStack Query
+  const { data: userData, isLoading, error } = useQuery({
+    queryKey: ['user', id],
+    queryFn: async () => {
+      const response = await fetch(`/api/users/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+      return response.json() as Promise<UserData>;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  if (!response.ok) {
+  // Get current user for read-only mode
+  const session = useSession();
+  const currentUserId = session?.user?.id || null;
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Show error toast if user data failed to load
+  useEffect(() => {
+    if (error) {
+      toast({
+        description: 'Failed to load user data',
+        variant: 'destructive'
+      });
+    }
+  }, [error, toast]);
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading user data...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !userData) {
     notFound();
   }
 
-  const userData: UserData = await response.json();
   const { profile, gangs, campaigns, customAssets, customAssetsData } = userData;
-
-  // Get current user for read-only mode
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const currentUserId = user?.id || null;
 
   return (
     <main className="flex min-h-screen flex-col items-center">
