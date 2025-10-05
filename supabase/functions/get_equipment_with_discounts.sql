@@ -60,7 +60,7 @@ AS $$
                     WHERE ed2.equipment_id = e.id
                     AND (ed2.gang_origin_id = gang_data.gang_origin_id
                          OR ed2.fighter_type_id = $3
-                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id)
+                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
                 ), 0)
             ELSE
@@ -71,7 +71,7 @@ AS $$
                     WHERE ed2.equipment_id = e.id
                     AND ((ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
                          OR ed2.fighter_type_id = $3
-                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id)
+                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
                 ), 0)
         END as discounted_cost,
@@ -89,7 +89,7 @@ AS $$
                      AND ed3.adjusted_cost IS NOT NULL
                      AND (ed3.gang_origin_id = gang_data.gang_origin_id
                           OR ed3.fighter_type_id = $3
-                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id)
+                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                           OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
                     e.cost::numeric - COALESCE((
                         SELECT GREATEST(0, MAX(ed4.discount::numeric))
@@ -98,7 +98,7 @@ AS $$
                         AND ed4.discount IS NOT NULL
                         AND (ed4.gang_origin_id = gang_data.gang_origin_id
                              OR ed4.fighter_type_id = $3
-                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id)
+                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                              OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
                     ), 0),
                     e.cost::numeric
@@ -112,7 +112,7 @@ AS $$
                      AND ed3.adjusted_cost IS NOT NULL
                      AND ((ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
                           OR ed3.fighter_type_id = $3
-                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id)
+                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                           OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
                     e.cost::numeric - COALESCE((
                         SELECT GREATEST(0, MAX(ed4.discount::numeric))
@@ -121,7 +121,7 @@ AS $$
                         AND ed4.discount IS NOT NULL
                         AND ((ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
                              OR ed4.fighter_type_id = $3
-                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id)
+                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
                              OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
                     ), 0),
                     e.cost::numeric
@@ -150,7 +150,6 @@ AS $$
                 FROM fighter_equipment_tradingpost fet,
                      jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
                 WHERE (fet.fighter_type_id = $3
-                       OR (gang_data.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.legacy_ft_id)
                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                 AND equip_id = e.id::text
             )
@@ -231,7 +230,7 @@ AS $$
     LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
         AND (fte.fighter_type_id = $3
              OR fte.vehicle_type_id = $3
-             OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id))
+             OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id) AND $4 = true)
              OR (gang_data.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.affiliation_ft_id OR fte.vehicle_type_id = gang_data.affiliation_ft_id)))
         AND (
             -- If the row has gang_origin_id, it must match the gang's origin
@@ -281,7 +280,6 @@ AS $$
                     FROM fighter_equipment_tradingpost fet,
                          jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
                     WHERE (fet.fighter_type_id = $3
-                           OR (gang_data.legacy_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.legacy_ft_id)
                            OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                     AND equip_id = e.id::text
                 )
