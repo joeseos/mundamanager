@@ -171,19 +171,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleAcceptFriendRequest(notification.id, notification.sender_id!);
-                        }}
-                        disabled={processingRequest === notification.id}
-                        variant="default"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3" />
-                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
                           handleDeclineFriendRequest(notification.id, notification.sender_id!);
                         }}
                         disabled={processingRequest === notification.id}
@@ -193,6 +180,19 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       >
                         <X className="h-3 w-3" />
                         {processingRequest === notification.id ? 'Declining...' : 'Decline'}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptFriendRequest(notification.id, notification.sender_id!);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
                       </Button>
                     </div>
                   )}
