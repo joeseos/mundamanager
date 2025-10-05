@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
+import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 
 interface Fighter {
   id: string;
@@ -21,11 +22,13 @@ interface Fighter {
   credits: number;
   campaigns?: Array<{
     has_meat: boolean;
+    campaign_id: string;
   }>;
 }
 
 interface Gang {
   id: string;
+  gang_name?: string;
 }
 
 interface FighterActionsProps {
@@ -44,6 +47,7 @@ interface ActionModals {
   starve: boolean;
   recovery: boolean;
   captured: boolean;
+  copy: boolean;
 }
 
 export function FighterActions({ 
@@ -63,7 +67,8 @@ export function FighterActions({
     enslave: false,
     starve: false,
     recovery: false,
-    captured: false
+    captured: false,
+    copy: false
   });
 
   // Keep meat-checking functionality
@@ -240,6 +245,15 @@ export function FighterActions({
           </Button>
           
           <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => handleModalToggle('copy', true)}
+            disabled={!userPermissions.canEdit && !userPermissions.isAdmin}
+          >
+            Copy Fighter
+          </Button>
+
+          <Button
             variant="destructive"
             className="flex-1"
             onClick={() => handleModalToggle('delete', true)}
@@ -384,7 +398,7 @@ export function FighterActions({
           content={
             <div>
               <p>
-                {fighter?.captured 
+                {fighter?.captured
                   ? `Are you sure you want to rescue "${fighter?.fighter_name}" from captivity?`
                   : `Are you sure you want to mark "${fighter?.fighter_name}" as captured?`
                 }
@@ -398,6 +412,19 @@ export function FighterActions({
               handleModalToggle('captured', false);
             }
           }}
+        />
+      )}
+
+      {modals.copy && (
+        <CopyFighterModal
+          fighterId={fighter.id}
+          currentName={fighter.fighter_name}
+          currentGangId={gang.id}
+          currentGangName={gang.gang_name || 'Current Gang'}
+          campaignId={fighter.campaigns?.[0]?.campaign_id || null}
+          isAdmin={userPermissions.isAdmin}
+          isOpen={modals.copy}
+          onClose={() => handleModalToggle('copy', false)}
         />
       )}
     </>
