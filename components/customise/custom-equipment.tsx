@@ -667,7 +667,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     </select>
                     <input
                       type="number"
-                      value={editForm.availability_letter === 'C' || editForm.availability_letter === 'E' ? '' : (editForm.availability_number === 1 ? '' : editForm.availability_number)}
+                      value={editForm.availability_letter === 'C' || editForm.availability_letter === 'E' ? '' : editForm.availability_number}
                       onChange={(e) => {
                         const value = e.target.value;
                         if (value === '') {
@@ -938,7 +938,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     </select>
                     <input
                       type="number"
-                      value={createForm.availability_letter === 'C' || createForm.availability_letter === 'E' ? '' : (createForm.availability_number === 1 ? '' : createForm.availability_number)}
+                      value={createForm.availability_letter === 'C' || createForm.availability_letter === 'E' ? '' : createForm.availability_number}
                       onChange={(e) => {
                         const value = e.target.value;
                         if (value === '') {
