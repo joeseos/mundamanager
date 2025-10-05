@@ -7,7 +7,7 @@ import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 import { 
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
-  logAdvancementDeletion 
+  logSkillAdvancementDeletion 
 } from './logs/gang-fighter-logs';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -441,6 +441,8 @@ export async function deleteAdvancement(
     let xpToRefund = 0;
     let ratingDelta = 0;
     let newFreeSkillStatus = fighter.free_skill;
+    let deletedSkillName: string = '';
+    let deletedEffectName: string = '';
 
     if (params.advancement_type === 'skill') {
       // Handle skill deletion
@@ -472,6 +474,20 @@ export async function deleteAdvancement(
         `)
         .eq('id', params.fighter_id)
         .single();
+
+      const { data: fighterSkillData } = await supabase
+        .from('fighter_skills')
+        .select(`
+          skills!inner(name)
+        `)
+        .eq('id', params.advancement_id)
+        .single(); //why does this return an object randomly when normally its an array???
+      if (fighterSkillData && fighterSkillData.skills) {
+        const skills = Array.isArray(fighterSkillData.skills)
+          ? fighterSkillData.skills
+          : [fighterSkillData.skills];
+        deletedSkillName = skills[0].name
+      } 
 
       if (fighterTypeError || !fighterTypeData) {
         return { success: false, error: 'Fighter type not found' };
@@ -549,6 +565,10 @@ export async function deleteAdvancement(
         .eq('id', params.advancement_id)
         .single();
 
+      if (effectDetails && effectDetails.effect_name) {
+        deletedEffectName = effectDetails.effect_name;
+      }
+
       if (effectDetailsError || !effectDetails) {
         return { success: false, error: 'Failed to get effect details' };
       }
@@ -611,37 +631,14 @@ export async function deleteAdvancement(
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
-    // Get advancement name for logging
-    let advancementName = 'Unknown Advancement';
-    if (params.advancement_type === 'skill') {
-      const { data: skillData } = await supabase
-        .from('fighter_skills')
-        .select(`
-          skills!inner(name)
-        `)
-        .eq('id', params.advancement_id)
-        .single();
-      
-      if (skillData && skillData.skills) {
-        const skills = Array.isArray(skillData.skills) ? skillData.skills[0] : skillData.skills;
-        advancementName = skills.name;
-      }
-    } else {
-      const { data: effectData } = await supabase
-        .from('fighter_effects')
-        .select('effect_name')
-        .eq('id', params.advancement_id)
-        .single();
-      
-      advancementName = effectData?.effect_name || 'Unknown Characteristic';
-    }
 
+    let advancementName = deletedSkillName ? deletedSkillName : deletedEffectName
     // Log the advancement deletion
-    await logAdvancementDeletion({
+    await logSkillAdvancementDeletion({
       gang_id: fighter.gang_id,
       fighter_id: params.fighter_id,
       fighter_name: fighter.fighter_name,
-      advancement_name: advancementName,
+      advancement_name: advancementName || 'Unknown Effect/Skill name',
       advancement_type: params.advancement_type,
       xp_refunded: xpToRefund,
       new_xp_total: updatedFighter.xp,
