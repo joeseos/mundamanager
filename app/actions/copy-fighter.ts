@@ -8,6 +8,8 @@ interface CopyFighterParams {
   fighter_id: string;
   target_gang_id: string;
   new_name?: string;
+  deduct_credits?: boolean;
+  add_to_rating?: boolean;
 }
 
 interface CopyFighterResult {
@@ -333,21 +335,43 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     // Note: Stat advancements are stored as fighter_effects with modifiers,
     // so they are already copied through the fighter_effects section above
 
-    // Update gang rating for target gang
+    // Update gang credits and rating for target gang
     const { data: gangData } = await supabase
       .from('gangs')
-      .select('rating')
+      .select('rating, credits')
       .eq('id', params.target_gang_id)
       .single();
 
     if (gangData) {
       const fighterCost = sourceFighter.credits || 0;
-      const newRating = (gangData.rating || 0) + fighterCost;
+      const updateData: any = {};
 
-      await supabase
-        .from('gangs')
-        .update({ rating: newRating })
-        .eq('id', params.target_gang_id);
+      // Add to rating if requested (default true)
+      if (params.add_to_rating !== false) {
+        const newRating = (gangData.rating || 0) + fighterCost;
+        updateData.rating = newRating;
+      }
+
+      // Deduct from credits if requested (default false)
+      if (params.deduct_credits) {
+        const currentCredits = gangData.credits || 0;
+        if (currentCredits < fighterCost) {
+          return {
+            success: false,
+            error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${fighterCost}`
+          };
+        }
+        updateData.credits = currentCredits - fighterCost;
+      }
+
+      // Update gang if there are changes
+      if (Object.keys(updateData).length > 0) {
+        updateData.last_updated = new Date().toISOString();
+        await supabase
+          .from('gangs')
+          .update(updateData)
+          .eq('id', params.target_gang_id);
+      }
     }
 
     // Invalidate caches
@@ -356,7 +380,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       gangId: params.target_gang_id,
       userId: targetGang.user_id
     });
-    invalidateGangRating(params.target_gang_id);
+
+    // Invalidate rating if it was updated
+    if (params.add_to_rating !== false) {
+      invalidateGangRating(params.target_gang_id);
+    }
 
     return {
       success: true,

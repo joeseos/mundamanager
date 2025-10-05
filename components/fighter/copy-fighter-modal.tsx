@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { copyFighter } from '@/app/actions/copy-fighter';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
@@ -40,6 +41,8 @@ export default function CopyFighterModal({
   const [campaignGangs, setCampaignGangs] = useState<CampaignGang[]>([]);
   const [loadingGangs, setLoadingGangs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [addToRating, setAddToRating] = useState(true);
+  const [deductCredits, setDeductCredits] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -76,6 +79,8 @@ export default function CopyFighterModal({
       fighter_id: fighterId,
       target_gang_id: targetGangId,
       new_name: name.trim(),
+      add_to_rating: addToRating,
+      deduct_credits: deductCredits,
     });
     setSubmitting(false);
 
@@ -156,6 +161,29 @@ export default function CopyFighterModal({
             Fighter will be copied to the same gang. Only admins can copy to other gangs.
           </div>
         )}
+
+        <div className="space-y-3 pt-2 border-t">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="addToRating"
+              checked={addToRating}
+              onCheckedChange={(checked) => setAddToRating(checked === true)}
+            />
+            <label htmlFor="addToRating" className="text-sm font-medium cursor-pointer">
+              Add fighter cost to gang rating
+            </label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="deductCredits"
+              checked={deductCredits}
+              onCheckedChange={(checked) => setDeductCredits(checked === true)}
+            />
+            <label htmlFor="deductCredits" className="text-sm font-medium cursor-pointer">
+              Deduct fighter cost from gang credits
+            </label>
+          </div>
+        </div>
       </div>
     </Modal>
   );
