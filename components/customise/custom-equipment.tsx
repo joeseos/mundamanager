@@ -665,26 +665,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       <option value="E">E</option>
                       <option value="I">I</option>
                     </select>
-                    <input
-                      type="number"
-                      value={editForm.availability_letter === 'C' || editForm.availability_letter === 'E' ? '' : editForm.availability_number}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          handleFormChange('availability_number', 6);
-                        } else {
-                          const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 6 && numValue <= 20) {
-                            handleFormChange('availability_number', numValue);
-                          }
-                        }
-                      }}
+                    <select
+                      value={editForm.availability_number}
+                      onChange={(e) => handleFormChange('availability_number', parseInt(e.target.value))}
                       disabled={editForm.availability_letter === 'C' || editForm.availability_letter === 'E'}
                       className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                      placeholder="6-20"
-                      min="6"
-                      max="20"
-                    />
+                    >
+                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -936,26 +926,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       <option value="E">E</option>
                       <option value="I">I</option>
                     </select>
-                    <input
-                      type="number"
-                      value={createForm.availability_letter === 'C' || createForm.availability_letter === 'E' ? '' : createForm.availability_number}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          handleCreateFormChange('availability_number', 6);
-                        } else {
-                          const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 6 && numValue <= 20) {
-                            handleCreateFormChange('availability_number', numValue);
-                          }
-                        }
-                      }}
+                    <select
+                      value={createForm.availability_number}
+                      onChange={(e) => handleCreateFormChange('availability_number', parseInt(e.target.value))}
                       disabled={createForm.availability_letter === 'C' || createForm.availability_letter === 'E'}
                       className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                      placeholder="6-20"
-                      min="6"
-                      max="20"
-                    />
+                    >
+                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
