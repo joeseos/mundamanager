@@ -103,6 +103,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'name_changed': 'Name changed',
       'gang_type_changed': 'Gang type changed',
       'fighter_characteristic_advancement': 'Characteristic advanced',
+      'fighter_characteristic_changed': 'Fighter characteristic changed',
       'fighter_skill_advancement': 'Skill advanced',
       'fighter_skill_learned': 'Skill learned',
       'fighter_skill_removed': 'Skill removed',

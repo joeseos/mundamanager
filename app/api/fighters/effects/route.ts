@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
+import { createGangLog } from "@/app/actions/logs/gang-logs";
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -317,6 +318,40 @@ export async function POST(request: Request) {
     if (fetchUpdatedError) {
       console.error('Error fetching updated effects:', fetchUpdatedError);
       throw fetchUpdatedError;
+    }
+
+    // Log characteristic changes
+    try {
+      // Get fighter name and gang_id for logging
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('fighter_name, gang_id')
+        .eq('id', fighter_id)
+        .single();
+
+      if (fighterData) {
+        // Create a formatted list of stat changes
+        const statChanges = Object.entries(stats)
+          .filter(([_, value]) => value !== 0)
+          .map(([statName, value]) => {
+            const formattedStatName = statName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const sign = value > 0 ? '+' : '';
+            return `${formattedStatName} ${sign}${value}`;
+          })
+          .join(', ');
+
+        if (statChanges) {
+          await createGangLog({
+            gang_id: fighterData.gang_id,
+            fighter_id: fighter_id,
+            action_type: 'fighter_characteristic_changed',
+            description: `Fighter "${fighterData.fighter_name}" characteristics manually adjusted: ${statChanges}`
+          });
+        }
+      }
+    } catch (logError) {
+      console.error('Error logging characteristic changes:', logError);
+      // Don't fail the request if logging fails
     }
 
     return NextResponse.json({

@@ -7,7 +7,7 @@ export interface FighterLogParams {
   gang_id: string;
   fighter_id: string;
   fighter_name: string;
-  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_enslaved' | 
+  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_enslaved' |
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released';
   user_id?: string;
@@ -15,6 +15,7 @@ export interface FighterLogParams {
   new_value?: number | string;
   fighter_credits?: number;
   status_reason?: 'killed' | 'retired' | 'enslaved' | null;
+  sell_value?: number;
 }
 
 export async function logFighterAction(params: FighterLogParams): Promise<GangLogActionResult> {
@@ -55,7 +56,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" retired`;
         break;
       case 'fighter_enslaved':
-        description = `Fighter "${params.fighter_name}" was enslaved`;
+        description = params.sell_value !== undefined
+          ? `Fighter "${params.fighter_name}" was sold to Guilders for ${params.sell_value} credits`
+          : `Fighter "${params.fighter_name}" was enslaved`;
         break;
       case 'fighter_xp_changed':
         description = `Fighter "${params.fighter_name}" XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;

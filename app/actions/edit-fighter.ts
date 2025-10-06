@@ -278,7 +278,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
-            action_type: 'fighter_enslaved'
+            action_type: 'fighter_enslaved',
+            sell_value: params.sell_value
           });
         } catch (logError) {
           console.error('Failed to log fighter enslaved:', logError);
@@ -748,7 +749,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, cost_adjustment, killed, retired, enslaved')
+      .select('id, gang_id, cost_adjustment, killed, retired, enslaved, kills, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -758,6 +759,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
     const previousAdjustment = fighter.cost_adjustment || 0;
+    const previousKills = fighter.kills || 0;
 
     // Build update object with only provided fields
     const updateData: any = {
@@ -815,13 +817,13 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // Log relevant fighter changes
     try {
-      if (params.kills !== undefined && updatedFighter.kills !== undefined) {
+      if (params.kills !== undefined && updatedFighter.kills !== undefined && params.kills !== previousKills) {
         await logFighterAction({
           gang_id: fighter.gang_id,
           fighter_id: params.fighter_id,
           fighter_name: updatedFighter.fighter_name,
           action_type: 'fighter_kills_changed',
-          old_value: 0, // We don't have the old value easily accessible
+          old_value: previousKills,
           new_value: updatedFighter.kills,
           user_id: user.id
         });
