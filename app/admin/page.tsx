@@ -86,7 +86,7 @@ export default function AdminPage() {
       <ToastProvider>
         <main className="flex min-h-screen flex-col items-center">
           <div className="container mx-auto max-w-4xl w-full space-y-4">
-            <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+            <div className="bg-card shadow-md rounded-lg p-4">
               <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
