@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
+import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -91,53 +92,14 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: 'Target gang not found' };
     }
 
-    let sourceCampaignId = null;
-    let targetCampaignId = null;
-    let isArbitrator = false;
-
     if (sourceFighter.gang_id !== params.target_gang_id) {
-      const { data: sourceCampaignGang } = await supabase
-        .from('campaign_gangs')
-        .select('campaign_id')
-        .eq('gang_id', sourceFighter.gang_id)
-        .single();
-
-      sourceCampaignId = sourceCampaignGang?.campaign_id || null;
-
-      const { data: targetCampaignGang } = await supabase
-        .from('campaign_gangs')
-        .select('campaign_id')
-        .eq('gang_id', params.target_gang_id)
-        .single();
-
-      targetCampaignId = targetCampaignGang?.campaign_id || null;
-
-      if (sourceCampaignId && sourceCampaignId === targetCampaignId) {
-        const { data: campaign } = await supabase
-          .from('campaigns')
-          .select('arbitrator')
-          .eq('id', sourceCampaignId)
-          .single();
-
-        isArbitrator = campaign?.arbitrator === user.id;
-      }
+      return { success: false, error: 'Can only copy fighters within the same gang' };
     }
 
     const ownsSourceGang = sourceGang.user_id === user.id;
-    const isSameGang = sourceFighter.gang_id === params.target_gang_id;
 
     if (!ownsSourceGang && !isAdmin) {
       return { success: false, error: 'Unauthorized: You do not own this fighter' };
-    }
-
-    if (!isSameGang) {
-      if (!isAdmin && !isArbitrator) {
-        return { success: false, error: 'Unauthorized: Only admins and campaign arbitrators can copy fighters to other gangs' };
-      }
-
-      if (sourceCampaignId && targetCampaignId && sourceCampaignId !== targetCampaignId) {
-        return { success: false, error: 'Gangs must be in the same campaign' };
-      }
     }
 
     const { data: maxPositionData } = await supabase
@@ -361,6 +323,17 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     if (params.add_to_rating !== false) {
       invalidateGangRating(params.target_gang_id);
     }
+
+    await logFighterAction({
+      gang_id: params.target_gang_id,
+      fighter_id: newFighterId,
+      fighter_name: newFighterName,
+      action_type: 'fighter_copied',
+      fighter_credits: params.calculated_cost || sourceFighter.credits || 0,
+      source_fighter_name: sourceFighter.fighter_name,
+      copy_type: params.copy_as_experienced ? 'experienced' : 'base',
+      user_id: user.id
+    });
 
     return {
       success: true,

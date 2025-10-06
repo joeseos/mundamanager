@@ -417,9 +417,6 @@ export function FighterActions({
           fighterId={fighter.id}
           currentName={fighter.fighter_name}
           currentGangId={gang.id}
-          currentGangName={gang.gang_name || 'Current Gang'}
-          campaignId={fighter.campaigns?.[0]?.campaign_id || null}
-          isAdmin={userPermissions.isAdmin}
           isOpen={modals.copy}
           onClose={() => handleModalToggle('copy', false)}
           fighterBaseCost={fighter.base_credits || 0}

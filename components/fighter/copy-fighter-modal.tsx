@@ -12,44 +12,27 @@ interface CopyFighterModalProps {
   fighterId: string;
   currentName: string;
   currentGangId: string;
-  currentGangName: string;
-  campaignId?: string | null;
-  isAdmin: boolean;
   isOpen: boolean;
   onClose: () => void;
-  fighterBaseCost: number; // Base fighter cost (without advancements)
-  fighterFullCost: number; // Full cost including advancements
-}
-
-interface CampaignGang {
-  id: string;
-  gang_name: string;
-  gang_type: string;
-  user_id: string;
+  fighterBaseCost: number;
+  fighterFullCost: number;
 }
 
 export default function CopyFighterModal({
   fighterId,
   currentName,
   currentGangId,
-  currentGangName,
-  campaignId,
-  isAdmin,
   isOpen,
   onClose,
   fighterBaseCost,
   fighterFullCost,
 }: CopyFighterModalProps) {
   const [name, setName] = useState(currentName);
-  const [targetGangId, setTargetGangId] = useState(currentGangId);
-  const [campaignGangs, setCampaignGangs] = useState<CampaignGang[]>([]);
-  const [loadingGangs, setLoadingGangs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [addToRating, setAddToRating] = useState(true);
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
   const [targetGangCredits, setTargetGangCredits] = useState<number | null>(null);
-  const [isArbitrator, setIsArbitrator] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -58,54 +41,21 @@ export default function CopyFighterModal({
   }, [copyAsExperienced, fighterBaseCost, fighterFullCost]);
 
   useEffect(() => {
-    if (isOpen && campaignId) {
-      const fetchCampaignData = async () => {
-        setLoadingGangs(true);
-        try {
-          const [gangsResponse, campaignResponse] = await Promise.all([
-            fetch(`/api/campaigns/${campaignId}/gangs`),
-            fetch(`/api/campaigns/${campaignId}`)
-          ]);
-
-          if (gangsResponse.ok && campaignResponse.ok) {
-            const gangs = await gangsResponse.json();
-            const campaign = await campaignResponse.json();
-
-            setCampaignGangs(gangs);
-            setIsArbitrator(campaign.isArbitrator || false);
-          }
-        } catch (error) {
-          console.error('Error fetching campaign data:', error);
-        } finally {
-          setLoadingGangs(false);
-        }
-      };
-
-      if (isAdmin || campaignId) {
-        fetchCampaignData();
-      }
-    } else {
-      setCampaignGangs([]);
-      setIsArbitrator(false);
-    }
-  }, [isOpen, isAdmin, campaignId]);
-
-  useEffect(() => {
-    if (isOpen && targetGangId) {
+    if (isOpen && currentGangId) {
       const fetchTargetGangCredits = async () => {
         try {
-          const response = await fetch(`/api/gangs/${targetGangId}`);
+          const response = await fetch(`/api/gangs/${currentGangId}`);
           if (response.ok) {
             const data = await response.json();
             setTargetGangCredits(data.gang?.credits || 0);
           }
         } catch (error) {
-          console.error('Error fetching target gang credits:', error);
+          console.error('Error fetching gang credits:', error);
         }
       };
       fetchTargetGangCredits();
     }
-  }, [isOpen, targetGangId]);
+  }, [isOpen, currentGangId]);
 
   if (!isOpen) return null;
 
@@ -115,7 +65,7 @@ export default function CopyFighterModal({
     setSubmitting(true);
     const result = await copyFighter({
       fighter_id: fighterId,
-      target_gang_id: targetGangId,
+      target_gang_id: currentGangId,
       new_name: name.trim(),
       add_to_rating: addToRating,
       deduct_credits: deductCredits,
@@ -144,8 +94,6 @@ export default function CopyFighterModal({
     return true;
   };
 
-  const showGangSelector = (isAdmin || isArbitrator) && campaignGangs.length > 0;
-
   return (
     <Modal
       title="Copy Fighter"
@@ -159,13 +107,11 @@ export default function CopyFighterModal({
           </div>
         )
       }
-      helper={showGangSelector
-        ? "Choose a name and target gang for the fighter copy."
-        : "Choose a name for the fighter copy."}
+      helper="Choose a name for the fighter copy."
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText={submitting ? 'Copying...' : 'Copy'}
-      confirmDisabled={!name.trim() || submitting || loadingGangs}
+      confirmDisabled={!name.trim() || submitting}
       width="sm"
     >
       <div className="space-y-4">
@@ -177,38 +123,6 @@ export default function CopyFighterModal({
             placeholder={currentName}
           />
         </div>
-
-        {showGangSelector && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Target gang</label>
-            {loadingGangs ? (
-              <div className="text-sm text-muted-foreground">Loading gangs...</div>
-            ) : (
-              <select
-                value={targetGangId}
-                onChange={e => setTargetGangId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md bg-background"
-              >
-                <option value={currentGangId}>
-                  {currentGangName} (Current gang)
-                </option>
-                {campaignGangs
-                  .filter(gang => gang.id !== currentGangId)
-                  .map(gang => (
-                    <option key={gang.id} value={gang.id}>
-                      {gang.gang_name} ({gang.gang_type})
-                    </option>
-                  ))}
-              </select>
-            )}
-          </div>
-        )}
-
-        {!showGangSelector && (
-          <div className="text-sm text-muted-foreground">
-            Fighter will be copied to the same gang. Only campaign arbitrators can copy to other gangs.
-          </div>
-        )}
 
         <div className="space-y-3 pt-2 border-t">
           <div className="text-xs font-semibold text-muted-foreground mb-2">Copy Type</div>
