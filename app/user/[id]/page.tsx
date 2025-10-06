@@ -121,7 +121,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
         {/* User Profile Header */}
-        <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-card shadow-md rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
@@ -146,7 +146,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {/* Stats Overview */}
+        {/* General Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
         {/* Gangs Section */}
         {gangs.length > 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <FaUsers className="h-5 w-5" />
@@ -193,17 +193,17 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 {profile.username}'s gang collection
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
               {gangs.map((gang) => (
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
-                  className="block p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <div className="mb-2">
+                  <div className="mb-1">
                     <h3 className="font-semibold truncate">{gang.name}</h3>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className="text-sm text-muted-foreground mb-1">
                     {gang.gang_type}
                   </p>
                   {gang.rating !== null && gang.rating !== undefined && (
@@ -220,7 +220,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
         {/* Campaigns Section */}
         {campaigns.length > 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <FiMap className="h-5 w-5" />
@@ -261,7 +261,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
         {/* Custom Assets Section */}
         {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.territories > 0) && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <MdOutlineColorLens className="h-5 w-5" />
