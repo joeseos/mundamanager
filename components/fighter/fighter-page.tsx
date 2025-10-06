@@ -100,7 +100,7 @@ interface Fighter {
   campaigns?: any[];
   weapons?: any[];
   wargear?: any[];
-  owner_name?: string;
+  owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
   base_credits?: number;
 }
@@ -140,7 +140,9 @@ interface UIState {
   };
 }
 
+// Helper function to transform fighter data
 const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
+  // Transform skills
   const transformedSkills: FighterSkills = {};
   if (Array.isArray(fighterData.fighter.skills)) {
     fighterData.fighter.skills.forEach((skill: any) => {
@@ -159,6 +161,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     Object.assign(transformedSkills, fighterData.fighter.skills);
   }
 
+  // Transform equipment
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => ({
     fighter_equipment_id: item.fighter_equipment_id,
     equipment_id: item.equipment_id,
@@ -173,6 +176,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     is_master_crafted: item.is_master_crafted
   }));
 
+  // Transform vehicle equipment
   const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
     fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
     equipment_id: item.equipment_id,
@@ -244,6 +248,7 @@ export default function FighterPage({
   userPermissions,
   fighterId
 }: FighterPageProps) {
+  // Transform initial data and set up state
   const [fighterData, setFighterData] = useState<FighterPageState>(() =>
     transformFighterData(initialFighterData, initialGangFighters)
   );
@@ -265,6 +270,7 @@ export default function FighterPage({
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
 
+  // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
     try {
       const params = new URLSearchParams({
@@ -291,6 +297,7 @@ export default function FighterPage({
     }
   }, [toast]);
 
+  // Fetch latest gang credits from API
   const fetchLatestGangCredits = useCallback(async (gangId: string) => {
     setIsFetchingGangCredits(true);
     try {
@@ -315,12 +322,15 @@ export default function FighterPage({
     }
   }, [toast]);
 
+  // Sync local state with props when they change (after router.refresh())
   useEffect(() => {
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
   }, [initialFighterData, initialGangFighters]);
 
+  // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
 
+  // Helper function to convert Fighter to FighterProps for EditFighterModal
   const convertToFighterProps = (fighter: Fighter): any => {
     return {
       ...fighter,
@@ -366,9 +376,11 @@ export default function FighterPage({
     setFighterData(prev => {
       let updatedEffects = prev.fighter?.effects;
 
+      // Remove deleted effects from fighter effects using server-provided deletedEffects data
       if (deletedEffects.length > 0 && updatedEffects) {
         updatedEffects = { ...updatedEffects };
 
+        // Remove deleted effects from each category
         Object.keys(updatedEffects).forEach(categoryKey => {
           const categoryEffects = (updatedEffects as any)[categoryKey];
           if (Array.isArray(categoryEffects)) {
@@ -864,7 +876,7 @@ export default function FighterPage({
               base_credits: (fighterData.fighter as any).base_credits || 0,
               campaigns: fighterData.fighter?.campaigns
             }}
-            gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.name || '' }}
+            gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
             onFighterUpdate={() => router.refresh()}
