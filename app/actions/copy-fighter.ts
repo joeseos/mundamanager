@@ -72,33 +72,23 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: `Fighter not found: ${fetchError?.message || 'Unknown error'}` };
     }
 
-    const { data: sourceGang, error: sourceGangError } = await supabase
+    if (sourceFighter.gang_id !== params.target_gang_id) {
+      return { success: false, error: 'Can only copy fighters within the same gang' };
+    }
+
+    const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select('id, user_id')
       .eq('id', sourceFighter.gang_id)
       .single();
 
-    if (sourceGangError || !sourceGang) {
-      return { success: false, error: 'Source gang not found' };
+    if (gangError || !gang) {
+      return { success: false, error: 'Gang not found' };
     }
 
-    const { data: targetGang, error: targetGangError } = await supabase
-      .from('gangs')
-      .select('id, user_id')
-      .eq('id', params.target_gang_id)
-      .single();
+    const ownsGang = gang.user_id === user.id;
 
-    if (targetGangError || !targetGang) {
-      return { success: false, error: 'Target gang not found' };
-    }
-
-    if (sourceFighter.gang_id !== params.target_gang_id) {
-      return { success: false, error: 'Can only copy fighters within the same gang' };
-    }
-
-    const ownsSourceGang = sourceGang.user_id === user.id;
-
-    if (!ownsSourceGang && !isAdmin) {
+    if (!ownsGang && !isAdmin) {
       return { success: false, error: 'Unauthorized: You do not own this fighter' };
     }
 
@@ -124,7 +114,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_sub_type_id: sourceFighter.fighter_sub_type_id,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
-      user_id: targetGang.user_id,
+      user_id: gang.user_id,
 
       movement: sourceFighter.movement,
       weapon_skill: sourceFighter.weapon_skill,
@@ -186,7 +176,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           original_cost: eq.original_cost,
           is_master_crafted: eq.is_master_crafted || false,
           gang_id: params.target_gang_id,
-          user_id: targetGang.user_id
+          user_id: gang.user_id
         }));
 
       if (equipmentToCopy.length > 0) {
@@ -204,7 +194,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
         skill_id: skill.skill_id,
-        user_id: targetGang.user_id
+        user_id: gang.user_id
       }));
 
       const { error: skillsError } = await supabase
@@ -222,7 +212,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         effect_name: effect.effect_name,
         fighter_effect_type_id: effect.fighter_effect_type_id,
         type_specific_data: effect.type_specific_data,
-        user_id: targetGang.user_id
+        user_id: gang.user_id
       }));
 
       const { data: insertedEffects, error: effectsError } = await supabase
@@ -317,7 +307,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     invalidateFighterAddition({
       fighterId: newFighterId,
       gangId: params.target_gang_id,
-      userId: targetGang.user_id
+      userId: gang.user_id
     });
 
     if (params.add_to_rating !== false) {
