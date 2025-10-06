@@ -13,6 +13,7 @@ export interface UpdateCampaignSettingsParams {
   has_exploration_points?: boolean;
   has_scavenging_rolls?: boolean;
   note?: string;
+  status?: string;
 }
 
 /**
@@ -31,7 +32,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       has_meat,
       has_exploration_points,
       has_scavenging_rolls,
-      note
+      note,
+      status
     } = params;
 
     // Only include provided fields in the update
@@ -42,6 +44,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (has_exploration_points !== undefined) updateData.has_exploration_points = has_exploration_points;
     if (has_scavenging_rolls !== undefined) updateData.has_scavenging_rolls = has_scavenging_rolls;
     if (note !== undefined) updateData.note = note;
+    if (status !== undefined) updateData.status = status;
 
     const { error } = await supabase
       .from('campaigns')

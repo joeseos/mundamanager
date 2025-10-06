@@ -1,5 +1,10 @@
-DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID);
-DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID);
+-- Drop all versions of the function to prevent overload conflicts
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
+DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
 
 CREATE OR REPLACE FUNCTION add_fighter_injury(
     in_fighter_id UUID,
@@ -31,14 +36,18 @@ BEGIN
     FROM fighters
     WHERE id = in_fighter_id;
     
-    -- If not admin, check if user owns the gang
+    -- If not admin, check if user owns the gang OR is an arbitrator for a campaign containing the gang
     IF NOT v_is_admin THEN
         SELECT EXISTS (
             SELECT 1
             FROM gangs
             WHERE id = v_gang_id AND user_id = in_user_id
+        ) OR EXISTS (
+            SELECT 1
+            FROM campaign_gangs cg
+            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
-        
+
         IF NOT v_user_has_access THEN
             RAISE EXCEPTION 'User does not have permission to add effects to this fighter';
         END IF;

@@ -23,6 +23,7 @@ export async function createCampaign({ name, campaignTypeId }: CreateCampaignPar
         {
           campaign_type_id: campaignTypeId,
           campaign_name: name.trimEnd(),
+          status: 'Active',
         },
       ])
       .select()

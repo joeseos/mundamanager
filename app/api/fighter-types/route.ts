@@ -122,16 +122,54 @@ export async function GET(request: Request) {
     // Add custom fighter types if requested
     if (includeCustomFighters && !isGangAddition) {
       try {
+        // Fetch user's own custom fighters
         const customFighters = await getUserCustomFighterTypes(user.id);
 
+        // Fetch shared custom fighters from campaigns where user is a member (any role)
+        const { data: campaignMembers } = await supabase
+          .from('campaign_members')
+          .select('campaign_id')
+          .eq('user_id', user.id);
+
+        const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+        let sharedCustomFighters: any[] = [];
+        if (campaignIds.length > 0) {
+          // Get shared custom fighter IDs for these campaigns
+          const { data: sharedFighterIds } = await supabase
+            .from('custom_shared')
+            .select('custom_fighter_type_id')
+            .in('campaign_id', campaignIds);
+
+          const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id) || [];
+
+          if (fighterIds.length > 0) {
+            // Fetch the actual custom fighter data
+            const { data: sharedFighters } = await supabase
+              .from('custom_fighter_types')
+              .select('*')
+              .in('id', fighterIds);
+
+            sharedCustomFighters = sharedFighters || [];
+          }
+        }
+
+        // Combine own and shared custom fighters, removing duplicates
+        const allCustomFighters = [...customFighters];
+        sharedCustomFighters.forEach(shared => {
+          if (!allCustomFighters.some(cf => cf.id === shared.id)) {
+            allCustomFighters.push(shared);
+          }
+        });
+
         // Transform custom fighters to match the FighterType interface
-        const transformedCustomFighters = customFighters
+        const transformedCustomFighters = allCustomFighters
           .filter(cf => {
             // Include custom fighters for the current gang type
             if (cf.gang_type_id === gangTypeId) return true;
 
             // If includeAllGangType is true, also include "Available to All" gang type fighters
-            if (includeAllGangType && cf.gang_type === 'Available to All') return true;
+            if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
 
             return false;
           })

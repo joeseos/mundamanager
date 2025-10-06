@@ -228,6 +228,7 @@ export default function CampaignPageContent({
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    status: string;
   }) => {
     try {
       const result = await updateCampaignSettings({
@@ -236,7 +237,8 @@ export default function CampaignPageContent({
         description: formValues.description,
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
-        has_scavenging_rolls: formValues.has_scavenging_rolls
+        has_scavenging_rolls: formValues.has_scavenging_rolls,
+        status: formValues.status
       });
 
       if (!result.success) {
@@ -253,6 +255,7 @@ export default function CampaignPageContent({
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
         has_scavenging_rolls: formValues.has_scavenging_rolls,
+        status: formValues.status,
         updated_at: now,
       }));
       
@@ -740,7 +743,8 @@ export default function CampaignPageContent({
             description: campaignData.description,
             has_meat: campaignData.has_meat,
             has_exploration_points: campaignData.has_exploration_points,
-            has_scavenging_rolls: campaignData.has_scavenging_rolls
+            has_scavenging_rolls: campaignData.has_scavenging_rolls,
+            status: campaignData.status
           }}
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}

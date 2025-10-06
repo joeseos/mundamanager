@@ -46,6 +46,10 @@ BEGIN
     IF NOT v_is_admin THEN
         SELECT EXISTS (
             SELECT 1 FROM gangs WHERE id = v_gang_id AND user_id = in_user_id
+        ) OR EXISTS (
+            SELECT 1
+            FROM campaign_gangs cg
+            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
 
         IF NOT v_user_has_access THEN

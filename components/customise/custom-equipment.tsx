@@ -40,12 +40,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
-    availability_number: 1
+    availability_number: 6
   });
   const [createForm, setCreateForm] = useState({
     equipment_name: '',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
-    availability_number: 1,
+    availability_number: 6,
     cost: 0,
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon'
@@ -66,20 +66,20 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
   const parseAvailability = (availability: string): { letter: 'C' | 'R' | 'E' | 'I', number: number } => {
     if (availability === 'C' || availability === 'E') {
-      return { letter: availability, number: 1 };
+      return { letter: availability, number: 6 };
     }
     if (availability === 'I') {
-      return { letter: 'I', number: 1 };
+      return { letter: 'I', number: 6 };
     }
-    // Parse R12, R1, etc.
+    // Parse R12, R6, etc.
     const match = availability.match(/^([CREI])(\d+)$/);
     if (match) {
       const letter = match[1] as 'C' | 'R' | 'E' | 'I';
       const number = parseInt(match[2]);
-      return { letter, number: Math.min(Math.max(number, 1), 20) }; // Clamp between 1-20
+      return { letter, number: Math.min(Math.max(number, 6), 20) }; // Clamp between 6-20
     }
     // Default fallback
-    return { letter: 'C', number: 1 };
+    return { letter: 'C', number: 6 };
   };
 
   // Handle opening the add equipment modal
@@ -113,7 +113,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     setCreateForm({
       equipment_name: '',
       availability_letter: 'C',
-      availability_number: 1,
+      availability_number: 6,
       cost: 0,
       equipment_category: '',
       equipment_type: 'wargear'
@@ -345,7 +345,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_category: '',
       equipment_type: 'wargear',
       availability_letter: 'C',
-      availability_number: 1
+      availability_number: 6
     });
     setEditWeaponProfiles([]);
     setOriginalEditWeaponProfiles([]);
@@ -665,26 +665,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       <option value="E">E</option>
                       <option value="I">I</option>
                     </select>
-                    <input
-                      type="number"
-                      value={editForm.availability_letter === 'C' || editForm.availability_letter === 'E' ? '' : (editForm.availability_number === 1 ? '' : editForm.availability_number)}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          handleFormChange('availability_number', 1);
-                        } else {
-                          const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 1 && numValue <= 20) {
-                            handleFormChange('availability_number', numValue);
-                          }
-                        }
-                      }}
+                    <select
+                      value={editForm.availability_number}
+                      onChange={(e) => handleFormChange('availability_number', parseInt(e.target.value))}
                       disabled={editForm.availability_letter === 'C' || editForm.availability_letter === 'E'}
                       className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                      placeholder="1-20"
-                      min="1"
-                      max="20"
-                    />
+                    >
+                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -936,26 +926,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                       <option value="E">E</option>
                       <option value="I">I</option>
                     </select>
-                    <input
-                      type="number"
-                      value={createForm.availability_letter === 'C' || createForm.availability_letter === 'E' ? '' : (createForm.availability_number === 1 ? '' : createForm.availability_number)}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          handleCreateFormChange('availability_number', 1);
-                        } else {
-                          const numValue = parseInt(value);
-                          if (!isNaN(numValue) && numValue >= 1 && numValue <= 20) {
-                            handleCreateFormChange('availability_number', numValue);
-                          }
-                        }
-                      }}
+                    <select
+                      value={createForm.availability_number}
+                      onChange={(e) => handleCreateFormChange('availability_number', parseInt(e.target.value))}
                       disabled={createForm.availability_letter === 'C' || createForm.availability_letter === 'E'}
                       className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                      placeholder="1-20"
-                      min="1"
-                      max="20"
-                    />
+                    >
+                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

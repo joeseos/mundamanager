@@ -27,8 +27,8 @@ export default function MyCampaigns({ campaigns }: MyCampaignsProps) {
   });
 
   return (
-    <div className="bg-card shadow-md rounded-lg p-3 md:p-6">
-      <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Your Campaigns</h2>
+    <div className="bg-card shadow-md rounded-lg p-4">
+      <h2 className="text-xl md:text-2xl font-bold mb-4">Your Campaigns</h2>
       {sortedCampaigns.length === 0 ? (
         <p className="text-center text-muted-foreground">No campaigns created yet.</p>
       ) : (

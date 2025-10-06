@@ -137,11 +137,9 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       if (gangError || !gang) {
         throw new Error('Gang not found');
       }
-
-      if (gang.user_id !== user.id) {
-        throw new Error('User does not have permission to move this equipment');
-      }
     }
+
+    // Note: Authorization is enforced by RLS policies on fighter_equipment table
 
     // Remove associated fighter effects first (since equipment is being moved to stash)
     if (associatedEffects && associatedEffects.length > 0) {

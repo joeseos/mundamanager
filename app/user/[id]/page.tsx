@@ -1,3 +1,7 @@
+'use client';
+
+import { use, useEffect } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +14,8 @@ import { CustomiseFighters } from "@/components/customise/custom-fighters";
 import { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { CustomTerritory } from "@/app/lib/customise/custom-territories";
 import { CustomFighterType } from "@/types/fighter";
-import { createClient } from "@/utils/supabase/server";
+import { useSession } from "@/hooks/use-session";
+import { useToast } from "@/components/ui/use-toast";
 
 import Link from "next/link";
 
@@ -58,31 +63,65 @@ interface UserData {
   };
 }
 
-export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function UserPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { toast } = useToast();
   
-  // Fetch data from the API route
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/users/${id}`, {
-    cache: 'no-store' // Ensure fresh data
+  // Fetch user data using TanStack Query
+  const { data: userData, isLoading, error } = useQuery({
+    queryKey: ['user', id],
+    queryFn: async () => {
+      const response = await fetch(`/api/users/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+      return response.json() as Promise<UserData>;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  if (!response.ok) {
+  // Get current user for read-only mode
+  const session = useSession();
+  const currentUserId = session?.user?.id || null;
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Show error toast if user data failed to load
+  useEffect(() => {
+    if (error) {
+      toast({
+        description: 'Failed to load user data',
+        variant: 'destructive'
+      });
+    }
+  }, [error, toast]);
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading user data...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !userData) {
     notFound();
   }
 
-  const userData: UserData = await response.json();
   const { profile, gangs, campaigns, customAssets, customAssetsData } = userData;
-
-  // Get current user for read-only mode
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const currentUserId = user?.id || null;
 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
         {/* User Profile Header */}
-        <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+        <div className="bg-card shadow-md rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
@@ -107,7 +146,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Stats Overview */}
+        {/* General Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="flex items-center gap-3">
@@ -144,7 +183,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
 
         {/* Gangs Section */}
         {gangs.length > 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <FaUsers className="h-5 w-5" />
@@ -154,17 +193,17 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
                 {profile.username}'s gang collection
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
               {gangs.map((gang) => (
                 <Link
                   key={gang.id}
                   href={`/gang/${gang.id}`}
-                  className="block p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <div className="mb-2">
+                  <div className="mb-1">
                     <h3 className="font-semibold truncate">{gang.name}</h3>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className="text-sm text-muted-foreground mb-1">
                     {gang.gang_type}
                   </p>
                   {gang.rating !== null && gang.rating !== undefined && (
@@ -181,7 +220,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
 
         {/* Campaigns Section */}
         {campaigns.length > 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <FiMap className="h-5 w-5" />
@@ -222,7 +261,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
 
         {/* Custom Assets Section */}
         {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.territories > 0) && (
-          <div className="bg-card shadow-md rounded-lg p-4 md:p-6">
+          <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <MdOutlineColorLens className="h-5 w-5" />

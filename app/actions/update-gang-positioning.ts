@@ -39,13 +39,7 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
       };
     }
 
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gang.user_id !== user.id) {
-      return {
-        success: false,
-        error: 'You do not have permission to update this gang\'s positioning'
-      };
-    }
+    // Note: Authorization is enforced by RLS policies on gangs table
 
     // Update gang positioning
     const { error: updateError } = await supabase
