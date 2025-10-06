@@ -237,8 +237,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           throw new Error('Invalid sell value provided');
         }
 
-        // Subtract effective cost before changing status
-        const delta = -(await getEffectiveCost());
+        // Only subtract cost if fighter is currently active
+        const isActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const delta = isActive ? -(await getEffectiveCost()) : 0;
 
         // Update fighter to enslaved and add credits to gang
         const { data: updatedFighter, error: fighterUpdateError } = await supabase
