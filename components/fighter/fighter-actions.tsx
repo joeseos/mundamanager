@@ -24,7 +24,6 @@ interface Fighter {
   base_credits?: number;
   campaigns?: Array<{
     has_meat: boolean;
-    campaign_id: string;
   }>;
 }
 

@@ -32,7 +32,7 @@ export default function CopyFighterModal({
   const [addToRating, setAddToRating] = useState(true);
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
-  const [targetGangCredits, setTargetGangCredits] = useState<number | null>(null);
+  const [gangCredits, setGangCredits] = useState<number | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -42,18 +42,18 @@ export default function CopyFighterModal({
 
   useEffect(() => {
     if (isOpen && currentGangId) {
-      const fetchTargetGangCredits = async () => {
+      const fetchGangCredits = async () => {
         try {
           const response = await fetch(`/api/gangs/${currentGangId}`);
           if (response.ok) {
             const data = await response.json();
-            setTargetGangCredits(data.gang?.credits || 0);
+            setGangCredits(data.gang?.credits || 0);
           }
         } catch (error) {
           console.error('Error fetching gang credits:', error);
         }
       };
-      fetchTargetGangCredits();
+      fetchGangCredits();
     }
   }, [isOpen, currentGangId]);
 
@@ -98,11 +98,11 @@ export default function CopyFighterModal({
     <Modal
       title="Copy Fighter"
       headerContent={
-        targetGangCredits !== null && (
+        gangCredits !== null && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Gang Credits</span>
             <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-              {targetGangCredits}
+              {gangCredits}
             </span>
           </div>
         )
