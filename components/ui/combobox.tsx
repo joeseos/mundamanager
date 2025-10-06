@@ -141,7 +141,7 @@ export function Combobox({
         />
         <button
           type="button"
-          className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-secondary rounded-r-md"
+          className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-primary/30 rounded-r-md"
           onClick={() => setOpen(!open)}
           disabled={disabled}
         >
