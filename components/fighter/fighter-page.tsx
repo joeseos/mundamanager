@@ -100,8 +100,9 @@ interface Fighter {
   campaigns?: any[];
   weapons?: any[];
   wargear?: any[];
-  owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  owner_name?: string;
   image_url?: string;
+  base_credits?: number;
 }
 
 interface Gang {
@@ -139,9 +140,7 @@ interface UIState {
   };
 }
 
-// Helper function to transform fighter data
 const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
-  // Transform skills
   const transformedSkills: FighterSkills = {};
   if (Array.isArray(fighterData.fighter.skills)) {
     fighterData.fighter.skills.forEach((skill: any) => {
@@ -160,7 +159,6 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     Object.assign(transformedSkills, fighterData.fighter.skills);
   }
 
-  // Transform equipment
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => ({
     fighter_equipment_id: item.fighter_equipment_id,
     equipment_id: item.equipment_id,
@@ -175,7 +173,6 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     is_master_crafted: item.is_master_crafted
   }));
 
-  // Transform vehicle equipment
   const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
     fighter_equipment_id: item.fighter_equipment_id || item.vehicle_weapon_id || item.id,
     equipment_id: item.equipment_id,
@@ -190,6 +187,25 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     vehicle_equipment_id: item.vehicle_weapon_id || item.id
   }));
 
+  // Calculate effects cost by summing credits_increase from all effects
+  const effects = {
+    injuries: fighterData.fighter.effects?.injuries || [],
+    advancements: fighterData.fighter.effects?.advancements || [],
+    bionics: fighterData.fighter.effects?.bionics || [],
+    cyberteknika: fighterData.fighter.effects?.cyberteknika || [],
+    'gene-smithing': fighterData.fighter.effects?.['gene-smithing'] || [],
+    'rig-glitches': fighterData.fighter.effects?.['rig-glitches'] || [],
+    augmentations: fighterData.fighter.effects?.augmentations || [],
+    equipment: fighterData.fighter.effects?.equipment || [],
+    user: fighterData.fighter.effects?.user || []
+  };
+
+  const effectsCost = Object.values(effects)
+    .flat()
+    .reduce((sum, effect: any) => sum + ((effect.type_specific_data?.credits_increase as number) || 0), 0);
+
+  const baseCost = (fighterData.fighter.credits || 0) - effectsCost;
+
   return {
     fighter: {
       ...fighterData.fighter,
@@ -202,21 +218,11 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
         fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
         fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
       } : undefined,
-      base_credits: fighterData.fighter.credits - (fighterData.fighter.cost_adjustment || 0),
+      base_credits: baseCost,
       gang_id: fighterData.gang.id,
       gang_type_id: fighterData.gang.gang_type_id,
       skills: transformedSkills,
-      effects: {
-        injuries: fighterData.fighter.effects?.injuries || [],
-        advancements: fighterData.fighter.effects?.advancements || [],
-        bionics: fighterData.fighter.effects?.bionics || [],
-        cyberteknika: fighterData.fighter.effects?.cyberteknika || [],
-        'gene-smithing': fighterData.fighter.effects?.['gene-smithing'] || [],
-        'rig-glitches': fighterData.fighter.effects?.['rig-glitches'] || [],
-        augmentations: fighterData.fighter.effects?.augmentations || [],
-        equipment: fighterData.fighter.effects?.equipment || [],
-        user: fighterData.fighter.effects?.user || []
-      }
+      effects: effects
     },
     equipment: transformedEquipment,
     vehicleEquipment: transformedVehicleEquipment,
@@ -232,14 +238,13 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   };
 };
 
-export default function FighterPage({ 
-  initialFighterData, 
-  initialGangFighters, 
-  userPermissions, 
+export default function FighterPage({
+  initialFighterData,
+  initialGangFighters,
+  userPermissions,
   fighterId
 }: FighterPageProps) {
-  // Transform initial data and set up state
-  const [fighterData, setFighterData] = useState<FighterPageState>(() => 
+  const [fighterData, setFighterData] = useState<FighterPageState>(() =>
     transformFighterData(initialFighterData, initialGangFighters)
   );
 
@@ -260,7 +265,6 @@ export default function FighterPage({
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
 
-  // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
     try {
       const params = new URLSearchParams({
@@ -287,7 +291,6 @@ export default function FighterPage({
     }
   }, [toast]);
 
-  // Fetch latest gang credits from API
   const fetchLatestGangCredits = useCallback(async (gangId: string) => {
     setIsFetchingGangCredits(true);
     try {
@@ -312,15 +315,12 @@ export default function FighterPage({
     }
   }, [toast]);
 
-  // Sync local state with props when they change (after router.refresh())
   useEffect(() => {
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
   }, [initialFighterData, initialGangFighters]);
 
-  // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
 
-  // Helper function to convert Fighter to FighterProps for EditFighterModal
   const convertToFighterProps = (fighter: Fighter): any => {
     return {
       ...fighter,
@@ -365,12 +365,10 @@ export default function FighterPage({
   const handleEquipmentUpdate = useCallback((updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number, deletedEffects: any[] = []) => {
     setFighterData(prev => {
       let updatedEffects = prev.fighter?.effects;
-      
-      // Remove deleted effects from fighter effects using server-provided deletedEffects data
+
       if (deletedEffects.length > 0 && updatedEffects) {
         updatedEffects = { ...updatedEffects };
-        
-        // Remove deleted effects from each category
+
         Object.keys(updatedEffects).forEach(categoryKey => {
           const categoryEffects = (updatedEffects as any)[categoryKey];
           if (Array.isArray(categoryEffects)) {
@@ -862,9 +860,11 @@ export default function FighterPage({
               recovery: fighterData.fighter.recovery,
               captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
+              cost_adjustment: fighterData.fighter.cost_adjustment || 0,
+              base_credits: (fighterData.fighter as any).base_credits || 0,
               campaigns: fighterData.fighter?.campaigns
             }}
-            gang={{ id: fighterData.gang?.id || '' }}
+            gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.name || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
             onFighterUpdate={() => router.refresh()}

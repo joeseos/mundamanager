@@ -20,6 +20,8 @@ interface Fighter {
   recovery?: boolean;
   captured?: boolean;
   credits: number;
+  cost_adjustment?: number;
+  base_credits?: number;
   campaigns?: Array<{
     has_meat: boolean;
     campaign_id: string;
@@ -71,7 +73,6 @@ export function FighterActions({
     copy: false
   });
 
-  // Keep meat-checking functionality
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
   }, [fighter?.campaigns]);
@@ -101,7 +102,6 @@ export function FighterActions({
         variant: "default"
       });
 
-      // Navigate to the gang page as returned by the server action
       if (result.data?.redirectTo) {
         router.push(result.data.redirectTo);
       } else {
@@ -145,8 +145,7 @@ export function FighterActions({
 
       router.refresh();
       onFighterUpdate?.();
-      
-      // Get success message based on action
+
       let successMessage = '';
       switch (action) {
         case 'kill':
@@ -190,7 +189,6 @@ export function FighterActions({
 
   return (
     <>
-      {/* Action buttons */}
       <div className="mt-6">
         <div className="flex flex-wrap gap-2">
           <Button
@@ -264,7 +262,6 @@ export function FighterActions({
         </div>
       </div>
 
-      {/* Action modals */}
       {modals.delete && (
         <Modal
           title="Delete Fighter"
@@ -425,6 +422,8 @@ export function FighterActions({
           isAdmin={userPermissions.isAdmin}
           isOpen={modals.copy}
           onClose={() => handleModalToggle('copy', false)}
+          fighterBaseCost={fighter.base_credits || 0}
+          fighterFullCost={fighter.credits || 0}
         />
       )}
     </>

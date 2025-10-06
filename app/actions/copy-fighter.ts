@@ -10,6 +10,8 @@ interface CopyFighterParams {
   new_name?: string;
   deduct_credits?: boolean;
   add_to_rating?: boolean;
+  copy_as_experienced?: boolean;
+  calculated_cost?: number;
 }
 
 interface CopyFighterResult {
@@ -27,7 +29,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const user = await getAuthenticatedUser(supabase);
     const isAdmin = await checkAdminOptimized(supabase);
 
-    // Get the source fighter with all related data
     const { data: sourceFighter, error: fetchError } = await supabase
       .from('fighters')
       .select(`
@@ -70,7 +71,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: `Fighter not found: ${fetchError?.message || 'Unknown error'}` };
     }
 
-    // Get source gang to check permissions
     const { data: sourceGang, error: sourceGangError } = await supabase
       .from('gangs')
       .select('id, user_id')
@@ -81,7 +81,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: 'Source gang not found' };
     }
 
-    // Get target gang
     const { data: targetGang, error: targetGangError } = await supabase
       .from('gangs')
       .select('id, user_id')
@@ -92,12 +91,10 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: 'Target gang not found' };
     }
 
-    // Get campaign info for both gangs if copying to different gang
     let sourceCampaignId = null;
     let targetCampaignId = null;
 
     if (sourceFighter.gang_id !== params.target_gang_id) {
-      // Get source gang's campaign
       const { data: sourceCampaignGang } = await supabase
         .from('campaign_gangs')
         .select('campaign_id')
@@ -106,7 +103,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
       sourceCampaignId = sourceCampaignGang?.campaign_id || null;
 
-      // Get target gang's campaign
       const { data: targetCampaignGang } = await supabase
         .from('campaign_gangs')
         .select('campaign_id')
@@ -116,11 +112,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       targetCampaignId = targetCampaignGang?.campaign_id || null;
     }
 
-    // Permission checks:
-    // 1. User must own the source gang OR be admin
-    // 2. If copying to a different gang:
-    //    - Must be admin
-    //    - Gangs must be in the same campaign (if source gang has a campaign)
     const ownsSourceGang = sourceGang.user_id === user.id;
     const ownsTargetGang = targetGang.user_id === user.id;
     const isSameGang = sourceFighter.gang_id === params.target_gang_id;
@@ -134,13 +125,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         return { success: false, error: 'Unauthorized: Only admins can copy fighters to other gangs' };
       }
 
-      // Check if gangs are in the same campaign (if applicable)
       if (sourceCampaignId && targetCampaignId && sourceCampaignId !== targetCampaignId) {
         return { success: false, error: 'Gangs must be in the same campaign' };
       }
     }
 
-    // Get the max position in the target gang to add fighter at the end
     const { data: maxPositionData } = await supabase
       .from('fighters')
       .select('position')
@@ -150,9 +139,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       .single();
 
     const nextPosition = (maxPositionData?.position ?? -1) + 1;
-
-    // Prepare fighter data for insertion
-    const newFighterName = params.new_name || `${sourceFighter.fighter_name} (Copy)`;
+    const newFighterName = params.new_name || sourceFighter.fighter_name;
 
     const fighterData: any = {
       gang_id: params.target_gang_id,
@@ -165,9 +152,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_sub_type_id: sourceFighter.fighter_sub_type_id,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
-      user_id: targetGang.user_id, // Set to target gang owner
+      user_id: targetGang.user_id,
 
-      // Stats
       movement: sourceFighter.movement,
       weapon_skill: sourceFighter.weapon_skill,
       ballistic_skill: sourceFighter.ballistic_skill,
@@ -181,16 +167,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       willpower: sourceFighter.willpower,
       intelligence: sourceFighter.intelligence,
 
-      // Progress/XP
-      xp: sourceFighter.xp,
-      total_xp: sourceFighter.total_xp,
-      kills: sourceFighter.kills,
+      xp: params.copy_as_experienced ? sourceFighter.xp : 0,
+      total_xp: params.copy_as_experienced ? sourceFighter.total_xp : 0,
+      kills: params.copy_as_experienced ? sourceFighter.kills : 0,
 
-      // Costs and credits
       credits: sourceFighter.credits,
       cost_adjustment: sourceFighter.cost_adjustment,
 
-      // Other attributes
       special_rules: sourceFighter.special_rules,
       free_skill: sourceFighter.free_skill,
       label: sourceFighter.label,
@@ -198,7 +181,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       note: sourceFighter.note,
       note_backstory: sourceFighter.note_backstory,
 
-      // Status flags - reset these for the copy
       killed: false,
       retired: false,
       enslaved: false,
@@ -206,11 +188,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       recovery: false,
       starved: false,
 
-      // Positioning - add to the end of the gang
       position: nextPosition
     };
 
-    // Insert the new fighter
     const { data: newFighter, error: insertError } = await supabase
       .from('fighters')
       .insert(fighterData)
@@ -223,10 +203,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const newFighterId = newFighter.id;
 
-    // Copy equipment (excluding vehicle-mounted equipment)
     if (sourceFighter.fighter_equipment && sourceFighter.fighter_equipment.length > 0) {
       const equipmentToCopy = sourceFighter.fighter_equipment
-        .filter((eq: any) => !eq.vehicle_id) // Exclude vehicle-mounted equipment
+        .filter((eq: any) => !eq.vehicle_id)
         .map((eq: any) => ({
           fighter_id: newFighterId,
           equipment_id: eq.equipment_id,
@@ -249,7 +228,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy skills
     if (sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
@@ -266,8 +244,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy effects and their modifiers
-    if (sourceFighter.fighter_effects && sourceFighter.fighter_effects.length > 0) {
+    if (params.copy_as_experienced && sourceFighter.fighter_effects && sourceFighter.fighter_effects.length > 0) {
       const effectsToCopy = sourceFighter.fighter_effects.map((effect: any) => ({
         fighter_id: newFighterId,
         effect_name: effect.effect_name,
@@ -284,7 +261,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       if (effectsError) {
         console.error('Error copying effects:', effectsError);
       } else if (insertedEffects) {
-        // Copy effect modifiers
         const allModifiers: any[] = [];
         sourceFighter.fighter_effects.forEach((sourceEffect: any, index: number) => {
           const newEffectId = insertedEffects[index]?.id;
@@ -311,8 +287,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy injuries
-    if (sourceFighter.fighter_injuries && sourceFighter.fighter_injuries.length > 0) {
+    if (params.copy_as_experienced && sourceFighter.fighter_injuries && sourceFighter.fighter_injuries.length > 0) {
       const injuriesToCopy = sourceFighter.fighter_injuries.map((injury: any) => ({
         fighter_id: newFighterId,
         injury_id: injury.injury_id,
@@ -332,10 +307,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Note: Stat advancements are stored as fighter_effects with modifiers,
-    // so they are already copied through the fighter_effects section above
-
-    // Update gang credits and rating for target gang
     const { data: gangData } = await supabase
       .from('gangs')
       .select('rating, credits')
@@ -343,28 +314,25 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       .single();
 
     if (gangData) {
-      const fighterCost = sourceFighter.credits || 0;
+      const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
       const updateData: any = {};
 
-      // Add to rating if requested (default true)
       if (params.add_to_rating !== false) {
-        const newRating = (gangData.rating || 0) + fighterCost;
+        const newRating = (gangData.rating || 0) + cost;
         updateData.rating = newRating;
       }
 
-      // Deduct from credits if requested (default false)
       if (params.deduct_credits) {
         const currentCredits = gangData.credits || 0;
-        if (currentCredits < fighterCost) {
+        if (currentCredits < cost) {
           return {
             success: false,
-            error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${fighterCost}`
+            error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${cost}`
           };
         }
-        updateData.credits = currentCredits - fighterCost;
+        updateData.credits = currentCredits - cost;
       }
 
-      // Update gang if there are changes
       if (Object.keys(updateData).length > 0) {
         updateData.last_updated = new Date().toISOString();
         await supabase
@@ -374,14 +342,12 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Invalidate caches
     invalidateFighterAddition({
       fighterId: newFighterId,
       gangId: params.target_gang_id,
       userId: targetGang.user_id
     });
 
-    // Invalidate rating if it was updated
     if (params.add_to_rating !== false) {
       invalidateGangRating(params.target_gang_id);
     }
