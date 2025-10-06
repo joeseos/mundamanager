@@ -31,7 +31,7 @@ export default async function CustomizePage() {
 
   const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
 
-  let userCampaigns = [];
+  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
   if (campaignIds.length > 0) {
     const { data: campaigns } = await supabase
       .from('campaigns')
