@@ -22,6 +22,26 @@ export default async function CustomizePage() {
   const customTerritories = await getUserCustomTerritories();
   const customFighterTypes = await getUserCustomFighterTypes(user.id);
 
+  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
+  const { data: campaignMembers } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('user_id', user.id)
+    .in('role', ['OWNER', 'ARBITRATOR']);
+
+  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+  let userCampaigns = [];
+  if (campaignIds.length > 0) {
+    const { data: campaigns } = await supabase
+      .from('campaigns')
+      .select('id, campaign_name, status')
+      .in('id', campaignIds)
+      .order('campaign_name');
+
+    userCampaigns = campaigns || [];
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container max-w-5xl w-full space-y-4 mx-auto">
@@ -37,7 +57,7 @@ export default async function CustomizePage() {
 
             <CustomiseEquipment initialEquipment={customEquipment} />
 
-            <CustomiseFighters initialFighters={customFighterTypes} />
+            <CustomiseFighters initialFighters={customFighterTypes} userId={user.id} userCampaigns={userCampaigns} />
 
             <CustomiseTerritories initialTerritories={customTerritories} />
           </div>

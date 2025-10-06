@@ -10,14 +10,24 @@ import { Button } from '@/components/ui/button';
 import { X, Edit, Eye } from 'lucide-react';
 import { LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
+import { FiShare2 } from 'react-icons/fi';
 import Modal from '@/components/ui/modal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
+import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
+
+interface UserCampaign {
+  id: string;
+  campaign_name: string;
+  status: string | null;
+}
 
 interface CustomiseFightersProps {
   className?: string;
   initialFighters: CustomFighterType[];
+  userId?: string;
+  userCampaigns?: UserCampaign[];
   readOnly?: boolean;
 }
 
@@ -31,13 +41,14 @@ interface FighterClass {
   class_name: string;
 }
 
-export function CustomiseFighters({ className, initialFighters, readOnly = false }: CustomiseFightersProps) {
+export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomFighterType | null>(null);
   const [viewModalData, setViewModalData] = useState<CustomFighterType | null>(null);
   const [copyModalData, setCopyModalData] = useState<CustomFighterType | null>(null);
+  const [shareModalData, setShareModalData] = useState<CustomFighterType | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -392,6 +403,13 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
     }
   ] : [
     {
+      icon: <FiShare2 className="h-4 w-4" />,
+      onClick: (item: CustomFighterType) => handleShare(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    },
+    {
       icon: <Edit className="h-4 w-4" />,
       onClick: (item: CustomFighterType) => handleEdit(item),
       variant: 'outline',
@@ -696,6 +714,10 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
 
   const handleCopy = (fighter: CustomFighterType) => {
     setCopyModalData(fighter);
+  };
+
+  const handleShare = (fighter: CustomFighterType) => {
+    setShareModalData(fighter);
   };
 
   const handleDelete = (fighter: CustomFighterType) => {
@@ -1967,6 +1989,18 @@ export function CustomiseFighters({ className, initialFighters, readOnly = false
           onClose={() => setCopyModalData(null)}
           onConfirm={handleCopyModalConfirm}
           confirmText="Copy Custom Asset"
+        />
+      )}
+
+      {shareModalData && userId && (
+        <ShareCustomFighterModal
+          fighter={shareModalData}
+          userId={userId}
+          userCampaigns={userCampaigns}
+          onClose={() => setShareModalData(null)}
+          onSuccess={() => {
+            // Optionally refresh the fighter list or show updated state
+          }}
         />
       )}
     </div>
