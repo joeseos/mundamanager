@@ -293,13 +293,50 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Check if user is an admin (optimized)
     const isAdmin = await checkAdminOptimized(supabase, user);
 
-    // Check if this is a custom fighter type first
-    const { data: customFighterData } = await supabase
+    // Check if this is a custom fighter type first (owned by user OR shared to their campaigns)
+    let customFighterData = null;
+
+    // First try to get fighter if user owns it
+    const { data: ownedFighter } = await supabase
       .from('custom_fighter_types')
       .select('*')
       .eq('id', params.fighter_type_id)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (ownedFighter) {
+      customFighterData = ownedFighter;
+    } else {
+      // Check if fighter is shared to user's campaigns
+      const { data: userCampaigns } = await supabase
+        .from('campaign_members')
+        .select('campaign_id')
+        .eq('user_id', user.id);
+
+      const campaignIds = userCampaigns?.map(cm => cm.campaign_id) || [];
+
+      if (campaignIds.length > 0) {
+        // Check if this fighter is shared to any of user's campaigns
+        const { data: sharedFighter } = await supabase
+          .from('custom_shared')
+          .select('custom_fighter_type_id')
+          .eq('custom_fighter_type_id', params.fighter_type_id)
+          .in('campaign_id', campaignIds)
+          .limit(1)
+          .maybeSingle();
+
+        if (sharedFighter) {
+          // Fetch the actual fighter data
+          const { data: fighterData } = await supabase
+            .from('custom_fighter_types')
+            .select('*')
+            .eq('id', params.fighter_type_id)
+            .single();
+
+          customFighterData = fighterData;
+        }
+      }
+    }
 
     // Get fighter type data and gang data in parallel
     const [fighterTypeResult, gangResult] = await Promise.all([
@@ -336,10 +373,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error('Gang not found');
     }
 
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gangData.user_id !== effectiveUserId) {
-      throw new Error('User does not have permission to add fighters to this gang');
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     // Check for adjusted cost based on gang type (only for regular fighters)
     let adjustedBaseCost = effectiveFighterData.cost;

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -20,6 +21,7 @@ interface EditCampaignModalProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    status: string | null;
   };
   onClose: () => void;
   onSave: (updatedData: {
@@ -28,6 +30,7 @@ interface EditCampaignModalProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    status: string;
   }) => Promise<boolean>;
   isOwner: boolean;
 }
@@ -46,6 +49,7 @@ export default function CampaignEditModal({
     meatEnabled: campaignData.has_meat,
     explorationEnabled: campaignData.has_exploration_points,
     scavengingEnabled: campaignData.has_scavenging_rolls,
+    status: campaignData.status || 'Active',
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -62,6 +66,7 @@ export default function CampaignEditModal({
       meatEnabled: campaignData.has_meat,
       explorationEnabled: campaignData.has_exploration_points,
       scavengingEnabled: campaignData.has_scavenging_rolls,
+      status: campaignData.status || 'Active',
     });
     setCharCount((campaignData.description ?? '').length);
   }, [campaignData]);
@@ -74,6 +79,7 @@ export default function CampaignEditModal({
       has_meat: formValues.meatEnabled,
       has_exploration_points: formValues.explorationEnabled,
       has_scavenging_rolls: formValues.scavengingEnabled,
+      status: formValues.status,
     });
     return result;
   };
@@ -115,6 +121,7 @@ export default function CampaignEditModal({
         title="Edit Campaign"
         content={
           <div className="space-y-4">
+            {/* Campaign Name */}
             <div>
               <label className="block text-sm font-medium mb-1">Campaign Name</label>
               <input
@@ -127,6 +134,26 @@ export default function CampaignEditModal({
                 className="w-full p-2 border rounded"
               />
             </div>
+
+            {/* Campaign Status */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Campaign Status</label>
+              <Combobox
+                options={[
+                  { value: "Active", label: "Active" },
+                  { value: "Closed", label: "Closed" }
+                ]}
+                value={formValues.status}
+                onValueChange={(value) => setFormValues(prev => ({
+                  ...prev,
+                  status: value
+                }))}
+                placeholder="Select campaign status"
+                className="w-full"
+              />
+            </div>
+
+            {/* Resources */}
             <div className="space-y-2 text-sm font-medium mb-1">
               <div className="flex items-center space-x-2">
               <span>Resources</span>
@@ -174,6 +201,7 @@ export default function CampaignEditModal({
               </label>
             </div>
 
+            {/* Description */}
             <div>
               <label className="flex justify-between items-center text-sm font-medium mb-1">
                 <span>Description</span>

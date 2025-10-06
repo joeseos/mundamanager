@@ -68,18 +68,7 @@ export async function addFighterInjury(
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions - if not admin, must be fighter owner
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', fighter.gang_id)
-        .single();
-
-      if (gangError || !gang || gang.user_id !== user.id) {
-        return { success: false, error: 'Access denied' };
-      }
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     // Add the injury using the RPC function
     const { data, error } = await supabase
@@ -197,18 +186,7 @@ export async function deleteFighterInjury(
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions - if not admin, must be fighter owner
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', fighter.gang_id)
-        .single();
-
-      if (gangError || !gang || gang.user_id !== user.id) {
-        return { success: false, error: 'Access denied' };
-      }
-    }
+    // Note: Authorization is enforced by RLS policies on fighters table
 
     const { data: injury, error: injuryError } = await supabase
       .from('fighter_effects')

@@ -46,13 +46,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Check permissions - if not admin, must be gang owner
-    if (!isAdmin && gang.user_id !== user.id) {
-      return {
-        success: false,
-        error: 'You do not have permission to add vehicles to this gang'
-      };
-    }
+    // Note: Authorization is enforced by RLS policies on vehicles table
 
     // Get vehicle type details
     const { data: vehicleType, error: vehicleTypeError } = await supabase

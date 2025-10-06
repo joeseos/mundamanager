@@ -127,11 +127,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (gangError || !gang) {
         throw new Error('Gang not found');
       }
-
-      if (gang.user_id !== user.id) {
-        throw new Error('User does not have permission to move this equipment');
-      }
     }
+
+    // Note: Authorization is enforced by RLS policies on fighter_equipment table
 
     // Update the equipment to move it from stash to fighter/vehicle
     const { data: equipmentData, error: updateError } = await supabase

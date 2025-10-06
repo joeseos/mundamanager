@@ -64,13 +64,18 @@ BEGIN
         RAISE EXCEPTION 'Could not determine gang for this fighter';
     END IF;
 
-    -- If not admin, check if user has permission to modify this gang
+    -- If not admin, check if user has permission to modify this gang OR is an arbitrator
     IF NOT v_is_admin THEN
         SELECT EXISTS (
             SELECT 1
             FROM gangs
             WHERE id = v_gang_id AND user_id = in_user_id
+        ) OR EXISTS (
+            SELECT 1
+            FROM campaign_gangs cg
+            WHERE cg.gang_id = v_gang_id AND private.is_arb(cg.campaign_id)
         ) INTO v_user_has_access;
+
         IF NOT v_user_has_access THEN
             RAISE EXCEPTION 'User does not have permission to repair damages for this gang';
         END IF;

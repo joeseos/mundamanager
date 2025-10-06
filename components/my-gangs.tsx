@@ -21,8 +21,8 @@ export default function MyGangs({ gangs }: MyGangsProps) {
   });
 
   return (
-    <div className="bg-card shadow-md rounded-lg p-3 md:p-6">
-      <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Your Gangs</h2>
+    <div className="bg-card shadow-md rounded-lg p-4">
+      <h2 className="text-xl md:text-2xl font-bold mb-4">Your Gangs</h2>
       {sortedGangs.length === 0 ? (
         <p className="text-center text-muted-foreground">No gangs created yet.</p>
       ) : (

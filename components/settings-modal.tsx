@@ -113,18 +113,21 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           sideOffset={8}
           collisionPadding={20}
         >
-          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              {patreonTierId && (
-                <TbDiamondFilled 
-                  size={16} 
-                  color={getPatreonTierColor(patreonTierId)}
-                  title={patreonTierTitle || `Patreon Tier ${patreonTierId}`}
-                />
-              )}
-              <span className="text-xl font-medium text-foreground">{username || user.email}</span>
-            </div>
-          </div>
+
+          <DropdownMenuItem asChild onClick={handleLinkClick}>
+            <Link href={`/user/${user.id}`} className="w-full cursor-pointer">
+              <div className="flex items-center gap-1">
+                {patreonTierId && (
+                  <TbDiamondFilled 
+                    size={16} 
+                    color={getPatreonTierColor(patreonTierId)}
+                    title={patreonTierTitle || `Patreon Tier ${patreonTierId}`}
+                  />
+                )}
+                <span className="text-xl font-medium text-foreground">{username || user.email}</span>
+              </div>
+            </Link>
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 

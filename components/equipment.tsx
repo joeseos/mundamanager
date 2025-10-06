@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
@@ -841,10 +842,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     });
   };
 
-  return (
+  const modalContent = (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+        className="fixed inset-0 bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
         onMouseDown={handleOverlayClick}
       >
         <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-card shadow-xl">
@@ -869,20 +870,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
-              {!isStashMode && !isVehicleEquipment && fighterHasLegacy && (
-                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8 gap-2">
-                  <span>Gang Legacy</span>
-                  <Switch
-                    checked={includeLegacy}
-                    onCheckedChange={(checked) => {
-                      setIncludeLegacy(!!checked);
-                      setEquipment({});
-                      // use the new state directly to avoid lag with async setState
-                      fetchAllCategories(!!checked);
-                    }}
-                  />
-                </label>
-              )}
               {!isStashMode && !isCustomFighter && (
                 <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
                   <input
@@ -959,6 +946,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 step={5}
                 className="flex-1"
               />
+
+              {equipmentListType == 'fighters-list' && !isStashMode && !isVehicleEquipment && fighterHasLegacy && (
+                <label className="flex items-center justify-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8 gap-2">
+                  <span>Gang Legacy</span>
+                  <Switch
+                    checked={includeLegacy}
+                    onCheckedChange={(checked) => {
+                      setIncludeLegacy(!!checked);
+                      setEquipment({});
+                      // use the new state directly to avoid lag with async setState
+                      fetchAllCategories(!!checked);
+                    }}
+                  />
+                </label>
+              )}
               
               {equipmentListType !== 'fighters-list' && (
                 <RangeSlider
@@ -1119,8 +1121,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
                                     <span className="text-sm font-medium">
                                       {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
-                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}` 
-                                        : item.equipment_name
+                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}` 
+                                        : `${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}`
                                       }
                                     </span>
                                   </div>
@@ -1142,7 +1144,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       </div>
                                     )}
                                     {equipmentListType !== 'fighters-list' && (
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
+                                        item.availability?.startsWith('R') ? 'bg-sky-500' :
+                                        item.availability?.startsWith('I') ? 'bg-orange-500' :
+                                        item.availability?.startsWith('S') ? 'bg-purple-500' :
+                                        'bg-sky-500'
+                                      }`}>
                                         <span className="text-[10px] font-medium">{item.availability}</span>
                                       </div>
                                     )}
@@ -1215,6 +1222,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
       />
     </>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default ItemModal;

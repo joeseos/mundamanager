@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { invalidatePatreonSupporters } from '@/utils/cache-tags';
 
 /**
  * TypeScript interfaces for Patreon API data structures
@@ -166,6 +167,9 @@ async function updateUserPatreonData(userId: string, patreonData: DatabaseUserDa
     return false;
   }
 
+  // Invalidate the Patreon supporters cache so the about page shows updated data
+  invalidatePatreonSupporters();
+
   return true;
 }
 
@@ -193,6 +197,9 @@ async function clearUserPatreonData(userId: string, patronStatus: string): Promi
     console.error('Error clearing user Patreon data:', error);
     return false;
   }
+
+  // Invalidate the Patreon supporters cache so the about page shows updated data
+  invalidatePatreonSupporters();
 
   return true;
 }

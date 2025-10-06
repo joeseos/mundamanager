@@ -118,22 +118,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
 
-    // If user is not an admin, check if they have permission for this gang
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', gangId)
-        .single();
-
-      if (gangError || !gang) {
-        throw new Error('Gang not found');
-      }
-
-      if (gang.user_id !== user.id) {
-        throw new Error('User does not have permission to sell this equipment');
-      }
-    }
+    // Note: Authorization is enforced by RLS policies on fighter_equipment and gangs tables
 
     // Determine sell value (manual or default to purchase cost)
     const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;

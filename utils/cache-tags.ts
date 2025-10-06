@@ -115,6 +115,7 @@ export const CACHE_TAGS = {
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
   GLOBAL_SKILL_CATEGORIES: () => `global-skill-categories`,           // skill categories
+  GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
   
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
@@ -484,3 +485,12 @@ export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) =>
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
 };
+
+/**
+ * Patreon Supporters Invalidation Pattern
+ * Triggered when: Webhook updates Patreon supporter data
+ * Data changed: Global Patreon supporters list on about page
+ */
+export function invalidatePatreonSupporters() {
+  revalidateTag(CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS());
+}
