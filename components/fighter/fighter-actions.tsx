@@ -246,7 +246,7 @@ export function FighterActions({
             variant="default"
             className="flex-1"
             onClick={() => handleModalToggle('copy', true)}
-            disabled={!userPermissions.canEdit && !userPermissions.isAdmin}
+            disabled={!userPermissions.canView}
           >
             Copy Fighter
           </Button>

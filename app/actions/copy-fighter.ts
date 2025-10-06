@@ -93,6 +93,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     let sourceCampaignId = null;
     let targetCampaignId = null;
+    let isArbitrator = false;
 
     if (sourceFighter.gang_id !== params.target_gang_id) {
       const { data: sourceCampaignGang } = await supabase
@@ -110,10 +111,19 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .single();
 
       targetCampaignId = targetCampaignGang?.campaign_id || null;
+
+      if (sourceCampaignId && sourceCampaignId === targetCampaignId) {
+        const { data: campaign } = await supabase
+          .from('campaigns')
+          .select('arbitrator')
+          .eq('id', sourceCampaignId)
+          .single();
+
+        isArbitrator = campaign?.arbitrator === user.id;
+      }
     }
 
     const ownsSourceGang = sourceGang.user_id === user.id;
-    const ownsTargetGang = targetGang.user_id === user.id;
     const isSameGang = sourceFighter.gang_id === params.target_gang_id;
 
     if (!ownsSourceGang && !isAdmin) {
@@ -121,8 +131,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     }
 
     if (!isSameGang) {
-      if (!isAdmin) {
-        return { success: false, error: 'Unauthorized: Only admins can copy fighters to other gangs' };
+      if (!isAdmin && !isArbitrator) {
+        return { success: false, error: 'Unauthorized: Only admins and campaign arbitrators can copy fighters to other gangs' };
       }
 
       if (sourceCampaignId && targetCampaignId && sourceCampaignId !== targetCampaignId) {

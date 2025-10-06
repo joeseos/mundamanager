@@ -49,6 +49,7 @@ export default function CopyFighterModal({
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
   const [targetGangCredits, setTargetGangCredits] = useState<number | null>(null);
+  const [isArbitrator, setIsArbitrator] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -57,24 +58,35 @@ export default function CopyFighterModal({
   }, [copyAsExperienced, fighterBaseCost, fighterFullCost]);
 
   useEffect(() => {
-    if (isOpen && isAdmin && campaignId) {
-      const fetchCampaignGangs = async () => {
+    if (isOpen && campaignId) {
+      const fetchCampaignData = async () => {
         setLoadingGangs(true);
         try {
-          const response = await fetch(`/api/campaigns/${campaignId}/gangs`);
-          if (response.ok) {
-            const gangs = await response.json();
+          const [gangsResponse, campaignResponse] = await Promise.all([
+            fetch(`/api/campaigns/${campaignId}/gangs`),
+            fetch(`/api/campaigns/${campaignId}`)
+          ]);
+
+          if (gangsResponse.ok && campaignResponse.ok) {
+            const gangs = await gangsResponse.json();
+            const campaign = await campaignResponse.json();
+
             setCampaignGangs(gangs);
+            setIsArbitrator(campaign.isArbitrator || false);
           }
         } catch (error) {
-          console.error('Error fetching campaign gangs:', error);
+          console.error('Error fetching campaign data:', error);
         } finally {
           setLoadingGangs(false);
         }
       };
-      fetchCampaignGangs();
+
+      if (isAdmin || campaignId) {
+        fetchCampaignData();
+      }
     } else {
       setCampaignGangs([]);
+      setIsArbitrator(false);
     }
   }, [isOpen, isAdmin, campaignId]);
 
@@ -132,7 +144,7 @@ export default function CopyFighterModal({
     return true;
   };
 
-  const showGangSelector = isAdmin && campaignGangs.length > 0;
+  const showGangSelector = (isAdmin || isArbitrator) && campaignGangs.length > 0;
 
   return (
     <Modal
@@ -192,9 +204,9 @@ export default function CopyFighterModal({
           </div>
         )}
 
-        {!isAdmin && (
+        {!showGangSelector && (
           <div className="text-sm text-muted-foreground">
-            Fighter will be copied to the same gang. Only admins can copy to other gangs.
+            Fighter will be copied to the same gang. Only campaign arbitrators can copy to other gangs.
           </div>
         )}
 
