@@ -21,7 +21,7 @@ interface PatreonMember {
   attributes: {
     full_name: string;
     email: string;
-    patron_status: 'active_patron' | 'former_patron' | 'declined_patron';
+    patron_status: 'active_patron' | 'former_patron' | 'declined_patron' | null;
   };
   relationships: {
     currently_entitled_tiers: {
@@ -225,9 +225,9 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
     return true;
   }
 
-  console.log(`Processing webhook for user ${user.id}, Patreon email: ${patreonEmail}, user ID: ${patreonUserId}`);
+  console.log(`Processing webhook for user ${user.id}, patron_status: ${patronStatus}`);
 
-  // Handle different patron statuses
+  // Handle active patrons
   if (patronStatus === 'active_patron') {
     // Get current tier information
     const currentTierIds = member.relationships.currently_entitled_tiers.data.map(t => t.id);
@@ -241,20 +241,25 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
       discordRoles: currentTier?.attributes.discord_role_ids || null
     };
 
-    console.log(`Updating active patron data for user ${user.id}:`, {
-      tierTitle: patreonData.tierTitle,
-      tierId: patreonData.tierId,
-      patronStatus: patreonData.patronStatus
-    });
-
     return await updateUserPatreonData(user.id, patreonData);
-  } else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
-    // Clear tier data but keep the status for record keeping
-    console.log(`Clearing patron data for user ${user.id}, new status: ${patronStatus}`);
+  }
+
+  // Handle former/declined patrons
+  else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
     return await clearUserPatreonData(user.id, patronStatus);
   }
 
-  return false;
+  // Handle followers (null status - never pledged)
+  else if (patronStatus === null) {
+    console.log(`User ${user.id} is a follower (never pledged) - no patron data to update`);
+    return true; // Success - followers don't need patron data
+  }
+
+  // This should never happen based on Patreon's API, but handle gracefully
+  else {
+    console.warn(`Unexpected patron_status '${patronStatus}' for user ${user.id}`);
+    return true; // Don't fail the webhook for unexpected future values
+  }
 }
 
 /**
