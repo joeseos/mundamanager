@@ -7,7 +7,6 @@ import { VehicleProps } from '@/types/vehicle';
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
-import { X } from "lucide-react";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
@@ -18,6 +17,7 @@ import { Edit } from 'lucide-react';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { unassignVehicle } from '@/app/actions/unassign-vehicle';
 import { HiUserRemove } from "react-icons/hi";
+import VehicleEdit from '@/components/gang/vehicle-edit';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -59,12 +59,9 @@ export default function GangVehicles({
   const [isUnassignLoading, setIsUnassignLoading] = useState(false);
   const { toast } = useToast();
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
-  const [editedVehicleName, setEditedVehicleName] = useState('');
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [sellingVehicle, setSellingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [sellAmount, setSellAmount] = useState<number>(0);
-  const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
-  const [newSpecialRule, setNewSpecialRule] = useState('');
 
   // Calculate total vehicle value including equipment
   const calculateVehicleTotalValue = (vehicle: CombinedVehicleProps): number => {
@@ -363,8 +360,6 @@ export default function GangVehicles({
   const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
     e.preventDefault();
     setEditingVehicle(vehicle);
-    setEditedVehicleName(vehicle.vehicle_name);
-    setVehicleSpecialRules(vehicle.special_rules || []);
   };
 
   const handleSellClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
@@ -373,23 +368,7 @@ export default function GangVehicles({
     setSellAmount(calculateVehicleTotalValue(vehicle));
   };
 
-  const handleAddSpecialRule = () => {
-    if (!newSpecialRule.trim()) return;
-    
-    if (vehicleSpecialRules.includes(newSpecialRule.trim())) {
-      setNewSpecialRule('');
-      return;
-    }
-    
-    setVehicleSpecialRules(prev => [...prev, newSpecialRule.trim()]);
-    setNewSpecialRule('');
-  };
-
-  const handleRemoveSpecialRule = (ruleToRemove: string) => {
-    setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
-  };
-
-  const handleSaveVehicleName = async () => {
+  const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[]) => {
     if (!editingVehicle) return true;
     
     setIsEditLoading(true);
@@ -403,9 +382,9 @@ export default function GangVehicles({
       
       // Update both the vehicles list and any fighter that has this vehicle
       if (onVehicleUpdate) {
-        const updatedVehicles = allVehicles.map(v => 
-          v.id === editingVehicle.id 
-            ? { ...v, vehicle_name: editedVehicleName, special_rules: vehicleSpecialRules }
+        const updatedVehicles = allVehicles.map(v =>
+          v.id === vehicleId
+            ? { ...v, vehicle_name: vehicleName, special_rules: specialRules }
             : v
         );
         // Only pass unassigned vehicles to parent - assigned vehicles are handled via fighter updates
@@ -421,8 +400,8 @@ export default function GangVehicles({
             ...fighter,
             vehicles: [{
               ...fighter.vehicles[0],
-              vehicle_name: editedVehicleName,
-              special_rules: vehicleSpecialRules
+              vehicle_name: vehicleName,
+              special_rules: specialRules
             }]
           };
           onFighterUpdate(updatedFighter);
@@ -440,9 +419,9 @@ export default function GangVehicles({
         fighters.find(f => f.fighter_name === editingVehicle.assigned_to) : undefined;
       
       const result = await updateVehicle({
-        vehicleId: editingVehicle.id,
-        vehicleName: editedVehicleName,
-        specialRules: vehicleSpecialRules,
+        vehicleId: vehicleId,
+        vehicleName: vehicleName,
+        specialRules: specialRules,
         gangId: gangId,
         assignedFighterId: assignedFighter?.id
       });
@@ -796,75 +775,12 @@ export default function GangVehicles({
           </>
         )}
       </div>
-      {editingVehicle && (
-        <Modal
-          title="Edit Vehicle"
-          onClose={() => setEditingVehicle(null)}
-          onConfirm={handleSaveVehicleName}
-          confirmText="Save"
-        >
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="vehicleName" className="block text-sm font-medium text-muted-foreground">
-                Vehicle Name
-              </label>
-              <Input
-                type="text"
-                id="vehicleName"
-                value={editedVehicleName}
-                onChange={(e) => setEditedVehicleName(e.target.value)}
-                className="mt-1 w-full"
-                placeholder="Enter vehicle name"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Special Rules
-              </label>
-              <div className="flex space-x-2 mb-2">
-                <Input
-                  type="text"
-                  value={newSpecialRule}
-                  onChange={(e) => setNewSpecialRule(e.target.value)}
-                  placeholder="Add a special rule"
-                  className="flex-grow"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddSpecialRule();
-                    }
-                  }}
-                />
-                <Button
-                  onClick={handleAddSpecialRule}
-                  type="button"
-                >
-                  Add
-                </Button>
-              </div>
-              
-              <div className="flex flex-wrap gap-2 mt-2">
-                {vehicleSpecialRules.map((rule, index) => (
-                  <div
-                    key={index}
-                    className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
-                  >
-                    <span>{rule}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <VehicleEdit
+        vehicle={editingVehicle}
+        onClose={() => setEditingVehicle(null)}
+        onSave={handleSaveVehicle}
+        isLoading={isEditLoading}
+      />
       {sellingVehicle && (
         <Modal
           title="Sell Vehicle"
