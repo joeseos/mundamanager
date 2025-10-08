@@ -5,7 +5,6 @@ import { CACHE_TAGS } from "@/utils/cache-tags";
 
 // Make the page static
 export const dynamic = 'force-static';
-export const revalidate = 3600; // Revalidate every hour
 
 export default async function AboutPage() {
   // Fetch Patreon supporters with cache tag
