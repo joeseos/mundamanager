@@ -1,33 +1,36 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
+import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from "next/cache";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
-import { getAuthenticatedUser } from "@/utils/auth";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 
+// Make the page static
+export const dynamic = 'force-static';
+export const revalidate = 3600; // Revalidate every hour
+
 export default async function AboutPage() {
-  const supabase = await createClient();
-  try {
-    await getAuthenticatedUser(supabase);
-  } catch {
-    redirect("/sign-in");
-  }
-
   // Fetch Patreon supporters with cache tag
-  const { data: patreonSupporters } = await supabase
-    .from('profiles')
-    .select('username, patreon_tier_id, patreon_tier_title')
-    .not('patreon_tier_id', 'is', null)
-    .eq('patron_status', 'active_patron')
-    .order('patreon_tier_id', { ascending: false })
-    .order('username', { ascending: true });
-
-  // Wrap in cache with tag
   const getCachedPatreonSupporters = unstable_cache(
-    async () => patreonSupporters,
+    async () => {
+      // Use service role client for static generation
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: patreonSupporters } = await supabase
+        .from('profiles')
+        .select('username, patreon_tier_id, patreon_tier_title')
+        .not('patreon_tier_id', 'is', null)
+        .eq('patron_status', 'active_patron')
+        .order('patreon_tier_id', { ascending: false })
+        .order('username', { ascending: true });
+      
+      return patreonSupporters;
+    },
     ['patreon-supporters'],
     {
-      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()]
+      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()],
+      revalidate: 3600 // Cache for 1 hour
     }
   );
 
@@ -43,4 +46,4 @@ export default async function AboutPage() {
       </div>
     </main>
   );
-} 
+}
