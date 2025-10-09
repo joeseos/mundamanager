@@ -7,7 +7,7 @@ import {
   getFighterSkills,
   getFighterEffects,
   getFighterVehicles,
-  getFighterTotalCost,
+  getFighterOwnedBeastsCost,
   getFighterTypeInfo,
   getFighterSubTypeInfo,
   getFighterOwnershipInfo
@@ -636,14 +636,14 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           skills,
           effects,
           vehicles,
-          totalCost
+          beastCosts
         ] = await Promise.all([
           getFighterBasic(fighterId, supabase),      // Uses BASE_FIGHTER_BASIC(fighterId)
           getFighterEquipment(fighterId, supabase),  // Uses BASE_FIGHTER_EQUIPMENT(fighterId)
           getFighterSkills(fighterId, supabase),     // Uses BASE_FIGHTER_SKILLS(fighterId)
           getFighterEffects(fighterId, supabase),    // Uses BASE_FIGHTER_EFFECTS(fighterId)
           getFighterVehicles(fighterId, supabase),   // Uses BASE_FIGHTER_VEHICLES(fighterId)
-          getFighterTotalCost(fighterId, supabase)   // Uses COMPUTED_FIGHTER_TOTAL_COST(fighterId)
+          getFighterOwnedBeastsCost(fighterId, supabase)  // Get beast costs for calculation
         ]);
 
         // Get fighter type and sub-type info using cached helpers
@@ -658,6 +658,45 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         const ownershipInfo = fighterBasic.fighter_pet_id
           ? await getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase)
           : null;
+
+        // Calculate total cost inline (avoid redundant getFighterTotalCost call)
+        let totalCost = 0;
+
+        // Check if this fighter is owned by another fighter (exotic beast)
+        const isOwnedBeast = !!ownershipInfo;
+
+        if (!isOwnedBeast) {
+          // Calculate total cost for normal fighters
+          const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
+          const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
+          const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
+            return sum + (effect.type_specific_data?.credits_increase || 0);
+          }, 0);
+
+          // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)
+          const vehicleCost = vehicles.reduce((sum, vehicle) => {
+            let vehicleTotal = vehicle.cost || 0;
+
+            // Add vehicle equipment costs
+            if (vehicle.equipment) {
+              vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
+                return equipSum + (eq.purchase_cost || 0);
+              }, 0);
+            }
+
+            // Add vehicle effects costs
+            if (vehicle.effects) {
+              vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+                return effectSum + (effect.type_specific_data?.credits_increase || 0);
+              }, 0);
+            }
+
+            return sum + vehicleTotal;
+          }, 0);
+
+          totalCost = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+                      (fighterBasic.cost_adjustment || 0) + beastCosts;
+        }
 
         // Separate equipment into weapons and wargear to match FighterProps interface
         const weapons: WeaponProps[] = equipment
