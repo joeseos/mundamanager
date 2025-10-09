@@ -124,6 +124,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     }
 
     // Fetch all related data in parallel using granular functions
+    const permissionService = new PermissionService();
     const [
       gangPositioning,
       gangType,
@@ -135,7 +136,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangCredits,
       gangVariants,
       gangRating,
-      userProfile
+      userProfile,
+      userPermissions
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
@@ -147,7 +149,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRating(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase)
+      getUserProfile(gangBasic.user_id, supabase),
+      permissionService.getGangPermissions(user.id, params.id)
     ]);
 
     // Initialize or fix positioning for fighters
@@ -204,10 +207,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       patreon_tier_title: userProfile?.patreon_tier_title,
       patron_status: userProfile?.patron_status
     };
-    
-    // Get user permissions for this gang
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getGangPermissions(user.id, params.id);
 
     return (
       <GangPageContent
