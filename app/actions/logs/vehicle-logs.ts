@@ -8,9 +8,15 @@ export interface VehicleLogParams {
   vehicle_id: string;
   fighter_id?: string;
   damage_name?: string;
-  action_type: 'vehicle_damage_added' | 'vehicle_damage_removed';
+  repair_type?: RepairCondition
+  cost?: number;
+  cost_multiplier?: number
+  action_type: 'vehicle_damage_added' | 'vehicle_damage_removed' | 'vehicle_damage_repaired';
   user_id?: string;
 }
+
+type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
+
 
 export async function logVehicleAction(params: VehicleLogParams): Promise<GangLogActionResult> {
   try {
@@ -61,6 +67,10 @@ export async function logVehicleAction(params: VehicleLogParams): Promise<GangLo
       case 'vehicle_damage_added':
         actionType = 'vehicle_damage_added';
         description = `Vehicle "${vehicleName}" (owned by ${fighterName}) sustained lasting damage: ${params.damage_name}. New gang rating: ${newGangRating}`;
+        break;
+      case 'vehicle_damage_repaired':
+        actionType = 'vehicle_damage_repaired';
+        description = `Vehicle "${vehicleName}" (owned by ${fighterName}) has been repaired for ${params.cost}. This removed ${params.damage_name} and was negotiated to ${params.repair_type?.toString()}. New gang rating: ${newGangRating}`;
         break;
       case 'vehicle_damage_removed':
         actionType = 'vehicle_damage_removed';
