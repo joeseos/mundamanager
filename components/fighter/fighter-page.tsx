@@ -4,7 +4,7 @@ import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -259,6 +259,7 @@ export default function FighterPage({
   const { toast } = useToast();
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
+  const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
 
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
@@ -716,6 +717,7 @@ export default function FighterPage({
             equipment={fighterData.equipment}
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
             userPermissions={userPermissions}
+            onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
           />
 
           <SkillsList
@@ -952,9 +954,7 @@ export default function FighterPage({
                 fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
                 fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
                 isCustomFighter={Boolean((fighterData as any)?.fighter?.custom_fighter_type_id)}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) =>
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
-                }
+                onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
               />
             )
           )}

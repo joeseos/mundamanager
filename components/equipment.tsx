@@ -37,7 +37,8 @@ interface ItemModalProps {
   allowedCategories?: string[];
   isStashMode?: boolean;
   isCustomFighter?: boolean;
-  onEquipmentBought: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
+  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
+  onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
 }
 
 interface RawEquipmentData {
@@ -318,7 +319,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   allowedCategories,
   isStashMode,
   isCustomFighter = false,
-  onEquipmentBought
+  onEquipmentBought,
+  onPurchaseRequest
 }) => {
   const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
   
@@ -681,8 +683,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
           : { fighter_id: fighterId || undefined }
         ))
       };
-
-      
+      // Delegate to parent mutation if provided (optimistic path). Modal closes immediately.
+      if (onPurchaseRequest) {
+        onPurchaseRequest({ params, item });
+        setBuyModalData(null);
+        return;
+      }
 
       const result = await buyEquipmentForFighter(params);
 
@@ -716,7 +722,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
       
 
-      onEquipmentBought(newFighterCredits, newGangCredits, {
+      onEquipmentBought?.(newFighterCredits, newGangCredits, {
         ...item,
         fighter_equipment_id: equipmentRecord.id,
         cost: ratingCost, // Use the rating cost value from the server
