@@ -24,6 +24,8 @@ interface VehicleDamagesListProps {
   userPermissions: UserPermissions;
 }
 
+type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
+
 export function VehicleDamagesList({ 
   damages = [],
   onDamageUpdate,
@@ -38,6 +40,7 @@ export function VehicleDamagesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [repairCost, setRepairCost] = useState<number>(0);
   const [repairPercent, setRepairPercent] = useState<0 | 10 | 25>(0);
+  const [repairType, setRepairType] = useState<RepairCondition>("Superficial Damage");
   const [isRepairing, setIsRepairing] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
@@ -103,7 +106,7 @@ export function VehicleDamagesList({
         description: 'Lasting damage added successfully',
         variant: 'default'
       });
-
+      
       setSelectedDamageId('');
       setIsAddModalOpen(false);
     },
@@ -181,7 +184,7 @@ export function VehicleDamagesList({
       // Optimistically update gang credits
       if (onGangCreditsUpdate && gangCredits !== undefined) {
         onGangCreditsUpdate(gangCredits - variables.repairCost);
-      }
+      } 
 
       return { previousDamages, previousCredits };
     },
@@ -195,10 +198,27 @@ export function VehicleDamagesList({
         variant: 'default'
       });
 
+       if (repairType === 'Almost like new') {
+         const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
+         const damageId = match.id;
+   
+         // Call handleAddDamage with the ID directly
+         if (damageId) {
+           addDamageMutation.mutate({
+             vehicleId,
+             fighterId,
+             gangId,
+             damageId: damageId,
+             damageName: 'Persistent Rattle'
+           });
+         }
+       }
+
       // Close repair modal
       setIsRepairModalOpen(false);
       setRepairCost(0);
       setRepairPercent(0);
+      setRepairType("Superficial Damage")
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
@@ -322,10 +342,12 @@ export function VehicleDamagesList({
     repairDamageMutation.mutate({
       damageIds: damageIdsToRepair,
       repairCost,
+      repairType,
       vehicleId,
       fighterId,
       gangId
     });
+
 
     return true;
   };
@@ -573,36 +595,77 @@ export function VehicleDamagesList({
                     </li>
                   ))}
                 </ul>
-                {/* Repair cost percentage checkboxes */}
-                <div className="flex items-center gap-4 mb-2">
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <Checkbox
-                      checked={repairPercent === 10}
-                      onCheckedChange={() => {
-                        if (repairPercent === 10) {
-                          setRepairPercent(0);
-                          setRepairCost(0);
-                        } else {
-                          setRepairPercent(10);
-                        }
-                      }}
-                    />
-                    <span className="text-sm">10%</span>
+                {/* Repair type selection */}
+                <div className="space-y-2 pt-3 border-t">
+                  <label htmlFor="repairTypeSelect" className="text-sm font-medium">
+                    Repair Type
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <Checkbox
-                      checked={repairPercent === 25}
-                      onCheckedChange={() => {
-                        if (repairPercent === 25) {
-                          setRepairPercent(0);
-                          setRepairCost(0);
-                        } else {
-                          setRepairPercent(25);
-                        }
-                      }}
-                    />
-                    <span className="text-sm">25%</span>
-                  </label>
+                  <DiceRoller
+                    items={[
+                      { id: 'repair-almost', effect_name: 'Almost like new' },
+                      { id: 'repair-quality', effect_name: 'Quality repairs' },
+                      { id: 'repair-superficial', effect_name: 'Superficial Damage' },
+                    ]}
+                    getRange={() => null}
+                    getName={(i: { id: string; effect_name: string }) => i.effect_name}
+                    rollFn={rollD6}
+                    resolveNameForRoll={(roll) => {
+                      const map: Record<number, string> = {
+                        1: 'Almost like new',
+                        2: 'Almost like new',
+                        3: 'Almost like new',
+                        4: 'Quality repairs',
+                        5: 'Quality repairs',
+                        6: 'Superficial Damage',
+                      };
+                      return map[roll as 1|2|3|4|5|6];
+                    }}
+                    buttonText="Roll D6"
+                    inline
+                    disabled={!userPermissions.canEdit}
+                    onRoll={(roll) => {
+                      const map: Record<number, string> = {
+                        1: 'Almost like new',
+                        2: 'Almost like new',
+                        3: 'Almost like new',
+                        4: 'Quality repairs',
+                        5: 'Quality repairs',
+                        6: 'Superficial Damage',
+                      };
+                      var name =  map[roll as 1|2|3|4|5|6];
+                      if (name) {
+                        toast({ description: `Roll ${roll}: ${name as typeof repairType}` });
+                      }                      
+                      if (name === 'Superficial Damage') {
+                        setRepairType('Superficial Damage');
+                        setRepairPercent(10);
+                      } else if (name === 'Quality repairs') {
+                        setRepairType('Quality repairs');
+                        setRepairPercent(25);
+                      } else if (name ==='Almost like new'){
+                        setRepairType('Almost like new')
+                        setRepairPercent(25) 
+                      }
+                    }}
+                  />
+                  <select
+                    id="repairTypeSelect"
+                    value={repairType}
+                    onChange={(e) => {
+                      const selectedType = e.target.value as RepairCondition;
+                      setRepairType(selectedType);
+                      if (selectedType === 'Superficial Damage') {
+                        setRepairPercent(10);
+                      } else {
+                        setRepairPercent(25);
+                      }
+                    }}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="Almost like new">1|2|3 - Almost like new</option>
+                    <option value="Quality repairs">4|5 - Quality repairs</option>
+                    <option value="Superficial Damage">6 - Superficial Damage</option>
+                  </select>
                 </div>
                 {/* Calculate vehicle cost + upgrades (excluding weapons) */}
                 <div className="mt-4 flex items-center gap-2">
@@ -617,6 +680,7 @@ export function VehicleDamagesList({
                     onChange={e => setRepairCost(Number(e.target.value))}
                     className="w-24 p-2 border rounded focus:ring-2 focus:ring-black focus:border-black text-base"
                   />
+                  
                 </div>
               </div>
             </div>

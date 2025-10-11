@@ -15,10 +15,13 @@ interface RemoveVehicleDamageResult {
   success: boolean;
   error?: string;
 }
+type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
+
 
 interface RepairVehicleDamageParams {
   damageIds: string[];
   repairCost: number;
+  repairType: RepairCondition
   vehicleId: string;
   fighterId: string;
   gangId: string;
@@ -121,6 +124,12 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     // Get the current user
     const user = await getAuthenticatedUser(supabase);
 
+  // Lookup effect data and effect name before delete
+    const { data: damageData } = await supabase
+      .from("fighter_effects")
+      .select("vehicle_id, type_specific_data, effect_name")
+      .in("id", params.damageIds);
+
     // Call the repair RPC function
     const { error } = await supabase.rpc('repair_vehicle_damage', {
       damage_ids: params.damageIds,
@@ -131,6 +140,29 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     if (error) {
       console.error('Error repairing vehicle damage:', error);
       throw new Error(error.message || 'Failed to repair vehicle damage');
+    }
+
+    // Log vehicle damage removal
+    try {
+      const effectNames = damageData?.map(d => d.effect_name);
+      if (effectNames) {
+        const damageList = effectNames.length > 1
+            ? effectNames.slice(0, -1).join(", ") + " and " + effectNames.slice(-1)
+            : effectNames[0] ?? "";
+          await logVehicleAction({
+            gang_id: params.gangId,
+            vehicle_id: params.vehicleId || '',
+            fighter_id: params.fighterId,
+            damage_name: damageList.toLowerCase(),
+            repair_type: params.repairType,
+            cost: params.repairCost,
+            action_type: 'vehicle_damage_repaired',
+            user_id: user.id
+          });
+      }
+
+    } catch (logError) {
+      console.error('Failed to log vehicle damage removal:', logError);
     }
 
     // Invalidate cache for vehicle effects and gang credits
