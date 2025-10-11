@@ -128,7 +128,7 @@ export async function createExoticBeastsForEquipment(
           fighter_name: fighterType.fighter_type,
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
-          fighter_class: 'exotic beast',
+          fighter_class: 'Exotic Beast',
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
