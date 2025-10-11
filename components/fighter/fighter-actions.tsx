@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
+import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 
 interface Fighter {
   id: string;
@@ -19,6 +20,8 @@ interface Fighter {
   recovery?: boolean;
   captured?: boolean;
   credits: number;
+  cost_adjustment?: number;
+  base_credits?: number;
   campaigns?: Array<{
     has_meat: boolean;
   }>;
@@ -26,6 +29,7 @@ interface Fighter {
 
 interface Gang {
   id: string;
+  gang_name?: string;
 }
 
 interface FighterActionsProps {
@@ -44,6 +48,7 @@ interface ActionModals {
   starve: boolean;
   recovery: boolean;
   captured: boolean;
+  copy: boolean;
 }
 
 export function FighterActions({ 
@@ -63,10 +68,10 @@ export function FighterActions({
     enslave: false,
     starve: false,
     recovery: false,
-    captured: false
+    captured: false,
+    copy: false
   });
 
-  // Keep meat-checking functionality
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
   }, [fighter?.campaigns]);
@@ -96,7 +101,6 @@ export function FighterActions({
         variant: "default"
       });
 
-      // Navigate to the gang page as returned by the server action
       if (result.data?.redirectTo) {
         router.push(result.data.redirectTo);
       } else {
@@ -140,8 +144,7 @@ export function FighterActions({
 
       router.refresh();
       onFighterUpdate?.();
-      
-      // Get success message based on action
+
       let successMessage = '';
       switch (action) {
         case 'kill':
@@ -185,7 +188,6 @@ export function FighterActions({
 
   return (
     <>
-      {/* Action buttons */}
       <div className="mt-6">
         <div className="flex flex-wrap gap-2">
           <Button
@@ -240,6 +242,15 @@ export function FighterActions({
           </Button>
           
           <Button
+            variant="default"
+            className="flex-1"
+            onClick={() => handleModalToggle('copy', true)}
+            disabled={!userPermissions.canView}
+          >
+            Copy Fighter
+          </Button>
+
+          <Button
             variant="destructive"
             className="flex-1"
             onClick={() => handleModalToggle('delete', true)}
@@ -250,7 +261,6 @@ export function FighterActions({
         </div>
       </div>
 
-      {/* Action modals */}
       {modals.delete && (
         <Modal
           title="Delete Fighter"
@@ -384,7 +394,7 @@ export function FighterActions({
           content={
             <div>
               <p>
-                {fighter?.captured 
+                {fighter?.captured
                   ? `Are you sure you want to rescue "${fighter?.fighter_name}" from captivity?`
                   : `Are you sure you want to mark "${fighter?.fighter_name}" as captured?`
                 }
@@ -398,6 +408,18 @@ export function FighterActions({
               handleModalToggle('captured', false);
             }
           }}
+        />
+      )}
+
+      {modals.copy && (
+        <CopyFighterModal
+          fighterId={fighter.id}
+          currentName={fighter.fighter_name}
+          currentGangId={gang.id}
+          isOpen={modals.copy}
+          onClose={() => handleModalToggle('copy', false)}
+          fighterBaseCost={fighter.base_credits || 0}
+          fighterFullCost={fighter.credits || 0}
         />
       )}
     </>
