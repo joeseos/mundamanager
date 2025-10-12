@@ -4,6 +4,8 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { CACHE_TAGS } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
 
 // Helper function to check if user is admin
 async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
@@ -140,6 +142,7 @@ export async function addFighterInjury(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
 
     return {
       success: true,
@@ -245,6 +248,7 @@ export async function deleteFighterInjury(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
 
     return { success: true };
 
