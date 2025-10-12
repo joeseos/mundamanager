@@ -260,6 +260,7 @@ export default function FighterPage({
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
   const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
+  const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
 
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
@@ -705,6 +706,7 @@ export default function FighterPage({
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
               vehicleEffects={vehicle.effects}
+              onRegisterPurchase={(fn) => { vehiclePurchaseHandlerRef.current = fn; }}
             />
           )}
 
@@ -981,9 +983,7 @@ export default function FighterPage({
                 vehicleTypeId={vehicle.vehicle_type_id}
                 isVehicleEquipment={true}
                 allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
-                }
+                onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
               />
             )
           )}
