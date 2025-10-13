@@ -42,7 +42,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const fighterBasic = await getFighterBasic(id, supabase);
 
     if (!fighterBasic) {
-      redirect("/");
+      redirect("/gang");
     }
 
     // Fetch ALL data in parallel after we have fighterBasic
@@ -317,7 +317,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     );
 
   } catch (error) {
-    console.error('Error in fighter page:', error);
-    redirect("/");
+    redirect("/gang");
   }
 }

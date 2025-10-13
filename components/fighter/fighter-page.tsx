@@ -883,7 +883,24 @@ export default function FighterPage({
             gang={{ id: fighterData.gang?.id || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
-            onFighterUpdate={() => router.refresh()}
+            onFighterUpdate={() => {}}
+            onStatusMutate={(optimistic, gangCreditsDelta) => {
+              const snapshot = structuredClone(fighterData);
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? { ...prev.fighter, ...optimistic } : null,
+                gang: typeof gangCreditsDelta === 'number' && prev.gang
+                  ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
+                  : prev.gang
+              }));
+              return snapshot;
+            }}
+            onStatusError={(snapshot) => {
+              if (snapshot) setFighterData(snapshot);
+            }}
+            onStatusSuccess={() => {
+              // No-op: server-side tags will reconcile authoritative state
+            }}
           />
 
 
