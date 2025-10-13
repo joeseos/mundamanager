@@ -199,9 +199,10 @@ export function VehicleDamagesList({
       });
 
        if (repairType === 'Almost like new') {
-         const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
-         const damageId = match.id;
-   
+        try {
+        const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
+         const damageId = match?.id;
+  
          // Call handleAddDamage with the ID directly
          if (damageId) {
            addDamageMutation.mutate({
@@ -212,6 +213,10 @@ export function VehicleDamagesList({
              damageName: 'Persistent Rattle'
            });
          }
+        } catch (error) {
+          console.error('Error adding Persistent Rattle:', error);
+        }
+         
        }
 
       // Close repair modal
