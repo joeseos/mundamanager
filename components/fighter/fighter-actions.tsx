@@ -104,14 +104,49 @@ export function FighterActions({
         case 'capture': optimistic.captured = !fighter.captured; break;
       }
       const snapshot = onStatusMutate?.(optimistic, vars.action === 'sell' ? (vars.sell_value || 0) : undefined);
-      return { snapshot } as const;
+      const prevFlags = {
+        killed: !!fighter.killed,
+        retired: !!fighter.retired,
+        enslaved: !!fighter.enslaved,
+        starved: !!fighter.starved,
+        recovery: !!fighter.recovery,
+        captured: !!fighter.captured,
+      };
+      return { snapshot, prevFlags } as const;
     },
-    onSuccess: (result) => {
+    onSuccess: (result, vars, ctx) => {
       if (result.data?.redirectTo) {
         router.push(result.data.redirectTo);
         return;
       }
-      toast({ description: 'Status updated' });
+      const prev = (ctx as any)?.prevFlags as {
+        killed: boolean; retired: boolean; enslaved: boolean; starved: boolean; recovery: boolean; captured: boolean;
+      } | undefined;
+      let successMessage = 'Status updated';
+      switch (vars.action) {
+        case 'kill':
+          successMessage = prev?.killed ? 'Fighter has been resurrected' : 'Fighter has been killed';
+          break;
+        case 'retire':
+          successMessage = prev?.retired ? 'Fighter has been unretired' : 'Fighter has been retired';
+          break;
+        case 'sell':
+          successMessage = `Fighter has been sold for ${vars.sell_value ?? 0} credits`;
+          break;
+        case 'rescue':
+          successMessage = 'Fighter has been rescued from the Guilders';
+          break;
+        case 'starve':
+          successMessage = prev?.starved ? 'Fighter has been fed' : 'Fighter has been starved';
+          break;
+        case 'recover':
+          successMessage = prev?.recovery ? 'Fighter has been recovered from the recovery bay' : 'Fighter has been sent to the recovery bay';
+          break;
+        case 'capture':
+          successMessage = prev?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
+          break;
+      }
+      toast({ description: successMessage });
       onFighterUpdate?.();
       onStatusSuccess?.();
     },
