@@ -21,7 +21,6 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterDetails } from "@/app/actions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
 
 interface FighterPageProps {
@@ -914,35 +913,39 @@ export default function FighterPage({
               gangTypeId={fighterData.gang?.gang_type_id || ''}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
-              onSubmit={async (values) => {
-                try {
-                  // Use server action instead of direct API call
-                  const result = await updateFighterDetails({
-                    fighter_id: fighterId,
-                    fighter_name: values.name,
-                    label: values.label,
-                    kills: values.kills,
-                    cost_adjustment: parseInt(values.costAdjustment) || 0,
-                    special_rules: values.special_rules,
-                    fighter_class: values.fighter_class,
-                    fighter_class_id: values.fighter_class_id,
-                    fighter_type: values.fighter_type,
-                    fighter_type_id: values.fighter_type_id,
-                    fighter_sub_type: values.fighter_sub_type,
-                    fighter_sub_type_id: values.fighter_sub_type_id,
-                    fighter_gang_legacy_id: values.fighter_gang_legacy_id,
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter');
-                  }
-
-                  // Refresh fighter data after successful update
-                  router.refresh();
-                  return true;
-                } catch (error) {
-                  console.error('Error updating fighter:', error);
-                  return false;
+              onEditMutate={(optimistic) => {
+                const snapshot = structuredClone(fighterData);
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    ...optimistic,
+                    // Ensure type shape matches `Fighter` interface
+                    fighter_type: optimistic?.fighter_type ? (optimistic.fighter_type as any) : prev.fighter.fighter_type,
+                    fighter_sub_type: optimistic?.fighter_sub_type ? (optimistic.fighter_sub_type as any) : prev.fighter.fighter_sub_type,
+                    // Optimistically adjust credits if cost_adjustment changes
+                    credits: (() => {
+                      const newAdj = (optimistic as any)?.cost_adjustment;
+                      if (typeof newAdj === 'number') {
+                        const prevAdj = prev.fighter?.cost_adjustment || 0;
+                        const prevBase = (prev.fighter?.credits || 0) - prevAdj;
+                        return prevBase + newAdj;
+                      }
+                      return prev.fighter.credits;
+                    })()
+                  } : null
+                }));
+                return snapshot;
+              }}
+              onEditError={(snapshot) => {
+                setFighterData(snapshot);
+              }}
+              onEditSuccess={(serverFighter) => {
+                if (serverFighter) {
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? { ...prev.fighter, ...serverFighter } : null
+                  }));
                 }
               }}
             />

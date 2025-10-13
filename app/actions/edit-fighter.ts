@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -50,6 +50,8 @@ export interface UpdateFighterDetailsParams {
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
+  // New: optional stat adjustments to be applied as user effects
+  stat_adjustments?: Record<string, number>;
 }
 
 interface EditFighterResult {
@@ -811,6 +813,85 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         } catch (e) {
           console.error('Failed to update rating after cost_adjustment change:', e);
         }
+      }
+    }
+
+    // If there are stat adjustments, apply them using the existing effects system (user effects via fighter_effect_types)
+    if (params.stat_adjustments && Object.keys(params.stat_adjustments).length > 0) {
+      try {
+        // Fetch effect types for the 'user' category (same as API route)
+        const USER_EFFECT_CATEGORY_ID = '3d582ae1-2c18-4e1a-93a9-0c7c5731a96a';
+        const { data: effectTypes, error: typesError } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            fighter_effect_type_modifiers (
+              id,
+              stat_name,
+              default_numeric_value
+            )
+          `)
+          .eq('fighter_effect_category_id', USER_EFFECT_CATEGORY_ID);
+
+        if (typesError) throw typesError;
+
+        const user = await getAuthenticatedUser(supabase);
+
+        // Helper to find matching effect type for a stat and delta sign
+        const findEffectTypeFor = (statName: string, delta: number) => {
+          return (effectTypes as any[])?.find((et: any) =>
+            et.fighter_effect_type_modifiers?.some((m: any) =>
+              m.stat_name === statName && Math.sign(m.default_numeric_value) === Math.sign(delta)
+            )
+          );
+        };
+
+        let effectsChanged = false;
+        for (const [statName, delta] of Object.entries(params.stat_adjustments)) {
+          const changeValue = Number(delta);
+          if (!changeValue || changeValue === 0) continue;
+          const effectType = findEffectTypeFor(statName, changeValue);
+          if (!effectType) continue;
+
+          // Create effect row
+          const { data: newEffect, error: effectError } = await supabase
+            .from('fighter_effects')
+            .insert({
+              fighter_id: params.fighter_id,
+              fighter_effect_type_id: effectType.id,
+              effect_name: effectType.effect_name,
+              user_id: user.id
+            })
+            .select('id')
+            .single();
+
+          if (effectError) throw effectError;
+
+          // Create modifier with signed delta
+          const { error: modifierError } = await supabase
+            .from('fighter_effect_modifiers')
+            .insert({
+              fighter_effect_id: newEffect.id,
+              stat_name: statName,
+              numeric_value: changeValue.toString()
+            });
+          if (modifierError) throw modifierError;
+          effectsChanged = true;
+        }
+
+        // Invalidate caches only if effects actually changed
+        if (effectsChanged) {
+          // Use explicit cache tags for effect changes
+          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+          revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighter_id));
+          revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(fighter.gang_id));
+          revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighter_id));
+          revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(fighter.gang_id));
+          revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+        }
+      } catch (e) {
+        console.error('Failed to apply stat adjustments:', e);
       }
     }
 
