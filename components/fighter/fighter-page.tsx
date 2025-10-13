@@ -941,6 +941,8 @@ export default function FighterPage({
                 setFighterData(snapshot);
               }}
               onEditSuccess={(serverFighter) => {
+                // Keep optimistic effect overlay until server revalidation replaces state;
+                // just merge returned fighter fields (serverFighter usually doesn't include effects)
                 if (serverFighter) {
                   setFighterData(prev => ({
                     ...prev,

@@ -648,6 +648,32 @@ export function EditFighterModal({
       return result.data?.fighter;
     },
     onMutate: (submit) => {
+      // Build optimistic user-effect overlay from pendingStatAdjustments
+      const optimisticModifiers = Object.entries(pendingStatAdjustments || {})
+        .filter(([, delta]) => typeof delta === 'number' && delta !== 0)
+        .map(([prop, delta]) => ({
+          id: `optimistic-${prop}`,
+          fighter_effect_id: 'optimistic-user',
+          stat_name: prop,
+          numeric_value: delta,
+        }));
+
+      const optimisticEffectsOverlay = optimisticModifiers.length > 0
+        ? {
+            effects: {
+              ...currentFighter.effects,
+              user: [
+                ...((currentFighter.effects && currentFighter.effects.user) ? currentFighter.effects.user : []),
+                {
+                  id: 'optimistic-user',
+                  effect_name: 'User Adjustment',
+                  fighter_effect_modifiers: optimisticModifiers,
+                } as any,
+              ],
+            },
+          }
+        : {};
+
       const optimistic: any = {
         fighter_name: submit.name,
         label: submit.label,
@@ -663,6 +689,8 @@ export function EditFighterModal({
         ...(submit.fighter_gang_legacy_id !== undefined
           ? { fighter_gang_legacy_id: submit.fighter_gang_legacy_id as any }
           : {}),
+        // Include optimistic effects overlay so UI updates instantly
+        ...optimisticEffectsOverlay,
       };
       const snapshot = onEditMutate?.(optimistic);
       return { snapshot, optimistic } as const;
