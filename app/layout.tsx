@@ -1,4 +1,3 @@
-import { EnvVarWarning } from "@/components/env-var-warning";
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
@@ -14,6 +13,8 @@ import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
 import { ClientThemeProvider } from "@/components/client-theme-provider";
 import { ThemeToggleDropdown } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -213,7 +214,31 @@ export default async function RootLayout({
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
                 <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-                  <EnvVarWarning />
+                  <div className="flex gap-4 items-center">
+                    <Badge variant={"outline"} className="font-normal">
+                      Supabase environment variables required
+                    </Badge>
+                    <div className="flex gap-2">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant={"outline"}
+                        disabled
+                        className="opacity-75 cursor-none pointer-events-none"
+                      >
+                        <Link href="/sign-in">Sign in</Link>
+                      </Button>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant={"default"}
+                        disabled
+                        className="opacity-75 cursor-none pointer-events-none"
+                      >
+                        <Link href="/sign-up">Sign up</Link>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </nav>
             )}
