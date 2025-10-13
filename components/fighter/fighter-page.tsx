@@ -790,6 +790,19 @@ export default function FighterPage({
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
+            onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  recovery: recoveryStatus !== undefined ? recoveryStatus : (prev.fighter.recovery),
+                  effects: {
+                    ...prev.fighter.effects,
+                    injuries: updatedInjuries
+                  }
+                } : null
+              }));
+            }}
           />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
