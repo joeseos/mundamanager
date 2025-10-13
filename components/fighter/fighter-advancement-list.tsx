@@ -11,7 +11,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -186,12 +186,12 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   const [loading, setLoading] = useState(true);
   const [advancementType, setAdvancementType] = useState<'characteristic' | 'skill' | ''>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
-  const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
+  // skillsData not used in optimistic path; removed
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const queryClient = useQueryClient();
+  // No client-side invalidations; rely on server tag revalidation
 
   // TanStack Query mutations
   const addCharacteristicMutation = useMutation({
@@ -205,9 +205,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
     onMutate: async (variables) => {
       if (!selectedAdvancement) return {};
 
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey: ['fighter-effects', fighterId] });
-
       // Snapshot the previous value for rollback
       const previousAdvancements = [...advancements];
 
@@ -220,7 +217,10 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
         fighter_effect_modifiers: [{
           id: `${optimisticId}-modifier`,
           fighter_effect_id: optimisticId,
-          stat_name: (selectedAdvancement.stat_change_name || '').toLowerCase().replace(' ', '_'),
+          // Prefer the API-provided characteristic_code if present; fallback to normalized name
+          stat_name: (selectedAdvancement.characteristic_code || (selectedAdvancement.stat_change_name || '')
+            .toLowerCase()
+            .replace(/\s+/g, '_')),
           numeric_value: 1
         }],
         created_at: new Date().toISOString(),
@@ -274,13 +274,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
         variant: "destructive"
       });
     },
-    // Let server action handle cache invalidation naturally
-    onSettled: () => {
-      // Small delay to let optimistic update be visible before cache refresh
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['fighter-effects', fighterId] });
-      }, 100);
-    }
+    // Let server action handle cache invalidation naturally; nothing here
   });
 
   const addSkillMutation = useMutation({
@@ -401,13 +395,11 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       if (!advancementType || !selectedCategory) return;
 
       try {
-        console.log('Fetching advancements for type:', advancementType, 'category:', selectedCategory);
 
         if (advancementType === 'characteristic') {
           // Only fetch characteristics if a category is selected
           if (!selectedCategory) return;
 
-          console.log('Fetching characteristics for fighter ID:', fighterId);
           
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
@@ -431,8 +423,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
           }
 
           const data = await response.json();
-          console.log('Available advancements response:', data);
-          console.log('Available characteristics data:', data.characteristics);
 
           // Find the category name from the selected category
           const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
@@ -441,9 +431,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             return;
           }
 
-          console.log('Selected category:', selectedCategoryObj);
-          console.log('Looking for advancement details with key:', selectedCategoryObj.effect_name);
-          console.log('Available characteristics:', data.characteristics);
 
           // Get the advancement details for the selected characteristic
           const advancementDetails = data.characteristics[selectedCategoryObj.effect_name];
@@ -468,7 +455,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             available_acquisition_types: []
           };
 
-          console.log('Formatted characteristic advancement:', formattedAdvancement);
           setAvailableAdvancements([formattedAdvancement]);
           setSelectedAdvancement(formattedAdvancement);
           setEditableXpCost(formattedAdvancement.xp_cost);
@@ -495,8 +481,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
           }
 
           const data = await response.json() as SkillResponse;
-          console.log('Raw skills data:', data);
-          setSkillsData(data);
 
           // Find the selected skill set name
           const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
@@ -525,12 +509,10 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             is_available: skill.available
           }));
 
-          console.log('Formatted skill advancements:', formattedAdvancements);
           setAvailableAdvancements(formattedAdvancements);
-          // Remove auto-selection of first advancement - let user choose
+          // Keep user selection; do not auto-select first advancement
           // if (formattedAdvancements.length > 0) {
           //   const initialAdvancement = formattedAdvancements[0];
-          //   console.log('Setting initial skill advancement:', initialAdvancement);
           //   setSelectedAdvancement(initialAdvancement);
           //   setEditableXpCost(initialAdvancement.xp_cost);
           //   setEditableCreditsIncrease(initialAdvancement.credits_increase || 0);
@@ -556,34 +538,18 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   }, [selectedAdvancement]);
 
   // Add these console.logs to help debug
-  useEffect(() => {
-    console.log('Current state:', {
-      advancementType,
-      selectedCategory,
-      availableAdvancements,
-      selectedAdvancement,
-      skillAcquisitionType
-    });
-  }, [advancementType, selectedCategory, availableAdvancements, selectedAdvancement, skillAcquisitionType]);
+  // Debug effect removed
 
   // Add this useEffect to track state changes
-  useEffect(() => {
-    console.log('Advancement selection changed:', {
-      selectedAdvancement,
-      skillAcquisitionType,
-      editableXpCost,
-      editableCreditsIncrease
-    });
-  }, [selectedAdvancement, skillAcquisitionType, editableXpCost, editableCreditsIncrease]);
+  // Debug effect removed
 
   // First, let's add some debug logging to see what's happening with the skill selection
-  useEffect(() => {
-    console.log('Available advancements:', availableAdvancements);
-  }, [availableAdvancements]);
+  // Debug effect removed
 
   // Add this to track the characteristic data
   useEffect(() => {
     if (selectedCategory && advancementType === 'characteristic') {
+      // no-op
     }
   }, [selectedCategory, selectedAdvancement, advancementType]);
 
@@ -917,7 +883,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                           );
 
                           if (selectedType) {
-                            console.log('Selected acquisition type:', selectedType);
                             setSelectedAdvancement({
                               ...selectedAdvancement,
                               xp_cost: selectedType.xp_cost,
@@ -926,7 +891,6 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                             });
                             setEditableXpCost(selectedType.xp_cost);
                             setEditableCreditsIncrease(selectedType.credit_cost);
-                            console.log('Updated XP cost to:', selectedType.xp_cost, 'and credits to:', selectedType.credit_cost);
                           }
                         }
                       }}
@@ -1040,10 +1004,10 @@ export function AdvancementsList({
   onCharacteristicUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  // isDeleting unused; removed
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  // removed queryClient – server actions handle cache revalidation
 
 
   // TanStack Query delete mutation
