@@ -78,7 +78,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id')
+      .select('id, user_id, rating, credits')
       .eq('id', sourceFighter.gang_id)
       .single();
 
@@ -90,6 +90,17 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     if (!ownsGang && !isAdmin) {
       return { success: false, error: 'Unauthorized: You do not own this fighter' };
+    }
+
+    if (params.deduct_credits) {
+      const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
+      const currentCredits = gang.credits || 0;
+      if (currentCredits < cost) {
+        return {
+          success: false,
+          error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${cost}`
+        };
+      }
     }
 
     const { data: maxPositionData } = await supabase
@@ -269,39 +280,26 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    const { data: gangData } = await supabase
-      .from('gangs')
-      .select('rating, credits')
-      .eq('id', params.target_gang_id)
-      .single();
+    // Update gang credits and rating
+    const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
+    const updateData: any = {};
 
-    if (gangData) {
-      const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
-      const updateData: any = {};
+    if (params.add_to_rating !== false) {
+      const newRating = (gang.rating || 0) + cost;
+      updateData.rating = newRating;
+    }
 
-      if (params.add_to_rating !== false) {
-        const newRating = (gangData.rating || 0) + cost;
-        updateData.rating = newRating;
-      }
+    if (params.deduct_credits) {
+      const currentCredits = gang.credits || 0;
+      updateData.credits = currentCredits - cost;
+    }
 
-      if (params.deduct_credits) {
-        const currentCredits = gangData.credits || 0;
-        if (currentCredits < cost) {
-          return {
-            success: false,
-            error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${cost}`
-          };
-        }
-        updateData.credits = currentCredits - cost;
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        updateData.last_updated = new Date().toISOString();
-        await supabase
-          .from('gangs')
-          .update(updateData)
-          .eq('id', params.target_gang_id);
-      }
+    if (Object.keys(updateData).length > 0) {
+      updateData.last_updated = new Date().toISOString();
+      await supabase
+        .from('gangs')
+        .update(updateData)
+        .eq('id', params.target_gang_id);
     }
 
     invalidateFighterAddition({
