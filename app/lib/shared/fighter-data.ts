@@ -76,6 +76,7 @@ export interface FighterEquipment {
   original_cost?: number;
   is_master_crafted?: boolean;
   weapon_profiles?: any[];
+  target_equipment_id?: string | null;
 }
 
 export interface FighterSkill {
@@ -209,11 +210,22 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
 
       if (error) throw error;
 
-      // Process each equipment item and add weapon profiles
+      // Process each equipment item and add weapon profiles + target equipment relationship
       const equipmentWithProfiles = await Promise.all(
         (data || []).map(async (item: any) => {
           const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
           let weaponProfiles: any[] = [];
+          const fighterEquipmentId = item.id;
+
+          // Check if this equipment targets another piece of equipment (equipment-to-equipment upgrade)
+          const { data: targetEffect } = await supabase
+            .from('fighter_effects')
+            .select('target_equipment_id')
+            .eq('fighter_equipment_id', fighterEquipmentId)
+            .not('target_equipment_id', 'is', null)
+            .maybeSingle();
+
+          const targetEquipmentId = targetEffect?.target_equipment_id || null;
 
           if (equipmentType === 'weapon') {
             if (item.equipment_id) {
@@ -273,6 +285,85 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             }
           }
 
+          // If we have profiles, apply equipment-targeted effects from fighter_effects targeting this equipment
+          if (weaponProfiles.length > 0) {
+            const { data: targetingEffects } = await supabase
+              .from('fighter_effects')
+              .select(`
+                id,
+                fighter_effect_type_id,
+                type_specific_data,
+                fighter_effect_modifiers ( stat_name, numeric_value, operation )
+              `)
+              .eq('target_equipment_id', fighterEquipmentId);
+
+            if (targetingEffects && targetingEffects.length > 0) {
+              weaponProfiles = weaponProfiles.map((profile: any) => {
+                // Work on a copy
+                const modified = { ...profile };
+
+                // Apply numeric fields with add/set
+                const numericFields = ['strength', 'ap', 'damage', 'ammo'];
+                const sumAdds: Record<string, number> = {};
+                const setLatest: Record<string, number> = {};
+
+                targetingEffects.forEach((eff: any) => {
+                  (eff.fighter_effect_modifiers || []).forEach((m: any) => {
+                    const key = m.stat_name;
+                    const op = (m.operation || 'add') as 'add' | 'set';
+                    const val = Number(m.numeric_value);
+                    if (!Number.isFinite(val)) return;
+                    if (numericFields.includes(key)) {
+                      if (op === 'add') {
+                        sumAdds[key] = (sumAdds[key] || 0) + val;
+                      } else {
+                        setLatest[key] = val;
+                      }
+                    }
+                  });
+                });
+
+                numericFields.forEach((key) => {
+                  const baseStr = (modified as any)[key];
+                  const baseNum = typeof baseStr === 'string' ? parseInt(baseStr.replace('+', ''), 10) : NaN;
+                  const hasBaseNum = Number.isFinite(baseNum);
+                  const addVal = sumAdds[key] || 0;
+                  const setVal = setLatest[key];
+
+                  if (setVal !== undefined) {
+                    // set overrides final value
+                    (modified as any)[key] = key === 'ammo' ? `${setVal}+` : `${setVal}`;
+                  } else if (addVal !== 0 && hasBaseNum) {
+                    const newVal = baseNum + addVal;
+                    (modified as any)[key] = key === 'ammo' ? `${newVal}+` : `${newVal}`;
+                  }
+                });
+
+                // Traits add/remove via type_specific_data
+                let traitsArr: string[] = (modified.traits || '')
+                  .split(',')
+                  .map((t: string) => t.trim())
+                  .filter(Boolean);
+                targetingEffects.forEach((eff: any) => {
+                  const tsd = eff.type_specific_data || {};
+                  const toRemove: string[] = tsd.traits_to_remove || [];
+                  const toAdd: string[] = tsd.traits_to_add || [];
+                  if (toRemove.length > 0) {
+                    traitsArr = traitsArr.filter(t => !toRemove.includes(t));
+                  }
+                  if (toAdd.length > 0) {
+                    for (const t of toAdd) {
+                      if (!traitsArr.includes(t)) traitsArr.push(t);
+                    }
+                  }
+                });
+                modified.traits = traitsArr.join(', ');
+
+                return modified;
+              });
+            }
+          }
+
           return {
             fighter_equipment_id: item.id,
             equipment_id: item.equipment_id || undefined,
@@ -283,7 +374,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             purchase_cost: item.purchase_cost || 0,
             original_cost: item.original_cost,
             is_master_crafted: item.is_master_crafted || false,
-            weapon_profiles: weaponProfiles
+            weapon_profiles: weaponProfiles,
+            target_equipment_id: targetEquipmentId
           };
         })
       );
