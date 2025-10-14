@@ -125,7 +125,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_sub_type_id: sourceFighter.fighter_sub_type_id,
       custom_fighter_type_id: sourceFighter.custom_fighter_type_id,
       fighter_gang_legacy_id: sourceFighter.fighter_gang_legacy_id,
-      user_id: gang.user_id,
+      user_id: user.id,
 
       movement: sourceFighter.movement,
       weapon_skill: sourceFighter.weapon_skill,
@@ -195,7 +195,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           original_cost: eq.original_cost,
           is_master_crafted: eq.is_master_crafted || false,
           gang_id: params.target_gang_id,
-          user_id: gang.user_id
+          user_id: user.id
         }));
 
       if (equipmentToCopy.length > 0) {
@@ -214,7 +214,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
         skill_id: skill.skill_id,
-        user_id: gang.user_id
+        user_id: user.id
       }));
 
       const { error: skillsError } = await supabase
@@ -233,7 +233,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         effect_name: effect.effect_name,
         fighter_effect_type_id: effect.fighter_effect_type_id,
         type_specific_data: effect.type_specific_data,
-        user_id: gang.user_id
+        user_id: user.id
       }));
 
       const { data: insertedEffects, error: effectsError } = await supabase
