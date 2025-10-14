@@ -1,9 +1,9 @@
 'use server'
 
-import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
-import { logFighterAction } from '@/app/actions/logs/fighter-logs';
+import {createClient} from "@/utils/supabase/server";
+import {checkAdminOptimized, getAuthenticatedUser} from "@/utils/auth";
+import {invalidateFighterAddition, invalidateGangRating} from '@/utils/cache-tags';
+import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -176,6 +176,14 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     const newFighterId = newFighter.id;
 
+    // Helper function to rollback (delete the created fighter) on error
+    const rollbackFighter = async (errorMessage: string) => {
+      console.error('Rolling back fighter creation due to error:', errorMessage);
+      await supabase.from('fighters').delete().eq('id', newFighterId);
+      return { success: false, error: errorMessage };
+    };
+
+    // Copy equipment
     if (sourceFighter.fighter_equipment && sourceFighter.fighter_equipment.length > 0) {
       const equipmentToCopy = sourceFighter.fighter_equipment
         .filter((eq: any) => !eq.vehicle_id)
@@ -196,11 +204,12 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .insert(equipmentToCopy);
 
         if (equipmentError) {
-          console.error('Error copying equipment:', equipmentError);
+          return await rollbackFighter(`Failed to copy equipment: ${equipmentError.message}`);
         }
       }
     }
 
+    // Copy skills
     if (sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
@@ -213,10 +222,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .insert(skillsToCopy);
 
       if (skillsError) {
-        console.error('Error copying skills:', skillsError);
+        return await rollbackFighter(`Failed to copy skills: ${skillsError.message}`);
       }
     }
 
+    // Copy effects and modifiers (only if copying as experienced)
     if (params.copy_as_experienced && sourceFighter.fighter_effects && sourceFighter.fighter_effects.length > 0) {
       const effectsToCopy = sourceFighter.fighter_effects.map((effect: any) => ({
         fighter_id: newFighterId,
@@ -232,8 +242,10 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .select('id');
 
       if (effectsError) {
-        console.error('Error copying effects:', effectsError);
-      } else if (insertedEffects) {
+        return await rollbackFighter(`Failed to copy effects: ${effectsError.message}`);
+      }
+
+      if (insertedEffects) {
         const allModifiers: any[] = [];
         sourceFighter.fighter_effects.forEach((sourceEffect: any, index: number) => {
           const newEffectId = insertedEffects[index]?.id;
@@ -254,12 +266,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             .insert(allModifiers);
 
           if (modifiersError) {
-            console.error('Error copying effect modifiers:', modifiersError);
+            return await rollbackFighter(`Failed to copy effect modifiers: ${modifiersError.message}`);
           }
         }
       }
     }
 
+    // Copy injuries (only if copying as experienced)
     if (params.copy_as_experienced && sourceFighter.fighter_injuries && sourceFighter.fighter_injuries.length > 0) {
       const injuriesToCopy = sourceFighter.fighter_injuries.map((injury: any) => ({
         fighter_id: newFighterId,
@@ -276,7 +289,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .insert(injuriesToCopy);
 
       if (injuriesError) {
-        console.error('Error copying injuries:', injuriesError);
+        return await rollbackFighter(`Failed to copy injuries: ${injuriesError.message}`);
       }
     }
 
@@ -285,8 +298,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const updateData: any = {};
 
     if (params.add_to_rating !== false) {
-      const newRating = (gang.rating || 0) + cost;
-      updateData.rating = newRating;
+      updateData.rating = (gang.rating || 0) + cost;
     }
 
     if (params.deduct_credits) {
