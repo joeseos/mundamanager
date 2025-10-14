@@ -59,6 +59,20 @@ export default function CopyFighterModal({
 
   if (!isOpen) return null;
 
+  const resetModalState = () => {
+    setName(currentName);
+    setSubmitting(false);
+    setAddToRating(true);
+    setDeductCredits(true);
+    setCopyAsExperienced(false);
+    setGangCredits(null);
+  };
+
+  const handleClose = () => {
+    resetModalState();
+    onClose();
+  };
+
   const handleConfirm = async () => {
     if (!name.trim()) return false;
 
@@ -88,6 +102,7 @@ export default function CopyFighterModal({
       description: `${result.data?.fighter_name} was successfully copied.`
     });
 
+    resetModalState();
     onClose();
     router.refresh();
 
@@ -108,7 +123,7 @@ export default function CopyFighterModal({
         )
       }
       helper="Choose a name for the fighter copy."
-      onClose={onClose}
+      onClose={handleClose}
       onConfirm={handleConfirm}
       confirmText={submitting ? 'Copying...' : 'Copy'}
       confirmDisabled={!name.trim() || submitting}
