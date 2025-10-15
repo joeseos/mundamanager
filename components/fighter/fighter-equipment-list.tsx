@@ -378,11 +378,11 @@ export function WeaponList({
   const renderRow = (item: Equipment, isChild: boolean = false) => (
     <tr
       key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
-      className={isChild ? "border-b bg-muted/30" : "border-b"}
+      className={isChild ? "border-b bg-muted/20" : "border-b"}
     >
       <td className="px-1 py-1">
-        {isChild && <span className="text-muted-foreground mr-1">↳</span>}
-        <span className={isChild ? "text-sm" : ""}>{item.equipment_name}</span>
+        {isChild && <span className="text-muted-foreground mr-2">↳</span>}
+        <span className={isChild ? "text-sm pl-2" : ""}>{item.equipment_name}</span>
       </td>
       <td className="px-1 py-1 text-right">
         <span className={isChild ? "text-sm" : ""}>{item.cost ?? '-'}</span>
@@ -437,12 +437,15 @@ export function WeaponList({
   );
 
   // Helper to render a parent item and its children
-  const renderItemWithChildren = (item: Equipment) => (
-    <React.Fragment key={item.fighter_equipment_id}>
-      {renderRow(item, false)}
-      {equipmentTree.get(item.fighter_equipment_id)?.map(child => renderRow(child, true))}
-    </React.Fragment>
-  );
+  const renderItemWithChildren = (item: Equipment) => {
+    const children = equipmentTree.get(item.fighter_equipment_id) || [];
+    return (
+      <React.Fragment key={item.fighter_equipment_id}>
+        {renderRow(item, false)}
+        {children.map(child => renderRow(child, true))}
+      </React.Fragment>
+    );
+  };
 
   if (isLoading) {
     return (

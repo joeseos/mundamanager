@@ -134,7 +134,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
       return true;
     }
 
-    // Pre-check: if upgrade, select target BEFORE purchase
+    // Pre-check: if upgrade (applies_to=equipment), select target BEFORE purchase
     if (!item.is_custom && !showTargetSelection && !showEffectSelection) {
       const supabase = createClient();
       const precheckUpgrade = async () => {
@@ -147,30 +147,26 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
             .limit(1);
           const hit = rows && rows[0];
           if (hit) {
+            // This IS an equipment upgrade - show target selection
             setUpgradeEffectTypeId(hit.id);
             setShowTargetSelection(true);
-            return false;
+            return;
           }
+          // Not an equipment upgrade - continue to check for regular effects
+          checkSelectableEffects();
         } catch (err) {
           console.error('Error checking equipment upgrade:', err);
+          // On error, try to check for regular effects anyway
+          checkSelectableEffects();
         }
-        return true;
       };
-      precheckUpgrade();
-      return false;
-    }
 
-    // Note: showTargetSelection is handled by a separate modal render path (lines 246-279)
-    // so we don't need to handle it here
-
-    // Check if this equipment has effects that need selection
-    if (!item.is_custom && !showEffectSelection) {
       // Check if there are any selectable effects (non-fixed) for this equipment
       const checkSelectableEffects = async () => {
         try {
           // Fetch full effect data including modifiers
           const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
-          
+
           if (!response.ok) {
             throw new Error('Failed to fetch fighter effects');
           }
@@ -178,39 +174,39 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
           const fetchedEffectTypes = await response.json();
           setEffectTypes(fetchedEffectTypes);
 
-          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
-            effect.type_specific_data?.effect_selection === 'single_select' || 
+          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) =>
+            effect.type_specific_data?.effect_selection === 'single_select' ||
             effect.type_specific_data?.effect_selection === 'multiple_select'
           );
 
           if (hasSelectableEffects) {
             setShowEffectSelection(true);
             setIsEffectSelectionValid(false);
-            return false; // Don't close modal, show effect selection
           } else {
             // All effects are fixed, collect them and proceed directly with purchase
             const fixedEffects = fetchedEffectTypes
-              ?.filter((effect: any) => 
-                effect.type_specific_data?.effect_selection === 'fixed' || 
+              ?.filter((effect: any) =>
+                effect.type_specific_data?.effect_selection === 'fixed' ||
                 !effect.type_specific_data?.effect_selection
               )
               .map((effect: any) => effect.id) || [];
-            
+
             onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-            return true; // Allow modal to close
           }
         } catch (error) {
           console.error('Error checking selectable effects:', error);
           // On error, proceed with purchase to avoid blocking the user
           onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
-          return true;
         }
       };
 
-      checkSelectableEffects();
-      return false; // Prevent modal from closing while we check
+      precheckUpgrade();
+      return false;
     }
-    
+
+    // Note: showTargetSelection and showEffectSelection are handled by separate modal render paths
+    // If we reach here, it means neither target selection nor effect selection is needed
+    // Just proceed with purchase
     onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
     return true; // Allow modal to close
   };
