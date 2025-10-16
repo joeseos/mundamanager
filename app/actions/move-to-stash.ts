@@ -65,6 +65,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     }
 
     // Get associated fighter effects before moving to stash (they need to be removed)
+    // Include both effects attached to this equipment (modifier) and effects targeting this equipment
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
       .select(`
@@ -76,7 +77,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           numeric_value
         )
       `)
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
+      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;

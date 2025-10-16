@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
@@ -14,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { buyEquipmentForFighter } from '@/app/actions/equipment';
+import { buyEquipmentForFighter, applyEquipmentEffect } from '@/app/actions/equipment';
 import { Tooltip } from 'react-tooltip';
 import FighterEffectSelection from './fighter-effect-selection';
 
@@ -39,6 +40,8 @@ interface ItemModalProps {
   isCustomFighter?: boolean;
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
+  // Optional: pass fighter weapons to avoid client fetch in target selection
+  fighterWeapons?: { id: string; name: string }[];
 }
 
 interface RawEquipmentData {
@@ -66,8 +69,17 @@ interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (cost: number, isMasterCrafted: boolean, useBaseCostForRating: boolean, selectedEffectIds?: string[]) => void;
+  onConfirm: (
+    cost: number,
+    isMasterCrafted: boolean,
+    useBaseCostForRating: boolean,
+    selectedEffectIds?: string[],
+    equipmentTarget?: { target_equipment_id: string; effect_type_id: string }
+  ) => void;
   isStashPurchase?: boolean;
+  fighterId?: string;
+  gangId?: string;
+  fighterWeapons?: { id: string; name: string }[];
 }
 
 interface Category {
@@ -75,16 +87,35 @@ interface Category {
   category_name: string;
 }
 
-function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase }: PurchaseModalProps) {
+interface BuyEquipmentParams {
+  equipment_id?: string;
+  custom_equipment_id?: string;
+  gang_id: string;
+  manual_cost: number;
+  master_crafted: boolean;
+  use_base_cost_for_rating: boolean;
+  buy_for_gang_stash: boolean;
+  selected_effect_ids: string[];
+  fighter_id?: string;
+  vehicle_id?: string;
+  equipment_target?: {
+    target_equipment_id: string;
+    effect_type_id: string;
+  };
+}
+
+function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
   const [showEffectSelection, setShowEffectSelection] = useState(false);
+  const [showTargetSelection, setShowTargetSelection] = useState(false);
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
-  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const [upgradeEffectTypeId, setUpgradeEffectTypeId] = useState<string | null>(null);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -119,15 +150,40 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
       onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, []);
       return true;
     }
-    
-    // Check if this equipment has effects that need selection
-    if (!item.is_custom && !showEffectSelection) {
+
+    // Pre-check: if upgrade (applies_to=equipment), select target BEFORE purchase
+    if (!item.is_custom && !showTargetSelection && !showEffectSelection) {
+      const supabase = createClient();
+      const precheckUpgrade = async () => {
+        try {
+          const { data: rows } = await supabase
+            .from('fighter_effect_types')
+            .select('id, type_specific_data')
+            .eq('type_specific_data->>equipment_id', item.equipment_id)
+            .eq('type_specific_data->>applies_to', 'equipment')
+            .limit(1);
+          const hit = rows && rows[0];
+          if (hit) {
+            // This IS an equipment upgrade - show target selection
+            setUpgradeEffectTypeId(hit.id);
+            setShowTargetSelection(true);
+            return;
+          }
+          // Not an equipment upgrade - continue to check for regular effects
+          checkSelectableEffects();
+        } catch (err) {
+          console.error('Error checking equipment upgrade:', err);
+          // On error, try to check for regular effects anyway
+          checkSelectableEffects();
+        }
+      };
+
       // Check if there are any selectable effects (non-fixed) for this equipment
       const checkSelectableEffects = async () => {
         try {
           // Fetch full effect data including modifiers
           const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
-          
+
           if (!response.ok) {
             throw new Error('Failed to fetch fighter effects');
           }
@@ -135,39 +191,39 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
           const fetchedEffectTypes = await response.json();
           setEffectTypes(fetchedEffectTypes);
 
-          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) => 
-            effect.type_specific_data?.effect_selection === 'single_select' || 
+          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) =>
+            effect.type_specific_data?.effect_selection === 'single_select' ||
             effect.type_specific_data?.effect_selection === 'multiple_select'
           );
 
           if (hasSelectableEffects) {
             setShowEffectSelection(true);
             setIsEffectSelectionValid(false);
-            return false; // Don't close modal, show effect selection
           } else {
             // All effects are fixed, collect them and proceed directly with purchase
             const fixedEffects = fetchedEffectTypes
-              ?.filter((effect: any) => 
-                effect.type_specific_data?.effect_selection === 'fixed' || 
+              ?.filter((effect: any) =>
+                effect.type_specific_data?.effect_selection === 'fixed' ||
                 !effect.type_specific_data?.effect_selection
               )
               .map((effect: any) => effect.id) || [];
-            
+
             onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-            return true; // Allow modal to close
           }
         } catch (error) {
           console.error('Error checking selectable effects:', error);
           // On error, proceed with purchase to avoid blocking the user
           onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
-          return true;
         }
       };
 
-      checkSelectableEffects();
-      return false; // Prevent modal from closing while we check
+      precheckUpgrade();
+      return false;
     }
-    
+
+    // Note: showTargetSelection and showEffectSelection are handled by separate modal render paths
+    // If we reach here, it means neither target selection nor effect selection is needed
+    // Just proceed with purchase
     onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
     return true; // Allow modal to close
   };
@@ -191,6 +247,49 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
     setIsEffectSelectionValid(isValid);
   };
 
+  if (showTargetSelection) {
+    return (
+      <Modal
+        title="Select Target Weapon"
+        content={
+          <FighterEffectSelection
+            equipmentId={item.equipment_id}
+            effectTypes={[]}
+            targetSelectionOnly
+            fighterId={fighterId}
+            modifierEquipmentId={''}
+            effectTypeId={upgradeEffectTypeId || undefined}
+            fighterWeapons={fighterWeapons}
+            onApplyToTarget={async (targetEquipmentId) => {
+              // Execute purchase immediately with the chosen target
+              const equipmentTargetData = {
+                target_equipment_id: targetEquipmentId,
+                effect_type_id: upgradeEffectTypeId as string
+              };
+              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData);
+            }}
+            onSelectionComplete={() => {
+              // No-op; parent onConfirm is triggered by onApplyToTarget
+            }}
+            onCancel={() => {
+              setShowTargetSelection(false);
+              setUpgradeEffectTypeId(null);
+            }}
+            onValidityChange={(isValid) => setIsEffectSelectionValid(isValid)}
+            ref={effectSelectionRef}
+          />
+        }
+        onClose={onClose}
+        onConfirm={async () => {
+          return await effectSelectionRef.current?.handleConfirm() || false;
+        }}
+        confirmText="Confirm Target"
+        confirmDisabled={!isEffectSelectionValid}
+        width="lg"
+      />
+    );
+  }
+
   if (showEffectSelection) {
     return (
       <Modal
@@ -206,8 +305,8 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase 
           />
         }
         onClose={onClose}
-        onConfirm={() => {
-          return effectSelectionRef.current?.handleConfirm() || false;
+        onConfirm={async () => {
+          return await effectSelectionRef.current?.handleConfirm() || false;
         }}
         confirmText="Confirm Selection"
         confirmDisabled={!isEffectSelectionValid}
@@ -320,10 +419,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
   isStashMode,
   isCustomFighter = false,
   onEquipmentBought,
-  onPurchaseRequest
+  onPurchaseRequest,
+  fighterWeapons
 }) => {
-  const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
-  
+  const router = useRouter();
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
@@ -354,6 +453,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [maxCost, setMaxCost] = useState(160);
   const [minAvailability, setMinAvailability] = useState(6);
   const [maxAvailability, setMaxAvailability] = useState(12);
+
+  // Target selection modal state for equipment-to-equipment upgrades
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const [targetSelectionOpen, setTargetSelectionOpen] = useState(false);
+  const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
+  const [targetSelectionCtx, setTargetSelectionCtx] = useState<{ modifier_equipment_id: string; effect_type_id: string } | null>(null);
 
   useEffect(() => {
     // Debug: snapshot key props on mount
@@ -660,14 +765,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = []) => {
+  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = [], equipmentTarget?: { target_equipment_id: string; effect_type_id: string }) => {
     if (!session) return;
     try {
       // Determine if this is a gang stash purchase
       const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
-      
-      const params = {
-        ...(item.is_custom 
+
+      const params: BuyEquipmentParams = {
+        ...(item.is_custom
           ? { custom_equipment_id: item.equipment_id }
           : { equipment_id: item.equipment_id }
         ),
@@ -681,7 +786,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
         ...(!isGangStashPurchase && (isVehicleEquipment
           ? { vehicle_id: vehicleId || undefined }
           : { fighter_id: fighterId || undefined }
-        ))
+        )),
+        // Include equipment_target if provided (for equipment-to-equipment upgrades)
+        ...(equipmentTarget && equipmentTarget.target_equipment_id && equipmentTarget.effect_type_id && {
+          equipment_target: equipmentTarget
+        })
       };
       // Delegate to parent mutation if provided (optimistic path). Modal closes immediately.
       if (onPurchaseRequest) {
@@ -741,7 +850,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
         variant: "default",
       });
 
+      // Target selection is handled pre-purchase; do not open any post-purchase selection
+
       setBuyModalData(null);
+
+      // Removed router.refresh; optimistic updates will render children immediately
     } catch (err) {
       console.error('Error buying equipment:', err);
       toast({
@@ -1192,26 +1305,65 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => {
-                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || []);
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget) => {
+                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [], equipmentTarget);
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
+                fighterId={fighterId}
+                gangId={gangId}
+                fighterWeapons={fighterWeapons}
               />
             )}
           </div>
         </div>
       </div>
-      {/* Purchase Modal and Tooltip */}
-      {buyModalData && (
-        <PurchaseModal
-          item={buyModalData}
-          gangCredits={gangCredits}
-          onClose={() => setBuyModalData(null)}
-          onConfirm={(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds) => handleBuyEquipment(buyModalData, parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [])}
-          isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
+      {/* Weapon Profile Tooltip */}
+      {targetSelectionOpen && targetSelectionCtx && (
+        <Modal
+          title="Select Target Weapon"
+          content={
+            <FighterEffectSelection
+              equipmentId={''}
+              effectTypes={[]}
+              targetSelectionOnly
+              fighterId={fighterId}
+              modifierEquipmentId={targetSelectionCtx.modifier_equipment_id}
+              effectTypeId={targetSelectionCtx.effect_type_id}
+              fighterWeapons={fighterWeapons}
+              onApplyToTarget={async (targetEquipmentId) => {
+                const res = await applyEquipmentEffect({
+                  modifier_equipment_id: targetSelectionCtx.modifier_equipment_id,
+                  target_equipment_id: targetEquipmentId,
+                  effect_type_id: targetSelectionCtx.effect_type_id,
+                  fighter_id: fighterId,
+                  gang_id: gangId
+                });
+                if (!res.success) throw new Error(res.error || 'Failed to apply upgrade');
+              }}
+              onSelectionComplete={() => {
+                setTargetSelectionOpen(false);
+                setTargetSelectionCtx(null);
+              }}
+              onCancel={() => {
+                setTargetSelectionOpen(false);
+                setTargetSelectionCtx(null);
+              }}
+              onValidityChange={setIsTargetSelectionValid}
+              ref={effectSelectionRef}
+            />
+          }
+          onClose={() => {
+            setTargetSelectionOpen(false);
+            setTargetSelectionCtx(null);
+          }}
+          onConfirm={async () => {
+            return await effectSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Apply"
+          confirmDisabled={!isTargetSelectionValid}
+          width="lg"
         />
       )}
-      {/* Weapon Profile Tooltip */}
       <Tooltip
         id="weapon-profile-tooltip"
         place="top-start"
