@@ -87,6 +87,23 @@ interface Category {
   category_name: string;
 }
 
+interface BuyEquipmentParams {
+  equipment_id?: string;
+  custom_equipment_id?: string;
+  gang_id: string;
+  manual_cost: number;
+  master_crafted: boolean;
+  use_base_cost_for_rating: boolean;
+  buy_for_gang_stash: boolean;
+  selected_effect_ids: string[];
+  fighter_id?: string;
+  vehicle_id?: string;
+  equipment_target?: {
+    target_equipment_id: string;
+    effect_type_id: string;
+  };
+}
+
 function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
@@ -97,7 +114,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
-  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [upgradeEffectTypeId, setUpgradeEffectTypeId] = useState<string | null>(null);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
@@ -263,8 +280,8 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
           />
         }
         onClose={onClose}
-        onConfirm={() => {
-          return effectSelectionRef.current?.handleConfirm() || false;
+        onConfirm={async () => {
+          return await effectSelectionRef.current?.handleConfirm() || false;
         }}
         confirmText="Confirm Target"
         confirmDisabled={!isEffectSelectionValid}
@@ -288,8 +305,8 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
           />
         }
         onClose={onClose}
-        onConfirm={() => {
-          return effectSelectionRef.current?.handleConfirm() || false;
+        onConfirm={async () => {
+          return await effectSelectionRef.current?.handleConfirm() || false;
         }}
         confirmText="Confirm Selection"
         confirmDisabled={!isEffectSelectionValid}
@@ -406,8 +423,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterWeapons
 }) => {
   const router = useRouter();
-  const TRADING_POST_FIGHTER_TYPE_ID = "03d16c02-4fe2-4fb2-982f-ce0298d91ce5";
-  
   const { toast } = useToast();
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [categoryLoadingStates, setCategoryLoadingStates] = useState<Record<string, boolean>>({});
@@ -440,7 +455,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [maxAvailability, setMaxAvailability] = useState(12);
 
   // Target selection modal state for equipment-to-equipment upgrades
-  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [targetSelectionOpen, setTargetSelectionOpen] = useState(false);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const [targetSelectionCtx, setTargetSelectionCtx] = useState<{ modifier_equipment_id: string; effect_type_id: string } | null>(null);
@@ -755,8 +770,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
     try {
       // Determine if this is a gang stash purchase
       const isGangStashPurchase = isStashMode || (!fighterId && !vehicleId);
-      
-      const params: any = {
+
+      const params: BuyEquipmentParams = {
         ...(item.is_custom
           ? { custom_equipment_id: item.equipment_id }
           : { equipment_id: item.equipment_id }
@@ -1341,8 +1356,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
             setTargetSelectionOpen(false);
             setTargetSelectionCtx(null);
           }}
-          onConfirm={() => {
-            return effectSelectionRef.current?.handleConfirm() || false;
+          onConfirm={async () => {
+            return await effectSelectionRef.current?.handleConfirm() || false;
           }}
           confirmText="Apply"
           confirmDisabled={!isTargetSelectionValid}

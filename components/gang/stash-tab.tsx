@@ -74,7 +74,7 @@ export default function GangInventory({
   const [effectModalOpen, setEffectModalOpen] = useState(false);
   const [effectModalTypes, setEffectModalTypes] = useState<any[]>([]);
   const [effectModalStashIdx, setEffectModalStashIdx] = useState<number | null>(null);
-  const effectSelectionRef = useRef<{ handleConfirm: () => boolean; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const effectResolveRef = useRef<((ids: string[] | null) => void) | null>(null);
   
@@ -836,8 +836,8 @@ export default function GangInventory({
             setEffectModalTypes([]);
             setEffectModalStashIdx(null);
           }}
-          onConfirm={() => {
-            return effectSelectionRef.current?.handleConfirm() || false;
+          onConfirm={async () => {
+            return await effectSelectionRef.current?.handleConfirm() || false;
           }}
           confirmText="Confirm Selection"
           confirmDisabled={!isEffectSelectionValid}

@@ -45,7 +45,7 @@ interface FighterEffectSelectionProps {
 }
 
 const FighterEffectSelection = React.forwardRef<
-  { handleConfirm: () => boolean; isValid: () => boolean },
+  { handleConfirm: () => Promise<boolean>; isValid: () => boolean },
   FighterEffectSelectionProps
 >(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
@@ -237,16 +237,21 @@ const FighterEffectSelection = React.forwardRef<
     return true;
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (targetSelectionOnly) {
       if (!selectedTargetId || !onApplyToTarget) return false;
-      // Fire and forget; parent handles cache invalidation/refresh
-      onApplyToTarget(selectedTargetId)
-        .then(() => {
-          onSelectionComplete([]);
-        })
-        .catch(() => {});
-      return true;
+
+      try {
+        // Wait for the async operation to complete
+        await onApplyToTarget(selectedTargetId);
+        onSelectionComplete([]);
+        return true;
+      } catch (error) {
+        // Log error for debugging
+        console.error('Error applying effect to target:', error);
+        // Return false to keep modal open and allow retry
+        return false;
+      }
     }
     onSelectionComplete(selectedEffects);
     return true;
