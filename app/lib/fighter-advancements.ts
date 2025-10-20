@@ -5,7 +5,7 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
 async function _getGangFighters(gangId: string, supabase: any) {
   const { data, error } = await supabase
     .from('fighters')
-    .select('id, fighter_name, fighter_type, xp')
+    .select('id, fighter_name, fighter_type, xp, killed, retired, enslaved, starved, recovery, captured')
     .eq('gang_id', gangId);
   if (error) throw error;
   return data;
