@@ -20,6 +20,7 @@ import {
   type CreatedBeast 
 } from '@/app/lib/exotic-beasts';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { insertEffectWithModifiers } from './equipment';
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -273,76 +274,35 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       try {
         const { target_equipment_id, effect_type_id } = params.equipment_target;
 
-        // Fetch effect type with modifiers
-        const { data: effectType, error: effectTypeError } = await supabase
-          .from('fighter_effect_types')
-          .select(`
-            id,
-            effect_name,
-            type_specific_data,
-            fighter_effect_type_modifiers (
-              id,
-              stat_name,
-              default_numeric_value,
-              operation
-            )
-          `)
-          .eq('id', effect_type_id)
-          .single();
+        // Use shared helper to insert effect (same logic as equipment purchase)
+        const result = await insertEffectWithModifiers(
+          supabase,
+          {
+            fighter_id: params.fighter_id,
+            vehicle_id: null,
+            fighter_equipment_id: equipmentData.id,
+            target_equipment_id: target_equipment_id,
+            effect_type_id: effect_type_id,
+            user_id: user.id
+          },
+          { checkDuplicate: true, includeOperation: true }
+        );
 
-        if (!effectTypeError && effectType) {
-          // Check if this effect already exists (prevent duplicates)
-          const { data: existingEffect } = await supabase
-            .from('fighter_effects')
-            .select('id')
-            .eq('fighter_equipment_id', equipmentData.id)
-            .eq('fighter_effect_type_id', effect_type_id)
-            .eq('target_equipment_id', target_equipment_id)
-            .maybeSingle();
+        if (result.success && result.effect_data) {
+          // Add to appliedEffects so cache invalidation triggers
+          const modifiers = result.effect_data.fighter_effect_type_modifiers || [];
+          const modifiersWithOperation = modifiers.map((m: any) => ({
+            stat_name: m.stat_name,
+            numeric_value: m.default_numeric_value,
+            operation: m.operation || 'add'
+          }));
 
-          if (!existingEffect) {
-            // Insert the equipment upgrade effect
-            const { data: newEffect, error: insertError } = await supabase
-              .from('fighter_effects')
-              .insert({
-                fighter_id: params.fighter_id,
-                vehicle_id: null,
-                fighter_equipment_id: equipmentData.id,
-                target_equipment_id: target_equipment_id,
-                fighter_effect_type_id: effect_type_id,
-                effect_name: effectType.effect_name,
-                type_specific_data: effectType.type_specific_data,
-                user_id: user.id
-              })
-              .select('id')
-              .single();
-
-            if (!insertError && newEffect) {
-              // Insert modifiers
-              const modifiers = effectType.fighter_effect_type_modifiers || [];
-              const modifiersToInsert = modifiers.map((mod: any) => ({
-                fighter_effect_id: newEffect.id,
-                stat_name: mod.stat_name,
-                numeric_value: mod.default_numeric_value,
-                operation: mod.operation
-              }));
-
-              if (modifiersToInsert.length > 0) {
-                await supabase
-                  .from('fighter_effect_modifiers')
-                  .insert(modifiersToInsert);
-              }
-
-              // Add to appliedEffects so cache invalidation triggers (same as fighter effects)
-              // Mark as equipment effect so client can filter it from fighter effects display
-              appliedEffects.push({
-                id: newEffect.id,
-                effect_name: effectType.effect_name,
-                fighter_effect_modifiers: modifiersToInsert,
-                target_equipment_id: target_equipment_id  // Flag to identify equipment effects
-              });
-            }
-          }
+          appliedEffects.push({
+            id: result.effect_id!,
+            effect_name: result.effect_data.effect_name,
+            fighter_effect_modifiers: modifiersWithOperation,
+            target_equipment_id: target_equipment_id  // Flag to identify equipment effects
+          });
         }
       } catch (error) {
         console.error('Failed to apply equipment upgrade effect:', error);

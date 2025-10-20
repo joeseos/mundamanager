@@ -57,8 +57,9 @@ interface StashActionResult {
 /**
  * Helper function to insert a fighter effect with its modifiers
  * Consolidates effect insertion logic used across multiple code paths
+ * EXPORTED for use in move-from-stash.ts to avoid duplication
  */
-async function insertEffectWithModifiers(
+export async function insertEffectWithModifiers(
   supabase: any,
   params: {
     fighter_id: string | null;
