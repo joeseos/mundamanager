@@ -73,6 +73,7 @@ interface FighterEffectType {
   fighter_effect_category_id: string | null;
   type_specific_data: {
     equipment_id: string;
+    applies_to?: 'equipment';
     effect_selection?: "fixed" | "single_select" | "multiple_select";
     max_selections?: number;
     selection_group?: string;
@@ -113,6 +114,7 @@ export function AdminFighterEffects({
   const [newEffect, setNewEffect] = useState({
     effect_name: '',
     fighter_effect_category_id: '',
+    applies_to: '' as '' | 'equipment',
     effect_selection: 'fixed' as 'fixed' | 'single_select' | 'multiple_select',
     max_selections: 1,
     selection_group: '',
@@ -183,6 +185,7 @@ export function AdminFighterEffects({
 
       const typeSpecificData = {
         equipment_id: equipmentId,
+        ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
         effect_selection: newEffect.effect_selection,
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
@@ -203,6 +206,7 @@ export function AdminFighterEffects({
       setNewEffect({
         effect_name: '',
         fighter_effect_category_id: '',
+        applies_to: '',
         effect_selection: 'fixed',
         max_selections: 1,
         selection_group: '',
@@ -410,6 +414,12 @@ export function AdminFighterEffects({
                         </Badge>
                       )}
 
+                      {effect.type_specific_data?.applies_to === 'equipment' && (
+                        <Badge variant="outline" className="border-blue-500 text-blue-600">
+                          Equipment Modifier
+                        </Badge>
+                      )}
+
                       {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
                         <Badge variant="default" className="bg-green-600">
                           Adds: {effect.type_specific_data.traits_to_add.join(', ')}
@@ -510,6 +520,7 @@ export function AdminFighterEffects({
             setNewEffect({
               effect_name: '',
               fighter_effect_category_id: '',
+              applies_to: '',
               effect_selection: 'fixed',
               max_selections: 1,
               selection_group: '',
@@ -548,6 +559,26 @@ export function AdminFighterEffects({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newEffect.applies_to === 'equipment'}
+                  onChange={(e) => setNewEffect(prev => ({
+                    ...prev,
+                    applies_to: e.target.checked ? 'equipment' : ''
+                  }))}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm font-medium">
+                  Applies to Equipment
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Check this if this effect modifies weapon profiles of another piece of equipment (e.g., Hot-shot Las Pack removes "Plentiful" trait from lasguns)
+              </p>
             </div>
 
             <div>
@@ -595,35 +626,39 @@ export function AdminFighterEffects({
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-muted-foreground">
-                Traits to Add (optional)
-              </label>
-              <Input
-                type="text"
-                value={newEffect.traits_to_add}
-                onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_add: e.target.value }))}
-                placeholder="e.g., Rapid Fire (1), Scarce"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter trait names separated by commas
-              </p>
-            </div>
+            {newEffect.applies_to === 'equipment' && (
+              <>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Traits to Add (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={newEffect.traits_to_add}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_add: e.target.value }))}
+                    placeholder="e.g., Rapid Fire (1), Scarce"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter trait names separated by commas
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-muted-foreground">
-                Traits to Remove (optional)
-              </label>
-              <Input
-                type="text"
-                value={newEffect.traits_to_remove}
-                onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_remove: e.target.value }))}
-                placeholder="e.g., Plentiful, Unwieldy"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter trait names separated by commas
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Traits to Remove (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={newEffect.traits_to_remove}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_remove: e.target.value }))}
+                    placeholder="e.g., Plentiful, Unwieldy"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter trait names separated by commas
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
