@@ -26,6 +26,7 @@ interface MoveFromStashParams {
   fighter_id?: string;
   vehicle_id?: string;
   selected_effect_ids?: string[];
+  equipment_target?: { target_equipment_id: string; effect_type_id: string };
 }
 
 interface MoveFromStashResult {
@@ -264,6 +265,88 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         }
       } catch (error) {
         // Silently continue if effects fetching fails
+      }
+    }
+
+    // Handle equipment-to-equipment upgrades (weapon accessories)
+    if (params.equipment_target && params.fighter_id) {
+      try {
+        const { target_equipment_id, effect_type_id } = params.equipment_target;
+
+        // Fetch effect type with modifiers
+        const { data: effectType, error: effectTypeError } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            fighter_effect_type_modifiers (
+              id,
+              stat_name,
+              default_numeric_value,
+              operation
+            )
+          `)
+          .eq('id', effect_type_id)
+          .single();
+
+        if (!effectTypeError && effectType) {
+          // Check if this effect already exists (prevent duplicates)
+          const { data: existingEffect } = await supabase
+            .from('fighter_effects')
+            .select('id')
+            .eq('fighter_equipment_id', equipmentData.id)
+            .eq('fighter_effect_type_id', effect_type_id)
+            .eq('target_equipment_id', target_equipment_id)
+            .maybeSingle();
+
+          if (!existingEffect) {
+            // Insert the equipment upgrade effect
+            const { data: newEffect, error: insertError } = await supabase
+              .from('fighter_effects')
+              .insert({
+                fighter_id: params.fighter_id,
+                vehicle_id: null,
+                fighter_equipment_id: equipmentData.id,
+                target_equipment_id: target_equipment_id,
+                fighter_effect_type_id: effect_type_id,
+                effect_name: effectType.effect_name,
+                type_specific_data: effectType.type_specific_data,
+                user_id: user.id
+              })
+              .select('id')
+              .single();
+
+            if (!insertError && newEffect) {
+              // Insert modifiers
+              const modifiers = effectType.fighter_effect_type_modifiers || [];
+              const modifiersToInsert = modifiers.map((mod: any) => ({
+                fighter_effect_id: newEffect.id,
+                stat_name: mod.stat_name,
+                numeric_value: mod.default_numeric_value,
+                operation: mod.operation
+              }));
+
+              if (modifiersToInsert.length > 0) {
+                await supabase
+                  .from('fighter_effect_modifiers')
+                  .insert(modifiersToInsert);
+              }
+
+              // Add to appliedEffects so cache invalidation triggers (same as fighter effects)
+              // Mark as equipment effect so client can filter it from fighter effects display
+              appliedEffects.push({
+                id: newEffect.id,
+                effect_name: effectType.effect_name,
+                fighter_effect_modifiers: modifiersToInsert,
+                target_equipment_id: target_equipment_id  // Flag to identify equipment effects
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to apply equipment upgrade effect:', error);
+        // Continue anyway - don't block the move
       }
     }
 

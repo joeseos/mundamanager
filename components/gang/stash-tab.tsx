@@ -24,6 +24,7 @@ import { LuTrash2 } from 'react-icons/lu';
 import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -77,6 +78,14 @@ export default function GangInventory({
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const effectResolveRef = useRef<((ids: string[] | null) => void) | null>(null);
+
+  // Target weapon selection modal state (for equipment upgrades)
+  const [targetModalOpen, setTargetModalOpen] = useState(false);
+  const [targetModalEffectTypeId, setTargetModalEffectTypeId] = useState<string | null>(null);
+  const [targetModalStashIdx, setTargetModalStashIdx] = useState<number | null>(null);
+  const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
+  const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
   
   const isVehicleExclusive = (item: StashItem) => 
     vehicleExclusiveCategories.includes(item.equipment_category || '');
@@ -131,6 +140,17 @@ export default function GangInventory({
     });
   };
 
+  // Prompt user to select target weapon; returns target equipment ID or null on cancel
+  const promptTargetSelection = (effectTypeId: string, stashIdx: number) => {
+    setTargetModalEffectTypeId(effectTypeId);
+    setTargetModalStashIdx(stashIdx);
+    setIsTargetSelectionValid(false);
+    setTargetModalOpen(true);
+    return new Promise<string | null>((resolve) => {
+      targetResolveRef.current = resolve;
+    });
+  };
+
   const handleItemToggle = (index: number, checked: boolean) => {
     if (checked) {
       setSelectedItems(prev => [...prev, index]);
@@ -149,33 +169,66 @@ export default function GangInventory({
       
       let successCount = 0;
       let errorCount = 0;
+      let cancelledCount = 0;
 
       // Track fighter updates for optimistic updates
       let updatedFighter: FighterProps | null = null;
       let updatedVehicles: VehicleProps[] = vehicles;
 
+      // Track which items were successfully moved (by index)
+      const successfullyMovedIndices: number[] = [];
+
       // Move items one by one
       for (const itemIndex of selectedItems) {
         const stashItem = stash[itemIndex];
         
-        // Determine if this item has selectable effects (non-fixed) and prompt user if so
+        // Check for all effect types (both equipment upgrades and fighter effects)
         let selectedEffectIds: string[] | undefined = undefined;
+        let equipmentTarget: { target_equipment_id: string; effect_type_id: string } | undefined = undefined;
+
         if (stashItem.type === 'equipment' && stashItem.equipment_id && !stashItem.custom_equipment_id) {
           try {
             const resp = await fetch(`/api/fighter-effects?equipmentId=${stashItem.equipment_id}`);
             if (resp.ok) {
               const effectTypes = await resp.json();
-              const hasSelectable = effectTypes?.some((e: any) =>
+
+              // Separate equipment upgrades from fighter effects
+              const equipmentUpgrade = effectTypes?.find((e: any) =>
+                e?.type_specific_data?.applies_to === 'equipment'
+              );
+
+              const fighterEffects = effectTypes?.filter((e: any) =>
+                e?.type_specific_data?.applies_to !== 'equipment'
+              );
+
+              // Priority 1: Handle equipment upgrade (applies_to=equipment)
+              if (equipmentUpgrade && !isVehicleTarget) {
+                const targetId = await promptTargetSelection(equipmentUpgrade.id, itemIndex);
+                if (targetId) {
+                  equipmentTarget = {
+                    target_equipment_id: targetId,
+                    effect_type_id: equipmentUpgrade.id
+                  };
+                } else {
+                  // User cancelled; skip this item
+                  cancelledCount++;
+                  continue;
+                }
+              }
+
+              // Priority 2: Handle selectable fighter effects
+              const hasSelectableFighterEffects = fighterEffects?.some((e: any) =>
                 e?.type_specific_data?.effect_selection === 'single_select' ||
                 e?.type_specific_data?.effect_selection === 'multiple_select'
               );
-              if (hasSelectable) {
-                const chosen = await promptEffectSelection(stashItem.equipment_id, effectTypes, itemIndex);
+
+              if (hasSelectableFighterEffects) {
+                const chosen = await promptEffectSelection(stashItem.equipment_id, fighterEffects, itemIndex);
                 if (chosen && chosen.length > 0) {
                   selectedEffectIds = chosen;
                 } else {
                   // User cancelled; skip this item
-                  errorCount++;
+                  cancelledCount++;
                   continue;
                 }
               }
@@ -188,11 +241,12 @@ export default function GangInventory({
         // Use server action instead of direct API call
         const result = await moveEquipmentFromStash({
           stash_id: stashItem.id,
-          ...(isVehicleTarget 
+          ...(isVehicleTarget
             ? { vehicle_id: targetId }
             : { fighter_id: targetId }
           ),
-          ...(selectedEffectIds ? { selected_effect_ids: selectedEffectIds } : {})
+          ...(selectedEffectIds ? { selected_effect_ids: selectedEffectIds } : {}),
+          ...(equipmentTarget ? { equipment_target: equipmentTarget } : {})
         });
 
         if (!result.success) {
@@ -202,7 +256,8 @@ export default function GangInventory({
         }
 
         successCount++;
-        
+        successfullyMovedIndices.push(itemIndex);
+
         // Get the response data
         const responseData = result.data;
         
@@ -302,13 +357,37 @@ export default function GangInventory({
               (profile: any) => profile.is_master_crafted
             );
             
+            // Apply equipment→equipment effect modifiers to existing weapons
+            let modifiedWeapons: typeof currentFighter.weapons = currentFighter.weapons || [];
+            if (responseData?.applied_effects && responseData.applied_effects.length > 0) {
+              const equipmentEffects = responseData.applied_effects.filter((e: any) => e.target_equipment_id);
+
+              if (equipmentEffects.length > 0) {
+                modifiedWeapons = modifiedWeapons.map((weapon: any) => {
+                  // Find effects targeting this weapon
+                  const targetingEffects = equipmentEffects.filter(
+                    (e: any) => e.target_equipment_id === weapon.fighter_weapon_id
+                  );
+
+                  if (targetingEffects.length > 0 && weapon.weapon_profiles) {
+                    // Apply modifiers to weapon profiles
+                    return {
+                      ...weapon,
+                      weapon_profiles: applyWeaponModifiers(weapon.weapon_profiles, targetingEffects)
+                    };
+                  }
+                  return weapon;
+                });
+              }
+            }
+
             // Update the fighter with the new equipment
             updatedFighter = {
               ...currentFighter,
               credits: currentFighter.credits + (stashItem.cost || 0),
-              weapons: stashItem.equipment_type === 'weapon' 
+              weapons: stashItem.equipment_type === 'weapon'
                 ? [
-                    ...(currentFighter.weapons || []),
+                    ...modifiedWeapons,
                     {
                       weapon_name: stashItem.equipment_name || '',
                       weapon_id: stashItem.equipment_id || stashItem.id,
@@ -318,7 +397,7 @@ export default function GangInventory({
                       is_master_crafted: hasMasterCrafted
                     }
                   ]
-                : currentFighter.weapons || [],
+                : modifiedWeapons,
               wargear: stashItem.equipment_type === 'wargear'
                 ? [
                     ...(currentFighter.wargear || []),
@@ -397,20 +476,24 @@ export default function GangInventory({
         onVehicleUpdate(updatedVehicles);
       }
 
-      // Update local stash state by removing all moved items
-      const newStash = stash.filter((_, index) => !selectedItems.includes(index));
+      // Update local stash state by removing only successfully moved items
+      const newStash = stash.filter((_, index) => !successfullyMovedIndices.includes(index));
       setStash(newStash);
-      
-      // Reset selection states
-      setSelectedItems([]);
-      setSelectedFighter('');
-      
+
+      // Reset selection states - clear only successfully moved items from selection
+      setSelectedItems(prev => prev.filter(index => !successfullyMovedIndices.includes(index)));
+
+      // Only clear fighter selection if all items were processed (moved or cancelled)
+      if (errorCount === 0 && cancelledCount === 0) {
+        setSelectedFighter('');
+      }
+
       // Update parent component state
       if (onStashUpdate) {
         onStashUpdate(newStash);
       }
 
-      // Show appropriate toast message
+      // Show appropriate toast message (only for successes and actual errors, not cancellations)
       if (successCount > 0 && errorCount === 0) {
         toast({
           title: "Success",
@@ -422,13 +505,15 @@ export default function GangInventory({
           description: `${successCount} item${successCount > 1 ? 's' : ''} moved, ${errorCount} failed`,
           variant: "destructive",
         });
-      } else {
+      } else if (errorCount > 0) {
+        // Only show error if there were actual errors (not just cancellations)
         toast({
           title: "Error",
           description: `Failed to move ${errorCount} item${errorCount > 1 ? 's' : ''}`,
           variant: "destructive",
         });
       }
+      // Note: No toast shown if user only cancelled (successCount === 0 && errorCount === 0)
 
       // Beast visibility is now handled entirely through the affected_beast_ids mechanism above
       // No need to create or manage beast fighters locally - the cache invalidation will
@@ -806,7 +891,54 @@ export default function GangInventory({
         />
       )}
 
-      {/* Sell from stash modal */}
+      {/* Target weapon selection modal (for equipment upgrades) */}
+      {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (
+        <Modal
+          title="Select Target Weapon"
+          content={
+            <FighterEffectSelection
+              equipmentId=""
+              effectTypes={[]}
+              targetSelectionOnly
+              fighterId={selectedFighter?.startsWith('vehicle-') ? undefined : selectedFighter}
+              modifierEquipmentId=""
+              effectTypeId={targetModalEffectTypeId}
+              onApplyToTarget={async (targetEquipmentId) => {
+                // Resolve promise with target ID
+                targetResolveRef.current?.(targetEquipmentId);
+                setTargetModalOpen(false);
+                setTargetModalEffectTypeId(null);
+                setTargetModalStashIdx(null);
+              }}
+              onSelectionComplete={() => {
+                // No-op; handled by onApplyToTarget
+              }}
+              onCancel={() => {
+                targetResolveRef.current?.(null);
+                setTargetModalOpen(false);
+                setTargetModalEffectTypeId(null);
+                setTargetModalStashIdx(null);
+              }}
+              onValidityChange={setIsTargetSelectionValid}
+              ref={targetSelectionRef}
+            />
+          }
+          onClose={() => {
+            targetResolveRef.current?.(null);
+            setTargetModalOpen(false);
+            setTargetModalEffectTypeId(null);
+            setTargetModalStashIdx(null);
+          }}
+          onConfirm={async () => {
+            return await targetSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Confirm Target"
+          confirmDisabled={!isTargetSelectionValid}
+          width="lg"
+        />
+      )}
+
+      {/* Fighter effect selection modal */}
       {effectModalOpen && effectModalStashIdx !== null && (
         <Modal
           title="Equipment Effects"

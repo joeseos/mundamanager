@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -355,69 +356,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             const targetingEffects = targetingEffectsMap.get(fighterEquipmentId) || [];
 
             if (targetingEffects.length > 0) {
-              weaponProfiles = weaponProfiles.map((profile: any) => {
-                // Work on a copy
-                const modified = { ...profile };
-
-                // Apply numeric fields with add/set
-                const numericFields = ['strength', 'ap', 'damage', 'ammo'];
-                const sumAdds: Record<string, number> = {};
-                const setLatest: Record<string, number> = {};
-
-                targetingEffects.forEach((eff: any) => {
-                  (eff.fighter_effect_modifiers || []).forEach((m: any) => {
-                    const key = m.stat_name;
-                    const op = (m.operation || 'add') as 'add' | 'set';
-                    const val = Number(m.numeric_value);
-                    if (!Number.isFinite(val)) return;
-                    if (numericFields.includes(key)) {
-                      if (op === 'add') {
-                        sumAdds[key] = (sumAdds[key] || 0) + val;
-                      } else {
-                        setLatest[key] = val;
-                      }
-                    }
-                  });
-                });
-
-                numericFields.forEach((key) => {
-                  const baseStr = (modified as any)[key];
-                  const baseNum = typeof baseStr === 'string' ? parseInt(baseStr.replace('+', ''), 10) : NaN;
-                  const hasBaseNum = Number.isFinite(baseNum);
-                  const addVal = sumAdds[key] || 0;
-                  const setVal = setLatest[key];
-
-                  if (setVal !== undefined) {
-                    // set overrides final value
-                    (modified as any)[key] = key === 'ammo' ? `${setVal}+` : `${setVal}`;
-                  } else if (addVal !== 0 && hasBaseNum) {
-                    const newVal = baseNum + addVal;
-                    (modified as any)[key] = key === 'ammo' ? `${newVal}+` : `${newVal}`;
-                  }
-                });
-
-                // Traits add/remove via type_specific_data
-                let traitsArr: string[] = (modified.traits || '')
-                  .split(',')
-                  .map((t: string) => t.trim())
-                  .filter(Boolean);
-                targetingEffects.forEach((eff: any) => {
-                  const tsd = eff.type_specific_data || {};
-                  const toRemove: string[] = tsd.traits_to_remove || [];
-                  const toAdd: string[] = tsd.traits_to_add || [];
-                  if (toRemove.length > 0) {
-                    traitsArr = traitsArr.filter(t => !toRemove.includes(t));
-                  }
-                  if (toAdd.length > 0) {
-                    for (const t of toAdd) {
-                      if (!traitsArr.includes(t)) traitsArr.push(t);
-                    }
-                  }
-                });
-                modified.traits = traitsArr.join(', ');
-
-                return modified;
-              });
+              // Use shared utility function to apply weapon modifiers
+              weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
           }
 

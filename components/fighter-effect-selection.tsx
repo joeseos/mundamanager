@@ -51,6 +51,7 @@ const FighterEffectSelection = React.forwardRef<
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
   const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string }[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const weaponsFetchedRef = React.useRef(false);
 
   // Load initial state based on mode
   useEffect(() => {
@@ -61,12 +62,16 @@ const FighterEffectSelection = React.forwardRef<
           ? fighterWeapons.filter(w => w.id !== modifierEquipmentId)
           : fighterWeapons;
         setTargetableWeapons(filtered);
+        weaponsFetchedRef.current = true;
         return;
       }
 
-      // Fallback: fetch if not provided
+      // Fallback: fetch if not provided (only once)
+      if (!fighterId || weaponsFetchedRef.current) return;
+
+      weaponsFetchedRef.current = true;
       const supabase = createClient();
-      if (!fighterId) return;
+
       (async () => {
         const { data } = await supabase
           .from('fighter_equipment')
@@ -89,8 +94,8 @@ const FighterEffectSelection = React.forwardRef<
     } else {
       // Auto-select fixed effects when component mounts
       const fixedEffects = effectTypes
-        .filter(effect => 
-          effect.type_specific_data?.effect_selection === 'fixed' || 
+        .filter(effect =>
+          effect.type_specific_data?.effect_selection === 'fixed' ||
           !effect.type_specific_data?.effect_selection
         )
         .map(effect => effect.id);

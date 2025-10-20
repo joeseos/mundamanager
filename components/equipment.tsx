@@ -151,37 +151,11 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
       return true;
     }
 
-    // Pre-check: if upgrade (applies_to=equipment), select target BEFORE purchase
+    // Pre-check: fetch all effects for this equipment (both equipment upgrades and fighter effects)
     if (!item.is_custom && !showTargetSelection && !showEffectSelection) {
-      const supabase = createClient();
-      const precheckUpgrade = async () => {
+      const checkAllEffects = async () => {
         try {
-          const { data: rows } = await supabase
-            .from('fighter_effect_types')
-            .select('id, type_specific_data')
-            .eq('type_specific_data->>equipment_id', item.equipment_id)
-            .eq('type_specific_data->>applies_to', 'equipment')
-            .limit(1);
-          const hit = rows && rows[0];
-          if (hit) {
-            // This IS an equipment upgrade - show target selection
-            setUpgradeEffectTypeId(hit.id);
-            setShowTargetSelection(true);
-            return;
-          }
-          // Not an equipment upgrade - continue to check for regular effects
-          checkSelectableEffects();
-        } catch (err) {
-          console.error('Error checking equipment upgrade:', err);
-          // On error, try to check for regular effects anyway
-          checkSelectableEffects();
-        }
-      };
-
-      // Check if there are any selectable effects (non-fixed) for this equipment
-      const checkSelectableEffects = async () => {
-        try {
-          // Fetch full effect data including modifiers
+          // Fetch all effect types for this equipment (single API call)
           const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
 
           if (!response.ok) {
@@ -189,19 +163,36 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
           }
 
           const fetchedEffectTypes = await response.json();
-          setEffectTypes(fetchedEffectTypes);
 
-          const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) =>
+          // Separate equipment upgrades from fighter effects
+          const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
+            effect.type_specific_data?.applies_to === 'equipment'
+          );
+
+          const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
+            effect.type_specific_data?.applies_to !== 'equipment'
+          );
+
+          // Priority 1: Check for equipment upgrade (applies_to=equipment)
+          if (equipmentUpgrade) {
+            setUpgradeEffectTypeId(equipmentUpgrade.id);
+            setShowTargetSelection(true);
+            return;
+          }
+
+          // Priority 2: Check for selectable fighter effects
+          const hasSelectableEffects = fighterEffects?.some((effect: any) =>
             effect.type_specific_data?.effect_selection === 'single_select' ||
             effect.type_specific_data?.effect_selection === 'multiple_select'
           );
 
           if (hasSelectableEffects) {
+            setEffectTypes(fighterEffects);
             setShowEffectSelection(true);
             setIsEffectSelectionValid(false);
           } else {
             // All effects are fixed, collect them and proceed directly with purchase
-            const fixedEffects = fetchedEffectTypes
+            const fixedEffects = fighterEffects
               ?.filter((effect: any) =>
                 effect.type_specific_data?.effect_selection === 'fixed' ||
                 !effect.type_specific_data?.effect_selection
@@ -211,13 +202,13 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
             onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
           }
         } catch (error) {
-          console.error('Error checking selectable effects:', error);
+          console.error('Error checking effects:', error);
           // On error, proceed with purchase to avoid blocking the user
           onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
         }
       };
 
-      precheckUpgrade();
+      checkAllEffects();
       return false;
     }
 
