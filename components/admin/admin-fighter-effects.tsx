@@ -4,16 +4,22 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { X, Info } from "lucide-react";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip } from 'react-tooltip';
 
 // Mapping of stat_name (database value) to display_name (UI label)
 const STAT_MAPPINGS = [
+  { stat_name: 'acc_long', display_name: 'Accuracy (Long)', short_name: 'Acc L', value_suffix: '+' },
+  { stat_name: 'acc_short', display_name: 'Accuracy (Short)', short_name: 'Acc S', value_suffix: '+' },
+  { stat_name: 'ammo', display_name: 'Ammo', short_name: 'Am', value_suffix: '' },
+  { stat_name: 'ap', display_name: 'Armour Piercing', short_name: 'AP', value_suffix: '' },
   { stat_name: 'attacks', display_name: 'Attacks', short_name: 'A', value_suffix: '' },
   { stat_name: 'ballistic_skill', display_name: 'Ballistic Skill', short_name: 'BS', value_suffix: '+' },
   { stat_name: 'body_slots', display_name: 'Body Slots', short_name: 'Body Slots', value_suffix: '' },
   { stat_name: 'cool', display_name: 'Cool', short_name: 'Cl', value_suffix: '+' },
+  { stat_name: 'damage', display_name: 'Damage', short_name: 'D', value_suffix: '' },
   { stat_name: 'drive_slots', display_name: 'Drive Slots', short_name: 'Drive Slots', value_suffix: '' },
   { stat_name: 'engine_slots', display_name: 'Engine Slots', short_name: 'Engine Slots', value_suffix: '' },
   { stat_name: 'front', display_name: 'Front', short_name: 'Fr', value_suffix: '' },
@@ -23,6 +29,8 @@ const STAT_MAPPINGS = [
   { stat_name: 'intelligence', display_name: 'Intelligence', short_name: 'Int', value_suffix: '+' },
   { stat_name: 'leadership', display_name: 'Leadership', short_name: 'Ld', value_suffix: '+' },
   { stat_name: 'movement', display_name: 'Movement', short_name: 'M', value_suffix: '"' },
+  { stat_name: 'range_long', display_name: 'Range (Long)', short_name: 'Rng L', value_suffix: '"' },
+  { stat_name: 'range_short', display_name: 'Range (Short)', short_name: 'Rng S', value_suffix: '"' },
   { stat_name: 'rear', display_name: 'Rear', short_name: 'Rr', value_suffix: '' },
   { stat_name: 'save', display_name: 'Save', short_name: 'Sv', value_suffix: '+' },
   { stat_name: 'side', display_name: 'Side', short_name: 'Sd', value_suffix: '' },
@@ -56,6 +64,7 @@ interface FighterEffectTypeModifier {
   fighter_effect_type_id?: string;
   stat_name: string;
   default_numeric_value: number | null;
+  operation?: 'add' | 'set';
 }
 
 interface FighterEffectType {
@@ -67,6 +76,8 @@ interface FighterEffectType {
     effect_selection?: "fixed" | "single_select" | "multiple_select";
     max_selections?: number;
     selection_group?: string;
+    traits_to_add?: string[];
+    traits_to_remove?: string[];
   } | null;
   modifiers: FighterEffectTypeModifier[];
 }
@@ -104,12 +115,15 @@ export function AdminFighterEffects({
     fighter_effect_category_id: '',
     effect_selection: 'fixed' as 'fixed' | 'single_select' | 'multiple_select',
     max_selections: 1,
-    selection_group: ''
+    selection_group: '',
+    traits_to_add: '',
+    traits_to_remove: ''
   });
 
   // New modifier form state
   const [newModifierStatName, setNewModifierStatName] = useState('');
   const [newModifierValue, setNewModifierValue] = useState<string>('');
+  const [newModifierOperation, setNewModifierOperation] = useState<'add' | 'set'>('add');
   
   const { toast } = useToast();
 
@@ -158,11 +172,22 @@ export function AdminFighterEffects({
     try {
       // Create a new fighter effect locally
       const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      // Parse traits from comma-separated strings to arrays
+      const traitsToAdd = newEffect.traits_to_add
+        ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+      const traitsToRemove = newEffect.traits_to_remove
+        ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+
       const typeSpecificData = {
         equipment_id: equipmentId,
         effect_selection: newEffect.effect_selection,
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
-        ...(newEffect.selection_group && { selection_group: newEffect.selection_group })
+        ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
+        ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
+        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove })
       };
       const newEffectType: FighterEffectType = {
         id: tempId,
@@ -180,7 +205,9 @@ export function AdminFighterEffects({
         fighter_effect_category_id: '',
         effect_selection: 'fixed',
         max_selections: 1,
-        selection_group: ''
+        selection_group: '',
+        traits_to_add: '',
+        traits_to_remove: ''
       });
       
       if (onUpdate) {
@@ -253,7 +280,8 @@ export function AdminFighterEffects({
         id: tempId,
         fighter_effect_type_id: selectedEffectTypeId,
         stat_name: newModifierStatName,
-        default_numeric_value: numericValue
+        default_numeric_value: numericValue,
+        operation: newModifierOperation
       };
       
       // Find the effect type and add the new modifier to it
@@ -271,6 +299,7 @@ export function AdminFighterEffects({
       setShowAddModifierDialog(false);
       setNewModifierStatName('');
       setNewModifierValue('');
+      setNewModifierOperation('add');
       
       if (onUpdate) {
         onUpdate();
@@ -367,17 +396,29 @@ export function AdminFighterEffects({
               <div key={effect.id} className="border rounded-md p-4">
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <Badge variant={getSelectionTypeBadgeVariant(effect.type_specific_data?.effect_selection || 'fixed')}>
                         {getSelectionTypeLabel(effect.type_specific_data?.effect_selection || 'fixed')}
-                        {effect.type_specific_data?.effect_selection === 'multiple_select' && 
-                         effect.type_specific_data?.max_selections && 
+                        {effect.type_specific_data?.effect_selection === 'multiple_select' &&
+                         effect.type_specific_data?.max_selections &&
                          ` (max ${effect.type_specific_data.max_selections})`}
                       </Badge>
-                      
+
                       {effect.type_specific_data?.selection_group && (
                         <Badge variant="outline">
                           Group {effect.type_specific_data.selection_group}
+                        </Badge>
+                      )}
+
+                      {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
+                        <Badge variant="default" className="bg-green-600">
+                          Adds: {effect.type_specific_data.traits_to_add.join(', ')}
+                        </Badge>
+                      )}
+
+                      {effect.type_specific_data?.traits_to_remove && effect.type_specific_data.traits_to_remove.length > 0 && (
+                        <Badge variant="destructive">
+                          Removes: {effect.type_specific_data.traits_to_remove.join(', ')}
                         </Badge>
                       )}
                     </div>
@@ -414,32 +455,41 @@ export function AdminFighterEffects({
                   <div className="mt-2">
                     <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {effect.modifiers.map((modifier) => (
-                        <div key={modifier.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                          <div>
-                            <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
-                            <span>
-                              {modifier.default_numeric_value !== null 
-                                ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value
-                                : 'N/A'}
-                             </span>
-                             {modifier.default_numeric_value !== null && (
-                               <span className="text-sm text-muted-foreground ml-2">
-                                 (eg. {getShortName(modifier.stat_name)} 4{getValueSuffix(modifier.stat_name)} → {getShortName(modifier.stat_name)} {4 + modifier.default_numeric_value}{getValueSuffix(modifier.stat_name)})
+                      {effect.modifiers.map((modifier) => {
+                        const operation = modifier.operation || 'add';
+                        return (
+                          <div key={modifier.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                            <div>
+                              <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
+                              <span>
+                                {modifier.default_numeric_value !== null
+                                  ? (operation === 'add'
+                                      ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value
+                                      : `Set to ${modifier.default_numeric_value}`)
+                                  : 'N/A'}
                                </span>
-                             )}
+                               {modifier.default_numeric_value !== null && (
+                                 <span className="text-sm text-muted-foreground ml-2">
+                                   {operation === 'add' ? (
+                                     `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${4 + modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
+                                   ) : (
+                                     `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
+                                   )}
+                                 </span>
+                               )}
+                            </div>
+                            <Button
+                              onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={isLoading}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <Button
-                            onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            disabled={isLoading}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
@@ -462,7 +512,9 @@ export function AdminFighterEffects({
               fighter_effect_category_id: '',
               effect_selection: 'fixed',
               max_selections: 1,
-              selection_group: ''
+              selection_group: '',
+              traits_to_add: '',
+              traits_to_remove: ''
             });
           }}
           onConfirm={handleAddEffect}
@@ -542,6 +594,36 @@ export function AdminFighterEffects({
                 Effects with the same selection group are mutually exclusive within single_select mode
               </p>
             </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Traits to Add (optional)
+              </label>
+              <Input
+                type="text"
+                value={newEffect.traits_to_add}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_add: e.target.value }))}
+                placeholder="e.g., Rapid Fire (1), Scarce"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter trait names separated by commas
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Traits to Remove (optional)
+              </label>
+              <Input
+                type="text"
+                value={newEffect.traits_to_remove}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_remove: e.target.value }))}
+                placeholder="e.g., Plentiful, Unwieldy"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter trait names separated by commas
+              </p>
+            </div>
           </div>
         </Modal>
       )}
@@ -555,6 +637,7 @@ export function AdminFighterEffects({
             setShowAddModifierDialog(false);
             setNewModifierStatName('');
             setNewModifierValue('');
+            setNewModifierOperation('add');
           }}
           onConfirm={handleAddModifier}
           confirmText="Add Modifier"
@@ -578,6 +661,24 @@ export function AdminFighterEffects({
             </div>
 
             <div>
+              <label className="block text-sm font-medium mb-1 flex items-center gap-1">
+                Operation *
+                <Info
+                  className="h-4 w-4 text-muted-foreground cursor-help"
+                  data-tooltip-id="operation-tooltip"
+                />
+              </label>
+              <select
+                value={newModifierOperation}
+                onChange={(e) => setNewModifierOperation(e.target.value as 'add' | 'set')}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="add">Add</option>
+                <option value="set">Set</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-1">Value</label>
               <Input
                 type="number"
@@ -587,13 +688,34 @@ export function AdminFighterEffects({
               />
               {newModifierStatName && newModifierValue && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Example: {getShortName(newModifierStatName)} 4{getValueSuffix(newModifierStatName)} → {getShortName(newModifierStatName)} {4 + parseFloat(newModifierValue)}{getValueSuffix(newModifierStatName)}
+                  {newModifierOperation === 'add' ? (
+                    <>Example: {getShortName(newModifierStatName)} 4{getValueSuffix(newModifierStatName)} → {getShortName(newModifierStatName)} {4 + parseFloat(newModifierValue)}{getValueSuffix(newModifierStatName)}</>
+                  ) : (
+                    <>Example: {getShortName(newModifierStatName)} 4{getValueSuffix(newModifierStatName)} → {getShortName(newModifierStatName)} {parseFloat(newModifierValue)}{getValueSuffix(newModifierStatName)}</>
+                  )}
                 </p>
               )}
             </div>
           </div>
         </Modal>
       )}
+
+      <Tooltip
+        id="operation-tooltip"
+        place="top"
+        style={{ maxWidth: '300px', zIndex: 9999 }}
+      >
+        <div className="text-sm">
+          <div className="mb-2">
+            <strong>Add:</strong> Adds to the base value<br />
+            <span className="text-xs">(e.g., +1 to strength)</span>
+          </div>
+          <div>
+            <strong>Set:</strong> Overrides the base value completely<br />
+            <span className="text-xs">(e.g., set strength to 5)</span>
+          </div>
+        </div>
+      </Tooltip>
     </div>
   );
 } 
